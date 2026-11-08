@@ -147,7 +147,7 @@ export function UpdatesCard() {
           {shellStatus && desktopActions && <ServerUpdate status={shellStatus} info={info} actions={desktopActions} steps={null} />}
           <DesktopUpdate bridge={bridge} info={info} primary={!payloadHasPrimary(desktopActions ? shellStatus : undefined, info.updateAvailable)} unitActive={unitActive} />
           {showUnit && unitStatus && (
-            <DesktopUnitUpdate status={unitStatus} info={info} titled={false} primary={false} restartAsked={restartAsked} onRestartAsked={setRestartAsked} />
+            <DesktopUnitUpdate status={unitStatus} info={info} titled={false} primary={!payloadHasPrimary(desktopActions ? shellStatus : undefined, info.updateAvailable)} restartAsked={restartAsked} onRestartAsked={setRestartAsked} />
           )}
         </>
       )}
@@ -620,6 +620,7 @@ function DesktopUnitUpdate({
       status={status}
       titled={titled}
       primary={primary}
+      updateAvailable={info.updateAvailable}
       releaseUrl={info.url ?? null}
       pending={start.isPending || restart.isPending}
       failure={failure}
@@ -641,8 +642,10 @@ function DesktopUnitUpdate({
 export interface DesktopUnitViewProps {
   status: DesktopUnitStatus;
   titled: boolean;
-  /** Whether the update button is the card's one primary action; the Restart that finishes an update always is */
+  /** Whether this zone may carry the card's one primary action; the Claudio zone above takes it when it has an action of its own */
   primary: boolean;
+  /** A newer Claudio is out: only then is Update the step worth a primary, otherwise it is a plain button */
+  updateAvailable: boolean;
   releaseUrl: string | null;
   pending: boolean;
   /** What the refused start threw */
@@ -678,7 +681,9 @@ export function DesktopUnitView(props: DesktopUnitViewProps) {
   const installing = state === 'installing';
   const restartPending = status.restartNeeded && !installing;
   const reason = status.reason?.code ?? null;
-  const canUpdate = !restartPending && (state === 'idle' || state === 'up-to-date');
+  // `installed` without a restart to make is the end of a run, and the next update starts from it; "up to date"
+  // offers the button only when a newer Claudio is out, never beside its own green tag for nothing
+  const canUpdate = !restartPending && (state === 'idle' || state === 'installed' || (state === 'up-to-date' && props.updateAvailable));
   // A refused start says why under the button; a status that failed says it in the card's own alert
   const refused = props.failure !== null && props.failure !== undefined;
   const startRefusal = refused ? desktopUnitErrorCode(props.failure) : null;
@@ -700,11 +705,6 @@ export function DesktopUnitView(props: DesktopUnitViewProps) {
         {state !== 'unavailable' && (
           <span>
             {t('updates.unit.installed')} <span className="tnum">{status.installed}</span>
-          </span>
-        )}
-        {restartPending && (
-          <span>
-            {t('updates.version')} <span className="tnum">{status.running}</span>
           </span>
         )}
         {tag}
@@ -745,7 +745,7 @@ export function DesktopUnitView(props: DesktopUnitViewProps) {
 
       {canUpdate && (
         <div>
-          <button type="button" className={props.primary ? 'btn btn-primary' : 'btn'} disabled={pending} onClick={props.onUpdate}>
+          <button type="button" className={props.primary && props.updateAvailable ? 'btn btn-primary' : 'btn'} disabled={pending} onClick={props.onUpdate}>
             <Download {...ICON} /> {t('updates.unit.update')}
           </button>
         </div>
@@ -770,7 +770,7 @@ export function DesktopUnitView(props: DesktopUnitViewProps) {
           </p>
           {restartAsked === null && (
             <div>
-              <button type="button" className="btn btn-primary" disabled={pending} onClick={props.onAskRestart}>
+              <button type="button" className={props.primary ? 'btn btn-primary' : 'btn'} disabled={pending} onClick={props.onAskRestart}>
                 <RotateCw {...ICON} /> {t('updates.unit.restart')}
               </button>
             </div>

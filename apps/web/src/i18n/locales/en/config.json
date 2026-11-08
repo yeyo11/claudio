@@ -435,7 +435,7 @@
       "confirmTitle": "Restart Claudio?",
       "confirmBody": "Claudio restarts on the computer that runs it to start desktop app {{version}}. This page reconnects when it is back.",
       "busyTitle": "Work is in progress",
-      "busyBody": "{{live}}. Restarting now stops them.",
+      "busyBody": "{{live}}, and a restart now would stop them. Claudio can restart once nothing is running.",
       "unavailable": "This install has no update service, so it cannot update from here. Install the newest desktop app package once, from a terminal on the computer that runs it; after that it updates from any device.",
       "errors": {
         "needs-login": "You may update, but the permission applies from your next login. Log out of the computer that runs Claudio and back in once, then update from here.",

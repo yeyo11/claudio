@@ -32,6 +32,7 @@ const view = (over: Partial<DesktopUnitViewProps> = {}): DesktopUnitViewProps =>
   status: status(),
   titled: true,
   primary: false,
+  updateAvailable: false,
   releaseUrl: 'https://example.test/release',
   pending: false,
   failure: null,
@@ -56,18 +57,28 @@ const buttons = (html: string) => (html.match(/<button/g) ?? []).length;
 
 test.afterEach(() => i18n.changeLanguage('en'));
 
-test('idle offers the update, quietly unless the card has no other primary', async () => {
+test('idle offers the update, as the primary only when a newer Claudio is out and the zone may have it', async () => {
   const html = await render();
   assert.match(words(html), /Desktop app/);
   assert.match(words(html), /Update the desktop app/);
   assert.equal(primaries(html), 0);
-  assert.equal(primaries(await render({ primary: true })), 1);
+  // Nothing newer: even a free primary slot is not spent on it
+  assert.equal(primaries(await render({ primary: true })), 0);
+  assert.equal(primaries(await render({ updateAvailable: true })), 0);
+  assert.equal(primaries(await render({ primary: true, updateAvailable: true })), 1);
 });
 
-test('up to date says so with a tag and still lets the person check again', async () => {
-  const html = await render({ status: status({ state: 'up-to-date', from: '0.14.2', to: '0.14.2' }) });
+test('up to date says so with a tag and offers no button beside it unless a newer Claudio is out', async () => {
+  const done = status({ state: 'up-to-date', from: '0.14.2', to: '0.14.2' });
+  const html = await render({ status: done });
   assert.match(html, /badge-ok/);
   assert.match(words(html), /Up to date/);
+  assert.equal(buttons(html), 0);
+  assert.match(words(await render({ status: done, updateAvailable: true })), /Update the desktop app/);
+});
+
+test('installed with nothing to restart is not a dead end: the next update starts from it', async () => {
+  const html = await render({ status: status({ state: 'installed', from: '0.14.1', to: '0.14.2' }) });
   assert.match(words(html), /Update the desktop app/);
 });
 
@@ -113,7 +124,7 @@ test('unavailable says how to get the unit and links the release', async () => {
 });
 
 test('installed with a restart needed names both versions and offers Restart as the primary action', async () => {
-  const html = await render({ status: status({ state: 'installed', installed: '0.14.3', running: '0.14.2', restartNeeded: true }) });
+  const html = await render({ status: status({ state: 'installed', installed: '0.14.3', running: '0.14.2', restartNeeded: true }), primary: true });
   assert.match(words(html), /Desktop app 0\.14\.3 is installed, and Claudio still runs 0\.14\.2/);
   assert.match(words(html), /Restart pending/);
   assert.match(html, /badge-idle/);
@@ -123,8 +134,14 @@ test('installed with a restart needed names both versions and offers Restart as 
   assert.doesNotMatch(words(html), /Update the desktop app/);
 });
 
+test('Restart gives the card’s primary to the Claudio zone when that has an action of its own', async () => {
+  const html = await render({ status: status({ state: 'installed', installed: '0.14.3', running: '0.14.2', restartNeeded: true }), primary: false });
+  assert.equal(primaries(html), 0);
+  assert.match(words(html), /Restart/);
+});
+
 test('a package that apt upgraded while idle also asks for the restart', async () => {
-  const html = await render({ status: status({ state: 'idle', installed: '0.14.3', running: '0.14.2', restartNeeded: true }) });
+  const html = await render({ status: status({ state: 'idle', installed: '0.14.3', running: '0.14.2', restartNeeded: true }), primary: true });
   assert.equal(primaries(html), 1);
   assert.doesNotMatch(words(html), /Update the desktop app/);
 });
@@ -177,7 +194,7 @@ test('the confirmation asks first and restarts at once; with live work it only o
       <UnitDialogFooter live={{ working: 2, waiting: 0, running: 0, terminals: 0 }} pending={false} onCancel={noop} onRestart={noop} />
     </>,
   );
-  assert.match(words(busy), /2 chats are working\. Restarting now stops them/);
+  assert.match(words(busy), /2 chats are working, and a restart now would stop them\. Claudio can restart once nothing is running/);
   assert.match(words(busy), /Restart when nothing is running/);
   assert.equal(primaries(busy), 1);
 });

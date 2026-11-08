@@ -435,7 +435,7 @@
       "confirmTitle": "¿Reiniciar Claudio?",
       "confirmBody": "Claudio se reiniciará en el ordenador donde se ejecuta para usar la aplicación de escritorio {{version}}. Esta página se reconecta sola cuando vuelva.",
       "busyTitle": "Hay trabajo en marcha",
-      "busyBody": "{{live}}. Reiniciar ahora lo detiene.",
+      "busyBody": "{{live}}, y un reinicio ahora los detendría. Claudio puede reiniciarse cuando no haya nada en marcha.",
       "unavailable": "Esta instalación no tiene servicio de actualización, así que no puede actualizarse desde aquí. Instala una vez el paquete más reciente de la aplicación de escritorio, desde una terminal del ordenador donde se ejecuta; después se actualizará desde cualquier dispositivo.",
       "errors": {
         "needs-login": "Tienes permiso para actualizar, pero se aplica a partir de tu próximo inicio de sesión. Cierra la sesión del ordenador donde se ejecuta Claudio y vuelve a iniciarla una vez; después actualiza desde aquí.",
