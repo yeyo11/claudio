@@ -261,6 +261,7 @@ export { parseVariant } from './config/scope.ts';
 export { acquireDataDirLock, DataDirLockedError, DATA_DIR_LOCK_FILE } from './data-dir-lock.ts';
 export { dataDirFrom, headlessStartProblems, loadConfig, PROVIDER_HOME_ENV, type CoreConfig, type HeadlessStart, type LanSwitch } from './paths.ts';
 export { DEFAULT_LAN_PORT, LanListener, LanRefusedError, type LanNetwork, type LanRequestHandler, type LanUpgradeHandler } from './lan.ts';
+export { LAN_TLS_CAPABILITY, lanCertificateFingerprint } from './lan-tls.ts';
 export { runsIn, SUBSYSTEMS, type Subsystem } from './subsystems.ts';
 export { installProcessGuards } from './launcher/process-guards.ts';
 export { ChatRetention, type RetainedChat } from './chat-retention.ts';

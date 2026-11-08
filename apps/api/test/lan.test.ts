@@ -1,13 +1,16 @@
 import assert from 'node:assert/strict';
-import { mkdtempSync, rmSync } from 'node:fs';
-import { createServer, request, type Server } from 'node:http';
+import { X509Certificate } from 'node:crypto';
+import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { createServer, request as plainRequest, type Server } from 'node:http';
+import { request } from 'node:https';
 import { connect, type AddressInfo } from 'node:net';
-import { tmpdir } from 'node:os';
+import { hostname, tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { test, type TestContext } from 'node:test';
+import { connect as tlsConnect, type TLSSocket } from 'node:tls';
 import type { FastifyInstance } from 'fastify';
 import { WebSocket } from 'ws';
-import { Core, loadConfig } from '@claudio/core';
+import { Core, lanCertificateFingerprint, loadConfig } from '@claudio/core';
 import type { LanStatus, Project, Terminal, TerminalServerFrame, TerminalTicket } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { lanForwarders } from '../src/server.ts';
@@ -30,10 +33,13 @@ interface Wrapper {
   core: Core;
   /** Hands the app to the LAN listener, as `startServer` does */
   attach: () => void;
+  /** Where its data lives, the LAN certificate included */
+  dataDir: string;
 }
 
-async function wrapper(t: TestContext, env: NodeJS.ProcessEnv = {}): Promise<Wrapper> {
-  const root = mkdtempSync(join(tmpdir(), 'claudio-lan-'));
+/** `root` is a data home kept between two wrappers, as a restart keeps it; one of its own otherwise */
+async function wrapper(t: TestContext, env: NodeJS.ProcessEnv = {}, kept?: string): Promise<Wrapper> {
+  const root = kept ?? mkdtempSync(join(tmpdir(), 'claudio-lan-'));
   const core = new Core(
     loadConfig({
       CLAUDE_BIN: '/nonexistent/claude',
@@ -56,10 +62,17 @@ async function wrapper(t: TestContext, env: NodeJS.ProcessEnv = {}): Promise<Wra
   t.after(async () => {
     await core.shutdown();
     await app.close();
-    rmSync(root, { recursive: true, force: true });
+    if (kept === undefined) rmSync(root, { recursive: true, force: true });
   });
   const { request: onRequest, upgrade } = lanForwarders(app);
-  return { app, core, attach: () => core.lan.attach(onRequest, upgrade) };
+  return { app, core, attach: () => core.lan.attach(onRequest, upgrade), dataDir: join(root, 'data') };
+}
+
+/** A data home two wrappers share in turn, as one Claudio's restarts do; removed once the test ends */
+function keptHome(t: TestContext): string {
+  const root = mkdtempSync(join(tmpdir(), 'claudio-lan-'));
+  t.after(() => rmSync(root, { recursive: true, force: true }));
+  return root;
 }
 
 async function withToken(app: FastifyInstance): Promise<string> {
@@ -83,17 +96,44 @@ async function listening(w: Wrapper): Promise<number> {
   return lan(w).port;
 }
 
-/** A request on the LAN listener, from loopback, naming whatever `Host` the test gives it */
-function onLan(port: number, path: string, headers: Record<string, string>, method = 'GET', body?: string): Promise<{ status: number; body: string }> {
+interface LanAnswer {
+  status: number;
+  body: string;
+  /** The SHA-256 of the certificate the listener presented; '' over plain HTTP or when nothing answered */
+  fingerprint: string;
+  location?: string;
+}
+
+/**
+ * An HTTPS request on the LAN listener, from loopback, naming whatever `Host` the test gives it. No
+ * CA vouches for the listener's certificate, so the client does not check it against one: the tests
+ * compare its fingerprint instead, as a pairing hub does.
+ */
+function onLan(port: number, path: string, headers: Record<string, string>, method = 'GET', body?: string): Promise<LanAnswer> {
   return new Promise((resolve) => {
-    const req = request({ host: '127.0.0.1', port, path, method, headers }, (res) => {
+    const req = request({ host: '127.0.0.1', port, path, method, headers, rejectUnauthorized: false, agent: false }, (res) => {
+      const fingerprint = (res.socket as TLSSocket).getPeerCertificate().fingerprint256;
       let text = '';
       res.setEncoding('utf8');
       res.on('data', (chunk: string) => (text += chunk));
-      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text }));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text, fingerprint }));
     });
-    req.on('error', () => resolve({ status: 0, body: '' }));
+    req.on('error', () => resolve({ status: 0, body: '', fingerprint: '' }));
     req.end(body);
+  });
+}
+
+/** A plain-HTTP request on the LAN port, as a bookmark from before TLS sends it */
+function plainOnLan(port: number, path: string, headers: Record<string, string>): Promise<LanAnswer> {
+  return new Promise((resolve) => {
+    const req = plainRequest({ host: '127.0.0.1', port, path, headers, agent: false }, (res) => {
+      let text = '';
+      res.setEncoding('utf8');
+      res.on('data', (chunk: string) => (text += chunk));
+      res.on('end', () => resolve({ status: res.statusCode ?? 0, body: text, fingerprint: '', location: res.headers.location }));
+    });
+    req.on('error', () => resolve({ status: 0, body: '', fingerprint: '' }));
+    req.end();
   });
 }
 
@@ -110,18 +150,21 @@ function outcome(socket: WebSocket): Promise<number> {
 }
 
 // `@fastify/websocket` listens for upgrades on the app's own server only, so the LAN listener has to
-// hand them over; without that the socket would hang or drop instead of reaching the route
-test('an upgrade on the LAN port reaches the terminal socket', async (t) => {
+// hand them over, from inside TLS now; without that the socket would hang or drop instead of reaching the route
+test('an upgrade over TLS on the LAN port reaches the terminal socket, and a plain one is closed', async (t) => {
   const w = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' });
   const token = await withToken(w.app);
   w.attach();
   const port = await listening(w);
-  const base = `http://127.0.0.1:${String(port)}`;
-  const ws = (id: string, ticket: string) => {
-    const socket = new WebSocket(`ws://127.0.0.1:${String(port)}/api/terminals/${id}/socket?ticket=${ticket}`, { origin: base });
+  const base = `https://127.0.0.1:${String(port)}`;
+  const ws = (id: string, ticket: string, scheme = 'wss') => {
+    const socket = new WebSocket(`${scheme}://127.0.0.1:${String(port)}/api/terminals/${id}/socket?ticket=${ticket}`, { origin: base, rejectUnauthorized: false });
     t.after(() => socket.terminate());
     return socket;
   };
+
+  // Plain `ws://` is not served on the LAN port: a socket cannot follow the redirect
+  assert.equal(await outcome(ws('term_nothing', 'x', 'ws')), 0);
 
   // The route's gate answered: the terminal is off
   assert.equal(await outcome(ws('term_nothing', 'x')), 409);
@@ -158,8 +201,8 @@ test('a request on the LAN port reaches a route under a lent address, and an add
 
   const status = lan(w);
   assert.deepEqual(status.addresses, [
-    { ip: LAN_IP, host: null, url: `http://${LAN_IP}:${String(port)}` },
-    { ip: LAN_IP, host: LOCAL_NAME, url: `http://${LOCAL_NAME}:${String(port)}` },
+    { ip: LAN_IP, host: null, url: `https://${LAN_IP}:${String(port)}` },
+    { ip: LAN_IP, host: LOCAL_NAME, url: `https://${LOCAL_NAME}:${String(port)}` },
   ]);
   assert.deepEqual(status.interfaces, [{ name: 'eth0', ip: LAN_IP }]);
   // Its names join the allowlist while it listens, and loopback is never one of them
@@ -210,10 +253,13 @@ test('turning authentication off closes the listener before the change answers, 
   w.attach();
   const port = await listening(w);
 
-  // A connection a device holds open, as a page's event stream or a terminal's socket would
+  // A connection a device holds open, as a page's event stream or a terminal's socket would: one
+  // inside TLS, and one that has not sent its first byte yet
+  const secure = tlsConnect({ host: '127.0.0.1', port, rejectUnauthorized: false });
+  await new Promise((resolve) => secure.once('secureConnect', resolve));
   const held = connect(port, '127.0.0.1');
   await new Promise((resolve) => held.once('connect', resolve));
-  const ended = new Promise<void>((resolve) => held.once('close', () => resolve()));
+  const ended = Promise.all([held, secure].map((socket) => new Promise<void>((resolve) => socket.once('close', () => resolve()))));
 
   const off = await w.app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ mode: 'none' }, { authorization: `Bearer ${token}` }) });
   assert.equal(off.statusCode, 200);
@@ -253,6 +299,106 @@ test('a port another program holds is a state with the next free port, and movin
   assert.equal((await onLan(next, '/api/health', { host: `127.0.0.1:${String(next)}` })).status, 200);
 });
 
+test('the listener speaks HTTPS with the certificate it keeps, naming its addresses, with a key only its owner reads', async (t) => {
+  const w = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' });
+  const token = await withToken(w.app);
+  // No certificate before it ever listened
+  assert.equal(lan(w).fingerprint, null);
+  assert.equal(lanCertificateFingerprint(w.dataDir), null);
+  w.attach();
+  const port = await listening(w);
+  const fingerprint = lan(w).fingerprint;
+  assert.match(fingerprint ?? '', /^(?:[0-9A-F]{2}:){31}[0-9A-F]{2}$/);
+  // The one the grant reads is the one the status shows and the one the handshake presents
+  assert.equal(lanCertificateFingerprint(w.dataDir), fingerprint);
+  const res = await onLan(port, '/api/lan', { host: `${LAN_IP}:${String(port)}`, authorization: `Bearer ${token}` });
+  assert.equal(res.status, 200, res.body);
+  assert.equal(res.fingerprint, fingerprint);
+  assert.equal((JSON.parse(res.body) as LanStatus).fingerprint, fingerprint);
+
+  const dir = join(w.dataDir, 'lan-tls');
+  const cert = new X509Certificate(readFileSync(join(dir, 'cert.pem')));
+  assert.equal(cert.fingerprint256, fingerprint);
+  assert.equal(cert.checkIP(LAN_IP), LAN_IP);
+  assert.equal(cert.checkHost(LOCAL_NAME), LOCAL_NAME);
+  const own = `${hostname().trim().toLowerCase().split('.')[0] ?? ''}.local`;
+  if (/^[a-z0-9-]+\.local$/.test(own)) assert.equal(cert.checkHost(own), own, 'the machine name, whether mDNS answers for it or not');
+  assert.equal(cert.checkIP('127.0.0.1'), undefined, 'loopback is not a LAN address');
+  assert.equal(cert.ca, false);
+  assert.equal(statSync(join(dir, 'key.pem')).mode & 0o777, 0o600);
+  assert.equal(statSync(dir).mode & 0o077, 0, 'the directory is its owner’s only');
+});
+
+test('the certificate outlives restarts and is made again only when an address it does not name is served', async (t) => {
+  const home = keptHome(t);
+  const first = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' }, home);
+  await withToken(first.app);
+  first.attach();
+  await listening(first);
+  const made = lan(first).fingerprint;
+  assert.ok(made);
+  const key = readFileSync(join(first.dataDir, 'lan-tls', 'key.pem'), 'utf8');
+
+  // A stop and a start in the same process
+  await first.core.lan.stop();
+  await first.core.lan.start();
+  assert.equal(lan(first).fingerprint, made);
+  // The history lives in the data dir too, so the second process sees the first one's rows
+  const certificateRows = (w: Wrapper) => w.core.db.auditPage({ path: '/api/lan' }).entries.filter((entry) => /new LAN certificate/.test(entry.summary ?? '')).length;
+  const madeBefore = certificateRows(first);
+  assert.ok(madeBefore > 0);
+  await first.core.shutdown();
+
+  // A new process on the same data: the status shows it before listening, and listening keeps it
+  const second = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' }, home);
+  assert.equal(lan(second).fingerprint, made);
+  second.attach();
+  const port = await listening(second);
+  assert.equal((await onLan(port, '/api/health', { host: `127.0.0.1:${String(port)}` })).fingerprint, made);
+  assert.equal(certificateRows(second), madeBefore, 'no certificate made on the restart');
+
+  // An address that leaves does not change it: a name too many is harmless, a new fingerprint breaks every pairing
+  second.core.lan.network.interfaces = () => ({});
+  second.core.lan.network.localName = () => Promise.resolve(null);
+  assert.equal((await second.core.lan.refresh()).fingerprint, made);
+
+  // A new lease is served, so the certificate must name it: made again, with the same key
+  const NEW_IP = '192.168.77.11';
+  second.core.lan.network.interfaces = () => ({
+    eth0: [{ address: NEW_IP, netmask: '255.255.255.0', family: 'IPv4', mac: '02:00:00:00:00:01', internal: false, cidr: `${NEW_IP}/24` }],
+  });
+  const renewed = await second.core.lan.refresh();
+  assert.ok(renewed.fingerprint && renewed.fingerprint !== made);
+  assert.equal(lanCertificateFingerprint(second.dataDir), renewed.fingerprint);
+  assert.equal(new X509Certificate(readFileSync(join(second.dataDir, 'lan-tls', 'cert.pem'))).checkIP(NEW_IP), NEW_IP);
+  assert.equal(readFileSync(join(second.dataDir, 'lan-tls', 'key.pem'), 'utf8'), key, 'the key is kept');
+  // New connections get it at once
+  assert.equal((await onLan(port, '/api/health', { host: `127.0.0.1:${String(port)}` })).fingerprint, renewed.fingerprint);
+});
+
+test('plain HTTP on the LAN port gets a 301 to the same path on https://, under the Host it named', async (t) => {
+  const w = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' });
+  const token = await withToken(w.app);
+  w.attach();
+  const port = await listening(w);
+  const host = `${LAN_IP}:${String(port)}`;
+
+  const moved = await plainOnLan(port, '/chats/abc?tab=files', { host, authorization: `Bearer ${token}` });
+  assert.equal(moved.status, 301);
+  assert.equal(moved.location, `https://${host}/chats/abc?tab=files`);
+  // Nothing of the app answered: no route ran, whatever the credential
+  assert.doesNotMatch(moved.body, /"state"|"error"/);
+  assert.equal((await plainOnLan(port, '/api/lan', { host: `${LOCAL_NAME}:${String(port)}` })).location, `https://${LOCAL_NAME}:${String(port)}/api/lan`);
+  // A Host that is not a bare name or address is not echoed into Location
+  for (const bad of ['evil.example/path', 'a b', 'user@evil.example']) {
+    const res = await plainOnLan(port, '/', { host: bad });
+    assert.equal(res.status, 400, bad);
+    assert.equal(res.location, undefined);
+  }
+  // And the loopback listener still speaks plain HTTP: it is untouched
+  assert.equal((await w.app.inject({ url: '/api/health' })).statusCode, 200);
+});
+
 test('each device on the network waits out its own wrong tokens', async (t) => {
   const w = await wrapper(t, { CLAUDIO_LAN: 'on', CLAUDIO_LAN_PORT: '0' });
   const token = await withToken(w.app);
@@ -267,6 +413,14 @@ test('each device on the network waits out its own wrong tokens', async (t) => {
   assert.equal((await w.app.inject(from(LAPTOP, token))).statusCode, 200);
   // Nor is the desktop on loopback
   assert.equal((await w.app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: { host: '127.0.0.1:43123', authorization: 'Bearer yet-another' } })).statusCode, 401);
+
+  // Through the listener itself, inside TLS: the bucket is still the TCP peer's address (loopback
+  // here), which the TLS socket reports as the raw one did, never the name in `Host`
+  const over = { host: `${LAN_IP}:${String(port)}`, authorization: 'Bearer a-tls-guess' };
+  for (let i = 0; i < 10; i += 1) assert.equal((await onLan(port, '/api/overview', over)).status, 401, `TLS guess ${String(i + 1)}`);
+  assert.equal((await onLan(port, '/api/overview', over)).status, 429);
+  assert.equal((await w.app.inject({ url: '/api/overview', remoteAddress: '127.0.0.1', headers: over })).statusCode, 429, 'the same peer under the same name is the same bucket');
+  assert.equal((await w.app.inject({ url: '/api/overview', remoteAddress: LAPTOP, headers: { host: over.host, authorization: `Bearer ${token}` } })).statusCode, 200, 'another device is not');
 });
 
 test("the desktop app's secret is refused from a LAN peer, and from loopback under a LAN name", async (t) => {

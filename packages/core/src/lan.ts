@@ -1,24 +1,32 @@
 import { lookup } from 'node:dns/promises';
 import { existsSync, readFileSync } from 'node:fs';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
-import { isIPv4, type Socket } from 'node:net';
+import { createServer as createNetServer, isIPv4, type Server as NetServer, type Socket } from 'node:net';
 import { hostname, networkInterfaces, type NetworkInterfaceInfo } from 'node:os';
 import { join } from 'node:path';
 import type { Duplex } from 'node:stream';
+import { TLSSocket, type SecureContext } from 'node:tls';
 import type { AppSettingSource, AuthMode, LanAddress, LanInterface, LanSettings, LanState, LanStatus, Localized, LocalizedParams, TunnelPortTaken } from '@claudio/shared';
 import type { RuntimeHostOptions } from './app-settings.ts';
 import { writeAtomic } from './config/files.ts';
 import type { ClaudioEventInput } from './events.ts';
+import { ensureLanCertificate, lanCertificateCovers, lanSecureContext, localDnsName, readLanCertificate, type LanCertificate, type LanCertificateNames } from './lan-tls.ts';
 import type { LanSwitch } from './paths.ts';
 
 /*
  * Claudio on the local network (docs/plans/lan-access.md). The main listener stays on loopback as it
- * is; this is a second `http.Server` per address, on a fixed port, that hands every request and
- * every upgrade to the same app, so the guard, the host allowlist and the routes are the ones the
- * main listener has. What has to hold: it listens only while the guard asks for a credential and
- * closes before the first unguarded request, only the addresses it listens on (and the machine's
- * `.local` name) join the allowlist and only while it listens, and each device is its own back-off
- * bucket (`peerIsClient`). Plain HTTP, no TLS.
+ * is; this is a second listener per address, on a fixed port, that hands every request and every
+ * upgrade to the same app, so the guard, the host allowlist and the routes are the ones the main
+ * listener has. What has to hold: it listens only while the guard asks for a credential and closes
+ * before the first unguarded request, only the addresses it listens on (and the machine's `.local`
+ * name) join the allowlist and only while it listens, and each device is its own back-off bucket
+ * (`peerIsClient`).
+ *
+ * It speaks TLS with a kept self-signed certificate (lan-tls.ts; docs/plans/claudio-servers.md, D6),
+ * so a hub can pin its fingerprint and a token never crosses the network in clear. One TCP listener
+ * per address reads the first byte of each connection (D9): a TLS handshake (0x16) goes to the app,
+ * anything else is answered with a `301` to the same path on `https://`, so an old `http://`
+ * bookmark still lands. Plain HTTP stays on the loopback listener only.
  */
 
 /** The port devices open Claudio at unless the settings or `CLAUDIO_LAN_PORT` say otherwise */
@@ -36,6 +44,12 @@ const LOCAL_NAME_TIMEOUT_MS = 1_500;
 const REFRESH_MS = 30_000;
 /** How long the reply of the request that closed the listener (a stop from a phone) gets to leave */
 const REPLY_GRACE_MS = 1_000;
+/** How long a connection may stay silent before its first byte says what it speaks: nothing holds a socket for free */
+const FIRST_BYTE_TIMEOUT_MS = 10_000;
+/** The first byte of a TLS record carrying a handshake: a ClientHello. SSLv2's hello is refused by Node anyway */
+const TLS_HANDSHAKE = 0x16;
+/** A `Host` worth redirecting to: a name or IPv4 literal, or a bracketed IPv6 one, with an optional port */
+const REDIRECT_HOST = /^(?:[a-z0-9](?:[a-z0-9.-]{0,251}[a-z0-9])?|\[[0-9a-f:.]{2,45}\])(?::\d{1,5})?$/i;
 
 /** Every connection on a LAN address is the device itself: its own address is its own budget */
 export const LAN_HOST_OPTIONS: RuntimeHostOptions = { peerIsClient: true };
@@ -56,6 +70,8 @@ export interface LanNetwork {
   interfaces: () => NodeJS.Dict<NetworkInterfaceInfo[]>;
   /** `<hostname>.local` and the IPv4 address it resolves to, or null when it does not */
   localName: () => Promise<{ host: string; ip: string } | null>;
+  /** The machine's name, whose `.local` the certificate names whether mDNS answers for it or not */
+  hostname: () => string;
 }
 
 export interface LanDeps {
@@ -125,9 +141,8 @@ const sameBind = (a: 'all' | string[], b: 'all' | string[]): boolean => (a === '
 
 /** The machine's `.local` name, when the resolver (nss-mdns, systemd-resolved) answers for it */
 async function resolveLocalName(): Promise<{ host: string; ip: string } | null> {
-  const label = hostname().trim().toLowerCase().split('.')[0] ?? '';
-  if (!/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)) return null;
-  const host = `${label}.local`;
+  const host = localDnsName(hostname());
+  if (!host) return null;
   let timer: NodeJS.Timeout | undefined;
   try {
     const found = await Promise.race([
@@ -148,7 +163,7 @@ async function resolveLocalName(): Promise<{ host: string; ip: string } | null> 
 /** The error code of a failed `listen`, which says whether the port, the address or something else was the problem */
 const codeOf = (error: unknown): string | undefined => (error as NodeJS.ErrnoException | undefined)?.code;
 
-function listen(server: Server, port: number, host: string): Promise<void> {
+function listen(server: NetServer, port: number, host: string): Promise<void> {
   return new Promise((resolve, reject) => {
     const failed = (error: Error) => reject(error);
     server.once('error', failed);
@@ -175,7 +190,13 @@ async function portFree(port: number, hosts: readonly string[]): Promise<boolean
 }
 
 interface Listening {
-  servers: Server[];
+  /** The TCP listeners, one per address, that split each connection by its first byte */
+  servers: NetServer[];
+  /** Where TLS connections go: the app's requests and upgrades. It listens on nothing itself */
+  app: Server;
+  /** Where plain HTTP goes: a `301` to `https://` */
+  redirect: Server;
+  /** Every connection: the raw socket until a handshake starts, its TLS socket after */
   sockets: Set<Socket>;
   /** Sockets with a reply still being written: a stop asked for over the LAN answers before its socket goes */
   busy: Map<Socket, ServerResponse>;
@@ -184,9 +205,10 @@ interface Listening {
 }
 
 /**
- * The listener on the local network: one `http.Server` per address (one on the wildcard for
- * `bind: 'all'`), each handing its requests and upgrades to the app's own. Every change of state
- * goes through one queue, so a stop racing a start never leaves a server nobody owns.
+ * The listener on the local network: one TCP server per address (one on the wildcard for
+ * `bind: 'all'`), each handing its TLS connections to one `http.Server` that passes requests and
+ * upgrades to the app's own. Every change of state goes through one queue, so a stop racing a start
+ * never leaves a server nobody owns.
  */
 export class LanListener {
   private readonly settingsFile: string;
@@ -200,17 +222,22 @@ export class LanListener {
   private lent = new Set<string>();
   private addresses: LanAddress[] = [];
   private localName: { host: string; ip: string } | null = null;
+  /** The kept certificate, read at construction so the status shows its fingerprint before it listens */
+  private certificate: LanCertificate | null;
+  /** What new TLS connections are made with; swapped when the certificate is made again */
+  private context: SecureContext | null = null;
   /** Whether it should be listening: the setting at start, then the person's start and stop */
   private wanted = false;
   private queue: Promise<unknown> = Promise.resolve();
   private refreshTimer: NodeJS.Timeout | null = null;
   private closed = false;
 
-  readonly network: LanNetwork = { wildcard: '0.0.0.0', interfaces: networkInterfaces, localName: resolveLocalName };
+  readonly network: LanNetwork = { wildcard: '0.0.0.0', interfaces: networkInterfaces, localName: resolveLocalName, hostname };
 
   constructor(private readonly deps: LanDeps) {
     this.settingsFile = join(deps.dataDir, 'lan-settings.json');
     this.stored = this.readSettings();
+    this.certificate = readLanCertificate(deps.dataDir);
   }
 
   /** Whether this deploy lets it listen at all */
@@ -263,6 +290,7 @@ export class LanListener {
       settings: { enabled: settings.enabled, port: settings.port, bind: settings.bind === 'all' ? 'all' : [...settings.bind] },
       available: this.available,
       portTaken: this.state === 'port-in-use' && this.taken ? { ...this.taken } : null,
+      fingerprint: this.certificate?.fingerprint ?? null,
     };
   }
 
@@ -437,22 +465,31 @@ export class LanListener {
     if (!this.handlers || this.closed) return false;
     const { port, bind } = this.settings;
     const hosts = bind === 'all' ? [this.network.wildcard] : bind;
+    // Before any port is bound: a listener without its certificate could only drop handshakes
+    try {
+      await this.ensureCertificate(this.wantedNames(bind === 'all' ? this.interfaces().map((each) => each.ip) : bind));
+    } catch (error) {
+      this.fail(REASONS.listenFailed(`TLS certificate: ${error instanceof Error ? error.message : String(error)}`));
+      return false;
+    }
     const sockets = new Set<Socket>();
     const busy = new Map<Socket, ServerResponse>();
-    const servers: Server[] = [];
+    const servers: NetServer[] = [];
+    const app = this.appServer(busy);
+    const redirect = redirectServer();
     let bound = port;
     let at = hosts[0] ?? this.network.wildcard;
     try {
       for (const host of hosts) {
         at = host;
-        const server = this.serverFor(sockets, busy);
+        const server = this.splitter(sockets, app, redirect);
         servers.push(server);
         // Every address on the one port: the first bind settles it when the port is 0
         await listen(server, bound, host);
         if (bound === 0) bound = (server.address() as { port: number }).port;
       }
     } catch (error) {
-      await closeServers(servers, sockets, null);
+      await closeServers({ servers, app, redirect }, sockets, null);
       const code = codeOf(error);
       if (code === 'EADDRINUSE') {
         this.taken = { port, holder: `${at}:${String(port)}`, nextFree: await this.nextFree(port, hosts) };
@@ -468,11 +505,16 @@ export class LanListener {
     // The hook that closes it runs before the mode turns to none, so a start queued behind that close
     // checked the mode while it was still a guard: read again once bound, and give the port back
     if (this.deps.security.mode === 'none') {
-      await closeServers(servers, sockets, null);
+      await closeServers({ servers, app, redirect }, sockets, null);
       this.refuse();
       return false;
     }
-    this.listening = { servers, sockets, busy, port: bound };
+    // Node starts enforcing `headersTimeout` and `requestTimeout` on an `http.Server` when it emits
+    // `listening`; these two never listen themselves, so without it a peer that opens a connection
+    // and never finishes its headers would hold the socket for good
+    app.emit('listening');
+    redirect.emit('listening');
+    this.listening = { servers, app, redirect, sockets, busy, port: bound };
     this.taken = null;
     await this.reconcileAddresses(true);
     this.startRefresh();
@@ -480,12 +522,46 @@ export class LanListener {
     return true;
   }
 
-  private serverFor(sockets: Set<Socket>, busy: Map<Socket, ServerResponse>): Server {
-    const server = createServer();
+  /**
+   * One TCP listener for an address. The first byte decides: a TLS handshake is wrapped in a TLS
+   * socket with the current certificate and handed to `app`, anything else goes to `redirect`. The
+   * byte is put back before either reads, so neither sees a connection without its start.
+   */
+  private splitter(sockets: Set<Socket>, app: Server, redirect: Server): NetServer {
+    const server = createNetServer();
     server.on('connection', (socket: Socket) => {
       sockets.add(socket);
       socket.once('close', () => sockets.delete(socket));
+      // A reset before the first byte is nobody's business; after it, the server that took it handles errors too
+      socket.on('error', () => socket.destroy());
+      socket.setTimeout(FIRST_BYTE_TIMEOUT_MS, () => socket.destroy());
+      socket.once('data', (chunk: Buffer) => {
+        socket.setTimeout(0);
+        socket.pause();
+        socket.unshift(chunk);
+        if (chunk[0] !== TLS_HANDSHAKE) {
+          redirect.emit('connection', socket);
+        } else if (!this.context) {
+          socket.destroy();
+          return;
+        } else {
+          // The TLS socket takes the TCP handle over and reads what was put back before anything new
+          const secure = new TLSSocket(socket, { isServer: true, secureContext: this.context, ALPNProtocols: ['http/1.1'] });
+          sockets.delete(socket);
+          sockets.add(secure);
+          secure.once('close', () => sockets.delete(secure));
+          secure.on('error', () => secure.destroy());
+          app.emit('connection', secure);
+        }
+        process.nextTick(() => socket.resume());
+      });
     });
+    return server;
+  }
+
+  /** Where the TLS connections of every address go: requests and upgrades to the app's own */
+  private appServer(busy: Map<Socket, ServerResponse>): Server {
+    const server = createServer();
     // Defence in depth: the hook closes the listener before the mode turns to none, and a request
     // already in flight then is still refused rather than served unguarded
     server.on('request', (req: IncomingMessage, res: ServerResponse) => {
@@ -534,9 +610,18 @@ export class LanListener {
     this.localName = await this.network.localName().catch(() => null);
     if (this.listening !== listening) return;
     const port = listening.port;
-    const next: LanAddress[] = ips.map((ip) => ({ ip, host: null, url: `http://${ip}:${String(port)}` }));
+    const next: LanAddress[] = ips.map((ip) => ({ ip, host: null, url: `https://${ip}:${String(port)}` }));
     const local = this.localName;
-    if (local && ips.includes(local.ip)) next.push({ ip: local.ip, host: local.host, url: `http://${local.host}:${String(port)}` });
+    if (local && ips.includes(local.ip)) next.push({ ip: local.ip, host: local.host, url: `https://${local.host}:${String(port)}` });
+    // A new DHCP lease, or a `.local` name that answers now: the certificate must name it. A failure
+    // keeps the certificate there is, which still serves, and is tried again on the next refresh
+    let renewed = false;
+    try {
+      renewed = await this.ensureCertificate(this.wantedNames(ips));
+    } catch {
+      // Kept as it was
+    }
+    if (this.listening !== listening) return;
     const names = new Set(next.map((each) => each.host ?? each.ip));
     for (const name of this.lent) {
       if (names.has(name)) continue;
@@ -555,9 +640,26 @@ export class LanListener {
         if (at >= 0) next.splice(at, 1);
       }
     }
-    const changed = JSON.stringify(next) !== JSON.stringify(this.addresses);
+    const changed = renewed || JSON.stringify(next) !== JSON.stringify(this.addresses);
     this.addresses = next;
     if (changed && !quiet && this.state === 'listening') this.changed();
+  }
+
+  /** The names the certificate must carry for `ips`: those addresses, the machine's `.local`, and the name mDNS answered for */
+  private wantedNames(ips: readonly string[]): LanCertificateNames {
+    const dns = [localDnsName(this.network.hostname()), this.localName?.host ?? null].filter((name): name is string => name !== null);
+    return { ips: ips.filter((ip) => !LOOPBACK_V4.test(ip)), dns };
+  }
+
+  /** Loads or makes the certificate for `wanted`; true when it differs from the one served before. New connections use it at once */
+  private async ensureCertificate(wanted: LanCertificateNames): Promise<boolean> {
+    if (this.certificate && this.context && lanCertificateCovers(this.certificate, wanted)) return false;
+    const { certificate, generated } = await ensureLanCertificate(this.deps.dataDir, wanted);
+    const renewed = certificate.fingerprint !== this.certificate?.fingerprint;
+    this.certificate = certificate;
+    this.context = lanSecureContext(certificate);
+    if (generated) this.deps.audit?.({ method: 'PUT', path: '/api/lan', summary: `Made a new LAN certificate, fingerprint ${certificate.fingerprint}` });
+    return renewed;
   }
 
   private startRefresh(): void {
@@ -589,7 +691,7 @@ export class LanListener {
     const listening = this.listening;
     this.listening = null;
     if (!listening) return;
-    await closeServers(listening.servers, listening.sockets, graceful ? listening.busy : null);
+    await closeServers(listening, listening.sockets, graceful ? listening.busy : null);
   }
 
   private refuse(): void {
@@ -661,8 +763,11 @@ export class LanListener {
  * connection, upgraded ones included, and the port is free again as soon as the listening handle
  * is, so nothing waits for them: a socket in `spare` ends once its reply is out, or after a moment.
  */
-async function closeServers(servers: readonly Server[], sockets: ReadonlySet<Socket>, spare: ReadonlyMap<Socket, ServerResponse> | null): Promise<void> {
-  for (const server of servers) if (server.listening) server.close();
+async function closeServers(listeners: { servers: readonly NetServer[]; app: Server; redirect: Server }, sockets: ReadonlySet<Socket>, spare: ReadonlyMap<Socket, ServerResponse> | null): Promise<void> {
+  for (const server of listeners.servers) if (server.listening) server.close();
+  // Never listening themselves, they hold only the timer that checks request timeouts, which closing clears
+  listeners.app.close();
+  listeners.redirect.close();
   for (const socket of sockets) {
     const reply = spare?.get(socket);
     if (!reply) {
@@ -679,4 +784,28 @@ async function closeServers(servers: readonly Server[], sockets: ReadonlySet<Soc
   }
   // The listening handles close on the next turn of the loop; after it the port can be bound again
   await new Promise<void>((resolve) => setImmediate(resolve));
+}
+
+/**
+ * Plain HTTP on the LAN port (D9): a `301` to the same path on `https://` under the `Host` the client
+ * wrote, so a bookmark from before TLS keeps working. Nothing of the app answers here. A `Host` that is
+ * not a bare name or address with a port, or a target that is not a path, gets `400`, so `Location`
+ * never carries anything else.
+ */
+function redirectServer(): Server {
+  const server = createServer({ requestTimeout: FIRST_BYTE_TIMEOUT_MS, headersTimeout: FIRST_BYTE_TIMEOUT_MS }, (req: IncomingMessage, res: ServerResponse) => {
+    const host = req.headers.host ?? '';
+    const path = req.url ?? '/';
+    if (!REDIRECT_HOST.test(host) || !path.startsWith('/')) {
+      res.writeHead(400, { 'content-type': 'text/plain; charset=utf-8', connection: 'close' });
+      res.end('This port speaks HTTPS.\n');
+      return;
+    }
+    const location = `https://${host}${path}`;
+    res.writeHead(301, { location, 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', connection: 'close' });
+    res.end(`${location}\n`);
+  });
+  // An upgrade over plain HTTP (a `ws://` socket) cannot follow a redirect: it is closed
+  server.on('upgrade', (_req: IncomingMessage, socket: Duplex) => socket.destroy());
+  return server;
 }
