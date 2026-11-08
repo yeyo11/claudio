@@ -71,6 +71,7 @@ function aptPart(script: string, root: string): string {
   assert.ok(script.indexOf("# --- Claudio's update unit") > script.indexOf(marker), 'the update unit part comes after it');
   const part = script.slice(script.indexOf(marker))
     .replaceAll('/etc/apt/sources.list.d', `${root}/etc/apt/sources.list.d`)
+    .replaceAll('/etc/apt/preferences.d', `${root}/etc/apt/preferences.d`)
     .replaceAll('/etc/default', `${root}/etc/default`)
     .replace('CLAUDIO_KEYRING=/usr/share/keyrings', `CLAUDIO_KEYRING=${root}/usr/share/keyrings`)
     .replaceAll('/run/systemd/system', `${root}/run/systemd/system`)
@@ -222,16 +223,22 @@ test('postinst writes no source when the keyring is missing, which would break e
   assert.equal(existsSync(source), false);
 });
 
-test('postrm removes the source on remove and purge, /etc/default/claudio on purge, and nothing on upgrade', () => {
+test('postrm removes the source on remove and purge, /etc/default/claudio and the apt pin on purge, and nothing on upgrade', () => {
   const { root, source, defaults } = packageRoot();
+  // The pin is a file of the package (a conffile): dpkg puts it there, not the postinst
+  const pin = join(root, 'etc/apt/preferences.d/claudio.pref');
+  mkdirSync(dirname(pin), { recursive: true });
+  writeFileSync(pin, read('build/linux/claudio.pref'));
   runScript(postinst, root, 'configure');
   runScript(postrm, root, 'upgrade');
-  assert.ok(existsSync(source) && existsSync(defaults), 'an upgrade keeps both');
+  assert.ok(existsSync(source) && existsSync(defaults) && existsSync(pin), 'an upgrade keeps all three');
   runScript(postrm, root, 'remove');
   assert.equal(existsSync(source), false);
   assert.ok(existsSync(defaults), 'remove keeps /etc/default/claudio');
+  assert.ok(existsSync(pin), 'remove keeps the pin, like any conffile');
   runScript(postrm, root, 'purge');
   assert.equal(existsSync(defaults), false);
+  assert.equal(existsSync(pin), false, 'purge removes the pin');
 });
 
 // --- The update unit's group (docs/plans/remote-updates.md, D2) ---

@@ -443,6 +443,9 @@
         "busy": "Ya hay una actualización en marcha. Su progreso aparece aquí.",
         "apt-locked": "Otro gestor de paquetes se está ejecutando en ese ordenador. Vuelve a intentarlo dentro de un minuto.",
         "apt-failed": "El gestor de paquetes no ha podido instalar la actualización. Vuelve a intentarlo o actualiza desde una terminal de ese ordenador.",
+        "source-missing": "Ese ordenador ya no tiene el repositorio de paquetes de Claudio, así que no hay de dónde actualizar. Vuelve a añadir el repositorio desde una terminal de ese ordenador o actualiza desde allí.",
+        "start-limited": "Se han iniciado demasiadas actualizaciones en pocos minutos. Espera diez minutos y vuelve a intentarlo.",
+        "unit-failed": "El servicio de actualización se ha detenido antes de terminar. Vuelve a intentarlo o actualiza desde una terminal de ese ordenador.",
         "other": "No se ha podido actualizar la aplicación de escritorio. Vuelve a intentarlo."
       }
     },

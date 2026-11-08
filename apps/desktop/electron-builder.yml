@@ -153,3 +153,7 @@ deb:
     - dist/package/claudio-update.service=/usr/lib/systemd/system/claudio-update.service
     - dist/package/claudio-update=/usr/lib/claudio/claudio-update
     - dist/package/50-claudio-update.rules=/usr/share/polkit-1/rules.d/50-claudio-update.rules
+    # apt takes claudio from Claudio's own repository only (Origin Claudio), never from another source
+    # that offers a package of the same name. Under /etc, so fpm marks it a conffile: dpkg keeps an
+    # admin's edit on upgrade and deletes it on purge. Staged at 0644 like the files above
+    - dist/package/claudio.pref=/etc/apt/preferences.d/claudio.pref

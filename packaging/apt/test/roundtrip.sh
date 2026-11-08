@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The apt round trip of docs/plans/unified-updates.md (Tests, "deb"): install Claudio from its signed
 # repository, upgrade through it with the update unit's own helper (docs/plans/remote-updates.md, D1),
-# refuse a repository signed by another key or past its Valid-Until, and remove and purge cleanly. Runs as root inside a throwaway container, never on a person's
+# never take claudio from another origin (the package's apt pin), refuse a repository signed by another
+# key or past its Valid-Until, and remove and purge cleanly. Runs as root inside a throwaway container, never on a person's
 # machine: .github/workflows/desktop-smoke.yml runs it in debian:trixie and ubuntu:26.04.
 #
 #   docker run --rm -v <checkout>:/src:ro -v <debs>:/debs:ro -v <keys>:/keys:ro <image> \
@@ -24,6 +25,7 @@ UNIT=/usr/lib/systemd/system/claudio-update.service
 HELPER=/usr/lib/claudio/claudio-update
 RULE=/usr/share/polkit-1/rules.d/50-claudio-update.rules
 STATUS=/var/lib/claudio-update/status.json
+PIN=/etc/apt/preferences.d/claudio.pref
 # The person who installs with sudo, who joins the claudio-update group
 PERSON=tester
 export DEBIAN_FRONTEND=noninteractive
@@ -32,6 +34,10 @@ step() { printf '\n=== %s\n' "$*"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 installed() { dpkg-query -W -f '${Version}' claudio 2>/dev/null || true; }
 group_line() { getent group claudio-update || true; }
+# The priority `apt-cache policy` gives one version of claudio (its line in the version table, the
+# installed one marked ***), empty when it lists no such version
+# Compared as a string, never as a pattern: a version holds dots and plus signs
+priority_of() { apt-cache policy claudio | awk -v v="$1" '$1 == "***" { $1 = $2; $2 = $3 } $1 == v && $2 ~ /^-?[0-9]+$/ { print $2; exit }'; }
 # The registered source, rewritten to the local repository: the test cannot reach Pages, and what is
 # under test from here on is apt's handling of the repository, not the address
 point_source_at() {
@@ -111,6 +117,15 @@ done
 [ "$(stat -c '%a %U %G' "$HELPER")" = "755 root root" ] || fail "$HELPER mode $(stat -c '%a %U %G' "$HELPER")"
 [ "$(group_line | cut -d: -f4)" = "$PERSON" ] || fail "the claudio-update group is '$(group_line)', wanted $PERSON as its member"
 
+step "the package pins claudio to Claudio's repository"
+[ "$(dpkg -S "$PIN" | cut -d: -f1)" = "claudio" ] || fail "$PIN is not the package's file"
+[ "$(stat -c '%a %U %G' "$PIN")" = "644 root root" ] || fail "$PIN mode $(stat -c '%a %U %G' "$PIN")"
+# A conffile, so an admin's edit survives an upgrade and a purge deletes it
+dpkg-query -W -f '${Conffiles}\n' claudio | grep -q "^ $PIN " || fail "$PIN is not a conffile"
+point_source_at "$REPO"
+apt-get update -qq
+[ "$(priority_of "$V1")" = "990" ] || { apt-cache policy claudio; fail "$V1 from Claudio's repository is not at the pin's priority"; }
+
 step "upgrade to $V2 through the registered source, with the unit's helper"
 bash "$SRC/packaging/apt/build-repo.sh" --debs /srv/both --out "$REPO" --sign-with "$SIGNING_KEY" --verify-with "$KEYRING_SRC"
 point_source_at "$REPO"
@@ -123,6 +138,27 @@ grep -q "^{\"result\":\"installed\",\"from\":\"$V1\",\"to\":\"$V2\"," "$STATUS" 
 grep -q "^{\"result\":\"up-to-date\",\"from\":\"$V2\",\"to\":\"$V2\"," "$STATUS" || { cat "$STATUS"; fail "$STATUS does not record up-to-date"; }
 # The postinst ran again (configure) and left the source as it was: once means once
 grep -q "^URIs: file:$REPO$" "$SOURCE" || fail "the upgrade rewrote $SOURCE"
+
+step "a newer claudio from another origin is never installed"
+# A package of the same name and a higher version, in a trusted repository whose Release names another
+# Origin: what a distribution or a third-party repository that also ships a "claudio" would offer
+OTHER_V="${V2}+other1"
+mkdir -p /srv/other-build/DEBIAN /srv/other/pool /srv/other/dists/stable/main/binary-amd64
+printf 'Package: claudio\nVersion: %s\nArchitecture: amd64\nMaintainer: Someone Else <else@example.invalid>\nDescription: not Claudio\n' "$OTHER_V" > /srv/other-build/DEBIAN/control
+dpkg-deb --build /srv/other-build "/srv/other/pool/claudio_${OTHER_V}_amd64.deb" >/dev/null
+(cd /srv/other && apt-ftparchive packages pool) > /srv/other/dists/stable/main/binary-amd64/Packages
+(cd /srv/other/dists/stable && apt-ftparchive -o APT::FTPArchive::Release::Origin=Elsewhere -o APT::FTPArchive::Release::Suite=stable \
+  -o APT::FTPArchive::Release::Architectures=amd64 -o APT::FTPArchive::Release::Components=main release .) > /srv/other/Release.tmp
+mv /srv/other/Release.tmp /srv/other/dists/stable/Release
+printf 'deb [trusted=yes] file:/srv/other stable main\n' > /etc/apt/sources.list.d/other.list
+apt-get update -qq
+[ "$(priority_of "$OTHER_V")" = "-1" ] || { apt-cache policy claudio; fail "claudio from another origin is not pinned away"; }
+[ "$(priority_of "$V2")" = "990" ] || { apt-cache policy claudio; fail "$V2 lost the pin's priority"; }
+apt-get install -y -qq --only-upgrade claudio >/dev/null
+apt-get upgrade -y -qq >/dev/null
+[ "$(installed)" = "$V2" ] || fail "apt took claudio $(installed) from another origin"
+rm /etc/apt/sources.list.d/other.list
+apt-get update -qq
 
 step "a source the person deleted is not added back"
 rm "$SOURCE"
@@ -156,6 +192,7 @@ apt-get remove -y -qq claudio >/dev/null
 [ ! -e "$KEYRING" ] || fail "remove left $KEYRING"
 [ -f "$DEFAULTS" ] || fail "remove deleted $DEFAULTS"
 [ ! -e "$RULE" ] && [ ! -e "$UNIT" ] && [ ! -e "$HELPER" ] || fail "remove left the update unit's files"
+[ -f "$PIN" ] || fail "remove deleted $PIN, a conffile, which only a purge deletes"
 [ -z "$(group_line)" ] || fail "remove left the claudio-update group"
 apt-get update -qq || fail "apt update fails after remove"
 
@@ -163,6 +200,7 @@ step "purge deletes /etc/default/claudio"
 apt-get purge -y -qq claudio >/dev/null
 [ ! -e "$DEFAULTS" ] || fail "purge left $DEFAULTS"
 [ ! -e /var/lib/claudio-update ] || fail "purge left /var/lib/claudio-update"
+[ ! -e "$PIN" ] || fail "purge left $PIN"
 
 step "CLAUDIO_APT_REPO=off skips the registration"
 CLAUDIO_APT_REPO=off apt-get install -y -qq "$NEW" >/dev/null

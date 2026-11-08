@@ -1,0 +1,22 @@
+# Installed as /etc/apt/preferences.d/claudio.pref by the claudio package (docs/plans/remote-updates.md,
+# owner's decision of 2026-11-08). apt takes the claudio package from Claudio's own signed repository
+# only: another source that offers a package named claudio, at any version, is never installed from.
+# A file under /etc, so dpkg keeps it as a conffile: an admin's edit survives upgrades, and a purge
+# removes it.
+#
+# apt uses the first record whose Pin matches a version, so the order matters.
+
+# Claudio's repository: build-repo.sh writes `Origin: Claudio` into its Release file. 990 is the
+# priority of a target release, high enough to win over any default; it stays below 1000, so apt
+# still never installs an older version than the one installed. A pin cannot name a signing key: a
+# source an admin adds that also calls itself Claudio would match too, which is root's choice to make.
+Package: claudio
+Pin: release o=Claudio
+Pin-Priority: 990
+
+# Every other source. `origin *` matches each repository, with or without an Origin field, but not
+# the installed package's own record in dpkg's status, nor a .deb file named on apt's command line,
+# so a version installed by hand stays installed and can still be upgraded from Claudio's repository.
+Package: claudio
+Pin: origin *
+Pin-Priority: -1

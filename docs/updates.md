@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-09T00:30:00Z
 tags:
     - updates
     - docker
@@ -164,6 +164,20 @@ then fails with `update.apt-locked`. `StartLimitBurst=4` per 600 s makes a fifth
 `code` is `update.apt-locked`, `update.apt-failed` or `update.source-missing` (the source file was
 removed, so apt would otherwise "succeed" against stale lists). While it works `result` is
 `installing`, with `to` and `endedAt` `null`.
+
+The server also reads systemd's `Result` for the unit. `start-limit-hit` is `failed` with
+`update.start-limited`: the refused start ran nothing, so the status file still describes the run
+before it and must not be shown as this one's outcome. Any other failed run the status file does
+not describe (a timeout, a signal, out of memory, the script dying before it wrote) is `failed` with
+`update.unit-failed`. A code in the file that the contract does not declare reads as
+`update.apt-failed`.
+
+**The pin.** The package ships `/etc/apt/preferences.d/claudio.pref`, a conffile (kept on remove,
+deleted on purge): `claudio` from `release o=Claudio` (the repository's `Origin`) at 990, and
+`claudio` from `origin *`, every other repository, at -1. So apt, the unit's helper or the system's
+own updater never install a package named `claudio` from another source. 990 is below 1000, so the
+pin never downgrades. `origin *` leaves dpkg's status alone, so a version installed by hand keeps
+its candidate and still upgrades from Claudio's repository.
 
 **The trigger.** `GET /system/desktop-update` returns a `DesktopUpdateStatus` and
 `POST /system/desktop-update` starts the unit. The server runs

@@ -443,6 +443,9 @@
         "busy": "An update is already running. Its progress shows here.",
         "apt-locked": "Another package manager is running on that computer. Try again in a minute.",
         "apt-failed": "The package manager could not install the update. Try again, or update from a terminal on that computer.",
+        "source-missing": "That computer no longer has Claudio's package repository, so there is nothing to update from. Add the repository again from a terminal on that computer, or update from there.",
+        "start-limited": "Too many updates were started in a few minutes. Wait ten minutes and try again.",
+        "unit-failed": "The update service stopped before it could finish. Try again, or update from a terminal on that computer.",
         "other": "The desktop app could not be updated. Try again."
       }
     },

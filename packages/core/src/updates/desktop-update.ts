@@ -83,6 +83,11 @@ export interface DesktopUpdatesOptions {
 interface UnitFacts {
   loaded: boolean;
   active: string;
+  /**
+   * systemd's `Result` of the unit's last activation: `success`, or why it failed (`exit-code`,
+   * `timeout`, `signal`, `start-limit-hit`, …); empty when systemd did not say
+   */
+  result: string;
   /** When its last run began, ms since the epoch */
   startedAt: number | null;
 }
@@ -142,7 +147,9 @@ export function parseUnitStatus(text: string | null): LastRun | null {
   if (result === 'failed') {
     const named = typeof raw.code === 'string' ? raw.code.replace(/^update\./, '') : '';
     const error = typeof raw.error === 'string' ? raw.error : '';
-    code = named === 'apt-locked' || /lock/i.test(error) ? 'update.apt-locked' : 'update.apt-failed';
+    // Only the codes the contract declares leave this function: anything else the script might
+    // write reads as a failed apt, never as an undeclared code a client cannot word
+    code = named === 'source-missing' ? 'update.source-missing' : named === 'apt-locked' || /lock/i.test(error) ? 'update.apt-locked' : 'update.apt-failed';
   }
   return { from, to, result, startedAt: dateOr(raw.startedAt), endedAt: dateOr(raw.endedAt), code };
 }
@@ -231,7 +238,7 @@ export class DesktopUpdates {
   }
 
   private async unit(): Promise<UnitFacts> {
-    const res = await this.run(['show', UPDATE_UNIT, '--property=LoadState,ActiveState,ExecMainStartTimestamp', '--timestamp=unix']);
+    const res = await this.run(['show', UPDATE_UNIT, '--property=LoadState,ActiveState,Result,ExecMainStartTimestamp', '--timestamp=unix']);
     const props = new Map<string, string>();
     for (const line of res.stdout.split('\n')) {
       const eq = line.indexOf('=');
@@ -239,7 +246,12 @@ export class DesktopUpdates {
     }
     const load = props.get('LoadState');
     // `systemctl show` of an unknown unit still answers 0, with `LoadState=not-found`
-    return { loaded: res.code === 0 && load === 'loaded', active: props.get('ActiveState') ?? 'inactive', startedAt: systemdTime(props.get('ExecMainStartTimestamp')) };
+    return {
+      loaded: res.code === 0 && load === 'loaded',
+      active: props.get('ActiveState') ?? 'inactive',
+      result: props.get('Result') ?? '',
+      startedAt: systemdTime(props.get('ExecMainStartTimestamp')),
+    };
   }
 
   async status(): Promise<DesktopUpdateStatus> {
@@ -267,10 +279,16 @@ export class DesktopUpdates {
       this.started = null;
     }
     if (this.refused) return { state: 'needs-login', ...facts, ...lastRun, reason: { code: 'update.needs-login' } };
-    // The unit failed after its status file was last written: the script never got to say why
+    // StartLimitBurst refused the start: the helper never ran, so neither ExecMainStartTimestamp nor the
+    // status file moved, and both still describe the run before it. Reading them would show that
+    // run's outcome (often a green "up to date") for a start that did nothing
+    if (unit.result === 'start-limit-hit') return { state: 'failed', ...facts, ...lastRun, reason: { code: 'update.start-limited' } };
+    // systemd ended the run after its status file was last written (a timeout, a signal, the OOM
+    // killer, the script dying early): the script never got to say why
     const fileAt = last?.endedAt ? Date.parse(last.endedAt) : null;
-    if (unit.active === 'failed' && (fileAt === null || (unit.startedAt !== null && unit.startedAt > fileAt))) {
-      return { state: 'failed', ...facts, ...lastRun, reason: { code: 'update.apt-failed' } };
+    const failedRun = unit.active === 'failed' || (unit.result !== '' && unit.result !== 'success');
+    if (failedRun && (fileAt === null || (unit.startedAt !== null && unit.startedAt > fileAt))) {
+      return { state: 'failed', ...facts, ...lastRun, reason: { code: 'update.unit-failed' } };
     }
     if (!last) return { state: 'idle', ...facts, ...blank };
     const state: DesktopUpdateState = last.result === 'failed' ? 'failed' : last.result === 'installed' && facts.restartNeeded ? 'installed' : 'up-to-date';

@@ -17,6 +17,8 @@ const ruleFile = read('build/linux/50-claudio-update.rules');
 const unitFile = read('build/linux/claudio-update.service');
 const helper = read('build/linux/claudio-update');
 const builder = read('electron-builder.yml');
+const pinFile = read('build/linux/claudio.pref');
+const buildRepo = read('packaging/apt/build-repo.sh', repoRoot);
 
 const roots: string[] = [];
 after(() => {
@@ -360,9 +362,50 @@ test('the .deb ships the unit, the helper and the rule, staged with fixed modes'
   for (const entry of fpm) assert.ok(deb.includes(`    - ${entry}\n`), entry);
   const pkg = JSON.parse(read('package.json')) as { scripts: Record<string, string> };
   const stage = pkg.scripts['package:stage'] ?? '';
-  assert.match(stage, /install -m 0644 build\/linux\/claudio-update\.service build\/linux\/50-claudio-update\.rules dist\/package\//);
+  assert.match(stage, /install -m 0644 build\/linux\/claudio-update\.service build\/linux\/50-claudio-update\.rules build\/linux\/claudio\.pref dist\/package\//);
   assert.match(stage, /install -m 0755 build\/linux\/claudio-update dist\/package\/claudio-update/);
+  assert.ok(deb.includes('    - dist/package/claudio.pref=/etc/apt/preferences.d/claudio.pref\n'), 'the apt pin');
   // Committed executable too, so a by-hand run of the helper in a test container works from the checkout
   assert.ok(statSync(new URL('build/linux/claudio-update', desktopDir)).mode & 0o100);
   assert.match(helper, /^#!\/bin\/bash\n/);
+});
+
+// --- The apt pin ---
+
+/** The records of an apt preferences file, in order, each a field map; comment lines are not fields */
+function pinRecords(text: string): Map<string, string>[] {
+  return text
+    .split(/\n\s*\n/)
+    .map((chunk) => chunk.split('\n').filter((line) => line.trim() && !line.startsWith('#')))
+    .filter((lines) => lines.length > 0)
+    .map((lines) => {
+      const fields = new Map<string, string>();
+      for (const line of lines) {
+        const colon = line.indexOf(':');
+        assert.ok(colon > 0, `not a field: ${line}`);
+        fields.set(line.slice(0, colon).trim(), line.slice(colon + 1).trim());
+      }
+      return fields;
+    });
+}
+
+test("the apt pin takes claudio from the repository's own Origin, and from no other source", () => {
+  const records = pinRecords(pinFile);
+  // apt applies the first record that matches a version, so Claudio's own comes first
+  assert.equal(records.length, 2);
+  const [own, others] = records;
+  assert.ok(own && others);
+  // The Origin the repository's Release file carries, so the pin and the repository cannot drift apart
+  const origin = /APT::FTPArchive::Release::Origin=(\S+)/.exec(buildRepo)?.[1];
+  assert.equal(origin, 'Claudio');
+  assert.deepEqual(Object.fromEntries(own), { Package: 'claudio', Pin: `release o=${String(origin)}`, 'Pin-Priority': own.get('Pin-Priority') });
+  const high = Number(own.get('Pin-Priority'));
+  // Above any default (500) and a target release; below 1000, where apt would downgrade to it
+  assert.ok(Number.isInteger(high) && high >= 990 && high < 1000, `priority ${String(high)}`);
+  // `origin *` matches every repository but not dpkg's status nor a .deb named on the command line,
+  // so a version installed by hand is kept and still upgrades from Claudio's repository
+  assert.deepEqual(Object.fromEntries(others), { Package: 'claudio', Pin: 'origin *', 'Pin-Priority': others.get('Pin-Priority') });
+  assert.ok(Number(others.get('Pin-Priority')) < 0, 'a negative priority: never installed from there');
+  // Only claudio: the pin never changes how apt treats any other package
+  for (const record of records) assert.equal(record.get('Package'), 'claudio');
 });
