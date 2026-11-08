@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T15:16:33.108454577Z
-updated_at: 2026-11-08T15:16:33.108454577Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - plan
     - updates
@@ -10,8 +10,11 @@ tags:
 ---
 # Plan: remote, passwordless updates, stale assets and an unreachable server
 
-Status: **planned on 2026-11-08; orchestration launched the same day** on branch `fix/remote-updates`
-from `main` (0.14.2), in parallel with the servers engine (`docs/plans/claudio-servers.md` on branch `feat/servers`).
+Status: **built on 2026-11-08, awaiting the `review` task and the integrator**; orchestration `c1c8c025` on
+branch `fix/remote-updates` from `main` (0.14.2), in parallel with the servers engine
+(`docs/plans/claudio-servers.md` on branch `feat/servers`). Outcome per task in §6; the features are
+documented in [updates.md](../updates.md), [desktop.md](../desktop.md),
+[security-model.md](../security-model.md) and [pwa.md](../pwa.md).
 
 ## 1. What the owner asked for
 
@@ -174,6 +177,48 @@ read this plan whole, `CLAUDE.md` and `CONTRIBUTING.md`; touch only what your ro
 every change; TypeScript strict; English; Conventional Commits; never push; verify through Sluice's
 `verify`; no `sudo`, `pkexec`, `apt` or `systemctl start` against the real system in tests or by hand
 (everything that touches the system is injected and faked).
+
+## 6. Outcome
+
+Written by `docs` from the code of the merged branches, not only from the workers' reports. Nothing here
+was run on a real machine: no `.deb` was built, no unit started, no browser suite run.
+
+- **`update-unit` (D1, D2).** Built as planned: `claudio-update.service`, the helper
+  `/usr/lib/claudio/claudio-update`, `50-claudio-update.rules`, group handling in `after-install.sh` and
+  `after-remove.sh`, `deb.fpm` entries and `package:stage` (modes fixed at staging). Beyond the plan:
+  `startedAt` and `code` in `status.json`; a new code `update.source-missing`; the apt lock handled by a
+  retry loop (60 × 5 s) because `DPkg::Lock::Timeout` does not cover `apt-get update`; conffiles kept
+  (`--force-confold`). `packaging/apt/test/roundtrip.sh` (CI only) was extended and has not run.
+  Open: Ubuntu 22.04's polkit 0.105 ignores `.rules`; installing as plain root adds nobody to the group.
+- **`update-trigger` (D3, D4, D5, D8).** `packages/core/src/updates/desktop-update.ts` with an injected
+  `systemctl`; routes `GET`/`POST /system/desktop-update` and `POST /system/restart`, owner-only
+  (the desktop credential refused), event `desktop-update.changed`. Exit 76 relaunches the shell; an
+  older shell gets 75; no shell is `412 update.no-shell`. `pick()` drops an outrun overlay quietly
+  and clears the stale `bad`/`lastRollback` once. Beyond the plan: `--no-ask-password`, codes
+  `update.busy`, `update.start-failed`, `update.no-shell`. Open: whether polkit applies a new group
+  membership before the next login (the plan says no; the worker thought yes; unverified), and that
+  `systemctl show` honours `--timestamp=unix` (a `Date.parse` fallback exists).
+- **`update-ui`.** The Updates card shows the unit on desktop, browser and phone, with the Restart
+  dialog (`whenIdle` after a 409). Its contract types are still local to `lib/updates.ts` (`DesktopUnitStatus`, …) instead of imports from `@claudio/shared`, and the card **polls** (2 s installing, 5 s waiting for idle) although `events.ts` now refetches `['desktop-update']` on `desktop-update.changed`: importing the shared types and dropping the polling is open. Left alone: the
+  "Up to date" tag shows beside **Update** when a newer Claudio exists, and `unavailable` uses the amber
+  alert for plain information. No e2e spec written or run.
+- **`stale-assets` (D6).** As §3: 404 for missing files, `/assets` served from kept builds with
+  immutable caching, Safari wordings, `WidgetBoundary` moved to `pages/dashboard/WidgetBoundary.tsx`
+  and wired to `noticeStaleChunk`, service worker guards. Open: a bare "Load failed" from an
+  `import()` in Safari is not detected (needs a device); after a `.deb` upgrade the old build is gone,
+  so only the 404 and the reload offer remain; the Home e2e spec has not run. Pre-existing UI issues
+  noted by its review: `ErrorBox` title weight, three gradient buttons with the banner on screen,
+  Home findings I3 and I9.
+- **`unreachable-screen` (D9).** `lib/reachability.ts` (probe of `/api/health`, back-off 2 → 30 s,
+  recovery without reload), `components/Unreachable.tsx`, wiring in `App.tsx`, `events.ts`, `auth.ts`,
+  `api.ts`, the reload banner suppressed while unreachable, the boot guard's words, and
+  `e2e/specs/unreachable.spec.mjs` (written, not run). Its worker's report was empty, so this entry
+  comes from the code.
+- **`minshell-guard` (D7).** Not part of this branch when `docs` ran; see its own branch and the
+  `review` task.
+- **`docs`.** This section and the five documents above. Merge conflicts resolved: `strings.json`
+  keeps both the route-audit sentence and the card's button (both strings exist); `module-graph.json`
+  regenerated with `tsx scripts/module-graph.ts --write`. Beyond the plan: nothing.
 
 ## Related
 

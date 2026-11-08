@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - pwa
     - phone
@@ -47,6 +47,35 @@ real certificate, and so push. Turn on authentication first: the tunnel refuses 
 The tailnet needs MagicDNS and HTTPS certificates on, and the address stays the same while the
 machine keeps its name. Only devices on your tailnet can reach it. See
 [docs/tunnel.md](tunnel.md).
+
+## When the server cannot be reached
+
+A phone away from home without Tailscale, or a laptop with no network, used to get a half-blank app
+with an error in every widget. Two things the app used to blur are now apart
+([plans/remote-updates.md](plans/remote-updates.md), D9):
+
+- **A new version.** The server answers, with another version or without an old chunk: the banner
+  *Claudio was updated to X* with **Reload** ([updates.md](updates.md#after-an-update-stale-chunks)).
+- **No answer at all.** A network error, not an HTTP status. A reload cannot fix it, so none is
+  offered: a screen of its own (`Unreachable`, an `Empty` with the `offline` illustration) takes the
+  page's place and leaves the shell, and the pages behind it are held, not unmounted.
+
+One failed call is only a suspicion. The page confirms it by probing `/api/health` (open, cheap,
+8 s timeout); any HTTP answer, even an error status, proves the server is there, and only a probe
+with no answer flips the screen on. The store is `apps/web/src/lib/reachability.ts`; the request
+layer, the first auth check, the events feed and the lazy-chunk errors all feed it, and while it is
+on, no widget, route or reload banner prints a network error of its own.
+
+The words depend on the cause. With `navigator.onLine === false`: **No connection**, "This device has
+no internet connection." Otherwise: **Can't reach Claudio**, "*address* isn't answering. If you're
+away from home, turn on Tailscale or join your local network." (the address, `location.host`, in the
+mono face). Below: "Retrying in N s" and **Retry now**. It retries by itself with a back-off from 2 s
+doubling to 30 s, and at once on `online`, on focus and when the tab becomes visible. When the server
+answers again the app goes on **without a reload**: queries are refetched and the events feed
+reopens; if the version changed meanwhile, the update banner appears then. Before the app has
+started, the boot guard's plain fallback says the same words when the network was the cause.
+The servers feature will reuse the component for a remote that is offline while the hub is up.
+Specs: `apps/web/test/{reachability,unreachable-screen}.test.tsx` and `e2e/specs/unreachable.spec.mjs`.
 
 How the screens adapt to a phone is in [phone-layout.md](phone-layout.md) and the design system;
 what is worth a push, and the interruption levels, in [notifications.md](notifications.md). Until
