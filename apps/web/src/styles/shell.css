@@ -744,6 +744,42 @@ a.statusbar-item:focus-visible {
   flex: 1;
 }
 
+/* The unreachable-server screen takes the page's place (D9 of docs/plans/remote-updates.md); the
+   page stays mounted behind it, so a draft in a composer outlives the outage */
+/* Two classes, to outweigh `.page { display: flex }` further down */
+.page.page-held {
+  display: none;
+}
+
+.unreachable {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100%;
+}
+
+/* Before the shell exists (the first reads cannot be made): the whole window, under the one halo */
+.unreachable-standalone {
+  min-height: 100dvh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: var(--glow-top) no-repeat, var(--bg);
+}
+
+.unreachable-text,
+.unreachable-wait {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+.unreachable-wait {
+  line-height: var(--lh-small);
+  margin-top: 6px;
+  color: var(--fg-3);
+}
+
 /*
  * The page's padding is kept in variables so a sticky bar can undo it. A sticky element sticks to
  * the edge of its scroll container's *content* box, so `top: 0` inside `.main` left a strip of the

@@ -330,6 +330,7 @@ import { chatKeys, type ChatClient } from '@claudio/chat-ui/lib/context';
 import { useFallbackInterval } from './lib/feed';
 import type { DesktopRestartRequest, DesktopRestartResult, DesktopUnitStatus } from './lib/updates';
 import { mergeRefetchMs } from './lib/merge';
+import { reachability } from './lib/reachability';
 import { askSpendCap, acknowledgeSpend, SPEND_OVERRIDE_HEADER, spendAcknowledged, spendScope } from './lib/spend-cap';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
 
@@ -450,9 +451,17 @@ export async function requestResponse(path: string, init: CallInit = {}): Promis
     }
     // fetch rejects with a bare TypeError ("Failed to fetch", "NetworkError…") when no answer came
     // back at all: the browser's wording, in the browser's language, and nothing a person can act on
-    if (err instanceof TypeError) throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
+    if (err instanceof TypeError) {
+      // One failed call is a suspicion, not a verdict: a probe decides whether the screen takes over.
+      // Fresh: the server may have gone a moment after its last answer, and with the event stream
+      // half-open nothing else would ever ask (calls that fail together share the one probe)
+      void reachability.suspect(true);
+      throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
+    }
     throw err;
   }
+  // Whatever the status, the server is there
+  reachability.answered();
   if (!res.ok) {
     const text = await res.text();
     let json: unknown = null;
