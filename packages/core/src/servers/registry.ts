@@ -129,15 +129,17 @@ export class ServerRegistry {
 
   /**
    * Changes one server as it is when the write's turn comes, so two changes that race (a selection
-   * writing `lastUsedAt`, a connection learning a renewed certificate) do not undo each other
+   * writing `lastUsedAt`, a connection learning a renewed certificate) do not undo each other. With a
+   * token (a pairing again), the token is stored first, as `put` does.
    */
-  change(id: string, apply: (server: StoredServer) => StoredServer): Promise<StoredServer> {
+  change(id: string, apply: (server: StoredServer) => StoredServer, token?: string): Promise<StoredServer> {
     let saved: StoredServer | null = null;
     return this.queue(async () => {
       this.writable();
       const at = this.servers.findIndex((each) => each.id === id);
       const current = this.servers[at];
       if (at === -1 || !current) throw new ServersError(404, 'servers.not-found', `no server with id ${id}`);
+      if (token !== undefined) await this.vault.set(SERVERS_VAULT_TOOL, { [id]: token });
       const next = [...this.servers];
       saved = copy(apply(copy(current)));
       next[at] = saved;

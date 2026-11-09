@@ -14,6 +14,7 @@ import { Core, SERVERS_FILE, SERVERS_VAULT_TOOL, ensureLanCertificate, loadConfi
 import type {
   AuditPage,
   ClaudioServer,
+  PairServerAgainResult,
   Project,
   RemoveServerResult,
   ServerFingerprintConfirmation,
@@ -942,4 +943,105 @@ test('a new address must prove the identity; a hub cannot drive another hub’s 
   const hop = await r.app.inject({ url: '/api/servers/0123456789ab/api/meta', ...bearer(token) });
   assert.equal(hop.statusCode, 403);
   assert.equal(codeOf(hop), 'servers.one-hop');
+});
+
+test('a server whose token was revoked is paired again in place: same id and settings, a working token, and one token on the remote (E3)', async (t) => {
+  const r = await remote(t);
+  const h = await hub(t);
+  const server = await pairByCode(h, r);
+  const renamed = await h.app.inject({ method: 'PATCH', url: `/api/servers/${server.id}`, ...authed(h.token, { name: 'Studio box', color: 'accent-2', monogram: 'SB' }) });
+  assert.equal(renamed.statusCode, 200, renamed.body);
+  const before = serverToken(h, server.id);
+  assert.ok(before);
+  assert.notEqual(await r.core.security.revokeServerCredential(before), null);
+  assert.equal(codeOf(await through(h, server.id, 'GET', '/api/projects')), 'servers.needs-pairing');
+
+  const again = await h.app.inject({ method: 'POST', url: `/api/servers/${server.id}/pair`, ...authed(h.token, { kind: 'code', code: await codeFrom(r) }) });
+  assert.equal(again.statusCode, 200, again.body);
+  const paired = again.json<PairServerAgainResult>();
+  assert.deepEqual(
+    { id: paired.id, name: paired.name, color: paired.color, monogram: paired.monogram, addresses: paired.addresses, createdAt: paired.createdAt },
+    { id: server.id, name: 'Studio box', color: 'accent-2', monogram: 'SB', addresses: server.addresses, createdAt: server.createdAt },
+  );
+  assert.equal(paired.identity.instanceId, r.core.identity.instanceId);
+  assert.equal(paired.health?.status, 'connected');
+  assert.deepEqual(paired.previousToken, { revoked: true }, 'the revoked token is gone from the remote, which is what giving it back means');
+  const after = serverToken(h, server.id);
+  assert.ok(after);
+  assert.notEqual(after, before);
+  assert.equal(again.body.includes(after), false, 'the token never appears in an answer');
+  assert.equal((await through(h, server.id, 'GET', '/api/projects')).statusCode, 200);
+  assert.equal(r.core.security.serverTokens.length, 1, 'no orphan token on the remote');
+  assert.deepEqual(
+    (await h.app.inject({ url: '/api/servers', ...bearer(h.token) })).json<ClaudioServer[]>().map((each) => each.id),
+    [server.id],
+  );
+
+  // Pairing a healthy server again replaces its token there as well: still one
+  const twice = await h.app.inject({ method: 'POST', url: `/api/servers/${server.id}/pair`, ...authed(h.token, { pairing: { kind: 'code', code: await codeFrom(r) } }) });
+  assert.equal(twice.statusCode, 200, twice.body);
+  assert.deepEqual(twice.json<PairServerAgainResult>().previousToken, { revoked: true });
+  assert.equal(r.core.security.serverTokens.length, 1);
+  assert.equal((await through(h, server.id, 'GET', '/api/projects')).statusCode, 200);
+});
+
+test('a reinstalled server is paired again by its owner token after its new certificate is confirmed, and its earlier token never reaches it (E3, D13)', async (t) => {
+  const h = await hub(t);
+  const first = await fake(t);
+  const server = await pairWithFake(h, [{ url: first.base, kind: 'lan' }]);
+  await first.close();
+  // Reinstalled on the same address: another certificate, another instance
+  const reinstalled = await fake(t, { port: first.port, instanceId: 'reinstalled' });
+  assert.equal((await h.app.inject({ method: 'POST', url: `/api/servers/${server.id}/use`, ...bearer(h.token) })).json<ClaudioServer>().health?.status, 'identity-changed');
+
+  const pairAgain = (body: unknown) => h.app.inject({ method: 'POST', url: `/api/servers/${server.id}/pair`, ...authed(h.token, body) });
+  const asked = await pairAgain({ kind: 'token', token: 'the-remote-owner-token' });
+  assert.equal(asked.statusCode, 409, asked.body);
+  const confirmation = asked.json<ServerFingerprintConfirmation>();
+  assert.equal(confirmation.code, 'servers.confirm-fingerprint');
+  assert.equal(confirmation.fingerprint, reinstalled.fingerprint);
+  assert.equal(reinstalled.seen.length, 0, 'nothing was sent before the certificate was confirmed');
+  assert.equal(codeOf(await pairAgain({ kind: 'token', token: 'the-remote-owner-token', expectedFingerprint: first.fingerprint })), 'servers.fingerprint-unexpected');
+  assert.equal(reinstalled.seen.length, 0);
+
+  const again = await pairAgain({ kind: 'token', token: 'the-remote-owner-token', expectedFingerprint: confirmation.fingerprint });
+  assert.equal(again.statusCode, 200, again.body);
+  const paired = again.json<PairServerAgainResult>();
+  assert.equal(paired.id, server.id);
+  assert.deepEqual(paired.identity, { instanceId: 'reinstalled', tlsFingerprint: reinstalled.fingerprint });
+  assert.equal(paired.health?.status, 'connected');
+  assert.deepEqual(paired.previousToken, { revoked: false, reason: { code: 'servers.identity-changed' } });
+  assert.equal(
+    reinstalled.seen.some((each) => each.method === 'DELETE'),
+    false,
+    'the earlier token was for another machine: it is never offered to this one',
+  );
+  assert.equal((await through(h, server.id, 'GET', '/api/x')).statusCode, 200);
+});
+
+test('pairing again refuses another server on the list, an unknown id and a bad body, and a failure leaves the server as it was (E3)', async (t) => {
+  const h = await hub(t);
+  const a = await fake(t, { instanceId: 'server-a' });
+  const b = await fake(t, { instanceId: 'server-b' });
+  const first = await pairWithFake(h, [{ url: a.base, kind: 'lan' }], 'A');
+  await pairWithFake(h, [{ url: b.base, kind: 'lan' }], 'B');
+  const tokenBefore = serverToken(h, first.id);
+
+  // A's address now answers as B, which is on the list already
+  await a.close();
+  const impostor = await fake(t, { dir: b.dir, port: a.port, instanceId: 'server-b' });
+  const taken = await h.app.inject({ method: 'POST', url: `/api/servers/${first.id}/pair`, ...authed(h.token, { kind: 'token', token: 'the-remote-owner-token', expectedFingerprint: impostor.fingerprint }) });
+  assert.equal(taken.statusCode, 409, taken.body);
+  assert.equal(codeOf(taken), 'servers.already-paired');
+  const kept = (await h.app.inject({ url: '/api/servers', ...bearer(h.token) })).json<ClaudioServer[]>().find((each) => each.id === first.id);
+  assert.equal(kept?.identity.instanceId, 'server-a', 'the identity on record did not move');
+  assert.equal(serverToken(h, first.id), tokenBefore);
+
+  assert.equal((await h.app.inject({ method: 'POST', url: '/api/servers/0123456789ab/pair', ...authed(h.token, { kind: 'code', code: 'ABCD2345' }) })).statusCode, 404);
+  const bad = await h.app.inject({ method: 'POST', url: `/api/servers/${first.id}/pair`, ...authed(h.token, { kind: 'password' }) });
+  assert.equal(bad.statusCode, 400);
+  assert.equal(codeOf(bad), 'servers.pairing-invalid');
+
+  assert.equal((await h.app.inject({ method: 'PUT', url: '/api/servers/settings', ...authed(h.token, { enabled: false }) })).statusCode, 200);
+  assert.equal(codeOf(await h.app.inject({ method: 'POST', url: `/api/servers/${first.id}/pair`, ...authed(h.token, { kind: 'code', code: 'ABCD2345' }) })), 'servers.disabled');
 });

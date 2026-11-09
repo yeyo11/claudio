@@ -5478,6 +5478,18 @@ export interface RemoveServerResult {
   revoked: boolean;
   reason?: { code: string };
 }
+/**
+ * `POST /servers/:id/pair`: the server paired again in place (same id, name, colour, monogram and
+ * addresses, the identity and token of the new pairing), and what became of the token it replaced.
+ */
+export interface PairServerAgainResult extends ClaudioServer {
+  /**
+   * The earlier token: `revoked` once the server that issued it no longer takes it (it took it back
+   * now, or no longer knew it); otherwise the `reason`, such as `servers.unreachable` or
+   * `servers.identity-changed` when no address answers as that server any more
+   */
+  previousToken: RemoveServerResult;
+}
 
 /**
  * Stands in for a secret the API will not return (an MCP server's `env` and `headers` values). Sent

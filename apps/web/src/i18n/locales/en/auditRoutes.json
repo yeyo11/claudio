@@ -218,6 +218,7 @@
   "POST /server-links/redeem": "Pair with a code",
   "POST /servers": "Pair with a server and add it",
   "POST /servers/:id/api/*": "Write to a server through the gateway",
+  "POST /servers/:id/pair": "Pair with a server again, in place",
   "POST /servers/:id/test": "Test the connection to a server",
   "POST /servers/:id/use": "Select a server",
   "POST /setup/logins": "Start a sign-in",

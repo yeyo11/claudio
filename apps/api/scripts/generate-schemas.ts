@@ -42,7 +42,7 @@ const ROOT_TYPES = [
   'AuthConfig', 'HostRefusal', 'ClaimHostResult', 'UpdateAuthConfigRequest', 'SetAuthTokenRequest', 'AuthTokenResult', 'AuditEntry', 'AuditPage', 'AuditFilter',
   // Servers: the remote side and the hub (docs/plans/claudio-servers.md, §9.1)
   'ServerMeta', 'ServerLinkCode', 'RedeemServerLinkRequest', 'CreateServerLinkRequest', 'ServerLinkGrant', 'ServerLink',
-  'ClaudioServer', 'ServersSettings', 'AddServerRequest', 'ServerFingerprintConfirmation', 'UpdateServerRequest', 'ServerTestResult', 'RemoveServerResult',
+  'ClaudioServer', 'ServersSettings', 'AddServerRequest', 'ServerFingerprintConfirmation', 'UpdateServerRequest', 'ServerTestResult', 'RemoveServerResult', 'PairServerAgainResult', 'ServerPairing',
   // Guards (docs/plans/guards.md)
   'GuardSettingsView', 'UpdateGuardSettingsRequest', 'GuardEventPage', 'GuardCheckRequest', 'GuardCheckResult',
   // Per-chat MCP servers and tool presets
