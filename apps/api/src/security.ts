@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
-import { DESKTOP_ACTOR, MAX_AUDIT_PATH, TYPED_COMPACT, chatActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
-import type { HostRefusal } from '@claudio/shared';
+import { DESKTOP_ACTOR, MAX_AUDIT_PATH, TYPED_COMPACT, chatActor, isServerActor, type AgentReadRefusal, type Core, type RuntimeHosts } from '@claudio/core';
+import type { ChatOrigin, HostRefusal } from '@claudio/shared';
 import { allowedOrigin } from './origins.ts';
 import { ROUTE_DOCS, accessOf } from './openapi/routes.ts';
 
@@ -67,6 +67,25 @@ const QUERY_TOKEN = new Set([
   'GET /projects/:id/export',
   'GET /eval-runs/:runId/export',
 ]);
+
+/**
+ * The gateway (`routes/servers-gateway.ts`) relays a remote's own `QUERY_TOKEN` routes, which the
+ * browser opens through it the same way: the hub's token rides in `?token=` there too, on those paths
+ * only, and the gateway takes it off before the request leaves for the remote.
+ */
+const GATEWAY_GET = 'GET /servers/:id/api/*';
+const GATEWAY_QUERY_TOKEN = [...QUERY_TOKEN].map((route) => new RegExp(`^/api/servers/[^/]+/api${(route.split(' ')[1] ?? '').replace(/:[A-Za-z]+/g, '[^/]+')}$`));
+
+/**
+ * The gateway's relay of a remote's terminal socket: a browser's WebSocket carries no token, so it is
+ * opened by a ticket the gateway checks itself, as `TERMINAL_SOCKET` is by its route.
+ */
+const GATEWAY_SOCKET = /^\/api\/servers\/[^/]+\/api\/terminals\/[^/]+\/socket$/;
+
+function acceptsQueryToken(route: string | null, path: string): boolean {
+  if (route === null) return false;
+  return QUERY_TOKEN.has(route) || (route === GATEWAY_GET && GATEWAY_QUERY_TOKEN.some((pattern) => pattern.test(path)));
+}
 
 /**
  * Loopback is always ours: it is where a local install lives, and it is the address a rebinding
@@ -182,6 +201,8 @@ function backoffKey(req: FastifyRequest, runtime: RuntimeHosts): string {
  * reached on. `req.ip` is the socket's address, since the app does not trust proxy headers.
  */
 function fromLocalMachine(req: FastifyRequest): boolean {
+  // A hub's gateway may well dial loopback, and is still another machine's (R9)
+  if (isServerActor(req.actor)) return false;
   const host = req.headers.host;
   return LOOPBACK.test(req.ip) && host !== undefined && LOOPBACK.test(hostNameOf(host));
 }
@@ -230,6 +251,8 @@ export function forwardingOf(req: FastifyRequest): Forwarding {
  * proxy one day cannot widen this.
  */
 export function fromLocalMachineStrict(req: FastifyRequest, runtime: RuntimeHosts): boolean {
+  // A paired hub is never this machine, even from a hub on the same one through loopback (R9, D10)
+  if (isServerActor(req.actor)) return false;
   const peer = req.socket.remoteAddress;
   const host = req.headers.host;
   if (peer === undefined || !LOOPBACK.test(peer) || host === undefined) return false;
@@ -264,6 +287,31 @@ const CHAT_FORBIDDEN_REVIEW_GATE = new Set([
   `POST ${API_PREFIX}/projects/:id/review-roles/:role`,
 ]);
 const CHAT_REVIEW_GATE_REFUSAL = "a chat's token cannot accept a review gate or write a reviewer's role: that is the person's";
+
+/**
+ * D12 of docs/plans/claudio-servers.md (owner, 2026-11-08): a chat the person switched Claudio's own
+ * MCP server on for drives orchestrations as the person does. On every `/orchestrations*` route its
+ * token counts as the owner's, with no exception: no access class, no `workFields`, no review-gate
+ * exception and no handler's own check of a chat (`fromChat`, which reads `actsAsOwner`) refuses it,
+ * and a schedule's `target.spec` takes whatever `POST /orchestrations` then takes. The flag is read
+ * from the chat at every request and never kept with the token, so switching the server off takes
+ * the access away at the next request. Only a person's own chats qualify: an orchestration's workers
+ * and Claudio's internal chats keep the classes whatever their tool record says, so a graph can
+ * never widen what it runs. The audit still names the chat (`chat:<id>`).
+ */
+const ORCHESTRATION_ROUTE = /^[A-Z]+ \/orchestrations(?:\/|$)/;
+const PERSON_CHAT_ORIGINS: ReadonlySet<ChatOrigin> = new Set<ChatOrigin>(['claudio', 'external']);
+const orchestrationOwners = new WeakSet<FastifyRequest>();
+
+/** Whether the chat `actor` names has Claudio's MCP server on right now, and is a person's chat */
+export function claudioMcpChat(core: Core, actor: string | null): boolean {
+  if (!actor?.startsWith('chat:')) return false;
+  const chat = core.runtime.get(actor.slice('chat:'.length));
+  return chat !== null && chat.tools?.claudioMcp === true && PERSON_CHAT_ORIGINS.has(chat.origin) && chat.orchestrationId === null && !chat.claudioAssistant;
+}
+
+/** Whether a chat's own request acts as the owner on this orchestration route (D12) */
+export const actsAsOwner = (req: FastifyRequest): boolean => orchestrationOwners.has(req);
 
 /**
  * The terminal is the person's own shell: a chat's token cannot open, read or type into one, and
@@ -511,7 +559,14 @@ export class FailureBackoff {
  * chat has to be able to unblock it. The guard's own switch stays reachable because a switch that
  * cannot be turned back is a trap, and it is administration of the wrapper, not of its work.
  */
-const READ_ONLY_ALLOWED = new Set(['POST /chats/:id/permissions/:requestId', 'PUT /security/auth']);
+const READ_ONLY_ALLOWED = new Set([
+  'POST /chats/:id/permissions/:requestId',
+  'PUT /security/auth',
+  // A hub giving up its own token only takes access away, like turning the terminal off
+  'DELETE /server-links/self',
+  // And so does the owner cutting a hub off (D14)
+  'DELETE /server-links/:tokenId',
+]);
 
 /** The OpenAI-compatible surface, which needs a credential in every mode */
 const OPENAI_SURFACE = new RegExp(`^${API_PREFIX}/v1(?:/|$)`);
@@ -586,7 +641,7 @@ function credentialOf(req: FastifyRequest, route: string | null): string | undef
   // An empty bearer is no credential rather than a wrong one, so it is not counted as a guess
   if (scheme?.toLowerCase() === 'bearer' && rest.length) return rest.join(' ').trim() || undefined;
   // A header that is not a bearer token (a proxy's own `Basic`, say) is not ours: fall through
-  if (route === null || !QUERY_TOKEN.has(route)) return undefined;
+  if (!acceptsQueryToken(route, pathOf(req.url))) return undefined;
   const token = (req.query as { token?: unknown } | undefined)?.token;
   return typeof token === 'string' && token ? token : undefined;
 }
@@ -612,7 +667,8 @@ export function auditRoute(method: string, routeUrl: string | undefined): string
 }
 
 /**
- * Whether an actor is the owner: the holder of the owner token or an OIDC identity. Not the open
+ * Whether an actor is the owner: the holder of the owner token, an OIDC identity or a paired hub
+ * (`server:<tokenId>`, full control by design: docs/plans/claudio-servers.md, §9.2). Not the open
  * install's `local`, the desktop app's own credential, a chat, a webhook or nobody.
  */
 export function isOwnerActor(actor: string | null): actor is string {
@@ -746,7 +802,16 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     const mode = core.security.mode;
     // Before the credential, because an authority this wrapper does not serve is refused whether
     // or not the caller holds one: under `mode: 'none'` there is no credential to refuse it by
-    if (guarded && !probe && route !== HOST_CLAIM && !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts, core.profile === 'headless')) {
+    // A paired hub's token is accepted on any name the listener serves (R10): a hub reaches it by a
+    // LAN address, a Tailscale name or a proxy, and the token, which a rebinding page cannot hold, is
+    // the proof. Only the hash is compared here; the request is authenticated below like any other
+    if (
+      guarded &&
+      !probe &&
+      route !== HOST_CLAIM &&
+      !hostAllowed(req.headers.host, allowedHosts(), runtimeHosts, core.profile === 'headless') &&
+      !core.security.isServerCredential(credentialOf(req, route))
+    ) {
       req.actor = 'anonymous';
       const host = hostNameOf(req.headers.host ?? '');
       if (req.method === 'GET' && prefersHtml(req.headers.accept)) {
@@ -778,7 +843,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       return reply;
     }
     // A socket's ticket is its credential; the route checks it once the gate has had its say
-    const ticketed = route === TERMINAL_SOCKET;
+    const ticketed = route === TERMINAL_SOCKET || (route === GATEWAY_GET && req.headers.upgrade !== undefined && GATEWAY_SOCKET.test(path));
     if (ticketed && mode !== 'none') req.actor = 'anonymous';
     if (guarded && mode !== 'none' && !ticketed) {
       // Still audited when it is a write, and as what it was: nobody we could name
@@ -835,10 +900,12 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       if (chatId !== null) req.actor = chatActor(chatId);
     }
     req.actor ??= 'local';
+    // Read now, from the chat: a server switched off a moment ago no longer counts (D12)
+    if (route !== null && ORCHESTRATION_ROUTE.test(route) && claudioMcpChat(core, req.actor)) orchestrationOwners.add(req);
 
     // The three exceptions, which hold in every mode (see the note above the review gate's set)
     const key = `${req.method} ${req.routeOptions.url ?? path}`;
-    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(key)) {
+    if (req.actor.startsWith('chat:') && CHAT_FORBIDDEN_REVIEW_GATE.has(key) && !orchestrationOwners.has(req)) {
       void reply.status(403).send({ error: CHAT_REVIEW_GATE_REFUSAL, code: 'chat-forbidden' });
       return reply;
     }
@@ -872,7 +939,7 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
     }
 
     // The class of the matched route, for a chat's token a guarded mode authenticated
-    if (chatCredentials.has(req) && access === 'person') {
+    if (chatCredentials.has(req) && access === 'person' && !orchestrationOwners.has(req)) {
       void reply.status(403).send(personRefusal(route));
       return reply;
     }
@@ -892,7 +959,8 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
   // (`workFields`): a sibling started with `bypassPermissions` or a wider tool list would undo the
   // rules the class enforces (report §8.3). Read once the body is parsed, so in `preHandler`
   app.addHook('preHandler', async (req, reply) => {
-    if (!chatCredentials.has(req)) return;
+    // A chat that acts as the owner here (D12) may send every field the person may
+    if (!chatCredentials.has(req) || orchestrationOwners.has(req)) return;
     const route = apiRoute(req);
     const body: unknown = req.body;
     // Compacting is the person's (`POST /chats/:id/compact` is `person`). The text of a turn that
@@ -930,7 +998,10 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
       ];
       const stray = Object.keys(target).find((name) => !['kind', 'chat', 'spec'].includes(name));
       if (stray !== undefined) return refuse(stray, ['kind', 'chat', 'spec'], 'target.');
+      // The spec is what `POST /orchestrations` takes, so a chat that acts as the owner there sends it whole (D12)
+      const ownsSpec = claudioMcpChat(core, req.actor);
       for (const [part, source, where] of checks) {
+        if (ownsSpec && source === 'POST /orchestrations') continue;
         const allowed = ROUTE_DOCS[source]?.workFields;
         if (!allowed || part === null || typeof part !== 'object' || Array.isArray(part)) continue;
         const bad = Object.keys(part).find((name) => !allowed.includes(name));
@@ -989,7 +1060,7 @@ function crossSite(req: FastifyRequest): boolean {
 
 declare module 'fastify' {
   interface FastifyRequest {
-    /** Who made the request: a token id, an OIDC subject, `desktop`, `chat:<chatId>`, `webhook`, `anonymous` for a refused host, or `local` when nothing guards the API */
+    /** Who made the request: a token id, an OIDC subject, `desktop`, `chat:<chatId>`, `server:<tokenId>` for a paired hub, `webhook`, `anonymous` for a refused host, or `local` when nothing guards the API */
     actor: string | null;
   }
 }

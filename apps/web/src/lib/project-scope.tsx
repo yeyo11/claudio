@@ -2,6 +2,7 @@ import type { Project } from '@claudio/shared';
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useProjects } from '../api';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /*
  * The project the top bar has selected. It scopes Home, Chats, Orchestrations, Schedules and the
@@ -12,13 +13,15 @@ import { useProjects } from '../api';
  * makes a link to a project's page work from anywhere. `all` in the address selects no project.
  */
 
-const KEY = 'claudio:project';
+const BASE_KEY = 'claudio:project';
+// A project id is one server's: each server remembers its own selection
+const key = () => scopedKey(BASE_KEY);
 export const PARAM = 'project';
 export const ALL_PROJECTS = 'all';
 
 function read(): string | null {
   try {
-    return localStorage.getItem(KEY);
+    return localStorage.getItem(key());
   } catch {
     return null;
   }
@@ -26,8 +29,8 @@ function read(): string | null {
 
 function write(id: string | null): void {
   try {
-    if (id) localStorage.setItem(KEY, id);
-    else localStorage.removeItem(KEY);
+    if (id) localStorage.setItem(key(), id);
+    else localStorage.removeItem(key());
   } catch {
     // private mode: the choice just does not persist
   }

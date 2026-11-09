@@ -4,6 +4,8 @@
  * and one kept for days would point at nothing.
  */
 
+import { scopedKey } from '@claudio/ui/lib/server-scope';
+
 /** A draft not touched for this long is let go: whatever it was for is over. */
 export const DRAFT_TTL_MS = 7 * 24 * 3_600_000;
 
@@ -12,7 +14,8 @@ const PREFIX = 'claudio-composer-draft:';
 /** The part of `Storage` a draft needs, so tests hand in a map. */
 export type DraftStore = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 
-export const draftKey = (chatId: string, kind: string): string => `${PREFIX}${chatId}:${kind}`;
+// A chat id belongs to one server: the same text typed in a remote's chat must not come up in another's
+export const draftKey = (chatId: string, kind: string): string => scopedKey(`${PREFIX}${chatId}:${kind}`);
 
 function store(): DraftStore | null {
   try {

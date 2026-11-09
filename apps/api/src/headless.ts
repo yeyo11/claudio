@@ -53,6 +53,11 @@ export const HEADLESS_ROUTES: ReadonlySet<string> = new Set([
   // The guard as far as the token needs it: its mode, and replacing a token (the first-run one included)
   'GET /api/security/auth',
   'POST /api/security/token',
+  // A hub reaches a headless server too (docs/plans/claudio-servers.md, §4.1): who it is, and the
+  // pasted-token pairing and its revoke. No code routes: a code is shown on a page this profile lacks
+  'GET /api/meta',
+  'POST /api/server-links',
+  'DELETE /api/server-links/self',
   // The OpenAPI document and its reference, which describe only what is served
   'GET /openapi.json',
 ]);

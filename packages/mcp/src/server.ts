@@ -5,7 +5,7 @@ import { DEFAULT_HINT, render } from './render.ts';
 import { validate } from './schema.ts';
 import { TOOLS, type Tool } from './tools.ts';
 import { TextResult } from './untrusted.ts';
-import { WRITE_TOOLS } from './write-tools.ts';
+import { OWNER_TOOLS, WRITE_TOOLS } from './write-tools.ts';
 import { errorMessage } from '@claudio/shared';
 
 /** Newest first: the version the client asked for is used when it is in this list */
@@ -45,13 +45,17 @@ export function internalError(line: string): string | undefined {
   return fail(id, -32603, 'internal error');
 }
 
-/** The tools a process offers for its toolsets, in the order of the catalogue */
+/**
+ * The tools a process offers for its toolsets, in the order of the catalogue. The owner's
+ * orchestration writes go with `claudio`: the server cannot tell the assistant from a chat the person
+ * switched it on for, and needs not, since the API decides at every call which chat may (D12).
+ */
 export function toolsFor(toolsets: readonly ClaudioMcpToolset[]): Tool[] {
-  return [...(toolsets.includes('claudio') ? [...TOOLS, ...WRITE_TOOLS] : []), ...(toolsets.includes('collab') ? COLLAB_TOOLS : [])];
+  return [...(toolsets.includes('claudio') ? [...TOOLS, ...WRITE_TOOLS, ...OWNER_TOOLS] : []), ...(toolsets.includes('collab') ? COLLAB_TOOLS : [])];
 }
 
 export function createServer(options: { api: ApiClient; version: string; tools?: readonly Tool[] }): Server {
-  const tools = options.tools ?? [...TOOLS, ...WRITE_TOOLS];
+  const tools = options.tools ?? [...TOOLS, ...WRITE_TOOLS, ...OWNER_TOOLS];
   const byName = new Map(tools.map((tool) => [tool.name as string, tool]));
 
   async function call(params: unknown): Promise<unknown> {

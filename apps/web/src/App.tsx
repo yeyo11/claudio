@@ -46,6 +46,7 @@ import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
+import { useServerScope } from './lib/server-scope';
 import { terminalWindowId } from './components/terminal/terminal-window';
 import { TerminalBarProvider, useTerminalBar } from './components/terminal/terminal-bar';
 import { useTerminalAccess, useTerminalList } from './components/terminal/use-terminals';
@@ -127,6 +128,12 @@ export function App() {
 
 /** The setup assistant in place of the app, until it is finished or skipped */
 function FirstRunGate() {
+  // Setting up this machine is the hub's business; a remote has its own first run, on its own screen
+  const { remote } = useServerScope();
+  return remote ? <ScopedShell /> : <LocalFirstRunGate />;
+}
+
+function LocalFirstRunGate() {
   const gate = useSetupGate();
   // Held back for the read, as the sign-in is, so the shell does not flash and then vanish
   if (gate.state === 'pending') return null;
@@ -137,6 +144,10 @@ function FirstRunGate() {
       </Suspense>
     );
   }
+  return <ScopedShell />;
+}
+
+function ScopedShell() {
   // The project selector scopes pages far from the top bar, so it lives above all of them
   return (
     <ProjectScopeProvider>

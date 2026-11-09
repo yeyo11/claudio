@@ -14,6 +14,8 @@ export interface WritePrompt {
 }
 
 const PREFIX = 'mcp__claudio__';
+/** What decides what a graph's workers may do: always said, so a wider run is never confirmed unseen */
+const PERSON_FIELDS = ['permissionMode', 'permissionPrompts', 'allowedTools', 'guards', 'verification'] as const;
 const KEY = /^[A-Za-z][A-Za-z0-9]*-\d+$/;
 
 const str = (input: Record<string, unknown>, key: string): string => {
@@ -25,7 +27,7 @@ const str = (input: Record<string, unknown>, key: string): string => {
 const t = (key: string, options: TOptions = {}): string => i18n.t(`chat:permissions.writes.${key}` as 'chat:permissions.writes.anItem', options);
 
 /** A word from one of the lists in the locale; a value it does not know is left out rather than shown as the code it is */
-function word(list: 'types' | 'statuses' | 'priorities', value: string): string {
+function word(list: 'types' | 'statuses' | 'priorities' | 'guardRules', value: string): string {
   return i18n.exists(`chat:permissions.writes.${list}.${value}`) ? t(`${list}.${value}`) : '';
 }
 
@@ -39,7 +41,7 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
   const lines: string[] = [];
   for (const name of names) {
     const value = input[name];
-    if (name === 'description' || name === 'body' || name === 'prompt' || name === 'text' || name === 'objective') {
+    if (name === 'description' || name === 'body' || name === 'prompt' || name === 'text' || name === 'objective' || name === 'reason') {
       if (typeof value === 'string' && value.trim()) lines.push(value.trim());
     } else if (name === 'title' || name === 'model' || name === 'name') {
       if (typeof value === 'string' && value.trim()) lines.push(t(`fields.${name}`, { value: value.trim() }));
@@ -66,6 +68,25 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
         if (target.kind === 'chat' || target.kind === 'orchestration') lines.push(t(target.kind === 'chat' ? 'fields.targetChat' : 'fields.targetOrchestration'));
         lines.push(...fields(target, ['prompt', 'objective', 'tasks', 'model']));
       }
+    } else if (name === 'permissionMode') {
+      // The mode is the CLI's own word (bypassPermissions…): the person must see exactly what the workers will run with
+      if (typeof value === 'string' && value.trim()) lines.push(t('fields.permissionMode', { value: value.trim() }));
+    } else if (name === 'permissionPrompts') {
+      if (value === 'host' || value === 'none') lines.push(t(value === 'host' ? 'fields.permissionPromptsHost' : 'fields.permissionPromptsNone'));
+    } else if (name === 'allowedTools') {
+      if (Array.isArray(value) && value.length) lines.push(t('fields.allowedTools', { value: value.filter((v) => typeof v === 'string').join(', ') }));
+    } else if (name === 'guards') {
+      // Only what weakens them is said: a guard switched off, or a rule of it
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const guards = value as { enabled?: unknown; rules?: unknown };
+        if (guards.enabled === false) lines.push(t('fields.guardsOff'));
+        // A rule by its name in the person's language, never its id; an id the locale does not know is left out
+        const rules = guards.rules && typeof guards.rules === 'object' ? Object.entries(guards.rules as Record<string, unknown>).filter(([, on]) => on === false).map(([rule]) => word('guardRules', rule)).filter(Boolean) : [];
+        if (rules.length) lines.push(t('fields.guardsRulesOff', { value: rules.join(', ') }));
+      }
+    } else if (name === 'verification') {
+      const commands = value && typeof value === 'object' && 'commands' in value && Array.isArray(value.commands) ? value.commands.filter((c): c is string => typeof c === 'string') : [];
+      if (commands.length) lines.push(t('fields.verification', { value: commands.join(' · ') }));
     } else if (name === 'acceptanceCriteria') {
       if (Array.isArray(value)) {
         const texts = value.map((c) => (c && typeof c === 'object' && 'text' in c && typeof c.text === 'string' ? c.text : '')).filter(Boolean);
@@ -102,8 +123,48 @@ export function describeWrite(toolName: string, input: Record<string, unknown>):
       return done(t('planOrchestration'), fields(input, ['objective', 'model']));
     case 'launch_orchestration': {
       const name = str(input, 'name');
-      return done(name ? t('launchOrchestration', { name }) : t('launchPlannedOrchestration'), fields(input, ['objective', 'tasks', 'model']));
+      return done(name ? t('launchOrchestration', { name }) : t('launchPlannedOrchestration'), fields(input, ['objective', 'tasks', 'model', ...PERSON_FIELDS]));
     }
+    case 'retry_orchestration_task_clean':
+      return done(t('retryOrchestrationTaskClean'));
+    case 'rerun_orchestration_task':
+      return done(t('rerunOrchestrationTask'));
+    case 'skip_orchestration_task':
+      return done(t('skipOrchestrationTask'));
+    case 'message_orchestration_task':
+      return done(t('messageOrchestrationTask'), fields(input, ['text']));
+    case 'verify_orchestration':
+      return done(t('verifyOrchestration'), fields(input, ['verification']));
+    case 'retry_orchestration_review':
+      return done(t('retryOrchestrationReview'));
+    case 'relaunch_orchestration':
+      return done(t('relaunchOrchestration'), fields(input, ['name', 'objective', 'tasks', 'model', ...PERSON_FIELDS]));
+    case 'launch_orchestration_template':
+      return done(t('launchOrchestrationTemplate'), fields(input, ['name', 'objective', 'model']));
+    case 'delete_orchestration':
+      return done(t('deleteOrchestration'));
+    case 'integrate_orchestration':
+      return done(t('integrateOrchestration'));
+    case 'open_orchestration_pull_request':
+      return done(t('openOrchestrationPullRequest'));
+    case 'accept_orchestration_review':
+      return done(t('acceptOrchestrationReview'), fields(input, ['reason']));
+    case 'grant_orchestration_spend_pass':
+      return done(t('grantOrchestrationSpendPass'));
+    case 'send_supervisor_proposal':
+      return done(t('sendSupervisorProposal'));
+    case 'dismiss_supervisor_proposal':
+      return done(t('dismissSupervisorProposal'));
+    case 'prune_orchestration_worktrees':
+      return done(t(input.force === true ? 'pruneOrchestrationWorktreesForce' : 'pruneOrchestrationWorktrees'));
+    case 'save_orchestration_workflow':
+      return done(t('saveOrchestrationWorkflow'), fields(input, ['name']));
+    case 'create_orchestration_template':
+      return done(t('createOrchestrationTemplate', { name: str(input, 'name') }), fields(input, ['description', 'objective', 'tasks', 'model', ...PERSON_FIELDS]));
+    case 'update_orchestration_template':
+      return done(t('updateOrchestrationTemplate'), fields(input, ['name', 'description', 'objective', 'tasks', 'model', ...PERSON_FIELDS]));
+    case 'delete_orchestration_template':
+      return done(t('deleteOrchestrationTemplate'));
     case 'stop_orchestration':
       return done(t('stopOrchestration'));
     case 'resume_orchestration':

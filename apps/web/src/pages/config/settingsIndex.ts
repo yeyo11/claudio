@@ -2,6 +2,8 @@
 // eight groups (docs/plans/settings-ia.md §5). Every text is a translation key, so a person searches
 // in the language they read; every screen gives its row the entry's id as `data-setting`.
 import type { DecisionPointId } from '@claudio/shared';
+import { activeServerId, LOCAL_SERVER_ID } from '@claudio/ui/lib/server-scope';
+import { isHubOnlySection } from '../../lib/server-routes';
 import {
   GROUP_ORDER,
   sectionLabel,
@@ -179,7 +181,9 @@ add('access', 'terminal', { enabled: {}, remote: {}, 'max-terminals': {}, 'idle-
 add('access', 'audit', { log: { detail: 'audit' } });
 add('access', 'agent-reads', { log: { detail: 'agent-reads' } });
 
-export const SETTINGS_INDEX: readonly SettingEntry[] = entries;
+// A remote scope's Settings do not draw the hub's own door (sign-in, LAN, tunnel), so search and the
+// palette must not offer it either: the scope is fixed for the page, so this is decided once
+export const SETTINGS_INDEX: readonly SettingEntry[] = activeServerId() === LOCAL_SERVER_ID ? entries : entries.filter((entry) => !isHubOnlySection(entry.section));
 
 /** An entry's place in the groups' order, for ties in search. */
 export const groupRank = (group: SettingsGroupId) => GROUP_ORDER.indexOf(group);

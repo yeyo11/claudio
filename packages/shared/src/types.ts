@@ -5288,6 +5288,138 @@ export interface AuthTokenResult {
   createdAt: string;
 }
 
+// ---------- Servers: one Claudio drives the others (docs/plans/claudio-servers.md, §9.1) ----------
+
+/** Bumped on any change that breaks an older web talking to this API through a gateway */
+export const API_VERSION = 1;
+/** The oldest API_VERSION this server's routes still answer correctly */
+export const API_VERSION_MIN = 1;
+
+/** `GET /meta`, open: who this server is and which API it speaks, and nothing about its accounts, paths or hosts */
+export interface ServerMeta {
+  /** Random, made once, kept in `<data dir>/instance.json` */
+  instanceId: string;
+  /** The app version */
+  version: string;
+  apiVersion: { current: number; min: number };
+  /** e.g. 'server-links', 'gateway', 'lan-tls' */
+  capabilities: string[];
+}
+
+/** A one-time pairing code: 8 characters, 5 minutes, single use */
+export interface ServerLinkCode {
+  code: string;
+  expiresAt: string;
+}
+export interface RedeemServerLinkRequest {
+  code: string;
+  hubInstanceId: string;
+  hubName: string;
+}
+export interface CreateServerLinkRequest {
+  hubInstanceId: string;
+  hubName: string;
+}
+/** A paired hub's token as the remote's owner sees it (`GET /server-links`, D14): never the secret */
+export interface ServerLink {
+  tokenId: string;
+  /** The hub's name, as it gave it when pairing */
+  hubName: string;
+  hubInstanceId: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}
+export interface ServerLinkGrant {
+  /** Shown once, never readable again */
+  token: string;
+  tokenId: string;
+  /** This server's */
+  instanceId: string;
+  /** SHA-256 of the LAN certificate's DER, hex with colons; null without TLS */
+  tlsFingerprint: string | null;
+}
+
+export type ServerAddressKind = 'lan' | 'tailscale' | 'tunnel' | 'other';
+export interface ServerAddress {
+  url: string;
+  kind: ServerAddressKind;
+}
+export type ServerStatus = 'connected' | 'reconnecting' | 'offline' | 'needs-update' | 'needs-pairing' | 'identity-changed';
+export interface ServerHealth {
+  status: ServerStatus;
+  /** The URL in use */
+  address: string | null;
+  version: string | null;
+  apiVersion: number | null;
+  latencyMs: number | null;
+  checkedAt: string;
+  /** i18n code, e.g. 'servers.unreachable' */
+  reason?: { code: string };
+}
+export interface ClaudioServer {
+  /** Never 'local' */
+  id: string;
+  name: string;
+  /** A token name, not a hex */
+  color: string | null;
+  monogram: string | null;
+  /** Ordered by preference */
+  addresses: ServerAddress[];
+  identity: { instanceId: string; tlsFingerprint: string | null };
+  createdAt: string;
+  lastUsedAt: string | null;
+  /** Runtime, not persisted beyond the last reading */
+  health: ServerHealth | null;
+}
+export interface ServersSettings {
+  enabled: boolean;
+}
+/**
+ * How a hub pairs. With an owner token, the hub first reads the certificate the address shows
+ * without sending anything (D13): `expectedFingerprint` is the one the person read off the remote's
+ * LAN card, and without it the answer is `409 servers.confirm-fingerprint` with the seen one
+ * (`ServerFingerprintConfirmation`), which a second call carries. Ignored over plain loopback HTTP.
+ */
+export type ServerPairing = { kind: 'code'; code: string } | { kind: 'token'; token: string; expectedFingerprint?: string };
+/** `POST /servers`' 409 before a pasted token is sent: the certificate the address showed, for the person to confirm */
+export interface ServerFingerprintConfirmation {
+  error: string;
+  code: 'servers.confirm-fingerprint';
+  /** SHA-256 of the certificate's DER, upper-case hex with colons */
+  fingerprint: string;
+  /** The address that showed it, where the pairing goes once confirmed */
+  address: string;
+}
+export interface AddServerRequest {
+  name: string;
+  color?: string | null;
+  monogram?: string | null;
+  addresses: ServerAddress[];
+  pairing: ServerPairing;
+}
+export interface UpdateServerRequest {
+  name?: string;
+  color?: string | null;
+  monogram?: string | null;
+  addresses?: ServerAddress[];
+}
+export interface ServerCheck {
+  ok: boolean;
+  latencyMs?: number;
+  code?: string;
+}
+export interface ServerTestResult {
+  address: string | null;
+  meta: ServerCheck;
+  rest: ServerCheck;
+  events: ServerCheck;
+  socket: ServerCheck;
+}
+export interface RemoveServerResult {
+  revoked: boolean;
+  reason?: { code: string };
+}
+
 /**
  * Stands in for a secret the API will not return (an MCP server's `env` and `headers` values). Sent
  * back unchanged on a write it means "keep what is stored": that is how a configuration is edited
@@ -5606,7 +5738,7 @@ export interface LanAddress {
   ip: string;
   /** `<hostname>.local` when it resolves to one of the listening addresses; null for the bare address */
   host: string | null;
-  /** `http://<ip or host>:<port>` */
+  /** `https://<ip or host>:<port>`: the listener speaks TLS, and plain HTTP there is only a redirect */
   url: string;
 }
 
@@ -5633,6 +5765,12 @@ export interface LanStatus {
   available: boolean;
   /** While `port-in-use`: what holds the port (the address it was taken on) and the next free one */
   portTaken: TunnelPortTaken | null;
+  /**
+   * SHA-256 of the listener's kept TLS certificate (its DER), upper-case hex pairs joined by colons:
+   * what a browser's certificate warning and a pairing hub are compared against. Null until the
+   * listener has made one
+   */
+  fingerprint: string | null;
 }
 
 // ---------- Collaborators ----------

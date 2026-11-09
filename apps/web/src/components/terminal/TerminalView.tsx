@@ -10,7 +10,8 @@ import { useTranslation } from 'react-i18next';
 import type { Terminal, TerminalServerFrame } from '@claudio/shared';
 import { useToast } from '@claudio/ui/components/Toast';
 import { copyText } from '@claudio/ui/lib/clipboard';
-import { api, BASE } from '../../api';
+import { activeBase } from '@claudio/ui/lib/server-scope';
+import { api } from '../../api';
 import { defaultSocketUrl, TerminalConnection, type SocketLike } from './terminal-connection';
 import { PasteSheet } from './PasteSheet';
 import { chooseRenderer, cleanPaste, pasteChunks, pasteTooLarge, type LinkState } from './terminal-model';
@@ -229,7 +230,7 @@ export const TerminalView = forwardRef<TerminalViewHandle, Props>(function Termi
         {
           ticket: (terminalId) => api.terminalTicket(terminalId),
           open: (url) => new WebSocket(url) as unknown as SocketLike,
-          socketUrl: (terminalId, ticket) => defaultSocketUrl(terminalId, ticket, BASE, window.location),
+          socketUrl: (terminalId, ticket) => defaultSocketUrl(terminalId, ticket, activeBase(), window.location),
           setTimer: (run, ms) => window.setTimeout(run, ms),
           clearTimer: (handle) => window.clearTimeout(handle as number),
         },

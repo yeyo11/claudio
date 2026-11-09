@@ -9,7 +9,7 @@ import { Core, loadConfig, type ChatRuntime } from '@claudio/core';
 import type { AgentReadList, JournalEntry, PermissionMode, SharedArtifact, SharedBoard, SharedDocument, SharedMemoryFile, SharedProject } from '@claudio/shared';
 import { buildApp } from '../../../apps/api/src/app.ts';
 import { createClient } from '../src/client.ts';
-import { CLAUDIO_MCP_COLLAB_TOOL_NAMES, CLAUDIO_MCP_READ_TOOL_NAMES, CLAUDIO_MCP_WRITE_TOOL_NAMES, toolsetsFrom } from '../src/names.ts';
+import { CLAUDIO_MCP_COLLAB_TOOL_NAMES, CLAUDIO_MCP_OWNER_TOOL_NAMES, CLAUDIO_MCP_READ_TOOL_NAMES, CLAUDIO_MCP_WRITE_TOOL_NAMES, toolsetsFrom } from '../src/names.ts';
 import { createServer, toolsFor } from '../src/server.ts';
 import { UNTRUSTED_BODY_MAX_CHARS, fromTeammate } from '../src/untrusted.ts';
 import { injectFetch } from './fixture.ts';
@@ -165,7 +165,7 @@ const body = (text: string): unknown => {
 
 test('the toolsets: collab alone is the seven reads, the default is unchanged, and an unknown name offers nothing', () => {
   assert.deepEqual(toolsFor(['collab']).map((t) => t.name), [...CLAUDIO_MCP_COLLAB_TOOL_NAMES]);
-  assert.deepEqual(toolsFor(['claudio']).map((t) => t.name), [...CLAUDIO_MCP_READ_TOOL_NAMES, ...CLAUDIO_MCP_WRITE_TOOL_NAMES]);
+  assert.deepEqual(toolsFor(['claudio']).map((t) => t.name), [...CLAUDIO_MCP_READ_TOOL_NAMES, ...CLAUDIO_MCP_WRITE_TOOL_NAMES, ...CLAUDIO_MCP_OWNER_TOOL_NAMES]);
   assert.deepEqual(toolsetsFrom(undefined), ['claudio']);
   assert.deepEqual(toolsetsFrom(''), ['claudio']);
   assert.deepEqual(toolsetsFrom('collab'), ['collab']);
