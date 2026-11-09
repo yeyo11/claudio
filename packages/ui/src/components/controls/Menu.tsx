@@ -1,6 +1,6 @@
 import * as RadixMenu from '@radix-ui/react-dropdown-menu';
 import { Check, ChevronRight, Ellipsis, type LucideIcon } from 'lucide-react';
-import { useId, type ReactNode } from 'react';
+import { useId, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '../icons';
 import { LAYER_ATTR, layerCollisionPadding } from './layer';
@@ -98,8 +98,15 @@ export function Menu({
 }) {
   const { t } = useTranslation('primitives');
   const name = label ?? t('menu.more');
+  // How many modal dialogs were open when the menu opened: one more when it closes means an item opened it
+  const dialogsAtOpen = useRef(0);
   return (
-    <RadixMenu.Root onOpenChange={onOpenChange}>
+    <RadixMenu.Root
+      onOpenChange={(open) => {
+        if (open) dialogsAtOpen.current = modalDialogs().length;
+        onOpenChange?.(open);
+      }}
+    >
       <RadixMenu.Trigger asChild>
         {trigger ?? (
           <button type="button" className={`icon-btn ${className}`.trim()} aria-label={name} disabled={disabled}>
@@ -108,12 +115,41 @@ export function Menu({
         )}
       </RadixMenu.Trigger>
       <RadixMenu.Portal>
-        <RadixMenu.Content className="menu menu-dropdown" side={side} align={align} sideOffset={6} collisionPadding={layerCollisionPadding()} aria-label={name} {...LAYER_ATTR}>
+        <RadixMenu.Content
+          className="menu menu-dropdown"
+          side={side}
+          align={align}
+          sideOffset={6}
+          collisionPadding={layerCollisionPadding()}
+          aria-label={name}
+          onCloseAutoFocus={(event) => focusOpenedDialog(event, dialogsAtOpen.current)}
+          {...LAYER_ATTR}
+        >
           <Entries entries={entries} />
         </RadixMenu.Content>
       </RadixMenu.Portal>
     </RadixMenu.Root>
   );
+}
+
+export const modalDialogs = () => [...document.querySelectorAll<HTMLElement>('[role="dialog"][aria-modal="true"]')];
+
+/**
+ * When an item opened a dialog (Edit, Remove), focus belongs in it. Radix hands focus back to the
+ * trigger as the menu closes, which is now behind the dialog's backdrop, so a keyboard user would
+ * start outside the modal and Tab into the page underneath. The dialog's own first field is focused
+ * instead; with no new dialog, Radix's return to the trigger stands.
+ */
+export function focusOpenedDialog(event: Event, before: number) {
+  const dialogs = modalDialogs();
+  const opened = dialogs.length > before ? dialogs[dialogs.length - 1] : undefined;
+  if (!opened) return;
+  event.preventDefault();
+  if (opened.contains(document.activeElement)) return;
+  // The dialog's own choice (Dialog.tsx): its marked field, else the first control after the close button
+  const focusable = opened.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])');
+  const initial = opened.querySelector<HTMLElement>('[data-autofocus]') ?? focusable[1] ?? focusable[0];
+  (initial ?? opened).focus();
 }
 
 /**

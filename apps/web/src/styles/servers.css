@@ -275,6 +275,15 @@
 }
 
 /* ---------- Test connection ---------- */
+/* The line above the checks holds the verb while testing and the address after: one height for
+   both (the address's chip is the taller), so the centred dialog does not jump as a test ends */
+.server-test-line {
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  margin: 0;
+}
+
 .server-test-running {
   display: inline-flex;
   align-items: center;

@@ -168,7 +168,7 @@
   "MemberRuns [NowAndBefore, RunRow]",
   "Members [AnswersFor, FileState, MemberCells, MemberGrid, MoreRoles, ProposeButton, ReadOnlyTag, TeamEmpty, WritesFacts, useProposeTeam]",
   "MemoryOverview [MemoryOverview, useMemoryProjects]",
-  "Menu [Menu, MenuEntry, MenuGroup, MenuItem, PointerMenu, isGroup, isSeparator, radioChoice]",
+  "Menu [Menu, MenuEntry, MenuGroup, MenuItem, PointerMenu, focusOpenedDialog, isGroup, isSeparator, modalDialogs, radioChoice]",
   "Merge [Merge]",
   "MergeNotices [MergeNotices]",
   "Metrics [MetricCell, MetricsTable, RateBar]",

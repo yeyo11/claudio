@@ -571,6 +571,17 @@ test('a row shows its address as it is typed, without the default https://, so i
   assert.equal(shownAddress('http://127.0.0.1:8917'), 'http://127.0.0.1:8917');
 });
 
+test('the test keeps one status line in every state, so the dialog does not jump as a test starts and ends, and the end is announced', () => {
+  const line = (html: string) => html.match(/<p class="small server-test-line" role="status"[^>]*>/g) ?? [];
+  const done: ServerTestResult = { address: 'https://192.168.0.29:8791', meta: { ok: true }, rest: { ok: true }, events: { ok: true }, socket: { ok: true } };
+  assert.equal(line(wrap(<TestResultView result={null} />)).length, 1);
+  assert.equal(line(wrap(<TestResultView result={done} />)).length, 1);
+  assert.equal(line(wrap(<TestResultView result={{ ...done, address: null }} />)).length, 1);
+  assert.equal(line(wrap(<TestResultView result={null} error={new Error('down')} />)).length, 1);
+  const css = readFileSync(new URL('../src/styles/servers.css', import.meta.url), 'utf8');
+  assert.match(css, /\.server-test-line\s*\{[^}]*min-height: 26px;/);
+});
+
 test('Add a server opens on the code it asks for, not on its tabs', () => {
   const html = wrap(<AddServerForm state={addState()} onChange={() => {}} group="g" />);
   assert.match(html, /data-autofocus="true" data-testid="server-code"/);

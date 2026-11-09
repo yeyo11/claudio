@@ -24,17 +24,21 @@ export function TestResultView({ result, error }: { result: ServerTestResult | n
   };
   return (
     <div className="stack" data-testid="server-test">
-      {result === null && !error && (
-        <p className="server-test-running" role="status" data-testid="server-test-running">
-          <Spinner /> {t('test.running')}
-        </p>
-      )}
-      {result?.address && (
-        <p className="small muted">
-          {t('test.reachedAt')} <code className="mono break">{result.address}</code>
-        </p>
-      )}
-      {result && !result.address && <p className="small muted">{t('test.noAddress')}</p>}
+      {/* One line in every state (testing, where it was reached, no address), so the dialog keeps its
+          height as a test starts and ends; a live region, so the end of a test is announced too */}
+      <p className="small server-test-line" role="status" data-testid={result === null && !error ? 'server-test-running' : 'server-test-line'}>
+        {result === null && !error ? (
+          <span className="server-test-running">
+            <Spinner /> {t('test.running')}
+          </span>
+        ) : result?.address ? (
+          <span className="muted">
+            {t('test.reachedAt')} <code className="mono break">{result.address}</code>
+          </span>
+        ) : result ? (
+          <span className="muted">{t('test.noAddress')}</span>
+        ) : null}
+      </p>
       <ul className="server-checks">
         {CHECKS.map((name) => {
           const check = result?.[name];
@@ -81,7 +85,8 @@ export function TestServerDialog({ server, onClose }: { server: ClaudioServer; o
           <button type="button" className="btn" disabled={test.isPending} onClick={() => test.mutate(undefined)} data-testid="server-test-again">
             {t('test.again')}
           </button>
-          <button type="button" className="btn" onClick={onClose}>
+          {/* The first focus: Test again is disabled while the test that opened the dialog runs */}
+          <button type="button" className="btn" onClick={onClose} data-autofocus>
             {t('test.close')}
           </button>
         </>
