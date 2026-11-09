@@ -11,7 +11,7 @@ import { ChatManager, type NewChat, type RunMeta } from '../src/chats.ts';
 import type { WorkflowRun } from '../src/cli-facts.ts';
 import { Db } from '../src/db.ts';
 import { Orchestrator } from '../src/orchestrator.ts';
-import { readJournalTasks } from '../src/workflow-journal.ts';
+import { readJournalTasks, type JournalRead } from '../src/workflow-journal.ts';
 import { tempConfig } from './helpers.ts';
 
 // What the orchestrator does when something gets in its way (regression audit 2026-10-29, 9.2-9.5
@@ -183,6 +183,9 @@ function workflowRig() {
   return { config, db, runs, orchestrator };
 }
 
+/** What a graph's tasks were when an assertion on them failed */
+const seen = (orch: Orchestration): string => JSON.stringify({ status: orch.status, error: orch.error, tasks: orch.tasks.map((t) => [t.id, t.status, t.error]) });
+
 async function failedWorkflow(orchestrator: Orchestrator): Promise<Orchestration> {
   const started = orchestrator.create({
     name: 'Flaky',
@@ -228,8 +231,44 @@ test('a workflow resume refused for good fails the graph with the reason, instea
     };
     orchestrator.resume(failed.id);
     const ended = await settled(orchestrator, failed.id);
-    assert.equal(ended.status, 'failed');
-    assert.ok(ended.tasks.some((t) => /could not start the workflow: session is still running in process 4242/.test(t.error ?? '')));
+    assert.equal(ended.status, 'failed', seen(ended));
+    assert.ok(ended.tasks.some((t) => /could not start the workflow: session is still running in process 4242/.test(t.error ?? '')), seen(ended));
+  } finally {
+    await runs.stopAll();
+    orchestrator.close();
+    db.close();
+    delete process.env.FAKE_WORKFLOW_DIR;
+  }
+});
+
+test('a journal read still out when a workflow fails does not reach the resume that follows', async () => {
+  const { db, runs, orchestrator } = workflowRig();
+  const read = orchestrator.workflowJournal as NonNullable<typeof orchestrator.workflowJournal>;
+  // The watcher's first read of the journal is slow, as on a loaded machine: it is still out when the
+  // graph fails, and lands only once the resume has set the graph running again (seen on CI)
+  type HeldRead = { args: [string, string, number]; land: (value: JournalRead | null) => void };
+  let held: HeldRead | null = null;
+  orchestrator.workflowJournal = (sessionId, workflowRunId, from) => {
+    if (held) return read(sessionId, workflowRunId, from);
+    return new Promise((land) => (held = { args: [sessionId, workflowRunId, from], land }));
+  };
+  try {
+    const failed = await failedWorkflow(orchestrator);
+    // Set inside the callback, which the compiler does not follow: it would still see `null` here
+    const slow = held as HeldRead | null;
+    assert.ok(slow, 'a journal read was held');
+    // What that read finds by the time it lands: the failed attempt's lines
+    const stale = await read(...slow.args);
+    assert.ok(stale?.tasks.some((t) => t.label === 'flaky' && t.state === 'failed'), JSON.stringify(stale?.tasks));
+    runs.send = () => {
+      throw new Error('session is still running in process 4242');
+    };
+    orchestrator.resume(failed.id);
+    slow.land(stale);
+    const ended = await settled(orchestrator, failed.id);
+    assert.equal(ended.status, 'failed', seen(ended));
+    const flaky = ended.tasks.find((t) => t.id === 'flaky');
+    assert.match(flaky?.error ?? '', /could not start the workflow: session is still running in process 4242/, seen(ended));
   } finally {
     await runs.stopAll();
     orchestrator.close();

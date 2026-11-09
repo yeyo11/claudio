@@ -210,7 +210,10 @@ test('a workflow held for a reset goes on from its cache on the first account a 
     // The other account restarts its window early, and a reading says so: the run goes on there now
     delete process.env.FAKE_WORKFLOW_LIMIT;
     const account = r.accounts[0] as string;
-    const at = Date.now();
+    // A reading counts for a wait once it is newer than the wait (`roomFor`): one stamped in the very
+    // millisecond the wait began, as a fast run took it right after seeing the wait, says nothing of
+    // after, and the wait went on for its hour (seen on CI)
+    const at = Math.max(Date.now(), Date.parse(wait?.at as string) + 1);
     await r.core.runtime.noteAccountReading(account, { source: 'cache', status: null, windows: { five_hour: { utilization: 0, resetsAt: Math.floor(at / 1000) + 5 * 3600 } }, at });
     const done = await until(r.core, started.id, (o) => o.status !== 'running', 'the graph to finish');
     assert.equal(done.status, 'completed', JSON.stringify(done.tasks.map((t) => [t.id, t.status, t.error])));
