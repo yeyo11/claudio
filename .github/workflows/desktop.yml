@@ -48,6 +48,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      # electron-builder downloads Electron and its packaging tools (fpm for the .deb, the AppImage
+      # runtime) from GitHub releases on every run; a 504 from there failed the 0.15.0 release PR twice.
+      # Keyed on the lockfile, which pins electron and electron-builder, so a bump downloads them once
+      - uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+          key: electron-builder-${{ runner.os }}-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: electron-builder-${{ runner.os }}-
+
       # Web UI, API bundle, Electron shell, then electron-builder: AppImage, .deb and latest-linux.yml (what the
       # desktop app's updater reads) land in apps/desktop/release. The AppImage's blockmap is embedded in the
       # AppImage itself (latest-linux.yml gives its size), so there is no separate .blockmap file to ship.
