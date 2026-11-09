@@ -644,6 +644,7 @@
       "access": "Acceso",
       "hosts": "Hosts permitidos",
       "remote": "Acceso remoto",
+      "servers": "Servidores",
       "secrets": "Secretos",
       "guards": "Guardas",
       "terminal": "Terminal",
@@ -834,6 +835,9 @@
         "enabled": "Red local",
         "port": "Puerto de la red local",
         "bind": "Interfaces de la red local"
+      },
+      "servers": {
+        "enabled": "Usar servidores"
       }
     },
     "keywords": {
@@ -1040,6 +1044,10 @@
         "enabled": "lan wifi red casa escuchar móvil",
         "port": "lan wifi red 8791",
         "bind": "lan wifi red interfaz dirección ip"
+      },
+      "servers": {
+        "section": "servidores remoto claudio hub emparejar otras máquinas",
+        "enabled": "servidores cambiar remoto emparejar hub"
       }
     },
     "consequences": {
@@ -2123,5 +2131,16 @@
     "colCpu": "Tiempo de CPU",
     "untitled": "Chat sin título",
     "mb": "{{mb}} MB"
+  },
+  "servers": {
+    "title": "Servidores",
+    "switch": "Usar servidores",
+    "open": "Gestionar servidores",
+    "toast": {
+      "on": "Servidores activados",
+      "off": "Servidores desactivados. La lista se conserva.",
+      "saveFailed": "No se ha podido cambiar Servidores"
+    },
+    "hint": "Desactivado, desconecta los servidores y conserva la lista."
   }
 }

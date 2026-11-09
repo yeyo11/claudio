@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-07T13:00:00Z
+updated_at: 2026-11-09T14:00:00Z
 tags:
     - design-system
     - web
@@ -2172,6 +2172,27 @@ built like the tunnel's and adds `.lan-head`, `.lan-addresses`, `.lan-address`, 
   travels then). It names Tailscale as the way for a phone.
 - **Phone:** the card stacks, URLs wrap (`overflow-wrap: anywhere`), and every target (Copiar, QR,
   the segments, the interface switches, the port steppers) is at least 44 px.
+
+### Servers in the shell: the selector, the status bar item and the Settings switch
+
+Not drawn in `reference/`: it restyles the project selector and the status bar
+([plans/claudio-servers.md](plans/claudio-servers.md) §12.1). It exists only while Servers is on and
+only on the hub (one hop), so a person who never turns it on sees none of it. Classes:
+`.server-scope`, `.server-selector`, `.server-selector-value`, `.server-selector-name`, `.server-item`,
+`.server-item-name`, `.server-local-icon`, `.server-status`, `.statusbar-server`, `.more-server`,
+`.servers-switch` (`shell.css`, `editors.css`, `claudio-ds.css`).
+
+- **The selector** is the first crumb, before the project's, and wears the project selector's button
+  (`.select-trigger.project-selector`). Its menu is `MoreActions`: a dropdown on a desktop and a
+  `Sheet` on a phone. This server is pinned and chosen, then the three servers used last, each with
+  its monogram in the hue of its colour token and its status as a word (`ok`, `warn`, `bad` by what
+  it says; the braille spinner only beside Reconnecting), then one link to the page, or "Add a
+  server" when there is none. On a phone the button keeps its icon and drops the name.
+- **The status bar** names a remote scope in its first item (monogram, name, status word) with a
+  link back to the hub; the phone's More sheet shows the same as a `.more-connection` card. Names
+  carry a `title` for when they are cut.
+- **Settings → Access & safety → Servers** is one `PrefRow`: the switch, and "Manage servers". The
+  sentence and the link are the same in both states, so turning it on shifts nothing.
 
 ## 3. Live states and motion
 

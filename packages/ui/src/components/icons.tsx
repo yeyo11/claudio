@@ -150,10 +150,25 @@ export function projectMonogram(name: string): string {
   return monogramLetters(name, true);
 }
 
-export function Monogram({ name, size = 36, project = false }: { name: string; size?: number; /** Two letters even for one word */ project?: boolean }) {
-  const letters = monogramLetters(name, project);
+export function Monogram({
+  name,
+  size = 36,
+  project = false,
+  letters: given,
+  hue,
+}: {
+  name: string;
+  size?: number;
+  /** Two letters even for one word */
+  project?: boolean;
+  /** The letters to draw instead of the name's own (a server's chosen monogram) */
+  letters?: string;
+  /** The hue to tint with instead of the name's own (a server's colour) */
+  hue?: number;
+}) {
+  const letters = given ?? monogramLetters(name, project);
   return (
-    <span className="monogram" style={{ '--hue': nameHue(name), '--monogram-size': `${size}px`, width: size, height: size } as React.CSSProperties} aria-hidden>
+    <span className="monogram" style={{ '--hue': hue ?? nameHue(name), '--monogram-size': `${size}px`, width: size, height: size } as React.CSSProperties} aria-hidden>
       {letters || '?'}
     </span>
   );

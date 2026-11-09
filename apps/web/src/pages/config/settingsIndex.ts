@@ -165,6 +165,7 @@ add('access', 'remote', { tunnel: { consequence: true }, 'tunnel-port': {} });
 for (const row of ['enabled', 'port', 'bind']) {
   entries.push({ id: `lan.${row}`, group: 'access', section: 'remote', label: `config:settings.rows.lan.${row}`, keywords: `config:settings.keywords.lan.${row}` });
 }
+add('access', 'servers', { enabled: {} });
 add('access', 'secrets', { storage: {} });
 add('access', 'guards', {
   rules: {},

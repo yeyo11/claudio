@@ -10,6 +10,7 @@ test('the Servers page, the LAN and tunnel card and the sign-in cards are hub-on
   assert.equal(isHubOnly('/settings/access#access'), true);
   assert.equal(isHubOnlySection('remote'), true);
   assert.equal(isHubOnlySection('access'), true);
+  assert.equal(isHubOnlySection('servers'), true, 'the switch of Servers is the hub’s, one hop only');
 });
 
 test('what describes the selected server itself is not hub-only', () => {
