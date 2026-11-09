@@ -1061,6 +1061,11 @@ a.link-more {
     height: 44px;
   }
 
+  /* The server crumb keeps a finger's width; "All projects" beside it is what gets squeezed */
+  .topbar .project-scope.server-scope {
+    flex: none;
+  }
+
   /* Never squeezed under its two 44 px icons: the project name, which truncates, takes the squeeze */
   .topbar-actions {
     flex: none;
