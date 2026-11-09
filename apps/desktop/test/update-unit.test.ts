@@ -409,3 +409,17 @@ test("the apt pin takes claudio from the repository's own Origin, and from no ot
   // Only claudio: the pin never changes how apt treats any other package
   for (const record of records) assert.equal(record.get('Package'), 'claudio');
 });
+
+test("the helper's times keep the leading zeros of their milliseconds, whichever date the system has", () => {
+  // uutils' date (Ubuntu 25.10 on) prints %3N without its leading zeros (094 ms as 943), which made
+  // startedAt later than endedAt; the helper cuts the milliseconds from %N, padded in both dates
+  const root = mkdtempSync(join(tmpdir(), 'claudio-update-now-'));
+  roots.push(root);
+  writeFileSync(join(root, 'date'), '#!/bin/bash\n[ "$*" = "-u +%Y-%m-%dT%H:%M:%S.%N" ] || { echo "unexpected: $*" >&2; exit 2; }\necho 2026-11-09T08:00:00.012345678\n');
+  chmodSync(join(root, 'date'), 0o755);
+  const now = /^now\(\) \{\n[\s\S]*?\n\}\n/m.exec(helper)?.[0];
+  assert.ok(now, 'the helper defines now()');
+  const run = spawnSync('bash', ['-c', `${now}now`], { env: { PATH: `${root}:/usr/bin:/bin` }, encoding: 'utf8' });
+  assert.equal(run.status, 0, run.stderr);
+  assert.equal(run.stdout, '2026-11-09T08:00:00.012Z');
+});
