@@ -32,7 +32,7 @@ import { rememberedPort, rememberPort } from './server-port.ts';
 import { newDesktopSecret, ServerProcess, serverEnv } from './server-process.ts';
 import { resolveUserPath } from '@claudio/core/providers/path';
 import { DPKG_RECORD, appImagePaths, downloadTo, fuseUsable, installAppImage, sandboxRootless, switchState, type SwitchState } from './switch.ts';
-import { isTerminalWindowUrl } from './terminal-window.ts';
+import { isTerminalWindowUrl, navigationFor } from './terminal-window.ts';
 import { SPLASH_TITLE_BAR, parseTitleBarTheme, titleBarOptions, type TitleBarTheme } from './title-bar.ts';
 import { LiveTray } from './tray.ts';
 import {
@@ -383,9 +383,9 @@ function showWindow(): void {
 function openPath(path: string): void {
   if (!win || !serverOrigin || !isAppPath(path)) return;
   showWindow();
-  const current = win.webContents.getURL();
-  if (current.startsWith(`${serverOrigin}/`)) win.webContents.send(IPC.navigate, path);
-  else void load(`${serverOrigin}${path}`);
+  const next = navigationFor(win.webContents.getURL(), path, serverOrigin);
+  if (next.kind === 'ipc') win.webContents.send(IPC.navigate, next.path);
+  else void load(next.url);
 }
 
 function trayAction(action: TrayAction): void {

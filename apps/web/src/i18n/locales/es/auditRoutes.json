@@ -218,6 +218,7 @@
   "POST /server-links/redeem": "Vincular con un código",
   "POST /servers": "Vincular con un servidor y añadirlo",
   "POST /servers/:id/api/*": "Escribir en un servidor a través de la pasarela",
+  "POST /servers/:id/pair": "Volver a emparejar un servidor",
   "POST /servers/:id/test": "Probar la conexión con un servidor",
   "POST /servers/:id/use": "Seleccionar un servidor",
   "POST /setup/logins": "Empezar un inicio de sesión",

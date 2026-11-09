@@ -5,6 +5,7 @@ import {
   API_VERSION,
   isRecord,
   type ClaudioServer,
+  type PairServerAgainResult,
   type RemoveServerResult,
   type ServerAddress,
   type ServerCheck,
@@ -263,20 +264,7 @@ export class Servers {
         createdAt: now(),
         lastUsedAt: null,
       };
-      // An address that answers as another Claudio is refused now; one that does not answer yet is
-      // kept, since nothing is ever sent on it until it proves the identity at a probe
-      const check = agentFor(this.pinnedTrust(() => ({ fingerprint: server.identity.tlsFingerprint, publicKey: server.identity.publicKey })), this.network);
-      try {
-        for (const address of addresses) {
-          if (address.url === paired.address.url) continue;
-          const probe = await this.probeAddress(server, address, check);
-          if (!probe.ok && probe.reason === 'servers.identity-changed') {
-            throw new ServersError(409, 'servers.address-identity', `${address.url} answers as another Claudio than the one paired on ${paired.address.url}`);
-          }
-        }
-      } finally {
-        await check.destroy();
-      }
+      await this.checkOtherAddresses(server, paired.address);
       await this.registry.put(server, grant.token);
       this.routes.set(server.id, { address: paired.address.url, failures: 0 });
       this.health.set(server.id, healthOf({ ok: true, address: paired.address, meta: paired.meta, latencyMs: paired.latencyMs }));
@@ -287,6 +275,49 @@ export class Servers {
     } finally {
       await agent.destroy();
     }
+  }
+
+  /**
+   * Pairs a server on the list again, in place (§12.2 E3): one whose identity changed (reinstalled)
+   * or whose token the remote revoked. The id, name, colour, monogram and addresses stay, so its
+   * pages, recents and per-server browser keys still name it; the identity and the token become the
+   * new pairing's, with the same rules as an add (D13 for a pasted owner token, D5 for every address).
+   *
+   * The earlier token is given back only after the new one is stored, so a pairing that fails leaves
+   * the server as it was, and only to an address that still proves the earlier identity: a token is
+   * never shown to a machine that did not issue it. A remote paired with again replaces its earlier
+   * token for this hub anyway; a reinstalled one never had it.
+   */
+  async pairAgain(id: string, body: unknown): Promise<PairServerAgainResult> {
+    this.requireEnabled();
+    const server = this.stored(id);
+    // A `ServerPairing`, or `{ pairing }` as `POST /servers` takes it
+    const pairing = parsePairing(isRecord(body) && body.kind === undefined && 'pairing' in body ? body.pairing : body);
+    const previousToken = this.registry.tokenOf(id);
+
+    const paired = await this.pairOn(server.addresses, pairing, { hubInstanceId: this.instanceId, hubName: this.hubName() }, id);
+    const { grant, agent } = paired;
+    let saved: StoredServer;
+    try {
+      if (grant.instanceId !== paired.meta.instanceId) throw new ServersError(502, 'servers.identity-changed', 'the server paired is not the one whose meta answered: something between the two answered in its place');
+      const pins = this.pinsFrom(grant, paired.seen);
+      const identity: StoredServer['identity'] = { instanceId: grant.instanceId, tlsFingerprint: pins.fingerprint, publicKey: pins.publicKey };
+      await this.checkOtherAddresses({ ...server, identity }, paired.address);
+      // Applied to the server as it is now, so a rename while the pairing ran is kept
+      saved = await this.registry.change(id, (current) => ({ ...current, identity, tokenId: grant.tokenId }), grant.token);
+    } catch (error) {
+      await revokeSelf(agent, paired.address.url, grant.token, this.timeouts.probeMs);
+      throw error;
+    } finally {
+      await agent.destroy();
+    }
+
+    const given = await this.revokePrevious(server, previousToken);
+    // The pool and the sockets were opened on the earlier identity and token
+    await this.forgetConnections(id);
+    this.routes.set(id, { address: paired.address.url, failures: 0 });
+    this.health.set(id, healthOf({ ok: true, address: paired.address, meta: paired.meta, latencyMs: paired.latencyMs }));
+    return { ...this.view(saved), previousToken: given };
   }
 
   /** Name, colour, monogram and the addresses; an address not on the list before must prove the identity now (D5) */
@@ -557,6 +588,51 @@ export class Servers {
     }
   }
 
+  /**
+   * After a pairing on `paired`: an address that answers as another Claudio is refused now; one that
+   * does not answer yet is kept, since nothing is ever sent on it until it proves the identity at a probe
+   */
+  private async checkOtherAddresses(server: StoredServer, paired: ServerAddress): Promise<void> {
+    const check = agentFor(this.pinnedTrust(() => ({ fingerprint: server.identity.tlsFingerprint, publicKey: server.identity.publicKey })), this.network);
+    try {
+      for (const address of server.addresses) {
+        if (address.url === paired.url) continue;
+        const probe = await this.probeAddress(server, address, check);
+        if (!probe.ok && probe.reason === 'servers.identity-changed') {
+          throw new ServersError(409, 'servers.address-identity', `${address.url} answers as another Claudio than the one paired on ${paired.url}`);
+        }
+      }
+    } finally {
+      await check.destroy();
+    }
+  }
+
+  /**
+   * Gives a replaced token back to the server that issued it: over connections pinned to the
+   * identity it had (`previous`), on the first address whose meta still says it is that server.
+   * Gone already (a `401`) counts as given back.
+   */
+  private async revokePrevious(previous: StoredServer, token: string | null): Promise<RemoveServerResult> {
+    if (token === null) return { revoked: false, reason: { code: 'servers.no-token' } };
+    const pins: PeerPins = { fingerprint: previous.identity.tlsFingerprint, publicKey: previous.identity.publicKey };
+    const check = agentFor(this.pinnedTrust(() => pins), this.network);
+    let reason = 'servers.unreachable';
+    try {
+      for (const address of previous.addresses) {
+        const probe = await this.probeAddress(previous, address, check);
+        if (!probe.ok) {
+          if (probe.reason === 'servers.identity-changed') reason = probe.reason;
+          continue;
+        }
+        const outcome = await revokeSelf(check, address.url, token, this.timeouts.probeMs);
+        return outcome.kind === 'failed' ? { revoked: false, reason: { code: outcome.code } } : { revoked: true };
+      }
+      return { revoked: false, reason: { code: reason } };
+    } finally {
+      await check.destroy();
+    }
+  }
+
   private openTo(id: string, origin: URL): Promise<Socket> {
     return dial({ protocol: origin.protocol, hostname: origin.hostname, port: Number(origin.port) || (origin.protocol === 'https:' ? 443 : 80) }, this.trustOf(id), this.network);
   }
@@ -637,6 +713,8 @@ export class Servers {
     addresses: ServerAddress[],
     pairing: ServerPairing,
     hub: HubName,
+    /** The server being paired again, which may be the one that answers */
+    again?: string,
   ): Promise<{ address: ServerAddress; meta: ServerMeta; latencyMs: number; grant: ServerLinkGrant; agent: Agent; seen: PeerSeen | null }> {
     let unreachable: ServersError | null = null;
     for (const address of addresses) {
@@ -668,7 +746,7 @@ export class Servers {
       const latencyMs = Date.now() - started;
       try {
         if (meta.instanceId === this.instanceId) throw new ServersError(400, 'servers.self', `${address.url} is this Claudio`);
-        const existing = this.registry.list().find((each) => each.identity.instanceId === meta.instanceId);
+        const existing = this.registry.list().find((each) => each.identity.instanceId === meta.instanceId && each.id !== again);
         if (existing) throw new ServersError(409, 'servers.already-paired', `that server is on the list already, as ${existing.name}`);
         const grant = await pair(agent, address.url, pairing, hub, this.timeouts.pairMs);
         return { address, meta, latencyMs, grant, agent, seen: trust.seen };

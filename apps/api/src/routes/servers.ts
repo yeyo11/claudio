@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { ServersError, type Core } from '@claudio/core';
-import type { ClaudioServer, RemoveServerResult, ServersSettings, ServerTestResult } from '@claudio/shared';
+import type { ClaudioServer, PairServerAgainResult, RemoveServerResult, ServersSettings, ServerTestResult } from '@claudio/shared';
 import type { Guard } from '../security.ts';
 import { gatewayRoutes } from './servers-gateway.ts';
 
@@ -30,6 +30,8 @@ export const serverRoutes: FastifyPluginAsync<{ core: Core; guard: Guard }> = as
     '/servers/:id',
     (req): Promise<RemoveServerResult> => core.servers.remove(req.params.id, { force: req.query.force === 'true' || req.query.force === '1' }),
   );
+  // Pair again in place (§12.2 E3): a reinstalled remote or a revoked token keeps its id and settings
+  app.post<{ Params: { id: string }; Body: unknown }>('/servers/:id/pair', (req): Promise<PairServerAgainResult> => core.servers.pairAgain(req.params.id, req.body));
   app.post<{ Params: { id: string } }>('/servers/:id/test', (req): Promise<ServerTestResult> => core.servers.test(req.params.id));
   app.post<{ Params: { id: string } }>('/servers/:id/use', (req): Promise<ClaudioServer> => core.servers.use(req.params.id));
 

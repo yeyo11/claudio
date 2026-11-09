@@ -3,11 +3,11 @@ import { createContext, useCallback, useContext, useEffect, useMemo, type ReactN
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { Empty, Skeleton } from '@claudio/ui/components/ui';
-import { activeBase, activeServerId, HUB_API, LOCAL_SERVER_ID } from '@claudio/ui/lib/server-scope';
-import { requestAt } from '../api';
+import { activeBase, activeServerId, HUB_API, LOCAL_SERVER_ID, scopedHref } from '@claudio/ui/lib/server-scope';
+import { requestAt, requestResponseAt } from '../api';
 import { useAuthChallenge, useAuthSettled, useHostRefusal } from './auth';
 import { compatibility, readMeta } from './server-meta';
-import { addressOnServer, isHubOnly } from './server-routes';
+import { isHubOnly, RECORD_READ_MS, routeOnServer, type RecordExists } from './server-routes';
 
 /*
  * The server the page drives: this one (`local`) or another Claudio reached through it, whose
@@ -16,8 +16,14 @@ import { addressOnServer, isHubOnly } from './server-routes';
  * The scope is the address, fixed when the page loads: the API client, the event feed, the query
  * cache, the browser-storage keys and the router's basename are all derived from it, so nothing of
  * one server can be shown or written as another's. Switching is therefore a navigation to the
- * other address, not a state change. There is no selector yet; the scope is reached by URL.
+ * other address, not a state change.
  */
+
+/** A record is there when its read answers 2xx; any refusal (a 404, a 409 of the gateway) or a failure is not */
+export const recordExists: RecordExists = async (base, path, signal) => {
+  await requestResponseAt(base, path, { signal, timeoutMs: RECORD_READ_MS });
+  return true;
+};
 
 export interface ServerScope {
   /** `'local'`, or the id of the remote this page drives */
@@ -27,9 +33,10 @@ export interface ServerScope {
   /** A remote scope: pages that belong to the hub alone are not drawn (plan D7) */
   remote: boolean;
   /**
-   * Opens `serverId` on the same page when that page names no record and exists there, else on its
-   * Home, after telling the hub it is being used. Rejects, and stays, when the hub refuses (the
-   * feature is off, the server is unknown).
+   * Opens `serverId` after telling the hub it is being used: on the same page when it exists there
+   * (a page that names a record, when that server has the record), else on the list the record
+   * belongs to, else on its Home. Rejects, and stays, when the hub refuses (the feature is off, the
+   * server is unknown).
    */
   switchTo: (serverId: string) => Promise<void>;
 }
@@ -43,9 +50,10 @@ export function ServerScopeProvider({ children }: { children: ReactNode }) {
     async (to: string) => {
       // The hub's own gateway-less route: it records the use and probes the server
       if (to !== LOCAL_SERVER_ID) await requestAt(HUB_API, `/servers/${encodeURIComponent(to)}/use`, { method: 'POST' });
+      const page = await routeOnServer(pathname, to, recordExists);
       // A full load, on purpose: module-level state (the feed, notifications, drafts in memory)
       // belongs to one server and is rebuilt from the new address
-      window.location.assign(addressOnServer(pathname, to));
+      window.location.assign(scopedHref(to, page));
     },
     [pathname],
   );
