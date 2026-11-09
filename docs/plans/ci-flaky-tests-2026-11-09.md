@@ -90,7 +90,7 @@ Proof through Sluice: lint, typecheck and the full test gate passed on the merge
 e2e gate passed `servers-*` and `collaborators*`, all six specs in two shards
 (`1794244734525-20935-54fa69`). A third run of lint, typecheck and test passed alongside the whole
 e2e suite (`1794244915481-20935-ac578b`), so the plan's tests also held with the browser suite
-loading the machine.
+loading the machine, and a fourth on the final tree (`1794246478464-20935-af30f7`).
 
 That whole e2e run failed, on two things outside this plan:
 
@@ -99,9 +99,10 @@ That whole e2e run failed, on two things outside this plan:
   (`1794246288965-20935-87e49f`): a spec slowed 2.5× by load, a candidate for the next round.
 - `terminal.spec.mjs`, `terminal-paste.spec.mjs`, `terminal-autoclose.spec.mjs` and `motion.spec.mjs`
   could not turn the terminal on (`PUT /terminal/settings` 403, then `terminal.off`). The terminal
-  gate refuses a request from a process whose ancestry carries `CLAUDIO_CHAT_ID`, which the
-  Sluice job most likely inherited from the agent's chat (not checked); no file this plan changed
-  touches the terminal. CI, which has no such variable, is where they are judged.
+  gate refuses a request from a process whose ancestry carries `CLAUDIO_CHAT_ID`, and the Sluice
+  daemon that runs every job on this machine was started from a Claudio chat and carries it in its
+  environment (checked in `/proc`), so no terminal spec can pass through it until it is restarted
+  outside a chat; no file this plan changed touches the terminal. CI, which has no such variable, is where they are judged.
 
 ## Related
 
