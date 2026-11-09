@@ -62,7 +62,7 @@
   "add": {
     "title": "Añadir un servidor",
     "tabs": "Cómo emparejar",
-    "tabCode": "Código de emparejamiento",
+    "tabCode": "Código",
     "tabToken": "Token de propietario",
     "codeIntro": "En el otro Claudio abre Servidores, luego «Permitir que otro Claudio se conecte a este», y muestra un código. Dura 5 minutos y sirve una sola vez.",
     "tokenIntro": "Para un Claudio sin pantalla o detrás de un inicio de sesión. Pega un token de propietario del otro Claudio: se usa una vez para obtener un token propio para este, y después se olvida.",
@@ -105,7 +105,7 @@
   "confirm": {
     "title": "Comparar este certificado",
     "body": "Antes de que el token salga de este Claudio, comprueba que la dirección muestra el certificado del Claudio que quieres. En ese, abre Ajustes, Acceso y seguridad, y lee la huella de la tarjeta de la red local.",
-    "shownBy": "Lo muestra {{address}}",
+    "shownBy": "Lo muestra <mono>{{address}}</mono>",
     "fingerprint": "Huella del certificado",
     "typed": "Pega la huella del otro Claudio para comprobarla aquí",
     "typedHint": "Opcional: te avisa si no coinciden.",
@@ -192,7 +192,8 @@
     "fingerprint": "Huella del certificado de este Claudio",
     "noFingerprint": "La escucha en la red local está desactivada, así que no hay un certificado que comparar. Una dirección de Tailscale o de un túnel se comprueba con su propio certificado.",
     "failed": "No se ha podido crear un código",
-    "authRequired": "Otro Claudio solo puede conectarse a uno que pida iniciar sesión. Activa un token en Ajustes, Acceso y seguridad."
+    "authRequired": "Otro Claudio solo puede conectarse a uno que pida iniciar sesión. Activa antes un token u OIDC en Acceso.",
+    "toAccess": "Ir a Acceso"
   },
   "hubs": {
     "title": "Hubs conectados",
@@ -233,5 +234,29 @@
       "servers": "Todos los servidores"
     },
     "fallbackName": "Este servidor"
+  },
+  "errors": {
+    "servers": {
+      "already-paired": "Ese servidor ya está en la lista.",
+      "self": "Esa dirección es este Claudio.",
+      "unreachable": "No ha respondido nada en esa dirección. Comprueba que el otro Claudio está en marcha y en esta red.",
+      "not-claudio": "Algo ha respondido en esa dirección, pero no es un Claudio.",
+      "bad-answer": "Ese servidor ha respondido más de lo que respondería un Claudio, así que no se ha guardado nada.",
+      "token-invalid": "Ese servidor no acepta este token. Pega un token de propietario de ese servidor.",
+      "address-invalid": "Una de las direcciones no es una dirección.",
+      "address-insecure": "Con HTTP sin cifrar el token viajaría en claro. Usa https://, o http:// solo para esta máquina.",
+      "address-refused": "Una de las direcciones no está permitida: a un servidor se llega por la red, nunca a través de los servicios de esta máquina.",
+      "address-identity": "Una dirección responde como un Claudio distinto al de las demás.",
+      "fingerprint-mismatch": "El certificado que se ha mostrado no es el que ese servidor dice que es suyo. Algo entre los dos ha respondido en su lugar, así que no se ha emparejado nada.",
+      "fingerprint-unexpected": "La dirección muestra ahora un certificado distinto del que has confirmado, así que el token no se ha enviado.",
+      "identity-changed": "El servidor que ha respondido no es el que se emparejó, así que no se ha cambiado nada.",
+      "too-many": "Este Claudio ya guarda todos los servidores que puede. Quita uno antes.",
+      "disabled": "Los servidores están desactivados. Actívalos antes."
+    },
+    "server-links": {
+      "code-invalid": "El otro Claudio no acepta ese código: puede estar mal escrito, usado o caducado. Muestra uno nuevo allí.",
+      "too-many": "Demasiados intentos. Espera un momento y vuelve a intentarlo.",
+      "auth-required": "El otro Claudio no pide iniciar sesión, así que no se puede emparejar. Activa antes un token allí."
+    }
   }
 }

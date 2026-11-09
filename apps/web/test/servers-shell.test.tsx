@@ -74,11 +74,34 @@ test('the selector is a quiet button in the project selector’s shape, with the
   assert.match(html, /class="crumb-sep"/);
 });
 
-test('it draws nothing while Servers is off, before the switch is known, or inside a remote’s scope', () => {
+test('it draws nothing while Servers is off or before the switch is known', () => {
   assert.equal(page(<ServerSelector />, { settings: off, servers: [server('a', 'Studio')] }), '');
   assert.equal(page(<ServerSelector />, { servers: [server('a', 'Studio')] }), '', 'the hub has not answered yet');
+});
+
+test('inside a remote’s scope the selector names that remote with its mark, so a phone with no status bar still says where the page writes', () => {
   setActiveServer('a');
-  assert.equal(page(<ServerSelector />, { settings: on, servers: [server('a', 'Studio')] }), '', 'one hop: a remote lists no servers');
+  const html = page(<ServerSelector />, { settings: on, servers: [server('a', 'Studio', { color: 'violet' }), server('b', 'Beta')] });
+  assert.match(html, /aria-label="Server: Studio"/);
+  assert.match(html, /class="monogram"[^>]*>ST</);
+  assert.doesNotMatch(html, /This server/, 'the button is the remote’s, not the hub’s');
+});
+
+test('inside a remote the menu is still the hub’s list, with the remote chosen; This server goes back, and choosing the same one reloads nothing', () => {
+  const servers = [
+    server('a', 'Alpha', { lastUsedAt: '2026-11-01T10:00:00Z' }),
+    server('b', 'Beta', { lastUsedAt: '2026-11-05T10:00:00Z' }),
+    server('c', 'Gamma', { lastUsedAt: '2026-11-04T10:00:00Z' }),
+    server('d', 'Delta', { lastUsedAt: '2026-11-03T10:00:00Z' }),
+  ];
+  const { switchTo, go, calls } = actions();
+  const entries = selectorEntries(servers, t, { switchTo, go }, 'a');
+  const listed = group(entries);
+  assert.equal(listed.radio?.value, 'a');
+  assert.deepEqual(listed.items.map((item) => item.id), ['local', 'a', 'b', 'c'], 'the server in use is listed even when three were used after it');
+  listed.radio?.onChange('a');
+  listed.radio?.onChange('local');
+  assert.deepEqual(calls, ['switch:local']);
 });
 
 const t = i18n.getFixedT('en', 'shell');

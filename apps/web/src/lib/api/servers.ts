@@ -74,8 +74,8 @@ export const serversKeys = {
 
 /**
  * Whether Servers is on. A hub that does not serve the routes (a headless Claudio is never a hub)
- * answers 404: that is "off", not an error to show, so it is not retried. `enabled` is false in a
- * remote scope, where the switch is the hub's and is not asked.
+ * answers 404: that is "off", not an error to show, so it is not retried. `enabled` is false where
+ * the answer is not needed (the hub-only page and its entry, inside a remote).
  */
 export function useServersSettings(enabled = true) {
   return useQuery({ queryKey: serversKeys.settings, queryFn: ({ signal }) => serversApi.settings({ signal }), retry: false, staleTime: 60_000, enabled });
@@ -85,6 +85,14 @@ export function useServersSettings(enabled = true) {
 export function useServersOn(): boolean {
   const hub = activeServerId() === LOCAL_SERVER_ID;
   return useServersSettings(hub).data?.enabled === true && hub;
+}
+
+/**
+ * The hub's switch whatever the scope: what the selector follows, since inside a remote it still
+ * names that remote and switches from it. The question goes to the hub (`HUB_API`), never to the remote.
+ */
+export function useServersFeatureOn(): boolean {
+  return useServersSettings().data?.enabled === true;
 }
 
 /**

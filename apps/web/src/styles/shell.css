@@ -588,6 +588,8 @@
 
 .server-item {
   gap: 8px;
+  /* Bounded by its item, so a long name ends in an ellipsis in the phone's sheet too */
+  max-width: 100%;
 }
 
 .server-selector-name,
@@ -607,6 +609,12 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
+}
+
+/* In the selector the word is the item's second line: it starts under the name, past the 20 px mark
+   and the item's gap, so it reads as that server's and not as a line of its own */
+.menu-item-meta > .server-status {
+  padding-left: 28px;
 }
 
 .statusbar-server {

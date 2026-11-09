@@ -115,7 +115,13 @@ export function defaultServerName(address: string): string {
  * Up to two letters for the tile when none was chosen: the initials of the first two words, or the
  * first two letters of a lone word, the rule every project mark follows (`studio` ST, `Mac studio` MS)
  */
-export const defaultMonogram = (name: string): string => monogramLetters(name, true);
+export const defaultMonogram = (name: string): string => {
+  // A server named by its IPv4 address (the default for a LAN one) is told apart by its last
+  // number: 192.168.0.28 and .29 would both be "19" by their initials
+  const ipv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.(\d{1,3})$/.exec(name.trim());
+  if (ipv4?.[1]) return ipv4[1].slice(-2);
+  return monogramLetters(name, true);
+};
 
 /** The letters of a server's mark: the ones it was given, else the initials of its name */
 export function serverLetters(server: Pick<ClaudioServer, 'name' | 'monogram'>): string {

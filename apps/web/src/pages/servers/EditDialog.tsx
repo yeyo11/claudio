@@ -8,29 +8,31 @@ import { serversApi, useServersMutation } from '../../lib/api/servers';
 import { addressesOf, defaultMonogram, draftsOf, MAX_SERVER_NAME, sameAddresses, type AddressDraft } from '../../lib/servers-model';
 import { AddressesEditor, ColourPicker } from './AddressesEditor';
 import { ServerMark } from './ServerMark';
+import { localizedError } from './words';
 
 export interface EditState {
   name: string;
   colour: string | null;
-  monogram: string;
+  /** The initials the person chose; null while they follow the name */
+  monogram: string | null;
   drafts: AddressDraft[];
 }
 
 export const editStateOf = (server: ClaudioServer): EditState => ({
   name: server.name,
   colour: server.color,
-  monogram: server.monogram ?? defaultMonogram(server.name),
+  monogram: server.monogram,
   drafts: draftsOf(server.addresses),
 });
 
 /** Only what changed, so an edit of the name never makes the server prove its addresses again */
 export function changesOf(server: ClaudioServer, state: EditState) {
   const { addresses } = addressesOf(state.drafts);
-  const monogram = state.monogram.trim();
+  const monogram = state.monogram?.trim() || null;
   return {
     ...(state.name.trim() !== server.name ? { name: state.name.trim() } : {}),
     ...(state.colour !== server.color ? { color: state.colour } : {}),
-    ...(monogram !== (server.monogram ?? defaultMonogram(server.name)) ? { monogram: monogram || null } : {}),
+    ...(monogram !== server.monogram ? { monogram } : {}),
     ...(!sameAddresses(addresses, server.addresses) ? { addresses } : {}),
   };
 }
@@ -38,20 +40,21 @@ export function changesOf(server: ClaudioServer, state: EditState) {
 /** The fields of Edit, drawn from the state */
 export function EditServerForm({ state, onChange, invalid = [], addressesChanged }: { state: EditState; onChange: (next: EditState) => void; invalid?: readonly number[]; addressesChanged: boolean }) {
   const { t } = useTranslation('serversPage');
+  const monogram = state.monogram ?? defaultMonogram(state.name);
   return (
     <div className="stack" data-testid="server-edit-form">
       <div className="server-identity">
-        <ServerMark server={{ name: state.name, color: state.colour, monogram: state.monogram }} size={44} />
+        <ServerMark server={{ name: state.name, color: state.colour, monogram }} size={44} />
         <Field label={t('add.name')}>
           <input value={state.name} onChange={(e) => onChange({ ...state, name: e.target.value })} maxLength={MAX_SERVER_NAME} autoComplete="off" required data-autofocus data-testid="server-name" />
         </Field>
         <Field label={t('add.monogram')}>
-          <input className="server-monogram-input" value={state.monogram} onChange={(e) => onChange({ ...state, monogram: e.target.value.slice(0, 2).toUpperCase() })} maxLength={2} autoComplete="off" spellCheck={false} />
+          <input className="server-monogram-input" value={monogram} onChange={(e) => onChange({ ...state, monogram: e.target.value ? e.target.value.slice(0, 2).toUpperCase() : null })} maxLength={2} autoComplete="off" spellCheck={false} />
         </Field>
       </div>
       <div className="field">
         <span className="field-label">{t('add.colour')}</span>
-        <ColourPicker value={state.colour} onChange={(colour) => onChange({ ...state, colour })} />
+        <ColourPicker value={state.colour} letters={monogram} onChange={(colour) => onChange({ ...state, colour })} />
       </div>
       <div className="field">
         <span className="field-label">{t('add.addresses')}</span>
@@ -105,7 +108,7 @@ export function EditServerDialog({ server, onClose }: { server: ClaudioServer; o
     >
       <form id={formId} className="stack" onSubmit={submit}>
         <EditServerForm state={state} onChange={setState} invalid={invalid} addressesChanged={'addresses' in changes} />
-        {save.error ? <ErrorBox error={save.error} title={t('edit.failed', { name: server.name })} /> : null}
+        {save.error ? <ErrorBox error={localizedError(save.error)} title={t('edit.failed', { name: server.name })} /> : null}
       </form>
     </Dialog>
   );

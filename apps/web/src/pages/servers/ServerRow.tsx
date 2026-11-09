@@ -34,7 +34,7 @@ export function ServerFacts({ server }: { server: ClaudioServer }) {
       </span>
       {health?.address && (
         <span className="small muted server-row-address">
-          {t('row.address')} <code className="mono break">{health.address}</code>
+          {t('row.address')} <code className="mono server-row-url" title={health.address}>{health.address}</code>
         </span>
       )}
       {why && <span className="small server-row-why">{why}</span>}

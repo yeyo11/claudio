@@ -1,4 +1,4 @@
-import type { ClaudioServer } from '@claudio/shared';
+import type { AddServerRequest, ClaudioServer, ServerPairing } from '@claudio/shared';
 import { useQueryClient } from '@tanstack/react-query';
 import { useId, useMemo, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -10,6 +10,7 @@ import { addressesOf, defaultMonogram, defaultServerName, freeColor, MAX_SERVER_
 import { AddressesEditor, ColourPicker } from './AddressesEditor';
 import { emptyPairing, FingerprintConfirm, mayPair, pairingOf, PairingFields, usePairingFlow, type PairingDraft } from './pairing';
 import { ServerMark } from './ServerMark';
+import { localizedError } from './words';
 
 export interface AddFormState {
   drafts: AddressDraft[];
@@ -23,6 +24,18 @@ export interface AddFormState {
 /** What the name is: the person's, else the first address's host */
 export const nameOf = (state: Pick<AddFormState, 'drafts' | 'name'>): string => state.name ?? defaultServerName(addressesOf(state.drafts).addresses[0]?.url ?? '');
 export const monogramOf = (state: Pick<AddFormState, 'drafts' | 'name' | 'monogram'>): string => state.monogram ?? defaultMonogram(nameOf(state));
+
+/**
+ * What `POST /servers` is sent. Initials nobody typed are not stored, so they follow the name when
+ * it is renamed later instead of keeping the letters of the address it was first given.
+ */
+export const addRequestOf = (state: AddFormState, pairing: ServerPairing): AddServerRequest => ({
+  name: nameOf(state).trim(),
+  color: state.colour,
+  monogram: state.monogram?.trim() || null,
+  addresses: addressesOf(state.drafts).addresses,
+  pairing,
+});
 
 /** The fields of the dialog, drawn from the state so a test reads every default without a server */
 export function AddServerForm({ state, onChange, invalid = [], group }: { state: AddFormState; onChange: (next: AddFormState) => void; invalid?: readonly number[]; group: string }) {
@@ -43,12 +56,12 @@ export function AddServerForm({ state, onChange, invalid = [], group }: { state:
           <input value={name} onChange={(e) => onChange({ ...state, name: e.target.value })} maxLength={MAX_SERVER_NAME} autoComplete="off" data-testid="server-name" />
         </Field>
         <Field label={t('add.monogram')}>
-          <input className="server-monogram-input" value={monogram} onChange={(e) => onChange({ ...state, monogram: e.target.value.slice(0, 2).toUpperCase() })} maxLength={2} autoComplete="off" spellCheck={false} />
+          <input className="server-monogram-input" value={monogram} onChange={(e) => onChange({ ...state, monogram: e.target.value ? e.target.value.slice(0, 2).toUpperCase() : null })} maxLength={2} autoComplete="off" spellCheck={false} />
         </Field>
       </div>
       <div className="field">
         <span className="field-label">{t('add.colour')}</span>
-        <ColourPicker value={state.colour} onChange={(colour) => onChange({ ...state, colour })} />
+        <ColourPicker value={state.colour} letters={monogram} onChange={(colour) => onChange({ ...state, colour })} />
       </div>
     </div>
   );
@@ -75,13 +88,7 @@ export function AddServerDialog({ servers, onClose, onAdded }: { servers: readon
 
   const flow = usePairingFlow(
     async (chosen) => {
-      const added = await serversApi.add({
-        name,
-        color: state.colour,
-        monogram: monogramOf(state).trim() || null,
-        addresses: parsed.addresses,
-        pairing: chosen,
-      });
+      const added = await serversApi.add(addRequestOf(state, chosen));
       void queryClient.invalidateQueries({ queryKey: serversKeys.all });
       toast.success(t('toast.added', { name: added.name }));
       onAdded(added);
@@ -131,7 +138,7 @@ export function AddServerDialog({ servers, onClose, onAdded }: { servers: readon
         ) : (
           <AddServerForm state={state} onChange={setState} invalid={invalid} group={group} />
         )}
-        {flow.error ? <ErrorBox error={flow.error} title={t('add.failed')} /> : null}
+        {flow.error ? <ErrorBox error={localizedError(flow.error)} title={t('add.failed')} /> : null}
       </form>
     </Dialog>
   );

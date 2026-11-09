@@ -7,6 +7,7 @@ import { ErrorBox } from '@claudio/ui/components/ui';
 import { serversApi, useServersMutation } from '../../lib/api/servers';
 import { emptyPairing, FingerprintConfirm, mayPair, pairingOf, PairingFields, usePairingFlow, type PairingDraft } from './pairing';
 import { ServerMark, ServerStatusWord } from './ServerMark';
+import { localizedError } from './words';
 
 /**
  * Pair again, in place (plan §12.2 E3): for a server whose identity changed or whose token was
@@ -77,7 +78,7 @@ export function PairAgainDialog({ server, onClose }: { server: ClaudioServer; on
             <PairingFields draft={draft} onChange={setDraft} group={group} />
           </>
         )}
-        {flow.error ? <ErrorBox error={flow.error} title={t('pairAgain.failed', { name: server.name })} /> : null}
+        {flow.error ? <ErrorBox error={localizedError(flow.error)} title={t('pairAgain.failed', { name: server.name })} /> : null}
       </form>
     </Dialog>
   );

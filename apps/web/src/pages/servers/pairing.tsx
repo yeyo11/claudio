@@ -1,7 +1,7 @@
 import type { ServerPairing } from '@claudio/shared';
 import { CircleCheck, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { ICON } from '@claudio/ui/components/icons';
 import { Field, TabPanel, Tabs } from '@claudio/ui/components/ui';
 import { ApiRequestError } from '../../api';
@@ -103,7 +103,8 @@ export function FingerprintConfirm({ fingerprint, address, typed, onTyped }: { f
           ))}
         </code>
         <span className="small muted">
-          {t('confirm.shownBy', { address })}
+          {/* The address is a literal the machine reads, so it is mono like the groups above */}
+          <Trans t={t} i18nKey="confirm.shownBy" values={{ address }} components={{ mono: <span className="mono" /> }} />
         </span>
       </div>
       {certificateIsFromAuthority(address) && (

@@ -40,17 +40,20 @@ export function AddressesEditor({ drafts, onChange, invalid = [] }: { drafts: re
                 aria-label={t('addresses.kind', { n })}
                 className="server-address-kind"
               />
-              <span className="server-address-moves">
-                <button type="button" className="icon-btn" disabled={index === 0} aria-label={t('addresses.up', { n })} onClick={() => onChange(moveItem(drafts, index, index - 1))}>
-                  <ChevronUp {...ICON_SM} />
-                </button>
-                <button type="button" className="icon-btn" disabled={index === drafts.length - 1} aria-label={t('addresses.down', { n })} onClick={() => onChange(moveItem(drafts, index, index + 1))}>
-                  <ChevronDown {...ICON_SM} />
-                </button>
-                <button type="button" className="icon-btn" disabled={drafts.length === 1} aria-label={t('addresses.remove', { n })} onClick={() => onChange(drafts.filter((d) => d.key !== draft.key))}>
-                  <X {...ICON_SM} />
-                </button>
-              </span>
+              {/* One address has nowhere to move and cannot go: the buttons show once there is a second */}
+              {drafts.length > 1 && (
+                <span className="server-address-moves">
+                  <button type="button" className="icon-btn" disabled={index === 0} aria-label={t('addresses.up', { n })} onClick={() => onChange(moveItem(drafts, index, index - 1))}>
+                    <ChevronUp {...ICON_SM} />
+                  </button>
+                  <button type="button" className="icon-btn" disabled={index === drafts.length - 1} aria-label={t('addresses.down', { n })} onClick={() => onChange(moveItem(drafts, index, index + 1))}>
+                    <ChevronDown {...ICON_SM} />
+                  </button>
+                  <button type="button" className="icon-btn" aria-label={t('addresses.remove', { n })} onClick={() => onChange(drafts.filter((d) => d.key !== draft.key))}>
+                    <X {...ICON_SM} />
+                  </button>
+                </span>
+              )}
               {invalid.includes(draft.key) && (
                 <span className="field-hint server-address-invalid" role="alert">
                   {t('addresses.invalid')}
@@ -70,8 +73,12 @@ export function AddressesEditor({ drafts, onChange, invalid = [] }: { drafts: re
   );
 }
 
-/** The colours a server can wear, as a radio group of tinted tiles: the chosen one carries a check, not only a ring */
-export function ColourPicker({ value, onChange }: { value: string | null; onChange: (color: ServerColor) => void }) {
+/**
+ * The colours a server can wear, as a radio group of tinted tiles: the chosen one carries a check,
+ * not only a ring. The others wear the server's own initials, so each tile is the mark it would be
+ * and the tints can be told apart (an empty tile is a dark square in every hue).
+ */
+export function ColourPicker({ value, letters = '', onChange }: { value: string | null; letters?: string; onChange: (color: ServerColor) => void }) {
   const { t } = useTranslation('serversPage');
   return (
     <div className="server-colours" role="radiogroup" aria-label={t('colours.label')}>
@@ -86,7 +93,7 @@ export function ColourPicker({ value, onChange }: { value: string | null; onChan
           onClick={() => onChange(name)}
         >
           <span className="monogram server-colour-tile" style={{ '--hue': SERVER_COLORS[name], '--monogram-size': '28px' } as CSSProperties} aria-hidden>
-            {value === name && <Check {...ICON_SM} />}
+            {value === name ? <Check {...ICON_SM} /> : letters}
           </span>
         </button>
       ))}
