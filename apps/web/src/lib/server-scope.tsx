@@ -1,10 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { Empty, Skeleton } from '@claudio/ui/components/ui';
 import { activeBase, activeServerId, HUB_API, LOCAL_SERVER_ID } from '@claudio/ui/lib/server-scope';
 import { requestAt } from '../api';
+import { Unreachable } from '../components/Unreachable';
+import { serversApi, serversKeys } from './api/servers';
 import { useAuthChallenge, useAuthSettled, useHostRefusal } from './auth';
 import { compatibility, readMeta } from './server-meta';
 import { addressOnServer, isHubOnly } from './server-routes';
@@ -70,20 +72,14 @@ export function useHubOnlyHidden(path: string = '/servers'): boolean {
 }
 
 /**
- * A state of the gate drawn with no shell around it, as `RouteError` is: its own landmark, the
- * title as the page's heading and the tab named after it, on the page the route error uses.
+ * A state of the gate drawn with no shell around it, as `RouteError` is: its own landmark, on the page
+ * the route error uses, and the tab named after the state. What it holds draws its own `Empty`.
  */
-function ScopeState({ title, children, illustration, actions }: { title: string; children: ReactNode; illustration: 'offline' | 'install'; actions: ReactNode }) {
+function ScopeState({ title, children }: { title: string; children: ReactNode }) {
   useEffect(() => {
     document.title = `${title} · Claudio`;
   }, [title]);
-  return (
-    <main className="route-error">
-      <Empty illustration={illustration} size="md" heading title={title} action={<span className="route-error-actions">{actions}</span>}>
-        {children}
-      </Empty>
-    </main>
-  );
+  return <main className="route-error">{children}</main>;
 }
 
 /**
@@ -97,47 +93,80 @@ function ScopeState({ title, children, illustration, actions }: { title: string;
  * answer for the remote anyway), and while one of them shows the children render.
  */
 export function ServerScopeGate({ children }: { children: ReactNode }) {
-  const { remote } = useServerScope();
-  const { t } = useTranslation('shell');
+  const { remote, serverId } = useServerScope();
+  const { t } = useTranslation(['shell', 'serversPage']);
   const challenge = useAuthChallenge();
   const refusal = useHostRefusal();
   const settled = useAuthSettled();
   const hubFirst = challenge !== null || refusal !== null || !settled;
   const meta = useQuery({ queryKey: ['server-meta'], queryFn: ({ signal }) => readMeta(signal), enabled: remote && !hubFirst, retry: 1, staleTime: 30_000 });
+  // Only the hub knows a remote's name: asked beside /meta, and its absence never blocks the gate
+  const hub = useQuery({ queryKey: serversKeys.list, queryFn: ({ signal }) => serversApi.list({ signal }), enabled: remote && !hubFirst, retry: false, staleTime: 30_000 });
+  // A retry puts the query back to pending: the offline screen stays, with Retry saying it is trying
+  const wasOffline = useRef(false);
+  if (meta.isError) wasOffline.current = true;
   if (!remote) return <>{children}</>;
   // The app draws nothing until the first probe has answered, so there is nothing to mount yet: and
   // mounting the chat provider now would read the provider labels from a remote ahead of its version
   if (!settled) return null;
   if (hubFirst) return <>{children}</>;
+  // The hub knows the server by name and address: the screens below speak of it, not of "this server"
+  const known = hub.data?.find((server) => server.id === serverId);
+  const name = known?.name ?? t('serversPage:remote.fallbackName');
   const back = (
     <a href="/" className="btn">
-      {t('serverScope.backToThis')}
+      {t('serversPage:remote.offline.back')}
     </a>
   );
-  if (meta.isPending) return <Skeleton rows={4} />;
-  if (meta.isError) {
+  const all = (
+    <a href="/servers" className="btn">
+      {t('serversPage:remote.offline.servers')}
+    </a>
+  );
+  if ((meta.isPending && !wasOffline.current) || hub.isLoading) return <Skeleton rows={4} />;
+  if (meta.isError || (wasOffline.current && meta.isPending)) {
     return (
-      <ScopeState
-        illustration="offline"
-        title={t('serverScope.unreachable.title')}
-        actions={
-          <>
-            <button type="button" className="btn btn-primary" onClick={() => void meta.refetch()}>
-              {t('serverScope.retry')}
-            </button>
-            {back}
-          </>
-        }
-      >
-        {t('serverScope.unreachable.body')}
+      <ScopeState title={t('serversPage:remote.offline.title', { name })}>
+        <Unreachable
+          remote={{
+            name,
+            address: known?.health?.address ?? known?.addresses[0]?.url ?? null,
+            retrying: meta.isFetching,
+            onRetry: () => void meta.refetch(),
+            actions: (
+              <>
+                {back}
+                {all}
+              </>
+            ),
+          }}
+        />
       </ScopeState>
     );
   }
+  if (!meta.data) return <Skeleton rows={4} />;
   const fit = compatibility(meta.data);
   if (fit === 'ok') return <>{children}</>;
+  const title = t('serversPage:remote.needsUpdate.title', { name });
+  const remoteVersion = meta.data.version;
   return (
-    <ScopeState illustration="install" title={t('serverScope.needsUpdate.title')} actions={back}>
-      {fit === 'server-too-old' ? t('serverScope.needsUpdate.remote') : t('serverScope.needsUpdate.local')}
+    <ScopeState title={title}>
+      <Empty
+        illustration="install"
+        size="md"
+        heading
+        title={title}
+        action={
+          <span className="route-error-actions">
+            {back}
+            {all}
+          </span>
+        }
+      >
+        <span data-testid="needs-update-text">
+          {fit === 'server-too-old' ? t('serversPage:remote.needsUpdate.remoteOld', { name, remote: remoteVersion }) : t('serversPage:remote.needsUpdate.localOld', { name, remote: remoteVersion })}
+        </span>
+      </Empty>
     </ScopeState>
   );
 }

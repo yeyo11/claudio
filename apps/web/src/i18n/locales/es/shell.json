@@ -93,16 +93,6 @@
     "signInAgain": "Volver a iniciar sesión"
   },
   "serverScope": {
-    "unreachable": {
-      "title": "No se ha podido conectar con este servidor",
-      "body": "Claudio no ha podido leer su versión a través de este. Comprueba que está en marcha y que se puede alcanzar, y vuelve a intentarlo."
-    },
-    "retry": "Reintentar",
-    "needsUpdate": {
-      "title": "Este servidor necesita una actualización",
-      "remote": "Su versión es anterior a la que entiende este Claudio. Actualízalo y vuelve.",
-      "local": "Este Claudio es anterior a la versión más antigua que admite el servidor. Actualiza este y vuelve."
-    },
     "backToThis": "Volver a este servidor"
   },
   "servers": {

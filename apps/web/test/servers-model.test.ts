@@ -44,10 +44,10 @@ test('a server never used comes after the used ones, newest added first, so a ne
 });
 
 test('a mark takes its colour token’s hue, else one worked out from the name, and its own letters else the initials', () => {
-  assert.equal(serverHue({ name: 'Studio', color: 'violet' }), 270);
+  assert.equal(serverHue({ name: 'Studio', color: 'violet' }), SERVER_COLORS.violet);
   assert.equal(serverHue({ name: 'Studio', color: null }), nameHue('Studio'));
   assert.equal(serverHue({ name: 'Studio', color: 'chartreuse' }), nameHue('chartreuse'), 'a token this build does not know still gets a stable hue');
-  assert.ok(SERVER_COLORS.includes('blue'));
+  assert.ok(Object.values(SERVER_COLORS).every((hue) => hue < 130 || hue > 160), 'no colour a server wears is the ok green, which would read as a state');
   assert.equal(serverLetters({ name: 'Mac studio', monogram: null }), 'MS');
   assert.equal(serverLetters({ name: 'Mac studio', monogram: 'jg' }), 'JG');
   assert.equal(serverLetters({ name: 'Mac studio', monogram: '  ' }), 'MS', 'a blank monogram is no monogram');
