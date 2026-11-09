@@ -18,6 +18,7 @@ import type {
   PermissionDecision,
   PermissionRequest,
   ResumeChatRequest,
+  OrchestrationTemplate,
   SchedulePreview,
   SwitchChatAccountResponse,
 } from '@claudio/shared';
@@ -57,6 +58,8 @@ export interface ChatClient {
   setChatClaudioMcp(id: string, enabled: boolean): Promise<ChatMcpServers>;
   /** What a cron expression will do (its words in the person's language, its next three fires), for the prompt of a schedule the assistant asks to create; absent, the prompt shows the expression as it is */
   schedulePreview?(cron: string, timezone: string | undefined): Promise<SchedulePreview>;
+  /** A saved orchestration template, for the prompt of a launch from it: the assistant names only the template, and the permissions it carries are the person's to see; absent, the prompt says what the call names */
+  orchestrationTemplate?(templateId: string): Promise<OrchestrationTemplate>;
   /** The accounts a chat could run on */
   accounts(): Promise<Account[]>;
   /** The models one account offers */

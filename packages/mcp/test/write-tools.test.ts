@@ -230,6 +230,29 @@ test("launch_orchestration sends the person's fields given by name, and never a 
   assert.match((await s.call('launch_orchestration', { fromPlan: 'planner-1', guards: { rules: { nope: true } } })).text, /unknown argument: guards\.rules\.nope/);
 });
 
+test('verification takes parallel groups and a review gate, as VerificationSpec does, and refuses what it does not', async () => {
+  const s = stub({
+    'GET /projects': { body: [{ id: 'p1', path: '/work/shop' }] },
+    'GET /orchestrations/plans/planner-1': { body: draft },
+    'POST /orchestrations': { status: 201, body: { id: 'o2', status: 'running' } },
+    'POST /orchestrations/o1/verify': { body: { id: 'o1' } },
+  });
+  const verification = { commands: ['pnpm install', ['pnpm lint', 'pnpm typecheck'], 'pnpm test'], review: { depth: 'light', maxFixRounds: 0, dimensions: { security: 'always' }, models: { reviewer: 'haiku' } } };
+  assert.equal((await s.call('launch_orchestration', { fromPlan: 'planner-1', verification })).isError, false);
+  assert.deepEqual((s.seen.at(-1)?.body as Record<string, unknown>).verification, verification);
+  // A review alone is a whole verification: the list of commands may be empty
+  assert.equal((await s.call('launch_orchestration', { fromPlan: 'planner-1', verification: { commands: [], review: {} } })).isError, false);
+  const problem = async (v: unknown): Promise<string> => (await s.call('launch_orchestration', { fromPlan: 'planner-1', verification: v })).text;
+  assert.match(await problem({ commands: [['pnpm lint', 3]] }), /commands\[0\]\[1\] must be a string/);
+  assert.match(await problem({ commands: [[]] }), /must have at least 1 entries/);
+  assert.match(await problem({ commands: [7] }), /commands\[0\]/);
+  assert.match(await problem({ commands: [], review: { depth: 'deep' } }), /review\.depth must be one of light, full/);
+  assert.match(await problem({ commands: [], review: { maxFixRounds: 6 } }), /review\.maxFixRounds must be at most 5/);
+  assert.match(await problem({ commands: [], review: { nope: true } }), /unknown argument: verification\.review\.nope/);
+  // verify_orchestration takes the same
+  assert.equal((await s.call('verify_orchestration', { orchestrationId: 'o1', verification })).isError, false);
+});
+
 test("each owner's write sends its route and its body, and answers what identifies the result", async () => {
   const graph = { id: 'o1', name: 'Split', status: 'completed', tasks: [1, 2], finalResult: 'long report' };
   const s = stub({

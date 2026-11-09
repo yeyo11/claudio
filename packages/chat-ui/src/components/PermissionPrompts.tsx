@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { useTranslation } from 'react-i18next';
 import { useLocation, useSearchParams } from 'react-router-dom';
 import { upperFirst, useAgentName } from '../lib/agent';
-import { describeWrite, previewLines, previewLoading, scheduleToCheck } from '../lib/write-prompts';
+import { describeWrite, previewLines, previewLoading, scheduleToCheck, templateLines, templateLoading, templateToShow } from '../lib/write-prompts';
 import { modeLabel, toolKindLabel } from '../lib/wire-words';
 import i18n from 'i18next';
 import { chatKeys, useChatUi } from '../lib/context';
@@ -80,6 +80,28 @@ function useScheduleLines(request: PermissionRequest): { lines: string[]; readin
   return { lines: reading ? [previewLoading()] : [], reading };
 }
 
+/**
+ * What a launch from a saved template will run with, from the server: the permission mode,
+ * prompts, allowed tools, guards and checks the template stores, which the call does not repeat.
+ * Like the schedule's preview it holds the answers back while it reads, and says nothing when the
+ * client cannot read it or the read fails.
+ */
+function useTemplateLines(request: PermissionRequest): { lines: string[]; reading: boolean } {
+  const { client } = useChatUi();
+  const templateId = templateToShow(request.toolName, request.input);
+  const asks = templateId !== null && client.orchestrationTemplate !== undefined;
+  const template = useQuery({
+    queryKey: ['template-prompt', templateId],
+    queryFn: () => (client.orchestrationTemplate && templateId ? client.orchestrationTemplate(templateId) : Promise.reject(new Error('no template'))),
+    enabled: asks,
+    retry: false,
+    staleTime: 10_000,
+  });
+  if (template.data) return { lines: templateLines(template.data.spec as unknown as Record<string, unknown>), reading: false };
+  const reading = asks && template.isPending;
+  return { lines: reading ? [templateLoading()] : [], reading };
+}
+
 /** Deny with a reason the model can read: one it can learn from beats one it can only retry blindly. */
 function DenyReason({ value, onChange, disabled, placeholder }: { value: string; onChange: (v: string) => void; disabled: boolean; placeholder: string }) {
   return <input className="permission-reason" aria-label={placeholder} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} disabled={disabled} />;
@@ -93,6 +115,9 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
   const write = describeWrite(request.toolName, request.input);
   // Said beside the input block, which is monospace and holds literals
   const schedule = useScheduleLines(request);
+  const template = useTemplateLines(request);
+  const beside = [...schedule.lines, ...template.lines];
+  const reading = schedule.reading || template.reading;
   const suggestions = write ? [] : (request.suggestions ?? []);
   const described = request.description ?? request.input.description;
   const description = !write && typeof described === 'string' ? described : '';
@@ -120,16 +145,16 @@ function ToolPrompt({ request }: { request: PermissionRequest }) {
         </pre>
       )}
       {description && <p className="muted small">{description}</p>}
-      {schedule.lines.length > 0 && (
+      {beside.length > 0 && (
         <div className="permission-preview">
-          {schedule.lines.map((line) => (
+          {beside.map((line) => (
             <p key={line} className="muted small">
               {line}
             </p>
           ))}
         </div>
       )}
-      <div className={schedule.reading ? 'permission-actions is-waiting' : 'permission-actions'}>
+      <div className={reading ? 'permission-actions is-waiting' : 'permission-actions'}>
         <button type="button" className="btn btn-primary btn-small" disabled={answer.isPending} onClick={() => answer.mutate({ behavior: 'allow' })}>
           <Check {...ICON_SM} /> {t('permissions.allow')}
         </button>

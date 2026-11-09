@@ -116,11 +116,46 @@ const GRAPH_FIELDS = ['name', 'objective', 'engine', 'model', 'effort', 'concurr
 const PERSON_FIELDS = ['permissionMode', 'permissionPrompts', 'allowedTools', 'verification', 'guards'] as const;
 
 const ONLY_SWITCHED_ON = "a chat's token sends it only while the person has Claudio's server switched on for the chat";
+const REVIEW_MODELS = { reviewer: str('Model of the reviewers'), verifier: str('Model of the runs that confirm a finding'), fixer: str('Model of the fixer') };
+/** The review gate that runs after the checks pass, as ReviewGateSpec takes it; every field has its default */
+const review: Property = {
+  type: 'object',
+  description: 'The review gate: agents review the merged diff after the checks pass and, by default, a fixer mends what blocks. Every field has a default, so {} turns it on',
+  properties: {
+    dimensions: {
+      type: 'object',
+      description: 'Which reviews run besides correctness, which always does',
+      properties: {
+        tests: bool('Whether weak or missing tests are reviewed; the default is true'),
+        security: str('auto runs the security review when its trigger matches, always on every diff, off never; the default is auto', { enum: ['auto', 'always', 'off'] }),
+        conventions: bool("Whether the repository's own rules are reviewed; the default is true when it has CLAUDE.md, CONTRIBUTING.md or .claude/rules"),
+      },
+      additionalProperties: false,
+    },
+    depth: str('light runs correctness (and security when triggered) in chunks twice as large; the default is full', { enum: ['light', 'full'] }),
+    fixer: bool('Whether blocking findings go to a fixer; the default is true'),
+    maxFixRounds: int('Fixer rounds; the gate reviews at most one more time than this. The default is 2', 0, 5),
+    maxCostUsd: { type: 'number', description: 'Dollars the whole gate may spend; the default is 5', minimum: 0.01, maximum: 1000 },
+    maxRunCostUsd: { type: 'number', description: 'Dollars one reviewer or verifier run may spend; the default is 1', minimum: 0.01, maximum: 1000 },
+    timeoutMinutes: int("Minutes of one run's own work; the default is 15", 1, 60),
+    concurrency: int('Review runs of this graph at the same time; the default is 3', 1, 6),
+    models: { type: 'object', description: 'Models by role; the defaults are sonnet for reviewers, opus for verifiers and the verification model, else the graph model, for the fixer', properties: REVIEW_MODELS, additionalProperties: false },
+    exclude: { type: 'array', description: 'Globs added to the built-in exclusions, in gitignore syntax from the repository top', items: str('One glob', { minLength: 1, maxLength: 500 }), maxItems: 100 },
+  },
+  additionalProperties: false,
+};
+const command = str('One command', { minLength: 1, maxLength: 2000 });
 const verification: Property = {
   type: 'object',
   description: `The checks run on the integration branch once the graph is merged; ${ONLY_SWITCHED_ON}`,
   properties: {
-    commands: { type: 'array', description: 'Shell commands, run in order', items: str('One command', { minLength: 1, maxLength: 2000 }), maxItems: 50 },
+    commands: {
+      type: 'array',
+      description: 'Shell commands, run in order. An entry that is a list of commands runs them at the same time, and the next entry starts once all of them have ended. May be empty when review is given',
+      items: { anyOf: [command, { type: 'array', description: 'Commands that run at the same time', items: command, minItems: 1, maxItems: 20 }], description: 'A command, or a list of commands that run at the same time' },
+      maxItems: 50,
+    },
+    review,
     fixer: bool('Whether an agent fixes what fails; the default is false'),
     maxAttempts: int('Fixer attempts per failing command', 1, 10),
     model,
