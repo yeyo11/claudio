@@ -1,6 +1,6 @@
 import type { ClaudioReleaseInfo, ClaudioServer, ServersSettings } from '@claudio/shared';
 import { useQueryClient } from '@tanstack/react-query';
-import { Plus } from 'lucide-react';
+import { Plus, Server } from 'lucide-react';
 import { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Navigate, useSearchParams } from 'react-router-dom';
@@ -189,16 +189,13 @@ export function ServersView({
         }
       />
 
-      <section className="servers-list" aria-labelledby="servers-list-title">
-        <h2 id="servers-list-title" className="section-label">
-          {t('page.list')}
-        </h2>
+      <section className="servers-list" aria-label={t('page.list')}>
         {serversError ? <ErrorBox error={serversError} /> : null}
         {!servers && !serversError && <Skeleton rows={3} height={18} />}
         {servers && sorted.length === 0 && (
           <Card>
             <Empty
-              illustration="collaborators"
+              icon={Server}
               title={t('none.title')}
               action={
                 <button type="button" className="btn" onClick={() => setOpen({ kind: 'add' })} data-testid="servers-add-empty">

@@ -118,7 +118,7 @@ export function AddServerDialog({ servers, onClose, onAdded }: { servers: readon
             <button type="button" className="btn" onClick={onClose}>
               {t('confirm.cancel')}
             </button>
-            <button type="submit" form={formId} className="btn btn-primary" disabled={!ready || flow.pending} data-testid="server-add-submit">
+            <button type="submit" form={formId} className="btn btn-primary server-submit" disabled={!ready || flow.pending} data-testid="server-add-submit">
               {flow.pending ? t('add.pairing') : t('add.submit')}
             </button>
           </>

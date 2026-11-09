@@ -33,7 +33,7 @@ export function pairingOf(draft: PairingDraft): ServerPairing | null {
 export function PairingFields({ draft, onChange, group }: { draft: PairingDraft; onChange: (next: PairingDraft) => void; group: string }) {
   const { t } = useTranslation('serversPage');
   return (
-    <div className="stack">
+    <div className="stack server-pairing">
       <Tabs<PairingWay>
         label={t('add.tabs')}
         group={group}

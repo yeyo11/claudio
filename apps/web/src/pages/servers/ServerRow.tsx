@@ -58,11 +58,11 @@ export function ServerRow({ server, busy, actions }: { server: ClaudioServer; bu
   const canUpdate = canUpdateServer(release, update.data?.unit);
 
   const primary = again ? (
-    <button type="button" className="btn" disabled={busy} onClick={() => actions.onPairAgain(server)} data-testid="server-pair-again">
+    <button type="button" className="btn" disabled={busy} aria-label={`${t('actions.pairAgain')} ${server.name}`} onClick={() => actions.onPairAgain(server)} data-testid="server-pair-again">
       <KeyRound {...ICON_SM} /> {t('actions.pairAgain')}
     </button>
   ) : (
-    <button type="button" className="btn" disabled={busy} onClick={() => actions.onOpen(server)} data-testid="server-open">
+    <button type="button" className="btn" disabled={busy} aria-label={`${t('actions.open')} ${server.name}`} onClick={() => actions.onOpen(server)} data-testid="server-open">
       <ExternalLink {...ICON_SM} /> {t('actions.open')}
     </button>
   );
@@ -80,7 +80,7 @@ export function ServerRow({ server, busy, actions }: { server: ClaudioServer; bu
       <ServerMark server={server} />
       <div className="server-row-main">
         <div className="server-row-head">
-          <strong className="server-row-name">{server.name}</strong>
+          <span className="server-row-name">{server.name}</span>
           <ServerStatusWord status={status} />
         </div>
         <ServerFacts server={server} />
@@ -89,11 +89,11 @@ export function ServerRow({ server, busy, actions }: { server: ClaudioServer; bu
         {!narrow && (
           <>
             {primary}
-            <button type="button" className="btn btn-small" disabled={busy} onClick={() => actions.onTest(server)} data-testid="server-test-open">
+            <button type="button" className="btn" disabled={busy} aria-label={`${t('actions.test')} ${server.name}`} onClick={() => actions.onTest(server)} data-testid="server-test-open">
               <PlugZap {...ICON_SM} /> {t('actions.test')}
             </button>
             {canUpdate && release && (
-              <button type="button" className="btn btn-small" disabled={busy} onClick={() => actions.onUpdate(server, release)} data-testid="server-update">
+              <button type="button" className="btn" disabled={busy} aria-label={`${t('actions.update')} ${server.name}`} onClick={() => actions.onUpdate(server, release)} data-testid="server-update">
                 <ArrowUpCircle {...ICON_SM} /> {t('actions.update')}
               </button>
             )}

@@ -43,7 +43,7 @@ export function TestResultView({ result, error }: { result: ServerTestResult | n
             <li key={name} className="server-check" data-check={name} data-ok={check ? String(check.ok) : undefined}>
               <span className="server-check-name">{t(`test.${name}`)}</span>
               {check ? (
-                <span className={`server-status ${check.ok ? 'tone-ok' : 'tone-bad'}`}>
+                <span className={`collab-tone server-status ${check.ok ? 'tone-ok' : 'tone-bad'}`}>
                   {check.ok ? <CircleCheck {...ICON_SM} /> : <CircleX {...ICON_SM} />}
                   <span>{check.ok ? t('test.ok') : t('test.failed')}</span>
                 </span>

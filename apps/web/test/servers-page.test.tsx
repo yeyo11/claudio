@@ -1,6 +1,7 @@
 // tsx compiles test files with the classic runtime; this one renders JSX like the app does
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test, { afterEach } from 'node:test';
 import type { ClaudioServer, ServerLink, ServerStatus, ServerTestResult } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -427,4 +428,33 @@ test('an offline remote is the in-page Unreachable, naming the server and its ad
   const trying = wrap(<Unreachable remote={{ name: 'Studio', address: null, retrying: true, onRetry: () => {}, actions: null }} />);
   assert.match(trying, /data-testid="remote-retry"[^>]*disabled|disabled=""[^>]*data-testid="remote-retry"/);
   assert.ok(text(trying).includes('any of its addresses'));
+});
+
+// ---------- what the UI review found ----------
+
+test('a server name is a span in the token weight, and every row action names its server', () => {
+  const html = view([server()]);
+  assert.match(html, /<span class="server-row-name">Studio<\/span>/);
+  assert.doesNotMatch(html, /<strong[^>]*server-row-name/);
+  assert.match(html, /aria-label="Open Studio"/);
+  assert.match(html, /aria-label="Test connection Studio"/);
+  // The status word is the Collaborators page's tone, not a second component
+  assert.match(html, /class="collab-tone server-status tone-ok"/);
+  // The same size for the buttons side by side
+  assert.doesNotMatch(html, /btn-small[^>]*data-testid="server-test-open"/);
+});
+
+test('the empty list is the compact Empty beside the other cards, and the list heading is not said twice', () => {
+  const html = view([]);
+  assert.match(html, /state-icon/);
+  assert.doesNotMatch(html, /state-illustrated/);
+  assert.doesNotMatch(html, /<h2 id="servers-list-title"/);
+  // Off, alone on the page, it keeps its illustration
+  assert.match(view(undefined, false), /state-illustrated/);
+});
+
+test('a colour tile has a size of its own, since an empty monogram has no letters to give it one', () => {
+  const css = readFileSync(new URL('../src/styles/servers.css', import.meta.url), 'utf8');
+  assert.match(css, /\.server-colour-tile\s*\{[^}]*width: 28px;[^}]*height: 28px;/);
+  assert.match(css, /\.server-row-name,[^{]*\{\s*font-weight: var\(--fw-strong\);/);
 });

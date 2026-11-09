@@ -168,7 +168,9 @@
     "submit": "Pair again",
     "done": "{{name}} is paired again",
     "doneOldKept": "{{name}} is paired again; its earlier token could not be revoked",
-    "failed": "Could not pair {{name}} again"
+    "failed": "Could not pair {{name}} again",
+    "bodyIdentity": "The machine at its address is not the one that was paired, so it may have been reinstalled. Pairing again keeps its name, colour and addresses, and replaces the token. Check it is the Claudio you mean first.",
+    "bodyToken": "Its token was revoked or is no longer accepted. Pairing again keeps its name, colour and addresses, and replaces the token."
   },
   "update": {
     "title": "Update {{name}}?",
@@ -203,7 +205,8 @@
     "revokeBody": "{{name}} can no longer drive this Claudio. It can pair again with a new code.",
     "revoked": "Revoked {{name}}",
     "revokeFailed": "Could not revoke {{name}}",
-    "failed": "Could not read the connected hubs"
+    "failed": "Could not read the connected hubs",
+    "notOwner": "Only the owner can see which Claudios are connected to this one."
   },
   "toast": {
     "on": "Servers are on",

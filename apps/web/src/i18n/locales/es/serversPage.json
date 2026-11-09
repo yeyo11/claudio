@@ -168,7 +168,9 @@
     "submit": "Volver a emparejar",
     "done": "{{name}} está emparejado de nuevo",
     "doneOldKept": "{{name}} está emparejado de nuevo; no se ha podido revocar su token anterior",
-    "failed": "No se ha podido volver a emparejar {{name}}"
+    "failed": "No se ha podido volver a emparejar {{name}}",
+    "bodyIdentity": "La máquina de su dirección no es la que se emparejó, así que puede haberse reinstalado. Al emparejar de nuevo se conservan su nombre, color y direcciones, y se sustituye el token. Antes, comprueba que es el Claudio que quieres.",
+    "bodyToken": "Su token se ha revocado o ya no se acepta. Al emparejar de nuevo se conservan su nombre, color y direcciones, y se sustituye el token."
   },
   "update": {
     "title": "¿Actualizar {{name}}?",
@@ -203,7 +205,8 @@
     "revokeBody": "{{name}} ya no podrá controlar este Claudio. Podrá volver a emparejar con un código nuevo.",
     "revoked": "Se ha revocado {{name}}",
     "revokeFailed": "No se ha podido revocar {{name}}",
-    "failed": "No se han podido leer los hubs conectados"
+    "failed": "No se han podido leer los hubs conectados",
+    "notOwner": "Solo el propietario puede ver qué Claudios están conectados a este."
   },
   "toast": {
     "on": "Los servidores están activados",

@@ -5,7 +5,6 @@ import { Dialog } from '@claudio/ui/components/Dialog';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox } from '@claudio/ui/components/ui';
 import { serversApi, useServersMutation } from '../../lib/api/servers';
-import { codeWords } from './words';
 import { emptyPairing, FingerprintConfirm, mayPair, pairingOf, PairingFields, usePairingFlow, type PairingDraft } from './pairing';
 import { ServerMark, ServerStatusWord } from './ServerMark';
 
@@ -28,7 +27,6 @@ export function PairAgainDialog({ server, onClose }: { server: ClaudioServer; on
     else toast.info(t('pairAgain.doneOldKept', { name: server.name }));
   }, onClose);
   const pairing = pairingOf(draft);
-  const why = codeWords('reason', server.health?.reason?.code);
   const confirming = flow.confirming;
 
   const submit = (event: FormEvent) => {
@@ -56,7 +54,7 @@ export function PairAgainDialog({ server, onClose }: { server: ClaudioServer; on
             <button type="button" className="btn" onClick={onClose}>
               {t('confirm.cancel')}
             </button>
-            <button type="submit" form={formId} className="btn btn-primary" disabled={!pairing || flow.pending} data-testid="server-pair-again-submit">
+            <button type="submit" form={formId} className="btn btn-primary server-submit" disabled={!pairing || flow.pending} data-testid="server-pair-again-submit">
               {flow.pending ? t('add.pairing') : t('pairAgain.submit')}
             </button>
           </>
@@ -71,12 +69,11 @@ export function PairAgainDialog({ server, onClose }: { server: ClaudioServer; on
             <div className="server-pair-head">
               <ServerMark server={server} size={36} />
               <div className="server-pair-who">
-                <strong>{server.name}</strong>
+                <span className="server-pair-name">{server.name}</span>
                 <ServerStatusWord status={server.health?.status ?? null} />
               </div>
             </div>
-            <p>{t('pairAgain.body')}</p>
-            {why && <p className="small muted">{why}</p>}
+            <p>{t(server.health?.status === 'identity-changed' ? 'pairAgain.bodyIdentity' : server.health?.status === 'needs-pairing' ? 'pairAgain.bodyToken' : 'pairAgain.body')}</p>
             <PairingFields draft={draft} onChange={setDraft} group={group} />
           </>
         )}

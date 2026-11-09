@@ -97,7 +97,7 @@ export function EditServerDialog({ server, onClose }: { server: ClaudioServer; o
           <button type="button" className="btn" onClick={onClose}>
             {t('confirm.cancel')}
           </button>
-          <button type="submit" form={formId} className="btn btn-primary" disabled={!ready || save.isPending} data-testid="server-edit-save">
+          <button type="submit" form={formId} className="btn btn-primary server-submit" disabled={!ready || save.isPending} data-testid="server-edit-save">
             {save.isPending ? t('edit.saving') : t('edit.save')}
           </button>
         </>

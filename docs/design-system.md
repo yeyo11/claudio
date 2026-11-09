@@ -2838,6 +2838,38 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - Paths inside a lens are relative to the chat's folder.
 - An `Edit` with no recorded patch uses the generic lens, not a diff.
 
+### Servers: the page, its dialogs and the LAN card's fingerprint
+
+> **Landed** in the `claudio-servers-complete` orchestration (2026-11-09), task `ui-servers-page`.
+> The design is [plans/claudio-servers.md](plans/claudio-servers.md) §12.1; the engine is
+> [servers.md](servers.md). There is no reference screen of its own: the page follows Collaborators'
+> structure (an opt-in page with its switch, cards and an empty state).
+
+- **No new component where one existed.** A status word is `.collab-tone` (colour, icon and word) with
+  `.server-status` only setting the small size; the tile of a server is `.monogram` fed an hue, never
+  a hex (`.server-mark`), and the colour picker's tiles are the same `.monogram` with a check on the
+  chosen one. Buttons, `Tabs`, `Select`, `Sheet`, `MoreActions` and `Dialog` are the shared ones.
+- `claudio-ds.css` gained the `.server-*` variants of the page: `.server-rows` and `.server-row*` (a
+  row: tile, name in the token weight, status word, facts, actions), `.server-identity`,
+  `.server-colours` / `.server-colour*`, `.server-address*` (the addresses' editor: input, kind,
+  up/down/remove), `.server-fingerprint*` and `.server-compare` (the certificate comparison of D13),
+  `.server-check*` (the four checks of Test connection), `.server-code*` (the pairing code: mono,
+  large, 4+4, with its countdown), `.server-hub*` (Connected hubs) and `.server-submit` (a fixed width
+  for a dialog's main button), plus the LAN card's `.lan-fingerprint*`.
+- The page has one gradient action, **Add a server** (**Turn on Servers** while it is off, drawn by
+  its `Empty`). The dialogs' main button is a default primary of the dialog's own layer. The no-server
+  state is the compact `Empty` with an icon, since it sits beside the Connect and Hubs cards; only the
+  off state, alone on the page, takes an illustration (`collaborators`).
+- Only **Reconnecting** and **Testing** move: the braille spinner beside the verb. A server with no
+  reading yet is neutral, "Not checked".
+- A remote that is offline is `Unreachable` in its in-page form (`remote` prop): the server's name and
+  address, Retry (which stays on the screen and says it is trying) and the way back. Never the hub's
+  modal.
+- The LAN card says the listener is HTTPS with a self-signed certificate and shows its fingerprint in
+  mono, in groups of four, with a copy button.
+- On a phone the row's actions are one "⋯" `Sheet`, the dialogs' tabs, move buttons and colour tiles
+  are 44 px, and the inputs are 16 px.
+
 ### Collaborators, as built
 
 > **Landed** in the `claudio-collaborators` orchestration (2026-10-16). The feature is described in

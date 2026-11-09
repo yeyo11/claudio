@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { createContext, useCallback, useContext, useEffect, useMemo, type ReactNode } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { Empty, Skeleton } from '@claudio/ui/components/ui';
@@ -102,6 +102,9 @@ export function ServerScopeGate({ children }: { children: ReactNode }) {
   const meta = useQuery({ queryKey: ['server-meta'], queryFn: ({ signal }) => readMeta(signal), enabled: remote && !hubFirst, retry: 1, staleTime: 30_000 });
   // Only the hub knows a remote's name: asked beside /meta, and its absence never blocks the gate
   const hub = useQuery({ queryKey: serversKeys.list, queryFn: ({ signal }) => serversApi.list({ signal }), enabled: remote && !hubFirst, retry: false, staleTime: 30_000 });
+  // A retry puts the query back to pending: the offline screen stays, with Retry saying it is trying
+  const wasOffline = useRef(false);
+  if (meta.isError) wasOffline.current = true;
   if (!remote) return <>{children}</>;
   // The app draws nothing until the first probe has answered, so there is nothing to mount yet: and
   // mounting the chat provider now would read the provider labels from a remote ahead of its version
@@ -120,8 +123,8 @@ export function ServerScopeGate({ children }: { children: ReactNode }) {
       {t('serversPage:remote.offline.servers')}
     </a>
   );
-  if (meta.isPending || hub.isLoading) return <Skeleton rows={4} />;
-  if (meta.isError) {
+  if ((meta.isPending && !wasOffline.current) || hub.isLoading) return <Skeleton rows={4} />;
+  if (meta.isError || (wasOffline.current && meta.isPending)) {
     return (
       <ScopeState title={t('serversPage:remote.offline.title', { name })}>
         <Unreachable
@@ -141,6 +144,7 @@ export function ServerScopeGate({ children }: { children: ReactNode }) {
       </ScopeState>
     );
   }
+  if (!meta.data) return <Skeleton rows={4} />;
   const fit = compatibility(meta.data);
   if (fit === 'ok') return <>{children}</>;
   const title = t('serversPage:remote.needsUpdate.title', { name });

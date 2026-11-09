@@ -37,30 +37,21 @@
   list-style: none;
 }
 
-/* ---------- A status word: its colour, an icon and the word ---------- */
+/* ---------- A status word: the Collaborators page's `.collab-tone` (colour, icon and word) at the small size ---------- */
 .server-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  min-width: 0;
-  color: var(--fg-2);
   font-size: var(--fs-small);
 }
 
-.server-status > svg {
-  flex: none;
+/* A name is a name, not a heading: the token weight, never the browser's bold */
+.server-row-name,
+.server-hub-name,
+.server-pair-name {
+  font-weight: var(--fw-strong);
 }
 
-.server-status.tone-ok {
-  color: var(--ok);
-}
-
-.server-status.tone-warn {
-  color: var(--warn);
-}
-
-.server-status.tone-bad {
-  color: var(--bad);
+/* The main button of a dialog keeps its width from "Pair" to "Pairing…" */
+.server-submit {
+  min-width: 96px;
 }
 
 /* ---------- The list ---------- */
@@ -85,7 +76,7 @@
 
 .server-row-main {
   display: flex;
-  flex: 1 1 260px;
+  flex: 1 1 160px;
   flex-direction: column;
   gap: 4px;
   min-width: 0;
@@ -165,6 +156,12 @@
 
 .server-colour.is-on {
   border-color: var(--accent);
+}
+
+/* An empty `.monogram` has no letters to give it a size */
+.server-colour-tile {
+  width: 28px;
+  height: 28px;
 }
 
 .server-colour:focus-visible {
@@ -361,6 +358,7 @@
     margin-left: 0;
   }
 
+  .server-pairing .tab,
   .server-row-actions .icon-btn,
   .server-address-moves .icon-btn,
   .server-colour {

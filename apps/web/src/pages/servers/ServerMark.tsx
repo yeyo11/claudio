@@ -33,7 +33,7 @@ export function ServerStatusWord({ status }: { status: ServerStatus | null }) {
   const { t } = useTranslation('serversPage');
   if (status === null) {
     return (
-      <span className="server-status" data-status="unchecked">
+      <span className="collab-tone server-status" data-status="unchecked">
         <CircleDashed {...ICON_SM} />
         <span>{t('status.unchecked')}</span>
       </span>
@@ -41,7 +41,7 @@ export function ServerStatusWord({ status }: { status: ServerStatus | null }) {
   }
   const Icon = ICONS[status];
   return (
-    <span className={`server-status tone-${SERVER_TONE[status]}`} data-status={status}>
+    <span className={`collab-tone server-status tone-${SERVER_TONE[status]}`} data-status={status}>
       {status === 'reconnecting' ? <Spinner /> : <Icon {...ICON_SM} />}
       <span>{t(`status.${status}`)}</span>
     </span>
