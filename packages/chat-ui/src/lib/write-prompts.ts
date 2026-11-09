@@ -85,8 +85,16 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
         if (rules.length) lines.push(t('fields.guardsRulesOff', { value: rules.join(', ') }));
       }
     } else if (name === 'verification') {
-      const commands = value && typeof value === 'object' && 'commands' in value && Array.isArray(value.commands) ? value.commands.filter((c): c is string => typeof c === 'string') : [];
-      if (commands.length) lines.push(t('fields.verification', { value: commands.join(' · ') }));
+      if (value && typeof value === 'object' && !Array.isArray(value)) {
+        const spec = value as { commands?: unknown; review?: unknown };
+        // A parallel group is said as one step, its commands joined by "+", so it is not read as a sequence
+        const commands = (Array.isArray(spec.commands) ? spec.commands : [])
+          .map((entry) => (Array.isArray(entry) ? entry.filter((c): c is string => typeof c === 'string').join(' + ') : typeof entry === 'string' ? entry : ''))
+          .filter(Boolean);
+        if (commands.length) lines.push(t('fields.verification', { value: commands.join(' · ') }));
+        // The review gate spends money and may let a fixer change code, so it is said even when it is only `{}`
+        if (spec.review && typeof spec.review === 'object' && !Array.isArray(spec.review)) lines.push(t('fields.verificationReview'));
+      }
     } else if (name === 'acceptanceCriteria') {
       if (Array.isArray(value)) {
         const texts = value.map((c) => (c && typeof c === 'object' && 'text' in c && typeof c.text === 'string' ? c.text : '')).filter(Boolean);
@@ -96,6 +104,24 @@ function fields(input: Record<string, unknown>, names: readonly string[]): strin
   }
   return lines;
 }
+
+/** The template a launch names, whose stored settings the prompt reads from the server; null for any other tool */
+export function templateToShow(toolName: string, input: Record<string, unknown>): string | null {
+  return toolName === `${PREFIX}launch_orchestration_template` ? str(input, 'templateId') || null : null;
+}
+
+/**
+ * What a saved template will run its workers with: its permission mode, prompts, allowed tools,
+ * guards and checks. The call itself names none of them (only the template has them), so without
+ * this the person would confirm a launch whose permissions they never saw.
+ */
+export function templateLines(spec: Record<string, unknown>): string[] {
+  const lines = fields(spec, PERSON_FIELDS);
+  return [t(lines.length ? 'template.carries' : 'template.defaults'), ...lines];
+}
+
+/** What the prompt says while the template is being read */
+export const templateLoading = (): string => t('template.loading');
 
 /** Null for any tool this does not know, so its prompt stays what it was */
 export function describeWrite(toolName: string, input: Record<string, unknown>): WritePrompt | null {
