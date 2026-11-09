@@ -1061,7 +1061,9 @@ a.link-more {
     height: 44px;
   }
 
+  /* Never squeezed under its two 44 px icons: the project name, which truncates, takes the squeeze */
   .topbar-actions {
+    flex: none;
     gap: 0;
   }
 
