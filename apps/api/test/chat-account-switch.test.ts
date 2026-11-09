@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,12 +79,16 @@ test('an idle chat moves at once, and the chat reads back its account', async ()
 });
 
 test('a working chat answers pending, and naming its own account cancels the switch', async () => {
-  const started = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'FAKE-SLEEP 1500', cwd }) });
+  // The turn works until the test releases it. A fixed nap (it was 1.5 s) raced the switch's own
+  // awaits, the model lists it reads before it looks at the chat's status: on a loaded runner the
+  // turn ended first, and the switch rightly answered that an idle chat moved at once.
+  const gate = join(root, 'release-working-turn');
+  const started = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: `FAKE-WAIT-FOR ${gate}`, cwd }) });
   assert.equal(started.statusCode, 201, started.body);
   const { id } = started.json<ChatSummary>();
   const queued = await switchTo(id, beta);
   assert.equal(queued.statusCode, 200, queued.body);
-  assert.equal(queued.json<SwitchChatAccountResponse>().pending, true);
+  assert.equal(queued.json<SwitchChatAccountResponse>().pending, true, `the chat was ${core.runtime.get(id)?.status ?? 'gone'}: ${queued.body}`);
   assert.equal((await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.pendingAccount, beta);
 
   const current = (await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.account ?? 'default';
@@ -92,7 +96,10 @@ test('a working chat answers pending, and naming its own account cancels the swi
   assert.equal(cancelled.statusCode, 200, cancelled.body);
   assert.equal(cancelled.json<SwitchChatAccountResponse>().pending, false);
   assert.ok(!(await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.pendingAccount);
+  writeFileSync(gate, '');
   await until('the turn to end', () => core.runtime.get(id)?.status === 'idle');
+  // The cancelled switch stays cancelled once the turn ends
+  assert.equal((await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.account ?? 'default', current);
 });
 
 test('a missing accountId is 400, an unknown chat or account is 404', async () => {
