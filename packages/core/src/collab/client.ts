@@ -316,6 +316,12 @@ interface PeerState {
   /** The open `watch` stream and the keys it names */
   watch: AbortController | null;
   watchKeys: string;
+  /**
+   * The watch the peer said it listens on. Until then a change on its side reaches nobody: the
+   * request crosses the network and the peer checks each key before it subscribes, so a copy that
+   * called itself live at once missed what changed meanwhile until the next reconcile
+   */
+  heard: AbortController | null;
   /** The last run reached the peer */
   online: boolean;
   failures: number;
@@ -430,7 +436,7 @@ export class SyncClient {
     }
     for (const id of wanted) {
       if (this.peers.has(id)) continue;
-      const peer: PeerState = { id, run: null, again: false, timer: null, watch: null, watchKeys: '', online: false, failures: 0, refused: false, refusals: 0, lastFailure: null, lock: Promise.resolve(), notices: new Set(), noticeTimer: null, watchRefusals: 0 };
+      const peer: PeerState = { id, run: null, again: false, timer: null, watch: null, watchKeys: '', heard: null, online: false, failures: 0, refused: false, refusals: 0, lastFailure: null, lock: Promise.resolve(), notices: new Set(), noticeTimer: null, watchRefusals: 0 };
       this.peers.set(id, peer);
       this.start(peer);
     }
@@ -967,6 +973,11 @@ export class SyncClient {
         const part = next.value;
         if (!('frame' in part)) continue;
         const reply = part.frame as WireReply | null;
+        // A peer from before the acknowledgement sends none: its first notice proves it listens too
+        if ((reply?.type === 'ack' || reply?.type === 'changed') && peer.heard !== controller && peer.watch === controller) {
+          peer.heard = controller;
+          for (const state of this.sharesOf(peer.id)) this.deps.synced(peer.id, state.share.shareKey, state.share.kinds[0] ?? 'chats');
+        }
         if (reply?.type === 'changed' && typeof reply.shareKey === 'string') {
           peer.watchRefusals = 0;
           this.notice(peer, reply.shareKey, reply.kind);
@@ -1047,7 +1058,7 @@ export class SyncClient {
     if (this.stopped) return { state: 'paused', lastSyncedAt, path: null, error };
     if (!online) return { state: lastSyncedAt ? 'offline' : 'pending', lastSyncedAt, path: null, error };
     if (!state?.lastSyncedAt) return { state: 'pending', lastSyncedAt, path: presence.path, error };
-    return { state: peer.watch ? 'live' : 'synced', lastSyncedAt, path: presence.path, error };
+    return { state: peer.watch && peer.heard === peer.watch ? 'live' : 'synced', lastSyncedAt, path: presence.path, error };
   }
 
   // ---------- Blobs ----------
