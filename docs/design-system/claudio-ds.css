@@ -2995,3 +2995,15 @@ a.cont-from:hover { color: var(--fg); }
 .machine-chat { display: flex; flex-direction: column; gap: 2px; min-width: 0; max-width: 36ch; }
 .machine-table .num { text-align: right; white-space: nowrap; }
 /* ---------- end of The machine ---------- */
+
+/* ---------- Servers in the shell (docs/plans/claudio-servers.md §12.1) ----------
+   The selector wears the project selector's button; a server's mark is a `.monogram` tinted from --hue.
+   Only Reconnecting moves (the braille spinner beside the verb). */
+.server-selector-value, .server-item { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.server-item { gap: 8px; }
+.server-selector-name, .server-item-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.server-local-icon { flex: none; color: var(--fg-2); }
+.server-status { display: inline-flex; align-items: center; gap: 6px; }
+.statusbar-server { max-width: 280px; }
+.servers-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
+/* ---------- end of Servers in the shell ---------- */

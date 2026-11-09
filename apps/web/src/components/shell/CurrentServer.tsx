@@ -37,7 +37,7 @@ export function StatusBarServer() {
     <>
       <span className="statusbar-item statusbar-server" data-testid="statusbar-server">
         <ServerMark server={server} size={16} />
-        <span className="ellipsis">{server.name}</span>
+        <span className="ellipsis" title={server.name}>{server.name}</span>
         <ServerStatusWord server={server} />
       </span>
       <a href={back} className="statusbar-item">
@@ -57,7 +57,7 @@ export function MoreServer() {
     <a href={back} className="more-connection more-server" data-testid="more-server">
       <ServerMark server={server} size={28} />
       <span className="more-connection-text">
-        <span className="more-connection-title ellipsis">{server.name}</span>
+        <span className="more-connection-title ellipsis" title={server.name}>{server.name}</span>
         <span className="more-connection-detail ellipsis">
           {serverStatus(server) && (
             <>

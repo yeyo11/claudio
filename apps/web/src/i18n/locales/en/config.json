@@ -837,7 +837,7 @@
         "bind": "Local network interfaces"
       },
       "servers": {
-        "enabled": "Drive other Claudios"
+        "enabled": "Use servers"
       }
     },
     "keywords": {
@@ -2135,19 +2135,12 @@
   "servers": {
     "title": "Servers",
     "switch": "Use servers",
-    "states": {
-      "on": "On",
-      "off": "Off"
-    },
-    "intro": {
-      "off": "Turn this on to drive other Claudios from this one."
-    },
-    "offNote": "Turning it off disconnects every server and keeps the list.",
     "open": "Manage servers",
     "toast": {
       "on": "Servers on",
       "off": "Servers off. Your list is kept.",
       "saveFailed": "Could not change Servers"
-    }
+    },
+    "hint": "Drive other Claudios from this one. Turning it off disconnects every server and keeps the list."
   }
 }

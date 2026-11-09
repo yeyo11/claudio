@@ -68,7 +68,8 @@ const off: ServersSettings = { enabled: false };
 
 test('the selector is a quiet button in the project selector’s shape, with the separator that leads to the project', () => {
   const html = page(<ServerSelector />, { settings: on, servers: [server('a', 'Studio')] });
-  assert.match(html, /<button[^>]*class="select-trigger project-selector server-selector"[^>]*aria-label="Server"/);
+  // The name holds the words the button shows, so a voice user can say them
+  assert.match(html, /<button[^>]*class="select-trigger project-selector server-selector"[^>]*aria-label="Server: This server"/);
   assert.match(html, /This server/);
   assert.match(html, /class="crumb-sep"/);
 });
@@ -159,17 +160,18 @@ test('the phone’s More sheet carries the same: a card with the name, the statu
   assert.match(html, /Back to this server/);
 });
 
-test('Settings → Servers: the switch is off by default and says what it does; on, it links to the page and says what off keeps', () => {
+test('Settings → Servers: the row is the same in both states, so turning it on moves nothing; only the switch changes', () => {
   const offHtml = page(<ServersCard />, { settings: off });
   assert.match(offHtml, /data-setting="servers\.enabled"/);
   assert.match(offHtml, /role="switch"[^>]*aria-checked="false"/);
-  assert.match(offHtml, /Turn this on to drive other Claudios from this one/);
-  assert.doesNotMatch(offHtml, /href="\/servers"/);
-
   const onHtml = page(<ServersCard />, { settings: on });
   assert.match(onHtml, /role="switch"[^>]*aria-checked="true"/);
-  assert.match(onHtml, /Turning it off disconnects every server and keeps the list/);
-  assert.match(onHtml, /<a class="btn btn-small" href="\/servers"[^>]*>Manage servers<\/a>/);
+  for (const html of [offHtml, onHtml]) {
+    assert.match(html, /Turning it off disconnects every server and keeps the list/);
+    assert.match(html, /<a class="btn btn-small" href="\/servers"[^>]*>Manage servers<\/a>/);
+  }
+  const shape = (html: string) => html.replace(/aria-checked="\w+"|data-state="\w+"|checked=""/g, '').replace(/\s+/g, ' ');
+  assert.equal(shape(offHtml), shape(onHtml));
 });
 
 test('a Claudio that is never a hub has no card', () => {

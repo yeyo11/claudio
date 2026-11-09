@@ -104,7 +104,7 @@ export function SelectorView({ servers }: { servers: readonly ClaudioServer[] })
           label={t('servers.selector.label')}
           align="start"
           trigger={
-            <button type="button" className="select-trigger project-selector server-selector" aria-label={t('servers.selector.label')}>
+            <button type="button" className="select-trigger project-selector server-selector" aria-label={`${t('servers.selector.label')}: ${t('servers.local')}`}>
               <span className="select-value server-selector-value">
                 <Server {...ICON_SM} className="server-local-icon" aria-hidden />
                 <span className="server-selector-name">{t('servers.local')}</span>

@@ -1017,6 +1017,12 @@ a.link-more {
     display: none;
   }
 
+  /* The mark is all that is left of the value: it must not be squeezed by the title beside it */
+  .topbar .select-trigger.project-selector .select-value.server-selector-value {
+    flex: none;
+    overflow: visible;
+  }
+
   /* Search and the bell, as 44 px icons: the FAB and the tab bar have the rest */
   .topbar .topbar-search {
     display: inline-grid;
