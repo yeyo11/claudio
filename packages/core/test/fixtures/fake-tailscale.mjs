@@ -22,7 +22,11 @@
 //
 //   FAKE_TAILSCALE_STATE=<file>  { version, daemon, backendState, dnsName, magicDNS, certDomains,
 //                                  operator, serve, serveDisabled, delayMs }; any key left out takes the default below
-//   FAKE_TAILSCALE_LOG=<file>    appends one JSON line per call: { argv }
+//   FAKE_TAILSCALE_LOG=<file>    appends one JSON line per call: { argv }, once the call has read
+//                                the state, so a logged call answers from the state it found then
+//
+// Whoever writes the state file, this fake or a test, writes a whole file and renames it into place:
+// a call reading it halfway through a plain write would find no JSON and answer as a broken CLI.
 //
 // `delayMs` holds every call that long before it answers, the way a machine at 97 % CPU does: a
 // caller with a shorter timeout kills the call and gets no answer at all.
@@ -31,10 +35,9 @@
 // node's operator. `daemon: false` answers every call that needs tailscaled the way the CLI does
 // when it cannot reach it. Every key file `up` read is kept in `keyFiles` ({ mode, key }), so a test
 // can check the key reached the CLI that way and never in argv (which FAKE_TAILSCALE_LOG holds).
-import { appendFileSync, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 
 const argv = process.argv.slice(2);
-if (process.env.FAKE_TAILSCALE_LOG) appendFileSync(process.env.FAKE_TAILSCALE_LOG, `${JSON.stringify({ argv })}\n`);
 
 const file = process.env.FAKE_TAILSCALE_STATE;
 const DEFAULTS = {
@@ -48,8 +51,12 @@ const DEFAULTS = {
   serve: {},
 };
 const state = { ...DEFAULTS, ...(file && existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {}) };
+if (process.env.FAKE_TAILSCALE_LOG) appendFileSync(process.env.FAKE_TAILSCALE_LOG, `${JSON.stringify({ argv })}\n`);
 const save = () => {
-  if (file) writeFileSync(file, JSON.stringify(state));
+  if (!file) return;
+  const next = `${file}.${process.pid}.tmp`;
+  writeFileSync(next, JSON.stringify(state));
+  renameSync(next, file);
 };
 const fail = (message) => {
   process.stderr.write(`${message}\n`);

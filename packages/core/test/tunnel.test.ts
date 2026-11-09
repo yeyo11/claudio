@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import type { AuthMode, TunnelStatus } from '@claudio/shared';
 import { RuntimeHosts } from '../src/app-settings.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
-import { parseTailscaleVersion, readinessFromStatus, servePortUse, TunnelManager, TunnelRefusedError, type TunnelDeps } from '../src/tunnel.ts';
+import { parseTailscaleVersion, readinessFromStatus, servePortUse, TunnelManager, TunnelRefusedError, type TunnelDeps, type TunnelTiming } from '../src/tunnel.ts';
 
 const FAKE_TAILSCALE = fileURLToPath(new URL('./fixtures/fake-tailscale.mjs', import.meta.url));
 const NODE = 'claudio-test.tail0000.ts.net';
@@ -29,6 +29,9 @@ async function until(check: () => boolean, what: string, ms = 5_000): Promise<vo
  */
 interface ManagerInternals {
   opening: Promise<void> | null;
+  /** A readiness reading in flight, which every caller in the meantime joins */
+  probing: Promise<unknown> | null;
+  timing: TunnelTiming;
   cleaning: Promise<void>;
   monitor: NodeJS.Timeout | null;
   recoveryTimer: NodeJS.Timeout | null;
@@ -68,7 +71,14 @@ function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; mana
   const root = options.root ?? mkdtempSync(join(tmpdir(), 'claudio-tunnel-'));
   const log = join(root, 'tailscale.log');
   const stateFile = join(root, 'node.json');
-  if (options.node || !existsSync(stateFile)) writeFileSync(stateFile, JSON.stringify({ serve: {}, ...options.node }));
+  // Whole files renamed into place: a CLI call the monitor or the recovery runs meanwhile would
+  // otherwise read a half-written state, find no JSON and answer as a broken daemon
+  const writeState = (state: FakeNode): void => {
+    const next = `${stateFile}.test.tmp`;
+    writeFileSync(next, JSON.stringify(state));
+    renameSync(next, stateFile);
+  };
+  if (options.node || !existsSync(stateFile)) writeState({ serve: {}, ...options.node });
   // The CLI inherits the environment: set per test, and put back once it is done
   const saved = { state: process.env.FAKE_TAILSCALE_STATE, log: process.env.FAKE_TAILSCALE_LOG };
   process.env.FAKE_TAILSCALE_STATE = stateFile;
@@ -100,11 +110,28 @@ function rig(t: TestContext, options: { mode?: AuthMode; enabled?: boolean; mana
   if (options.attach !== false) manager.attach(8787);
   const calls = () => (existsSync(log) ? readFileSync(log, 'utf8').trim().split('\n').map((line) => (JSON.parse(line) as { argv: string[] }).argv.join(' ')) : []);
   const node = () => JSON.parse(readFileSync(stateFile, 'utf8')) as Required<Pick<FakeNode, 'serve'>> & FakeNode;
-  const setNode = (next: FakeNode) => writeFileSync(stateFile, JSON.stringify({ ...node(), ...next }));
+  const setNode = (next: FakeNode) => writeState({ ...node(), ...next });
   return { root, manager, hosts, events, audit, security, calls, node, setNode, record: join(root, 'data', 'tunnel', 'serve-rule.json') };
 }
 
 const ours = (port = 8444, target = TARGET) => ({ TCP: { [String(port)]: { HTTPS: true } }, Web: { [`${NODE}:${port}`]: { Handlers: { '/': { Proxy: target } } } } });
+
+/** What a failed assertion saw: the tunnel's state and reason, Tailscale's, what is armed, and the last CLI calls */
+function seen(r: Rig): string {
+  const status = r.manager.status();
+  const armed = internals(r.manager);
+  return JSON.stringify({
+    state: status.state,
+    reason: status.reason?.code ?? null,
+    tailscale: status.tailscale.state,
+    checking: status.checking,
+    monitor: armed.monitor !== null,
+    recoveryTimer: armed.recoveryTimer !== null,
+    recovering: armed.recovering,
+    probing: armed.probing !== null,
+    calls: r.calls().slice(-8),
+  });
+}
 
 async function openTunnel(r: Rig): Promise<TunnelStatus> {
   await r.manager.start();
@@ -394,22 +421,30 @@ test('at start, a record from before the lock is left alone while its target ans
 });
 
 test('a Tailscale that is slow to answer keeps the tunnel, its rule and its host, and says it is checking', async (t) => {
-  const r = rig(t, { timing: { monitorMs: 30, maxBackoffMs: 90, commandTimeoutMs: 400, stalledAfterMs: 400 } });
+  // The tunnel opens, and answers again, under the product's own command timeout; only while the
+  // node is slow do calls get a short one. With 400 ms throughout, a CLI spawn slowed by a loaded
+  // machine timed out during the open, and the tunnel failed before the node was ever made slow
+  const r = rig(t, { timing: { monitorMs: 30, maxBackoffMs: 90, stalledAfterMs: 400 } });
   await openTunnel(r);
   const opened = r.calls().length;
-  assert.equal(r.manager.status().state, 'active');
-  assert.equal(r.manager.status().checking, false);
+  assert.equal(r.manager.status().state, 'active', seen(r));
+  assert.equal(r.manager.status().checking, false, seen(r));
 
+  const timing = internals(r.manager).timing;
+  const answering = timing.commandTimeoutMs;
+  // Far shorter than the node's delay, so every reading while it is slow gets no answer, however
+  // fast or slow the machine spawns the CLI
+  timing.commandTimeoutMs = 400;
   r.setNode({ delayMs: 1500 });
   await until(() => r.manager.status().checking, 'checking');
   const slow = r.manager.status();
-  assert.equal(slow.state, 'active');
+  assert.equal(slow.state, 'active', seen(r));
   assert.equal(slow.url, `https://${NODE}:8444`);
   assert.deepEqual(r.hosts.list(), [NODE]);
 
   // Nothing but unknowns for longer than the limit: a warning, not a failure
   await until(() => r.manager.status().reason?.code === 'tunnel.tailscaleNotAnswering', 'the not-answering reason');
-  assert.equal(r.manager.status().state, 'active');
+  assert.equal(r.manager.status().state, 'active', seen(r));
   assert.deepEqual(r.hosts.list(), [NODE]);
   assert.ok(r.events.some((event) => event.checking), 'the feed carried the checking flag');
 
@@ -418,9 +453,10 @@ test('a Tailscale that is slow to answer keeps the tunnel, its rule and its host
   assert.deepEqual(r.calls().slice(opened).filter((call) => call.endsWith('off')), []);
 
   r.setNode({ delayMs: 0 });
+  timing.commandTimeoutMs = answering;
   await until(() => !r.manager.status().checking, 'answers again');
-  assert.equal(r.manager.status().state, 'active');
-  assert.equal(r.manager.status().reason, null);
+  assert.equal(r.manager.status().state, 'active', seen(r));
+  assert.equal(r.manager.status().reason, null, seen(r));
   assert.deepEqual(r.hosts.list(), [NODE]);
 });
 
@@ -444,16 +480,38 @@ test('a tunnel the person stopped never restarts, even once Tailscale is ready',
   r.setNode({ backendState: 'Stopped' });
   await until(() => r.manager.status().state === 'failed', 'failed');
   await r.manager.stop();
-  assert.equal(r.manager.status().state, 'stopped');
+  assert.equal(r.manager.status().state, 'stopped', seen(r));
   r.setNode({ backendState: 'Running' });
   // Only a timer could open it again (the monitor's reading or the recovery): neither is armed, so
   // no wait, however long, would see it restart
   const after = internals(r.manager);
-  assert.deepEqual([after.monitor, after.recoveryTimer, after.recovering], [null, null, false]);
+  assert.deepEqual([after.monitor, after.recoveryTimer, after.recovering], [null, null, false], seen(r));
   // And a reading that finds Tailscale ready, as the routes take one, does not open it either
   await r.manager.refresh(true);
-  assert.equal(r.manager.status().tailscale.state, 'ready');
-  assert.equal(r.manager.status().state, 'stopped');
+  assert.equal(r.manager.status().tailscale.state, 'ready', seen(r));
+  assert.equal(r.manager.status().state, 'stopped', seen(r));
+  assert.deepEqual(r.hosts.list(), []);
+});
+
+test("a forced reading is taken after the call, never the recovery's reading still in flight", async (t) => {
+  // What CI saw on the test above: the stop came while the recovery's reading was in flight, and
+  // refresh(true) answered with that reading, taken before Tailscale was ready
+  const r = rig(t, { timing: { monitorMs: 30 } });
+  await openTunnel(r);
+  r.setNode({ backendState: 'Stopped' });
+  await until(() => r.manager.status().state === 'failed', 'failed');
+  // The recovery reads Tailscale every monitorMs: hold one of its readings on a daemon that is down.
+  // A call is logged once it has read the state, so the `status` call seen here answers daemonDown
+  const from = r.calls().length;
+  r.setNode({ daemon: false, delayMs: 500 });
+  await until(() => r.calls().slice(from).includes('status --json') && internals(r.manager).probing !== null, 'a recovery reading held on a daemon that is down');
+  await r.manager.stop();
+  r.setNode({ daemon: true, backendState: 'Running', delayMs: 0 });
+  const status = await r.manager.refresh(true);
+  assert.equal(status.tailscale.state, 'ready', seen(r));
+  assert.equal(status.state, 'stopped', seen(r));
+  const after = internals(r.manager);
+  assert.deepEqual([after.monitor, after.recoveryTimer, after.recovering], [null, null, false], seen(r));
   assert.deepEqual(r.hosts.list(), []);
 });
 
