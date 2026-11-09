@@ -2141,6 +2141,6 @@
       "off": "Servers off. Your list is kept.",
       "saveFailed": "Could not change Servers"
     },
-    "hint": "Drive other Claudios from this one. Turning it off disconnects every server and keeps the list."
+    "hint": "Off disconnects every server and keeps the list."
   }
 }

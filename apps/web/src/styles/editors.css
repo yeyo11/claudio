@@ -1719,7 +1719,7 @@ button.master-item-on:hover {
   color: var(--text);
 }
 
-/* Settings → Servers: the switch, its state in a word and the way to the page */
+/* Settings → Servers: the switch and the way to the page */
 .servers-switch {
   display: flex;
   flex-wrap: wrap;

@@ -167,7 +167,7 @@ test('Settings → Servers: the row is the same in both states, so turning it on
   const onHtml = page(<ServersCard />, { settings: on });
   assert.match(onHtml, /role="switch"[^>]*aria-checked="true"/);
   for (const html of [offHtml, onHtml]) {
-    assert.match(html, /Turning it off disconnects every server and keeps the list/);
+    assert.match(html, /Off disconnects every server and keeps the list/);
     assert.match(html, /<a class="btn btn-small" href="\/servers"[^>]*>Manage servers<\/a>/);
   }
   const shape = (html: string) => html.replace(/aria-checked="\w+"|data-state="\w+"|checked=""/g, '').replace(/\s+/g, ' ');

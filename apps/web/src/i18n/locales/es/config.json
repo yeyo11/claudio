@@ -2141,6 +2141,6 @@
       "off": "Servidores desactivados. La lista se conserva.",
       "saveFailed": "No se ha podido cambiar Servidores"
     },
-    "hint": "Controla otros Claudio desde este. Al desactivarlo se desconectan todos los servidores y la lista se conserva."
+    "hint": "Desactivado, desconecta los servidores y conserva la lista."
   }
 }
