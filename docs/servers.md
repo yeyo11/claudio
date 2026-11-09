@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T18:00:00Z
-updated_at: 2026-11-08T22:00:00Z
+updated_at: 2026-11-09T18:00:00Z
 tags:
     - servers
     - remote-access
@@ -14,13 +14,12 @@ A Claudio can drive other Claudios. The one the person opens is the **hub**; the
 **servers** (the local one is "This server", id `local`). Each server keeps its own accounts, chats
 and settings and is only *reached* from the hub: the hub's web client shows the selected server's
 pages, and every request goes through the hub's gateway to that server's own API. The design is
-[the plan](plans/claudio-servers.md); this page is what exists after orchestration A (the engine,
-stages 1-3 and D12) and how it works.
+[the plan](plans/claudio-servers.md); this page is what exists after orchestration A (the engine)
+and orchestration B (the UI and the gaps A left) and how it works.
 
-**There is no visible UI yet.** Nothing in the sidebar, the top bar or Settings mentions servers. The
-engine is driven through the REST routes below and reached in the browser by address
-(`/s/<id>/…`). The selector, the Servers page and the Settings switch are orchestration B, after
-its own design phase. A person who never turns the feature on sees no change.
+It is **off by default**. Settings → Access & safety → Servers has the switch; while it is off the
+sidebar, the top bar and every page look as they did before, so a person who never turns it on sees
+no change. [The UI](#the-ui) below says what appears when it is on.
 
 ## What a server is
 
@@ -76,10 +75,24 @@ remote handed its token over, the hub revokes it before answering, so a failed a
 behind. The token goes into the secret vault, under the tool name `claudio-servers`, one entry per
 server id, never in `servers.json`, a log or an API answer.
 
+**Pairing again in place.** A server whose identity changed (it was reinstalled) or whose token was
+revoked keeps its entry: `POST /servers/:id/pair` takes a `ServerPairing` (a bare one, or
+`{ pairing }` as `POST /servers` does) and runs the same pairing, with the same rules, D13 for an
+owner token included. It keeps the id, name, colour, monogram and addresses and replaces the pinned
+identity and the token. The earlier token is given back on the remote **only after the new one is
+stored**, and only on an address that still answers as the *earlier* identity, so the token of a
+server that was reinstalled never reaches the machine that replaced it. The answer is the server
+plus `previousToken: { revoked, reason? }`; a token the remote no longer knows counts as revoked
+(a remote already replaces a hub's old token when it pairs again). A pairing that fails leaves the
+server exactly as it was, and `409 servers.already-paired` refuses an address that is another server
+on the list. The Servers page offers it as **Pair again** on a server in `identity-changed` or
+`needs-pairing`.
+
 **Revoking from the remote.** The remote's owner lists the hubs with `GET /server-links` (no secrets)
 and revokes one with `DELETE /server-links/:tokenId`; a hub's own token cannot
 (`403 server-links.not-owner`). Its terminal sockets close, it works in read-only mode, and the hub's
-next call through the gateway is `409 servers.needs-pairing`. There is no UI for it yet.
+next call through the gateway is `409 servers.needs-pairing`. The Servers page has it as **Connected
+hubs**, with **Revoke**.
 
 **Removing** a server calls `DELETE /server-links/self` on the remote with the hub's own token (allowed
 in read-only mode: it only takes access away), then forgets the entry, the secret
@@ -168,7 +181,7 @@ ends before the remote, so no pin could know their certificate. It counts only f
 is not an IP, not `.local` and not a single label (D15), so it can never stand in for a LAN server,
 whatever a public authority has signed. In every case the
 `instanceId` from `/api/meta` must be the one paired, and a mismatch is a hard block
-(`identity-changed`) until the server is removed and added again, which gives it a new id. While
+(`identity-changed`) until the server is paired again in place (**Pair again**, which keeps its id) or removed and added again. While
 pairing, nothing is pinned yet: the first certificate is taken as it is and every later connection
 of that agent must show the same one.
 
@@ -206,31 +219,107 @@ dropped.
 - **`createApi(base)`** replaces the fixed `/api`: the base is `/api` locally and
   `/api/servers/<id>/api` through the gateway. Export links, uploads, the chat stream, the terminal
   socket and the events feed all use the scope's base, and only the selected server's feed is open
-  (D11). The hub's token goes only to the hub; a 401 through the gateway asks the hub about its own
-  session instead of showing the hub's sign-in, and a 421 through the gateway does not trigger the
-  host-refused screen.
+  (D11). The hub's token goes only to the hub. A 401 or a 421 through the gateway may be the
+  remote's answer or the hub's own, so the web asks the hub itself (its auth probe, on the hub's
+  base): only the hub's own 401 brings its sign-in screen, and only the hub's own 421 the
+  host-refused screen, as a direct call would.
 - **Storage.** Per-server `localStorage` keys get `:<serverId>` for remotes only; local keys are
   unchanged, so nothing migrates. The query cache is keyed by the server and per page. Theme,
   language and motion stay global.
 - **Routes.** The router has the `/s/<id>` basename and `sw.js` treats `s` as an app route.
-  Switching keeps the page when it names no record and exists on both (Home, Chats, Settings…); a
-  page that names a record (`/chats/:id`) goes to Home, since ids belong to one server.
+  Switching maps the page onto the other server (`apps/web/src/lib/server-routes.ts`):
+  - a page that names no record (Home, Chats, Settings…) stays as it is; Settings keeps its group
+    and detail, and a hub-only page (`/servers`) goes to Home;
+  - a page that names a record (a chat, a task, an orchestration, a project's assistant, a
+    schedule's edit page, a terminal, and their `/changes` pages) **stays on it when the other
+    server has the record**: one read of it through the target's own base, within 2 s
+    (`RECORD_READ_MS`), asks. When it has not, or does not answer in time, the switch lands on the
+    list the record belongs to (`/chats`, `/tasks`, `/orchestration`…). The read is the lightest the
+    record has, one that writes nothing and starts no session (a project page reads its docs
+    registry, since there is no `GET /projects/:id`). A shared project of a collaborator has no read
+    and goes to its list;
+  - the query and the hash do not travel: they hold ids too (the top bar's project, a chat filter).
+
+  A switch never fails to land somewhere.
+- **The desktop app.** A remote's terminal window (`/s/<id>/terminal-window/:id`) opens as its own
+  native window, still on the app's own origin only. When the tray or the update notice opens a page
+  of this server while the window shows a remote's pages, the app reloads instead of leaving the
+  person inside the remote (`apps/desktop/src/terminal-window.ts`, `main.ts`).
 - **Remote gate.** A remote scope reads `/meta` first and shows "needs an update" or "unreachable";
   it renders nothing until the first auth probe settles.
-- `apps/web/src/lib/server-meta.ts` still mirrors `ServerMeta` and `WEB_API_VERSION` instead of
-  importing the shared constants; the values must match `API_VERSION`.
 
 ## What is hub-only
 
 One helper, `isHubOnly` (`apps/web/src/lib/server-routes.ts`), hides these in a remote scope (D7):
 
-- the Servers page and the server selector (when they exist);
+- the Servers page, the server selector, the status bar's and phone More's server item, and the
+  Settings → Servers card;
 - Settings → Access & safety's sign-in cards and the LAN and tunnel cards, which describe the hub;
 - the desktop bridge (IPC actions) and the desktop app's updates, and tray navigation;
 - the matching Settings search and command-palette entries.
 
 Everything else, Settings included, is the **selected server's**: a write there lands on that
 server, and its page says which one.
+
+## The UI
+
+Every Servers surface is hub-only and drawn only while the switch is on; the design is
+[plan §12.1](plans/claudio-servers.md#121-the-design), the page-by-page description is in
+[ui.md](ui.md), and the CSS is under "Servers" in [design-system.md](design-system.md).
+
+- **The switch.** Settings → Access & safety → **Servers** has the on/off switch
+  (`PUT /servers/settings`) and **Manage servers**, a link to the page. Turning it off says what
+  happens (D8: the list is kept, connections close). The card is absent in a remote scope and on a
+  Claudio that does not serve the routes (a headless one).
+- **The selector** (top bar, before the project selector, `ServerSelector`). Its button shows the
+  current server's mark and name (**This server** on the hub; inside a remote, that remote, with the
+  hub's list so a switch is one hop); the menu pins
+  **This server**, then the 3 servers used most recently, each with its monogram in its colour and a
+  status word (a server never used, just paired, comes after them by when it was added), then **All
+  servers** → `/servers`. With no server yet the last entry is **Add a server** → `/servers?add=1`.
+  Picking a server runs `switchTo`, a full page load that ends with `POST /servers/:id/use`; a
+  refusal (a server removed meanwhile, the switch just turned off) is a toast and the page stays. On
+  a phone the same list opens as a sheet.
+- **The sidebar** has **Servers** before Projects, and the phone's More list has it too.
+- **In a remote scope** the status bar's first item is the server's monogram, name and status word
+  (the hub's last reading, polled slowly because it probes only the server in use), with **Back to
+  this server**, a plain link to the same page on the hub; the phone's More sheet shows the same as a
+  card. There is no banner. A remote that cannot be reached shows the `Unreachable` screen in its
+  in-page form with the server's name and address, **Retry**, **Back to this server** and **All
+  servers**, never the hub-wide modal; one that **needs an update** shows its version and says
+  which of the two Claudios to update.
+- **The page** (`/servers`, `pages/Servers.tsx`). With the switch off, an `Empty` with **Turn on
+  Servers**. Otherwise the list, one row per server: monogram, name, status word (**Not checked**
+  until the hub has a reading), version, latency, **Reached at** the address in use (mono), last
+  used, and why when it is not connected. Row actions: **Open** (or **Pair again** for
+  `identity-changed` and `needs-pairing`), **Test connection**, **Update** (only when a newer release
+  is out and the remote's desktop update unit can install it, both read through the gateway; it asks,
+  then `POST /servers/:id/api/system/desktop-update`), and in a "⋯" menu **Edit** and **Remove**; on a
+  phone every action is in that menu. **Add a server** is the page's one gradient.
+- **Add a server** has two tabs. *Pairing code*: the addresses and the 8 characters the other Claudio
+  shows. *Owner token*: the addresses and a token, which runs D13's round trip: the first call is
+  answered `409 servers.confirm-fingerprint`, the dialog shows the fingerprint in groups of four
+  (mono) and asks the person to compare it with the other Claudio's LAN card, optionally by pasting
+  that one here (a pasted fingerprint that differs blocks pairing), and only **It matches, pair**
+  sends the token. For a Tailscale or tunnel name the dialog says the fingerprint will not match the
+  card's and that the name's certificate is what is checked (D15). The name defaults to the first
+  address's host (without `.local`), the colour to the first one no server wears, the initials to the
+  name's.
+- **Edit** changes the name, colour (eight tokens: blue, violet, magenta, rose, orange, lime, teal,
+  sky; none of them a status hue), monogram and the addresses (add, remove, move up or down, each
+  with its kind); a new address must prove it is the same server before it is saved.
+- **Test connection** shows the four checks (identity and version, API calls, live updates, terminal
+  connection), each with a word and its latency, and the address reached.
+- **Remove** says the token is revoked on the remote; if that fails (`502 servers.revoke-failed`) a
+  second question offers **Remove anyway** (`?force=true`) and says the token may still work there.
+- **Let another Claudio connect to this one** (every Claudio is the hub of itself, so this is where
+  a remote is prepared): **Show a pairing code** gives the 8 characters (mono, grouped 4+4, with a
+  copy button) and a 5-minute countdown, **New code**, and below it this Claudio's certificate
+  fingerprint to compare. Under auth mode `none` it says another Claudio can only connect to one that
+  asks for a sign-in. **Connected hubs** lists `GET /server-links` (hub name, when it paired, last
+  used) with **Revoke** (D14); the secret is never shown.
+- **Motion.** Only Reconnecting and Testing move (the braille spinner beside the verb), and every
+  loop stops under the motion levels.
 
 ## Who is who: the `server:<tokenId>` actor
 
@@ -251,17 +340,20 @@ security rules are in [security-model.md](security-model.md#servers).
 | The CRUD routes and the gateway | `apps/api/src/routes/servers.ts`, `servers-gateway.ts` |
 | The LAN certificate | `packages/core/src/lan-tls.ts`, [lan-access.md](lan-access.md) |
 | The web scope | `packages/ui/src/lib/server-scope.ts`, `apps/web/src/lib/server-scope.tsx`, `server-routes.ts`, `server-meta.ts` |
+| The UI | `apps/web/src/pages/Servers.tsx`, `pages/servers/` (row, dialogs, pairing, the connect and hubs cards), `components/ServerSelector.tsx`, `ServerMark.tsx`, `components/shell/CurrentServer.tsx`, `pages/config/security/ServersCard.tsx`, `lib/api/servers.ts` (the client), `lib/servers-model.ts` (what the UI decides from a server) |
+| The desktop window | `apps/desktop/src/terminal-window.ts`, `main.ts` |
 | The routes | [rest-api.md](rest-api.md#servers) |
-| The tests | `apps/api/test/servers.test.ts`, `server-links.test.ts`, `lan.test.ts`; `packages/core/test/servers.test.ts`, `server-links.test.ts` |
+| The tests | `apps/api/test/servers.test.ts`, `server-links.test.ts`, `lan.test.ts`; `packages/core/test/servers.test.ts`, `server-links.test.ts`; `apps/web/test/servers-page.test.tsx`, `servers-shell.test.tsx`, `servers-model.test.ts`, `server-routes.test.ts`, `server-scope.test.tsx`, `lan-card.test.tsx` |
 
 ## Not there yet
 
-- The UI: selector, status bar, Servers page, Settings switch, phone layout (orchestration B). The
-  fingerprint is in `GET /lan` but the LAN card does not show it yet.
-- An e2e spec for the visible flow with two isolated wrappers, which comes with the UI.
+- The e2e of the visible flow with two isolated wrappers is the `e2e` task of orchestration B; the
+  [plan's Outcome](plans/claudio-servers.md#124-outcome) says whether it ran.
 - Notifications and views across servers, the MCP server or the assistant acting on another server,
   chaining, a list of incoming connections on the remote, and a remote that dials out to the hub.
-- Known limits: a server whose identity changed can only be removed (`?force=true`) and added again.
+- Known limits: the selector lists only This server and the 3 used last (the rest are one click
+  away on the page); the remote-scope status bar, the More card and the Reconnecting spinner have
+  only been covered by unit tests, because no paired remote was running when the UI was reviewed.
 
 ## Related
 

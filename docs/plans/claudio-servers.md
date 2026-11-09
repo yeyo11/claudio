@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T14:36:12.21521472Z
-updated_at: 2026-11-09T12:00:00Z
+updated_at: 2026-11-09T18:00:00Z
 tags:
     - plan
     - servers
@@ -11,10 +11,11 @@ tags:
 ---
 # Plan: Servers — one Claudio drives the others
 
-Status: **the engine shipped in #99 (orchestration A and its follow-ups, merged 2026-11-09); the
-release waits for orchestration B (§12), which completes Servers: the UI, the engine gaps, the e2e
-and the docs.** The engine as built is [servers.md](../servers.md); what each task delivered is in
-[Outcome](#10-outcome).
+Status: **built, waiting to merge and release.** The engine shipped in #99 (orchestration A and its
+follow-ups, merged 2026-11-09). Orchestration B (§12) completed Servers on branches merged into one:
+the UI, the five engine gaps E1-E5, the two flaky workflow tests and the docs; what is still open
+is in [§12.4](#124-outcome). The release (0.15.0) waits for that merge. The engine and the UI as
+built are [servers.md](../servers.md); what each task of A delivered is in [Outcome](#10-outcome).
 Requirements gathered from the owner, prior art and pitfalls researched, design validated by the
 owner on 2026-11-08; the UI design is settled in §12.1.
 
@@ -655,6 +656,56 @@ CONTRIBUTING.md; touch only what your row owns; tests with every change; TypeScr
 Conventional Commits; never push; verify through Sluice), plus: UI work loads the `claudio-ui`
 skill, opens the design-system reference of the screen it changes before and after, and keeps the
 classes e2e specs select.
+
+### 12.4 Outcome
+
+Orchestration B (graph `claudio-servers-complete`), as reported by each task on 2026-11-09. Nothing
+is pushed; the branches merge into one. The UI as built is [servers.md](../servers.md#the-ui) and
+[ui.md](../ui.md); this table says what each task delivered and where it deviated.
+
+| Task | Result |
+| --- | --- |
+| `engine-gaps` | **E1** switching keeps the page: a record's page reads that record on the other server within 2 s and stays if it is there, otherwise opens its list, an unknown page opens Home (`lib/server-routes.ts`, `server-scope.tsx`). **E2** a remote's terminal window opens as its own window (same origin only), and a tray or update-notice navigation reloads when the window shows a remote's pages (`apps/desktop`). **E3** `POST /servers/:id/pair` pairs in place under the same id with the rules of adding one; the old token is revoked only after the new one is stored and only on an address that still answers as the old server; answer `previousToken: { revoked, reason? }` (new shared type `PairServerAgainResult`). **E4** a 421 through the gateway asks the hub itself, as a 401 does, so only the hub's own refusal shows the host-refused screen. Three API tests with two servers, web and desktop tests |
+| `mcp-gaps` | **E5** a `commands` entry of `verification` may be a list of parallel commands, `review` takes the whole `ReviewGateSpec` and `commands` may be empty when `review` is given (`launch_orchestration`, `relaunch_orchestration`, `create_orchestration_template`, `verify_orchestration`); the permission prompt of `launch_orchestration_template` reads the template and shows its stored permission mode, permission prompts, allowed tools, guards and checks, in `en`/`es`, through an optional `orchestrationTemplate` method on `ChatClient` and the existing `GET /orchestrations/templates/:id` (no new route) |
+| `flaky-tests` | **E6** two fixes in the orchestrator, on its own branch: a journal read begun before a workflow's resume no longer lands on it, and a workflow resumed within a tick of its stop is not settled by the stopped run's watcher (commits `2de6084c7`, `e94bed67b`) |
+| `ui-shell` | The selector (This server pinned, the 3 used last with a status word, **All servers** or **Add a server**; a Sheet on a phone), the remote scope's status bar item and the phone's More card with **Back to this server**, **Servers** in the sidebar and More, and Settings → Access & safety → Servers with the switch and **Manage servers**. `MoreActions` got an optional `trigger`, `Monogram` optional `letters` and `hue` |
+| `ui-servers-page` | `/servers` with its list, the dialogs (add by code or token with D13's fingerprint comparison, edit, test, pair again, remove with the forced second question), the per-server **Update** through the gateway, **Let another Claudio connect to this one** and **Connected hubs** (D14), the in-page offline and needs-update screens of a remote, and the LAN card's HTTPS copy and fingerprint (`LanFingerprint`). A UI review of the page fixed seven blocking findings in the same task |
+| `e2e` | The visible flow with two wrappers, a guarded remote with TLS on its LAN listener (`e2e/specs/`); see the task's own commits |
+| `ui-review` | Four `/ui-review` passes, the last SHIPPABLE with axe clean on `/servers` and in a remote scope. Merged the shell's and the page's client, model and mark into one each; the selector now also shows inside a remote; focus, stable dialog height, initials that follow the name, Spanish pairing errors, and the LAN-off wording of the connect card |
+| `docs` | `servers.md` (the UI, pair again, same-route mapping, the desktop window, the 421 rule), `ui.md`, `lan-access.md`, `claudio-mcp-server.md` and this section. It also resolved the merges of the shell and the page: both had written `lib/api/servers.ts` and `lib/servers-model.ts` |
+
+### Decisions the tasks took where the plan was silent
+
+- **One client and one model for the shell and the page.** The two UI tasks each wrote
+  `lib/api/servers.ts` and `lib/servers-model.ts`; they were merged into one of each. The page's
+  eight-colour palette and its rule for a hue win (a token this build does not know gets a stable hue
+  from the name), the shell's helpers (`recentServers`, `serverStatus`, `serverLetters`) sit on the
+  page's tone table, and `idle` is not a server tone. The ui-review task then left one `ServerMark`
+  and one `ServerStatusWord`, both in `components/ServerMark.tsx`.
+- **The selector shows the current server, also inside a remote scope.** The ui-review task changed
+  the first build (which drew it only on the hub): inside a remote it shows that remote's mark and
+  name, and its list is still the hub's, so a switch stays one hop (D7).
+- **`POST /servers/:id/pair`** takes a bare `ServerPairing` and `{ pairing }` as well. An old token the
+  remote no longer knows counts as revoked. A project page is checked with `GET /projects/:id/docs`,
+  because there is no `GET /projects/:id`.
+- **The template lines of the MCP prompt** go in the muted `permission-preview` block beside the call,
+  and the plan's "prompts" means the permission prompts (`permissionPrompts`), not the tasks' prompts.
+- **Settings card** is hub-only and absent on a Claudio that does not serve the routes.
+
+### Left open (after B)
+
+- The remote-scope status bar, the More card and the Reconnecting spinner were only covered by unit
+  tests: no paired remote was running when the UI was reviewed.
+- Accepted: the Settings row is 92 px tall at 1280 (the shared `PrefRow` wraps the hint); at 320 px
+  the selector reads "All p…" with "All projects" chosen.
+- A full `test` run failed once on `chat-account-switch` (under load, 885 s) and
+  `apps/desktop/test/update-unit.test.ts:243` failed twice on a timestamp comparison and passed on
+  rerun; neither touches Servers.
+- Of §10's "Left open": the record mapping (E1), the desktop terminal window (E2), pairing again
+  (E3), the MCP prompt and schema (E5), the LAN card's fingerprint and copy, and the UI are done
+  (the review notes were closed by D15 and D16 in §11). Still open from §10: the full `ui-check` of
+  `/chats` under load.
+- The 0.15.0 release, and the merge of the orchestration's branches into one.
 
 ## Related
 
