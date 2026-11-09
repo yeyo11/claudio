@@ -1,5 +1,5 @@
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Ellipsis, type LucideIcon } from 'lucide-react';
-import { Fragment, useEffect, useId, useRef, useState } from 'react';
+import { cloneElement, Fragment, useEffect, useId, useRef, useState, type ReactElement } from 'react';
 import { useTranslation } from 'react-i18next';
 import { NARROW, useMediaQuery } from '../../lib/media';
 import { ICON_SM } from '../icons';
@@ -45,6 +45,7 @@ export function MoreActions({
   className = '',
   text,
   icon: Icon = Ellipsis,
+  trigger,
   disabled,
   backLabel,
   onOpenChange,
@@ -62,6 +63,12 @@ export function MoreActions({
   text?: string;
   /** Replaces the `⋯` on an icon trigger */
   icon?: LucideIcon;
+  /**
+   * A button of the caller's own, for a trigger that is not the `⋯` or a labelled button (the server
+   * selector's, which looks like the project selector). It opens the dropdown on a desktop and the
+   * sheet on a phone; it must be one element that takes `onClick` and the ARIA attributes.
+   */
+  trigger?: ReactElement<{ onClick?: () => void; 'aria-haspopup'?: 'dialog' }>;
   disabled?: boolean;
   /** Names the button that leaves a step; defaults to the title of the list it returns to */
   backLabel?: string;
@@ -86,6 +93,7 @@ export function MoreActions({
     list.current?.querySelector<HTMLElement>(`[data-item="${CSS.escape(id)}"]`)?.focus();
   }, [steps]);
 
+  if (!narrow && trigger) return <Menu entries={entries} label={name} align={align} side={side} onOpenChange={onOpenChange} trigger={trigger} />;
   if (!narrow && !labelled)
     return (
       <Menu
@@ -143,7 +151,9 @@ export function MoreActions({
 
   return (
     <>
-      {labelled ? (
+      {trigger ? (
+        cloneElement(trigger, { onClick: () => change(true), 'aria-haspopup': 'dialog' })
+      ) : labelled ? (
         <button type="button" className={`btn btn-small ${className}`.trim()} aria-haspopup="dialog" disabled={disabled} onClick={() => change(true)}>
           {text} <ChevronDown {...ICON_SM} />
         </button>
