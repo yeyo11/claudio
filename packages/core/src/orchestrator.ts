@@ -3820,6 +3820,9 @@ ${quoted}
    */
   private launchWorkflow(orch: Orchestration, resumeFrom: string | null): void {
     this.workflowLaunches.set(orch.id, (this.workflowLaunches.get(orch.id) ?? 0) + 1);
+    // A graph stopped and resumed within a tick still has the stopped run's watcher, which would settle
+    // the resumed graph from the stopped lead's end; this launch follows the run with its own
+    this.clearWorkflowWatcher(orch.id);
     // The first start of a workflow waits for the daily cap like a graph's first task; the tasks stay
     // pending and `spendChanged` launches it. A resume goes back to a session that already ran.
     if (!resumeFrom && !orch.workflow?.runId && this.spendOpen?.(orch.id) === false) {

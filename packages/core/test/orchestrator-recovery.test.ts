@@ -276,3 +276,40 @@ test('a journal read still out when a workflow fails does not reach the resume t
     delete process.env.FAKE_WORKFLOW_DIR;
   }
 });
+
+test('a workflow stopped and resumed within moments goes on, not settled by the watcher of the run it stopped', async () => {
+  const { db, runs, orchestrator } = workflowRig();
+  const records = process.env.FAKE_WORKFLOW_DIR as string;
+  const read = orchestrator.workflowJournal as NonNullable<typeof orchestrator.workflowJournal>;
+  let resuming = false;
+  orchestrator.workflowJournal = async (sessionId, workflowRunId, from) => {
+    // The resume's look at the journal (from its end) is slow, as on a loaded machine: watcher ticks
+    // pass while it lasts, with the stopped lead gone and the resumed one not started yet
+    if (resuming && from === Number.MAX_SAFE_INTEGER) await new Promise((r) => setTimeout(r, 2_500));
+    return read(sessionId, workflowRunId, from);
+  };
+  try {
+    const started = orchestrator.create({
+      name: 'Held',
+      engine: 'workflow',
+      tasks: [
+        { id: 'ok', name: 'OK', prompt: 'fine' },
+        { id: 'held', name: 'Held', prompt: 'HOLD please' },
+      ],
+    });
+    const running = await until(() => orchestrator.get(started.id), (o) => !!o?.workflow?.workflowRunId && !!runs.get(o.workflow.runId ?? '')?.pid, 'the workflow to run');
+    const lead = running?.workflow?.runId as string;
+    orchestrator.stop(started.id);
+    resuming = true;
+    orchestrator.resume(started.id);
+    await until(() => runs.get(lead), (c) => !!c && c.pid === null, 'the stopped lead to exit');
+    writeFileSync(join(records, 'release'), '');
+    const done = await settled(orchestrator, started.id);
+    assert.equal(done.status, 'completed', seen(done));
+  } finally {
+    await runs.stopAll();
+    orchestrator.close();
+    db.close();
+    delete process.env.FAKE_WORKFLOW_DIR;
+  }
+});
