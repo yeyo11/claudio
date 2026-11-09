@@ -480,11 +480,16 @@ export class TunnelManager {
    * Asks the CLI again when the last answer is older than a moment, and says so on the feed when
    * the answer changed. The routes call it before answering, so the tab reflects a `tailscale up`
    * run in a terminal without a restart. Where the deploy does not offer the tunnel, the CLI is
-   * never run.
+   * never run. `force` reads Tailscale again after the call: a probe already in flight (the
+   * recovery's, the monitor's) may have read the node before the change the caller made, a sign-in
+   * or a `tailscale up`, so it is waited for and not taken as the answer.
    */
   async refresh(force = false): Promise<TunnelStatus> {
     if (this.enabled && (force || Date.now() - this.probedAt > this.timing.probeTtlMs)) {
       const before = JSON.stringify(this.tailscale);
+      // Its `finally` has cleared `probing` once it settles, so the probe below is a new one, or
+      // one another caller began after this call did
+      if (force && this.probing) await this.probing;
       await this.probe();
       if (JSON.stringify(this.tailscale) !== before) this.changed();
     }
