@@ -10,10 +10,16 @@ import { resolve } from 'node:path';
 const ROOT = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
 const PAGE = resolve(ROOT, 'docs/status.md');
 
-// Tracked files, and new ones not yet added, so a run before a commit counts what the commit adds
-const files = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
-  .split('\n')
-  .filter(Boolean);
+// Tracked files, and new ones not yet added, so a run before a commit counts what the commit adds.
+// Once each: during a merge `--cached` lists a conflicted file at every stage (base, ours, theirs),
+// and a run before the conflicts were resolved counted those files three times
+const files = [
+  ...new Set(
+    execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+      .split('\n')
+      .filter(Boolean),
+  ),
+];
 const count = (re) => files.filter((f) => re.test(f)).length;
 const number = (n) => new Intl.NumberFormat('en').format(n);
 
