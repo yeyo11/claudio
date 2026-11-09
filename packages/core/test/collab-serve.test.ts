@@ -458,16 +458,31 @@ test("a chat's agents are listed with it, and their transcripts are served only 
 test('watch sends changed notices for the watched project only, and ends with its stream', async () => {
   const controller = new AbortController();
   const frames: WireReply[] = [];
-  const sink: ReplySink = { frame: async (r) => void frames.push(r), bytes: async () => undefined, signal: controller.signal };
+  let heard = -1;
+  let acked: () => void = () => undefined;
+  const ack = new Promise<void>((resolve) => (acked = resolve));
+  const sink: ReplySink = {
+    frame: async (r) => {
+      frames.push(r);
+      if (r.type === 'ack') {
+        heard = listeners.size;
+        acked();
+      }
+    },
+    bytes: async () => undefined,
+    signal: controller.signal,
+  };
   const watching = server.handle(member.id, { type: 'watch', shareKeys: [key(shared)] }, sink);
-  // The checks are done before the watch subscribes
-  while (listeners.size === 0) await new Promise((r) => setImmediate(r));
+  // The checks are done before the watch subscribes, and the acknowledgement follows the subscription
+  await ack;
+  assert.ok(heard > 0, 'the watch was acknowledged before it listened');
   emit({ type: 'journal.changed', projectId: unshared.id });
   emit({ type: 'journal.changed', projectId: shared.id });
   emit({ type: 'workitem.updated', projectId: shared.id });
   await new Promise((r) => setTimeout(r, 50));
+  assert.equal(frames[0]?.type, 'ack');
   assert.deepEqual(
-    frames.map((f) => (f.type === 'changed' ? f.kind : f.type)).sort(),
+    frames.slice(1).map((f) => (f.type === 'changed' ? f.kind : f.type)).sort(),
     ['board', 'journal'],
   );
   controller.abort();
