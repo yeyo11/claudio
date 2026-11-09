@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T12:00:00Z
-updated_at: 2026-11-08T16:00:00Z
+updated_at: 2026-11-09T18:00:00Z
 tags:
     - mcp
     - assistant
@@ -163,7 +163,7 @@ defaults.
 | `verify_orchestration` | `POST /orchestrations/:id/verify`, with `verification` only when given |
 | `retry_orchestration_review` | `POST /orchestrations/:id/review/retry` (no body) |
 | `relaunch_orchestration` | `POST /orchestrations/:id/relaunch` with `tasks` (the whole new list) and a `spec` of the settings given, the person's fields included; a `spec` is a person's field of the route |
-| `launch_orchestration_template` | `POST /orchestrations/templates/:templateId/launch` with `objective`, `name`, `model`, `effort` and `cwd` from `projectId`. The call names none of the template's permissions, so the permission prompt reads the template (`GET /orchestrations/templates/:templateId`) and shows its stored permission mode, permission prompts, allowed tools, guards and checks (parallel groups and review included) beside the call |
+| `launch_orchestration_template` | `POST /orchestrations/templates/:templateId/launch` with `objective`, `name`, `model`, `effort` and `cwd` from `projectId`. The call names none of the template's permissions, so the permission prompt reads the template (`GET /orchestrations/templates/:templateId`) and shows its stored permission mode, permission prompts, allowed tools, guards and checks (parallel groups and review included) beside the call (parallel groups as `a + b`, a review on its own line; a template that stores none of these says it keeps the app's defaults, and a client that cannot read the template leaves the prompt as it was) |
 | `start_chat` | `POST /chats` with only `prompt`, `cwd` (the project's path, from `GET /projects`), `model`, `name` and `agent` (a name from `list_agents`, never a definition): the chat starts as `claude --agent`, and the agent cannot widen it ([plans/start-chat-agent.md](plans/start-chat-agent.md)) |
 | `send_chat_message`, `hint_chat` | `POST /chats/:id/messages` with `{ text }` and `POST /chats/:id/hint` with `{ text }` |
 | `interrupt_chat`, `stop_chat` | `POST /chats/:id/interrupt` and `/stop` |

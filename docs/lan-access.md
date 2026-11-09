@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-30T20:00:00Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-09T18:00:00Z
 tags:
     - lan
     - remote-access
@@ -54,9 +54,10 @@ only on the loopback listener.
   with its fingerprint. The listener serves TLS 1.2 or later.
 - **The fingerprint** is the SHA-256 of the certificate's DER, upper-case hex pairs joined by colons.
   `GET /lan` carries it as `fingerprint` (`null` until the listener has ever made a certificate), and
-  it is what a pairing grant hands a hub to pin. It survives the listener being turned off. Showing
-  it on the LAN card, so a person can compare it with a browser's warning, comes with the Servers UI;
-  until then read it from `GET /lan`.
+  it is what a pairing grant hands a hub to pin. It survives the listener being turned off. The LAN
+  card shows it while the listener is up ([Using it](#using-it)), and so does the Servers page's
+  **Let another Claudio connect to this one** card, so a person can compare it with a browser's
+  warning or with what a hub asks to confirm when it pairs with a token.
 - **The browser warns.** No CA vouches for the certificate, so a browser shows its warning on the
   first visit to `https://<address>:8791`; compare the fingerprint it shows with the one above before
   accepting. A service worker does not register on an origin with a certificate error, so the PWA is
@@ -114,8 +115,15 @@ Settings → Access & safety → Remote access has the card **On the local netwo
 Tailscale card. It shows a switch and one of five states: **Listening** (ok), **Off**, **Needs a
 sign-in method** (the switch is disabled and links to Security), **Port in use** (bad, with **Use the
 next free port**), and **Failed** (the error in mono). While it listens it lists the URLs with
-**Copy** and a QR, one QR at a time, and a notice about the connection that stays visible while the card is on (its copy still describes the
-plain-HTTP listener and changes with the Servers UI). The port and the interfaces have the usual **Changed · Reset** slot.
+**Copy** and a QR, one QR at a time, and a notice that stays visible while the card is on. The notice
+is titled **HTTPS with a self-signed certificate** and says that traffic on this network is encrypted,
+that a phone's browser warns about the certificate and offers no app or notifications here, and
+that the way through is to accept it once after comparing the fingerprint, or to use Tailscale,
+which a phone trusts (R11 of [the plan](plans/claudio-servers.md#6-risks)). Under it, while the
+listener is up and has a certificate, the **Certificate fingerprint**: the SHA-256 in groups of four
+hex digits (mono) with **Copy the fingerprint**, and a line saying it is what a browser shows in its
+warning and what another Claudio asks to compare when it pairs with a token. The port and the
+interfaces have the usual **Changed · Reset** slot.
 The design is in [design-system.md](design-system.md).
 
 **For a phone, use Tailscale.** The LAN certificate is self-signed, so the phone warns about it and gets no installable app and no
@@ -162,7 +170,7 @@ From [the security review](reports/lan-access-security.md), left open on purpose
 | The back-off key and the local-machine checks | `apps/api/src/security.ts` |
 | The routes | `apps/api/src/routes/lan.ts` |
 | The environment | `packages/core/src/paths.ts` |
-| The card | `apps/web/src/pages/config/RemoteAccessTab.tsx` |
+| The card and its fingerprint (`LanFingerprint`, reused by the Servers page) | `apps/web/src/pages/config/RemoteAccessTab.tsx` |
 | The tests | `apps/api/test/lan.test.ts`, `apps/web/test/lan-card.test.tsx` |
 
 ## Related
