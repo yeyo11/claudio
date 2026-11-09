@@ -11,6 +11,7 @@ import { ChatConflictError, changeRequestRefusal, Core, loadConfig, Orchestratio
 import { NotFoundError, type PermissionRequest } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { allowedOrigin } from '../src/origins.ts';
+import generatedSchemas from '../src/openapi/schemas.json' with { type: 'json' };
 
 // Isolated dirs and a missing CLI binary: these tests cover routing, scoping, validation and
 // error mapping without ever spawning Claude or touching the real ~/.claude.
@@ -59,6 +60,9 @@ test('every API route is documented in the OpenAPI document', async () => {
   const missing = [...new Set(refs)].filter((name) => !(name in spec.components.schemas));
   assert.deepEqual(missing, []);
   assert.equal(spec.paths['/api/chats'].post.requestBody.content['application/json'].schema.$ref, '#/components/schemas/NewChatRequest');
+  // The components are served as generated, never run through the plugin's resolver: with ~1,000
+  // of them that took seconds of CPU and kept the event loop from anything else meanwhile
+  for (const [name, schema] of Object.entries(generatedSchemas)) assert.deepEqual(spec.components.schemas[name], schema, name);
 
   let docs = await app.inject('/docs');
   if (docs.statusCode === 301 || docs.statusCode === 302) docs = await app.inject(docs.headers.location as string);

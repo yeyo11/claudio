@@ -38,9 +38,22 @@ export async function registerOpenApi(app: FastifyInstance, version: string): Pr
       },
       servers: [{ url: '/', description: 'This wrapper' }],
       tags: TAGS,
-      components: { schemas: schemas as never },
     },
-    // Component schemas are injected verbatim above; route-level $refs already point at them
+    // The component schemas join the finished document as they are, rather than through
+    // `openapi.components`: the plugin resolves each component there against all the others, which
+    // with ~1,000 of them took 10 s of CPU on a fast machine and over 30 s on a loaded one, blocking
+    // the event loop on the first GET of /openapi.json. They need no resolving: ts-json-schema-generator
+    // already wrote them as OpenAPI 3.1 components whose $refs point at each other, and route-level
+    // $refs point at them too.
+    transformObject: (document) => {
+      if (!('openapiObject' in document)) return document.swaggerObject;
+      const { openapiObject } = document;
+      // The plugin's own components (schemas nested in a route schema) come after the generated ones
+      const own: object = openapiObject.components?.schemas ?? {};
+      // `never` as for `configuration` below: the 3.0, 3.1 and 3.2 document types the plugin declares
+      // do not unify, and this is the 3.1 document it built with the generated schemas added
+      return { ...openapiObject, components: { ...openapiObject.components, schemas: { ...schemas, ...own } } } as never;
+    },
     refResolver: { buildLocalReference: (json, _base, _fragment, i) => (typeof json.$id === 'string' ? json.$id : `def-${i}`) },
   });
 

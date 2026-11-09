@@ -4,12 +4,18 @@ import { connect } from 'node:net';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { after, test } from 'node:test';
+import { after, test as nodeTest, type TestFn } from 'node:test';
 import type { FastifyInstance, InjectOptions } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import { REDACTED, type LoginSession } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { FailureBackoff } from '../src/security.ts';
+
+// The package runs each file under a 240 s limit, and a file killed there reports nothing of which
+// test hung. Every test here takes about a second on a CI runner, so one that is still going after a
+// minute is stuck, and this bound makes the runner name it while the file still has time left.
+const PER_TEST_MS = 60_000;
+const test = (name: string, fn: TestFn) => nodeTest(name, { timeout: PER_TEST_MS }, fn);
 
 // Each test gets its own wrapper: the auth mode is process-wide state, and a test that closes the
 // port must not be able to close it for the next one.
@@ -115,6 +121,8 @@ test('the event stream takes the token in the query string, which EventSource ca
         });
         res.once('end', () => resolve({ status: res.statusCode ?? 0, first: '' }));
       });
+      // A stream that answered and then sent nothing would otherwise hold the test until its timeout
+      req.setTimeout(10_000, () => req.destroy(new Error(`no first chunk from ${url}`)));
       req.on('error', reject);
     });
 
@@ -1220,8 +1228,25 @@ test('anonymous refusals go to their own ring and leave the audit log alone (rep
 
   // A flood of unauthenticated writes: a few through the guard, the rest straight to the store
   for (let i = 0; i < 20; i += 1) assert.equal((await app.inject({ method: 'POST', url: `/api/x${String(i)}` })).statusCode, 401);
-  for (let i = 0; i < 60_000; i += 1) {
-    core.db.appendAuditRefusal({ at: new Date().toISOString(), actor: 'anonymous', method: 'POST', path: `/api/flood/${String(i)}`, status: 401, summary: 'POST /api/flood' });
+  // More than the audit log keeps (KEEP_AUDIT, 50,000), so one shared table would have lost history.
+  // In transactions of a thousand: each insert and its trim committed on its own took a minute of the
+  // file's 240 s on a CI runner's disk, and when they commit says nothing about where they land. And
+  // the loop yields between them, because a synchronous loop holds the event loop, and with it the
+  // per-test timeout, which could then never name this test.
+  const FLOOD = 60_000;
+  const BATCH = 1_000;
+  for (let from = 0; from < FLOOD; from += BATCH) {
+    core.db.connection.exec('BEGIN IMMEDIATE');
+    try {
+      for (let i = from; i < from + BATCH; i += 1) {
+        core.db.appendAuditRefusal({ at: new Date().toISOString(), actor: 'anonymous', method: 'POST', path: `/api/flood/${String(i)}`, status: 401, summary: 'POST /api/flood' });
+      }
+      core.db.connection.exec('COMMIT');
+    } catch (err) {
+      core.db.connection.exec('ROLLBACK');
+      throw err;
+    }
+    await new Promise<void>((resolve) => setImmediate(resolve));
   }
 
   const log = (await app.inject({ url: '/api/audit', ...bearer(token) })).json();
