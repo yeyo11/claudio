@@ -976,7 +976,12 @@ export class SyncClient {
         // A peer from before the acknowledgement sends none: its first notice proves it listens too
         if ((reply?.type === 'ack' || reply?.type === 'changed') && peer.heard !== controller && peer.watch === controller) {
           peer.heard = controller;
-          for (const state of this.sharesOf(peer.id)) this.deps.synced(peer.id, state.share.shareKey, state.share.kinds[0] ?? 'chats');
+          for (const state of this.sharesOf(peer.id)) {
+            this.deps.synced(peer.id, state.share.shareKey, state.share.kinds[0] ?? 'chats');
+            // What changed between the run's pulls and the subscription sent no notice: one pull
+            // from the cursors catches it up, and costs a cursor when nothing did
+            for (const kind of state.share.kinds) this.notice(peer, state.share.shareKey, kind);
+          }
         }
         if (reply?.type === 'changed' && typeof reply.shareKey === 'string') {
           peer.watchRefusals = 0;
