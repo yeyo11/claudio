@@ -492,8 +492,13 @@ export async function requestResponseAt(base: string, path: string, init: CallIn
         setChallenge(mode, firstRunToken);
       }
     }
-    // The host is not one this wrapper answers to: the app shows the screen that adds it
-    if (res.status === 421 && !viaGateway) setHostRefusal(hostRefusalOf(err));
+    // The host is not one this wrapper answers to: the app shows the screen that adds it. Through the
+    // gateway the 421 may be the hub's (its host check runs before any route) or a remote's, so the
+    // hub is asked, as for a 401, and its own refusal brings the screen a direct call would
+    if (res.status === 421) {
+      if (viaGateway) void confirmHubSession();
+      else setHostRefusal(hostRefusalOf(err));
+    }
     // No JSON error means Claudio did not write this answer (a proxy's or a tunnel's page): say so in
     // the person's language and keep the status line as the detail
     if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());

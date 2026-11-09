@@ -6,7 +6,7 @@ import { QueryClient } from '@tanstack/react-query';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { LOCAL_SERVER_ID, setActiveServer } from '@claudio/ui/lib/server-scope';
 import { api, createApi } from '../src/api';
-import { setChallenge, setToken, useAuthChallenge, confirmHubSession, probeAuth } from '../src/lib/auth';
+import { setChallenge, setHostRefusal, setToken, useAuthChallenge, useHostRefusal, confirmHubSession, probeAuth } from '../src/lib/auth';
 import { storageKey } from '../src/lib/list-params';
 import { readSeen, writeSeen, type KeyValueStore } from '../src/lib/review-state';
 import { serverKeyHash } from '../src/lib/server-keys';
@@ -21,6 +21,7 @@ afterEach(() => {
   setActiveServer(null);
   setToken(null);
   setChallenge(null);
+  setHostRefusal(null);
 });
 
 interface Call {
@@ -119,10 +120,29 @@ test('the hub’s own auth checks stay on the hub whatever the scope', async () 
   );
 });
 
-test('a 421 through the gateway is not the hub’s host screen', async () => {
-  record(() => json({ error: 'host not allowed', code: 'host-not-allowed', host: 'x' }, 421));
+function Refusal() {
+  return <i>{useHostRefusal()?.host ?? 'none'}</i>;
+}
+const refusedHost = () => renderToStaticMarkup(<Refusal />).replace(/<\/?i>/g, '');
+
+test('a 421 through the gateway that is a remote’s own is not the hub’s host screen: the hub is asked, and answers for itself', async () => {
+  const calls = record((url) => (url === '/api/security/auth' ? json({ mode: 'token' }) : json({ error: 'host not allowed', code: 'host-not-allowed', host: 'remote.lan' }, 421)));
   await assert.rejects(createApi('/api/servers/srv_1/api').overview());
-  assert.equal(renderToStaticMarkup(<Challenge />), '<i>open</i>');
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(refusedHost(), 'none');
+  assert.equal(challenge(), 'open');
+  assert.ok(calls.some((call) => call.url === '/api/security/auth'), 'the hub was asked about its own host');
+});
+
+test('a 421 from the hub on a gateway call shows the hub’s host-refused screen, as a direct call does (E4)', async () => {
+  // The hub's host check runs before the gateway, so every call to it is refused the same way
+  record(() => json({ error: 'host not allowed', code: 'host-not-allowed', host: 'hub.example' }, 421));
+  await assert.rejects(createApi('/api/servers/srv_1/api').overview());
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(refusedHost(), 'hub.example');
+  setHostRefusal(null);
+  await assert.rejects(createApi('/api').overview());
+  assert.equal(refusedHost(), 'hub.example', 'the direct call shows the same screen');
 });
 
 test('per-server browser keys: the hub’s are as they were, a remote’s end with its id', () => {
