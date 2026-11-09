@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { after, afterEach, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig, RunSlotRefusal } from '@claudio/core';
+import type { RunEvent } from '@claudio/shared';
 import { buildApp } from '../src/app.ts';
 import { standInGuard } from './fixtures/declared-guard.ts';
 import { ClientToolRegistry } from '../src/routes/openai-tools.ts';
@@ -62,6 +63,13 @@ after(async () => {
   delete process.env.FAKE_OPENAI_PROMPTS;
   rmSync(root, { recursive: true, force: true });
 });
+
+/** What the idle-timeout test reads of a live chat, which no route reports */
+interface LiveChatInternals {
+  emitter: { on(name: 'event', listener: (event: RunEvent) => void): unknown; off(name: 'event', listener: (event: RunEvent) => void): unknown };
+  idleTimer: unknown;
+  idleSince: number | null;
+}
 
 const pause = (ms: number) => new Promise((r) => setTimeout(r, ms));
 async function until(check: () => boolean, what: string, ms = 5000): Promise<void> {
@@ -388,18 +396,47 @@ test('a /v1 turn for a chat whose leaving process already reserved its replaceme
 });
 
 test('the idle timeout does not end the input of a process the /v1 route holds for a turn', async () => {
-  // Long enough that the hold is taken before the timer first fires even on a loaded machine (idleApiChat
-  // polls for idle after the answer), and the pause outlasts it, so the timer does fire while held
-  process.env.CLAUDIO_IDLE_TIMEOUT_MS = '1000';
+  // The hold is taken in the very tick the chat goes idle, before its idle timer is even armed: taken
+  // after polling for idle, a loaded machine could let the timer fire first and end the input unheld
+  process.env.CLAUDIO_IDLE_TIMEOUT_MS = '200';
+  const table = (core.runtime as unknown as { chats: { get(id: string): LiveChatInternals | undefined } }).chats;
+  const start = core.runtime.start.bind(core.runtime);
+  let release: (() => void) | null = null;
+  let armed: unknown = null;
+  let idleSince: number | null = null;
+  core.runtime.start = (...args: Parameters<typeof start>) => {
+    const started = start(...args);
+    const chat = table.get(started.id);
+    assert.ok(chat, 'the started chat is live');
+    // Its own emitter, not `subscribe`: a viewer would keep the chat warm on a path of its own
+    const onEvent = (event: RunEvent): void => {
+      if (event.kind !== 'status' || event.status !== 'idle') return;
+      chat.emitter.off('event', onEvent);
+      release = core.runtime.holdForTurn(started.id);
+      // `goIdle` arms the timer right after it sets the status, in the same synchronous run
+      queueMicrotask(() => {
+        armed = chat.idleTimer;
+        idleSince = chat.idleSince;
+      });
+    };
+    chat.emitter.on('event', onEvent);
+    return started;
+  };
   try {
     const chat = await idleApiChat('alpha');
-    const release = core.runtime.holdForTurn(chat);
-    await pause(1500);
-    assert.ok(live(chat), 'kept while held');
+    core.runtime.start = start;
+    assert.ok(release, 'held when it went idle');
+    const live = table.get(chat);
+    assert.ok(live && armed, 'the idle timer was armed');
+    // The timer fires while held and arms itself again instead of ending the input
+    await until(() => live.idleTimer !== armed, 'the idle timer to fire while held');
+    assert.equal(live.idleSince, idleSince, 'armed again by the timer, not by the chat going idle anew');
+    assert.ok(core.runtime.livePids().some((p) => p.chatId === chat), 'kept while held');
     assert.equal(core.runtime.isLeaving(chat), false);
-    release();
-    await until(() => !live(chat), 'the chat to end at its idle timeout once released');
+    (release as () => void)();
+    await until(() => !core.runtime.livePids().some((p) => p.chatId === chat), 'the chat to end at its idle timeout once released');
   } finally {
+    core.runtime.start = start;
     delete process.env.CLAUDIO_IDLE_TIMEOUT_MS;
   }
 });
