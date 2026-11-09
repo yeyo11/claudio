@@ -1997,8 +1997,13 @@
       "fromEnv": "Lo fija {{variable}} donde se ejecuta Claudio."
     },
     "http": {
-      "title": "HTTP sin cifrar",
-      "body": "Tu token viaja sin cifrar por esta red, y el móvil no tiene aplicación ni notificaciones aquí. Para el móvil, usa Tailscale, más abajo."
+      "title": "HTTPS con un certificado autofirmado",
+      "body": "El tráfico de esta red va cifrado. El navegador de un móvil avisa por el certificado y aquí no ofrece aplicación ni notificaciones: acéptalo una vez tras comparar la huella de abajo, o usa Tailscale, más abajo, en el que un móvil confía."
+    },
+    "fingerprint": {
+      "label": "Huella del certificado",
+      "hint": "La que muestra un navegador en su aviso del certificado y la que otro Claudio te pide comparar cuando empareja con un token.",
+      "copy": "Copiar la huella"
     },
     "saveFailed": "No se ha podido guardar el ajuste de la red local",
     "startFailed": "No se ha podido empezar a escuchar"

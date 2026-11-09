@@ -12,6 +12,7 @@ import { QrCode } from '../../components/QrCode';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Card, CopyButton, Empty, ErrorBox, Field, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { timeAgo } from '@claudio/ui/lib/format';
+import { groupFingerprint } from '../../lib/servers-model';
 import { localized } from '../../lib/server-strings';
 import { tailscaleActions } from '../../lib/setup';
 import { SignInPanel } from '../../components/setup/SignInPanel';
@@ -329,6 +330,7 @@ export function LanPanel({
       <LanPortSetting key={status.settings.port} status={status} fromEnv={fromEnv.port === true} pending={pending} wording={wording.port} onChanged={onChanged} onSave={(port) => onSettings({ port })} />
       <LanBindSetting status={status} fromEnv={fromEnv.bind === true} pending={pending} wording={wording.bind} onChanged={onChanged} onSave={(bind) => onSettings({ bind })} />
 
+      {/* Since D6 the listener is HTTPS with a certificate of its own: what warns a phone is that no authority signed it */}
       {state !== 'off' && state !== 'refused' && (
         <div className="alert alert-warn" data-testid="lan-http-notice">
           <TriangleAlert {...ICON} className="alert-icon" />
@@ -338,7 +340,27 @@ export function LanPanel({
           </div>
         </div>
       )}
+      {state === 'listening' && status.fingerprint && <LanFingerprint fingerprint={status.fingerprint} />}
     </Card>
+  );
+}
+
+/**
+ * The fingerprint of the listener's certificate, in groups of four so two can be compared by eye: what
+ * a phone's browser shows in its warning, and what another Claudio asks to see when it pairs with an
+ * owner token (docs/plans/claudio-servers.md D13, R11). Machine-read, so mono; one copy button.
+ */
+export function LanFingerprint({ fingerprint }: { fingerprint: string }) {
+  const { t } = useTranslation('config');
+  return (
+    <div className="lan-fingerprint" data-testid="lan-fingerprint">
+      <span className="field-label">{t('lan.fingerprint.label')}</span>
+      <div className="lan-fingerprint-row">
+        <code className="mono lan-fingerprint-value break">{groupFingerprint(fingerprint).join(' ')}</code>
+        <CopyButton text={fingerprint} label={t('lan.fingerprint.copy')} />
+      </div>
+      <span className="small muted">{t('lan.fingerprint.hint')}</span>
+    </div>
   );
 }
 

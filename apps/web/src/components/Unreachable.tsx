@@ -88,8 +88,22 @@ function TopLayer({ label, describedBy, children }: { label: string; describedBy
  * it, it fills the area it is given (the servers feature, for a remote while the hub answers).
  * `address` is what the person typed to get here; the servers feature will pass a remote's.
  */
-export function Unreachable({ address = window.location.host, standalone = false }: { address?: string; standalone?: boolean }) {
-  const { t } = useTranslation('shell');
+export function Unreachable({
+  // Read lazily: a remote's in-page form is given its own address and may render where there is no window
+  address = typeof window === 'undefined' ? '' : window.location.host,
+  standalone = false,
+  remote,
+}: {
+  address?: string;
+  standalone?: boolean;
+  /**
+   * A remote server that does not answer while the hub does (docs/plans/claudio-servers.md §12.1): the
+   * server's name, a Retry of its own and the way back. The hub's reachability says nothing about it,
+   * so the hub's countdown and its retry are not used, and the words name the server.
+   */
+  remote?: { name: string; address: string | null; retrying: boolean; onRetry: () => void; actions: ReactNode };
+}) {
+  const { t } = useTranslation(['shell', 'serversPage']);
   const { offline, nextAttemptAt, probing, restarting } = useReachability();
   const [now, setNow] = useState(() => Date.now());
   const textId = useId();
@@ -101,7 +115,7 @@ export function Unreachable({ address = window.location.host, standalone = false
   }, [nextAttemptAt]);
 
   // A restart the person asked for is a live verb, not a failure: the same screen, in the words of what is happening
-  const title = restarting ? t('unreachable.restartingTitle') : offline ? t('unreachable.offlineTitle') : t('unreachable.title');
+  const title = remote ? t('serversPage:remote.offline.title', { name: remote.name }) : restarting ? t('unreachable.restartingTitle') : offline ? t('unreachable.offlineTitle') : t('unreachable.title');
   // The tab says what the screen says while it shows. The page behind it (one opened during the
   // outage mounts after this screen) still writes its own title, so each write is remembered and
   // answered with the screen's, and the last one written is what comes back when the screen goes.
@@ -123,6 +137,34 @@ export function Unreachable({ address = window.location.host, standalone = false
   }, [title]);
 
   const wait = probing || nextAttemptAt === null ? t('unreachable.retrying') : t('unreachable.retryIn', { seconds: formatNumber(secondsUntil(nextAttemptAt, now)) });
+  if (remote) {
+    return (
+      <div className="unreachable" role="region" aria-label={title} aria-describedby={textId} data-testid="unreachable" data-remote>
+        <Empty
+          illustration="offline"
+          size="lg"
+          heading
+          title={title}
+          action={
+            <span className="route-error-actions">
+              <button type="button" className="btn" disabled={remote.retrying} onClick={remote.onRetry} data-testid="remote-retry">
+                {remote.retrying ? t('serversPage:remote.offline.retrying') : t('serversPage:remote.offline.retry')}
+              </button>
+              {remote.actions}
+            </span>
+          }
+        >
+          <p className="unreachable-text" id={textId} data-testid="unreachable-text">
+            {remote.address ? (
+              <Trans t={t} i18nKey="serversPage:remote.offline.body" values={{ name: remote.name, address: remote.address }} components={{ mono: <span className="mono" /> }} />
+            ) : (
+              t('serversPage:remote.offline.bodyNoAddress', { name: remote.name })
+            )}
+          </p>
+        </Empty>
+      </div>
+    );
+  }
   const screen = (
     <Empty
       illustration="offline"

@@ -350,6 +350,8 @@ export class ApiRequestError extends Error {
   problems?: string[];
   /** What a restart would stop, on a refusal at `update.live-work` */
   live?: LiveWork;
+  /** The certificate the address showed, on `servers.confirm-fingerprint`: the person compares it before a token is sent */
+  seenCertificate?: { fingerprint: string; address: string };
 
   constructor(message: string, status: number, detail?: string, code?: string, postId?: string, spend?: SpendState) {
     super(message);
@@ -517,6 +519,9 @@ export async function requestResponseAt(base: string, path: string, init: CallIn
     const refusal = new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
     const live = (err as { live?: unknown }).live;
     if (code === 'update.live-work' && typeof live === 'object' && live !== null) refusal.live = live as LiveWork;
+    const fingerprint = (err as { fingerprint?: unknown }).fingerprint;
+    const seenAt = (err as { address?: unknown }).address;
+    if (code === 'servers.confirm-fingerprint' && typeof fingerprint === 'string' && typeof seenAt === 'string') refusal.seenCertificate = { fingerprint, address: seenAt };
     if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
     throw refusal;
   }

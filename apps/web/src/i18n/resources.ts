@@ -27,6 +27,7 @@ import enAccountsConfig from './locales/en/accountsConfig.json';
 import enReviews from './locales/en/reviews.json';
 import enSchedules from './locales/en/schedules.json';
 import enServer from './locales/en/server.json';
+import enServersPage from './locales/en/serversPage.json';
 import enSetup from './locales/en/setup.json';
 import enShell from './locales/en/shell.json';
 import enSuggestion from './locales/en/suggestion.json';
@@ -63,6 +64,7 @@ import esAccountsConfig from './locales/es/accountsConfig.json';
 import esReviews from './locales/es/reviews.json';
 import esSchedules from './locales/es/schedules.json';
 import esServer from './locales/es/server.json';
+import esServersPage from './locales/es/serversPage.json';
 import esSetup from './locales/es/setup.json';
 import esShell from './locales/es/shell.json';
 import esSuggestion from './locales/es/suggestion.json';
@@ -103,6 +105,7 @@ export const en = {
   orchestrationV2: enOrchestrationV2,
   connectors: enConnectors,
   server: enServer,
+  serversPage: enServersPage,
   setup: enSetup,
   shell: enShell,
   tasks: enTasks,
@@ -150,6 +153,7 @@ export const es = {
   orchestrationV2: esOrchestrationV2,
   connectors: esConnectors,
   server: esServer,
+  serversPage: esServersPage,
   setup: esSetup,
   shell: esShell,
   tasks: esTasks,
