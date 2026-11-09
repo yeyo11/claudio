@@ -39,7 +39,13 @@ INSTALL_ARGS=(-q -y --no-remove -o Dpkg::Options::=--force-confdef -o Dpkg::Opti
 LOG="$(mktemp)" || exit 1
 trap 'rm -f "$LOG"' EXIT
 
-now() { date -u +%Y-%m-%dT%H:%M:%S.%3NZ; }
+# Milliseconds cut from %N, read in the same call: uutils' date (Ubuntu 25.10 on) drops the leading
+# zeros in %3N (094 ms prints as 943), so its times could run backwards; %N is padded in both
+now() {
+  local t
+  t="$(date -u +%Y-%m-%dT%H:%M:%S.%N)"
+  printf '%sZ' "${t:0:23}"
+}
 
 installed_version() { dpkg-query -W -f='${Version}' "$PACKAGE" 2>/dev/null || true; }
 
