@@ -120,7 +120,8 @@ linux:
 
 deb:
   # electron-builder's own postinst and postrm, plus the registration of Claudio's signed apt repository
-  # and its removal (docs/plans/unified-updates.md, D4). Both are templates: see their headers.
+  # and its removal (docs/plans/unified-updates.md, D4), and the update unit's group
+  # (docs/plans/remote-updates.md, D2). Both are templates: see their headers.
   afterInstall: build/linux/after-install.sh
   afterRemove: build/linux/after-remove.sh
   # Electron's own runtime libraries only: the server runs on Electron's bundled Node, so no nodejs package.
@@ -145,3 +146,14 @@ deb:
     # the package, so a rotation ships in an update and dpkg removes it with the package. Staged at
     # mode 0644 by `package:stage` (packaging/apt/claudio-archive-keyring.gpg is the committed copy)
     - dist/package/claudio-archive-keyring.gpg=/usr/share/keyrings/claudio-archive-keyring.gpg
+    # The update unit, its root-owned helper and the polkit rule that lets the claudio-update group
+    # start it (docs/plans/remote-updates.md, D1-D2). Staged by `package:stage` with fixed modes
+    # (0644, the helper 0755), since dpkg installs each file with the mode it has in the package and a
+    # checkout's umask may leave them group-writable
+    - dist/package/claudio-update.service=/usr/lib/systemd/system/claudio-update.service
+    - dist/package/claudio-update=/usr/lib/claudio/claudio-update
+    - dist/package/50-claudio-update.rules=/usr/share/polkit-1/rules.d/50-claudio-update.rules
+    # apt takes claudio from Claudio's own repository only (Origin Claudio), never from another source
+    # that offers a package of the same name. Under /etc, so fpm marks it a conffile: dpkg keeps an
+    # admin's edit on upgrade and deletes it on purge. Staged at 0644 like the files above
+    - dist/package/claudio.pref=/etc/apt/preferences.d/claudio.pref

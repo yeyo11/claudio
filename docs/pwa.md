@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-17T12:00:00Z
+updated_at: 2026-11-09T12:00:00Z
 tags:
     - pwa
     - phone
@@ -47,6 +47,50 @@ real certificate, and so push. Turn on authentication first: the tunnel refuses 
 The tailnet needs MagicDNS and HTTPS certificates on, and the address stays the same while the
 machine keeps its name. Only devices on your tailnet can reach it. See
 [docs/tunnel.md](tunnel.md).
+
+## When the server cannot be reached
+
+A phone away from home without Tailscale, or a laptop with no network, used to get a half-blank app
+with an error in every widget. Two things the app used to blur are now apart
+([plans/remote-updates.md](plans/remote-updates.md), D9):
+
+- **A new version.** The server answers, with another version or without an old chunk: the banner
+  *Claudio was updated to X* with **Reload** ([updates.md](updates.md#after-an-update-stale-chunks)).
+- **No answer at all.** A network error, not an HTTP status. A reload cannot fix it, so none is
+  offered: a screen of its own (`Unreachable`, an `Empty` with the `offline` illustration) stands in
+  for the whole shell. It is a **modal `<dialog>`** on `<body>`, in the browser's top layer, so it
+  sits above any menu, sheet or dialog that was open when the server went, and the rest of the
+  document is inert: no key or press gets past it and it cannot be closed (Escape and a phone's back
+  gesture only reopen it). The shell stays **mounted** and is only hidden (`.shell-held`), so a draft
+  in a composer, an open dialog's half-filled form and scroll positions are all still there when the
+  server answers.
+
+One failed call is only a suspicion. The page confirms it by probing `/api/health` (open, cheap,
+8 s timeout); any HTTP answer, even an error status, proves the server is there, and only a probe
+with no answer flips the screen on. The store is `apps/web/src/lib/reachability.ts`; the request
+layer, the first auth check, the events feed and the lazy-chunk errors all feed it, and while it is
+on, no widget, route or reload banner prints a network error of its own.
+
+The words depend on the cause. With `navigator.onLine === false`: **No connection**, "This device has
+no internet connection." Otherwise: **Can't reach Claudio**, "*address* isn't answering. If you're
+away from home, turn on Tailscale or join your local network." (the address, `location.host`, in the
+mono face). Below: "Retrying in N s" and **Retry now**. It retries by itself with a back-off from 2 s
+doubling to 30 s, and at once on `online`, on focus and when the tab becomes visible. When the server
+answers again the app goes on **without a reload**: queries are refetched and the events feed
+reopens; if the version changed meanwhile, the update banner appears then. Before the app has
+started, the boot guard's plain fallback says the same words when the network was the cause.
+The servers feature will reuse the component for a remote that is offline while the hub is up.
+
+**Restarting.** When the person restarts Claudio from the Updates card
+([updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart)), the server going
+down is expected, so the same dialog reads **Restarting Claudio…** with the braille spinner and no
+**Retry now**. `reachability.expectRestart()` is called once `POST /system/restart` answers 202
+`scheduled: 'now'`; the page then asks the server every 2 s (`RESTART_POLL_MS`) and returns to the
+app when it answers after having been down (an answer from the old process just after the 202 does
+not end it). If nothing answers within 2 minutes (`RESTART_GRACE_MS`, a package upgrade restarts
+slowly) it falls back to the ordinary "Can't reach Claudio" screen. A restart scheduled for when
+nothing is running is not covered: it shows the plain screen when the server goes.
+Specs: `apps/web/test/{reachability,unreachable-screen}.test.tsx` and `e2e/specs/unreachable.spec.mjs`.
 
 How the screens adapt to a phone is in [phone-layout.md](phone-layout.md) and the design system;
 what is worth a push, and the interruption levels, in [notifications.md](notifications.md). Until

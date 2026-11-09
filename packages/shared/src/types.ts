@@ -151,6 +151,65 @@ export interface ServerUpdateApplyRequest {
 }
 
 /**
+ * The desktop app's package update through Claudio's root unit (docs/plans/remote-updates.md, D1, D3):
+ * `unavailable`, no unit to start (not a `.deb` under the desktop app, or an older package);
+ * `needs-login`, the unit is there but polkit refused the start (the `claudio-update` group is not in
+ * effect yet); `installing`, the unit runs; `installed`, its last run installed a version this
+ * process does not run yet; `up-to-date`, its last run found nothing newer, or what it installed
+ * runs now; `failed`, its last run failed (`reason` says why); `idle`, it never ran here.
+ */
+export type DesktopUpdateState = 'unavailable' | 'needs-login' | 'idle' | 'installing' | 'installed' | 'up-to-date' | 'failed';
+
+/**
+ * Why the desktop update is in its state, as an i18n code: `update.unit-missing`, `update.needs-login`,
+ * `update.apt-locked` (the package manager stayed busy), `update.apt-failed`, `update.source-missing`
+ * (Claudio's apt source was removed, so there is no repository to update from), `update.start-limited`
+ * (systemd refused the start: too many starts in ten minutes), `update.unit-failed` (systemd ended the
+ * run before it could say why: a timeout, a signal, out of memory), `update.start-failed` (systemd did
+ * not start the unit for another reason).
+ */
+export type DesktopUpdateReasonCode =
+  | 'update.unit-missing'
+  | 'update.needs-login'
+  | 'update.apt-locked'
+  | 'update.apt-failed'
+  | 'update.source-missing'
+  | 'update.start-limited'
+  | 'update.unit-failed'
+  | 'update.start-failed';
+
+export interface DesktopUpdateStatus {
+  state: DesktopUpdateState;
+  /** The desktop app's version on disk now (`<resources>/shell.json`); `running` when it cannot be read */
+  installed: string;
+  /** The shell version this process started under; this server's own version outside the desktop app */
+  running: string;
+  /** The last run's versions, from the unit's status file */
+  from: string | null;
+  to: string | null;
+  startedAt: string | null;
+  endedAt: string | null;
+  /** `installed !== running`: a restart starts the version on disk */
+  restartNeeded: boolean;
+  reason?: { code: DesktopUpdateReasonCode };
+}
+
+/** `whenIdle` waits until no chat, orchestration or terminal is live, instead of refusing over them */
+export interface RestartRequest {
+  whenIdle?: boolean;
+}
+
+export interface RestartResult {
+  scheduled: 'now' | 'when-idle';
+}
+
+/**
+ * Every `code` the desktop update and restart routes answer besides the owner checks
+ * (`update.needs-auth`, `update.not-owner`): a client shows each from its code.
+ */
+export type DesktopUpdateRefusalCode = 'update.unit-missing' | 'update.needs-login' | 'update.busy' | 'update.start-failed' | 'update.live-work' | 'update.no-shell';
+
+/**
  * How this Claudio was installed, from `CLAUDIO_DISTRIBUTION`: what decides which way to update it
  * a client offers. `source` is a checkout run with pnpm, and whatever the variable does not name.
  */
@@ -8584,6 +8643,12 @@ export interface SystemServerUpdateEvent extends ClaudioEventBase {
   status: ServerUpdateStatus;
 }
 
+/** The desktop app's package update moved: the unit started, ran, installed, failed, or polkit refused it */
+export interface DesktopUpdateChangedEvent extends ClaudioEventBase {
+  type: 'desktop-update.changed';
+  status: DesktopUpdateStatus;
+}
+
 /** `rescheduled`: nothing was edited, but `nextRunAt` was computed again (after a fire, or on boot). */
 export type ScheduleChangeAction = 'created' | 'updated' | 'deleted' | 'enabled' | 'disabled' | 'rescheduled';
 
@@ -9856,6 +9921,7 @@ export type ClaudioEvent =
   | SessionsChangedEvent
   | SystemReleaseEvent
   | SystemServerUpdateEvent
+  | DesktopUpdateChangedEvent
   | ProvidersChangedEvent
   | HostsChangedEvent
   | OrchestrationPullRequestEvent

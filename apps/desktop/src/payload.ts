@@ -11,7 +11,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { NODE_FILES, TRIAL_MS, run, stateFileOf, type Boot, type MachineFiles, type Running } from '@claudio/core/launcher/machine';
-import { RESTART_EXIT_CODE, VERSION, loadKeys } from '@claudio/core/launcher/protocol';
+import { RELAUNCH_EXIT_CODE, RESTART_EXIT_CODE, VERSION, loadKeys } from '@claudio/core/launcher/protocol';
 
 /** After the window starts loading a trial's page, how long its web has to say it rendered */
 export const PAGE_READY_MS = 30_000;
@@ -97,7 +97,7 @@ export interface PayloadHostOptions {
 export type PayloadEnd =
   /** Stopped by the shell (quit, restart, update) */
   | { why: 'stopped'; code: number }
-  /** The shell must relaunch itself instead of starting the server again */
+  /** The shell must relaunch itself instead of starting the server again: apt replaced it, or the server exited 76 */
   | { why: 'relaunch'; code: number }
   /** The server went on its own; `ready` says whether it ever listened */
   | { why: 'exited'; code: number; ready: boolean; detail: string };
@@ -166,6 +166,11 @@ export class PayloadHost {
     this.boot = null;
     if (this.relaunch) return { why: 'relaunch', code };
     if (this.stopRequested) return { why: 'stopped', code };
+    // The person asked for a restart, from any device (docs/plans/remote-updates.md, D4): the whole
+    // app starts again, so a shell apt put on disk is what runs next. Only a server that listened can
+    // have been asked: one that exits 76 before it ever did is broken, and relaunching on it would
+    // start the whole app again and again
+    if (code === RELAUNCH_EXIT_CODE && this.everReady) return { why: 'relaunch', code };
     return { why: 'exited', code, ready: this.everReady, detail: this.handle?.detail() ?? this.lastDetail };
   }
 

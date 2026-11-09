@@ -62,8 +62,65 @@
     return 'en';
   }
 
-  /** The app's compact empty state, written by hand: React is exactly what did not load. */
-  function showFallback() {
+  /**
+   * Whether the module graph failed because the network did, which no reload fixes. The one open
+   * route the server has decides: a probe that gets no answer is a server out of reach (in the
+   * offline words when the browser says it has no connection), any answer at all means the files are
+   * what is broken.
+   * `done` gets 'offline', 'unreachable' or null (the bundle, as before).
+   */
+  function diagnose(done) {
+    var nav = win.navigator;
+    // The browser's word picks the wording, the probe the verdict: the desktop app's server is on
+    // 127.0.0.1 and answers with no network at all, and then the bundle is what is broken
+    var offline = !!(nav && nav.onLine === false);
+    var lost = offline ? 'offline' : 'unreachable';
+    if (typeof win.fetch !== 'function') return done(offline ? 'offline' : null);
+    var answered = false;
+    function finish(kind) {
+      if (answered) return;
+      answered = true;
+      done(kind);
+    }
+    try {
+      win.fetch('/api/health', { cache: 'no-store' }).then(
+        function () {
+          finish(null);
+        },
+        function () {
+          finish(lost);
+        }
+      );
+    } catch (e) {
+      return finish(null);
+    }
+    // A phone off its VPN hangs rather than fails; the page must not stay blank waiting for it
+    win.setTimeout(function () {
+      finish(lost);
+    }, 5000);
+  }
+
+  /** `template` with `{{address}}` filled in, its `<mono>…</mono>` parts as literals in the app's mono. */
+  function appendHint(parent, template) {
+    var parts = template.replace('{{address}}', (win.location && win.location.host) || '').split(/<mono>|<\/mono>/);
+    for (var i = 0; i < parts.length; i++) {
+      if (parts[i] === '') continue;
+      if (i % 2 === 1) {
+        var literal = win.document.createElement('span');
+        literal.className = 'mono';
+        literal.textContent = parts[i];
+        parent.appendChild(literal);
+      } else {
+        parent.appendChild(win.document.createTextNode(parts[i]));
+      }
+    }
+  }
+
+  /**
+   * The app's compact empty state, written by hand: React is exactly what did not load. `kind` is
+   * what `diagnose` found: when the network failed, the words are the unreachable screen's own.
+   */
+  function showFallback(kind) {
     var doc = win.document;
     var root = doc.getElementById('root');
     if (!root) return;
@@ -72,7 +129,8 @@
     var splash = doc.getElementById('claudio-splash');
     if (splash && splash.remove) splash.remove();
     root.inert = false;
-    var copy = strings[language()] || strings.en;
+    var all = strings[language()] || strings.en;
+    var copy = kind === 'offline' ? all.offline : kind === 'unreachable' ? all.unreachable : all;
     var box = doc.createElement('div');
     box.className = 'state state-empty boot-failed';
     box.setAttribute('role', 'alert');
@@ -80,7 +138,8 @@
     title.textContent = copy.title;
     var hint = doc.createElement('div');
     hint.className = 'muted';
-    hint.textContent = copy.hint;
+    if (kind === 'unreachable') appendHint(hint, copy.hint);
+    else hint.textContent = copy.hint;
     var action = doc.createElement('div');
     action.className = 'state-action';
     var button = doc.createElement('button');
@@ -102,7 +161,7 @@
   function check() {
     if (booted) return;
     if (mayReload()) win.location.reload();
-    else showFallback();
+    else diagnose(showFallback);
   }
 
   win.document.addEventListener('DOMContentLoaded', function () {

@@ -127,6 +127,7 @@ import { detectCli, execCli, getAuthStatus, type CliAuth } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
 import { ReleaseWatch } from './release-watch.ts';
 import { ServerUpdates } from './updates/server-update.ts';
+import { DesktopUpdates } from './updates/desktop-update.ts';
 import { CliInstaller } from './updates/cli-install.ts';
 import { resolveClaudeBin } from './claude-bin.ts';
 import { claudeCodeManifest } from './providers/claude-code/manifest.ts';
@@ -289,9 +290,10 @@ export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, DEFAULT_ORIGINS } from './chat-service.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { ServerUpdateRefusal } from './updates/server-update.ts';
+export { DesktopUpdateRefusal, DesktopUpdates, type SystemctlRunner } from './updates/desktop-update.ts';
 export { resolveClaudeBin, type ClaudeBinOptions } from './claude-bin.ts';
 export { CliInstallRefusal } from './updates/cli-install.ts';
-export { RESTART_EXIT_CODE } from './launcher/protocol.ts';
+export { RELAUNCH_EXIT_CODE, RESTART_EXIT_CODE } from './launcher/protocol.ts';
 export { ProviderRotation, RunNowRefusal, effectiveOnLimit, openWaitOf } from './rotation.ts';
 export { EvalService } from './evals/service.ts';
 export { EvalStartError } from './evals/runner.ts';
@@ -516,6 +518,8 @@ export class Core {
   readonly release: ReleaseWatch;
   /** Claudio updating itself inside its container: signed bundles under /data/app (docs/plans/container-polish.md, D4) */
   readonly serverUpdates: ServerUpdates;
+  /** The desktop app's package update through its root unit, and the restart onto it (docs/plans/remote-updates.md) */
+  readonly desktopUpdates: DesktopUpdates;
   /** Claude Code installed in-app inside the container, under /data/cli */
   readonly cliInstaller: CliInstaller;
   readonly workspace: Workspace;
@@ -749,6 +753,12 @@ export class Core {
       running: CLAUDIO_VERSION,
       release: () => this.release.latestRelease(),
       security: securityState,
+      liveWork: () => this.liveWork(),
+      audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
+      events: this.events,
+    });
+    this.desktopUpdates = new DesktopUpdates({
+      version: CLAUDIO_VERSION,
       liveWork: () => this.liveWork(),
       audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
       events: this.events,
@@ -4004,6 +4014,7 @@ export class Core {
     this.cliVersion.stop();
     this.release.stop();
     this.serverUpdates.close();
+    this.desktopUpdates.close();
     this.healthMonitor.stop();
     this.providers.close();
     this.hosts.close();

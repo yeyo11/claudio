@@ -1,4 +1,4 @@
-import type { ClaudioDistribution, ServerUpdateApplyRequest, ServerUpdateStatus } from '@claudio/shared';
+import type { ClaudioDistribution, LiveWork, ServerUpdateApplyRequest, ServerUpdateStatus } from '@claudio/shared';
 import { isRecord } from '@claudio/shared';
 
 /**
@@ -23,14 +23,6 @@ export type DesktopUpdateState =
 
 /** `ShellUpdateError` of the shell: `other` is whatever it could not name */
 export type ShellUpdateError = 'bad-signature' | 'fetch-failed' | 'other';
-
-/** What a restart would stop: shared's `LiveWork`, copied because the shell's answers are parsed here */
-export interface LiveWork {
-  working: number;
-  waiting: number;
-  running: number;
-  terminals: number;
-}
 
 /** `SwitchState` of the shell: whether the `.deb` can become the AppImage here, and what stays behind */
 export interface SwitchState {
@@ -237,6 +229,24 @@ export const SOURCE_UPDATE_COMMAND = 'git pull && pnpm install && pnpm build';
 /** The states in which the server is doing something on its own, so the card asks again soon */
 export function serverUpdateRefetchMs(status: Pick<ServerUpdateStatus, 'state'> | undefined): number | false {
   return status && (status.state === 'downloading' || status.state === 'verifying' || status.state === 'restarting') ? 2000 : false;
+}
+
+// ---------- The desktop app's update unit, from any device (docs/plans/remote-updates.md, §4) ----------
+
+const UNIT_ERROR_CODES = ['needs-login', 'unit-missing', 'busy', 'apt-locked', 'apt-failed', 'source-missing', 'start-limited', 'unit-failed'] as const;
+export type DesktopUnitErrorCode = (typeof UNIT_ERROR_CODES)[number];
+
+/** A refusal of the desktop-update routes or a `reason.code` of the status, with or without its `update.` prefix; null when this build does not know it */
+export function desktopUnitErrorCode(error: unknown): DesktopUnitErrorCode | null {
+  const raw = typeof error === 'string' ? error : isRecord(error) && typeof error.code === 'string' ? error.code : null;
+  if (!raw) return null;
+  const bare = raw.startsWith('update.') ? raw.slice('update.'.length) : raw;
+  return UNIT_ERROR_CODES.find((known) => known === bare) ?? null;
+}
+
+/** The HTTP status of a refusal, when the error carries one (`ApiRequestError`) */
+export function refusalStatus(error: unknown): number | null {
+  return isRecord(error) && typeof error.status === 'number' ? error.status : null;
 }
 
 /** The counts a `409 update.live-work` carries, or null for any other failure */

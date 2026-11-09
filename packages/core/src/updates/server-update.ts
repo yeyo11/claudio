@@ -545,5 +545,6 @@ function failureCode(err: unknown): ServerUpdateError {
   return (err as NodeJS.ErrnoException | null)?.code === 'ENOSPC' ? 'disk' : 'fetch-failed';
 }
 
-// An open terminal counts: its shell ends with the server (docs/plans/unified-updates.md, D6)
-const busy = (live: LiveWork): boolean => live.working > 0 || live.waiting > 0 || live.running > 0 || live.terminals > 0;
+/** Whether a restart would stop something; an open terminal counts: its shell ends with the server (docs/plans/unified-updates.md, D6) */
+export const liveWorkBusy = (live: LiveWork): boolean => live.working > 0 || live.waiting > 0 || live.running > 0 || live.terminals > 0;
+const busy = liveWorkBusy;

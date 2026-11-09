@@ -40,6 +40,7 @@ import type {
 import { activeBase } from '@claudio/ui/lib/server-scope';
 import { keys } from '../api';
 import { withToken } from './auth';
+import { reachability } from './reachability';
 import { dispatchEvent, dispatchResync, setFeedState, useFeedState, type FeedState } from './feed';
 import { browserPermission, getPrefs } from './notifications';
 import { noticeServerVersion } from './reload';
@@ -124,6 +125,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'sessions.changed': true,
   'system.release': true,
   'system.server-update': true,
+  'desktop-update.changed': true,
   'providers.changed': true,
   'hosts.changed': true,
   'orchestration.pull-request': true,
@@ -408,6 +410,9 @@ export function targetsFor(event: ClaudioEvent): Target[] {
     case 'system.server-update':
       // The in-app update's state, read from memory on the server; the release it is for may have moved too
       return [[['server-update'], NOW], [keys.release, NOW]];
+    case 'desktop-update.changed':
+      // The desktop app's package update: the status is read from the unit's state and file, cheaply
+      return [[['desktop-update'], NOW]];
     case 'providers.changed':
       // The statuses and the settings share the ['providers'] prefix; a status change is what the event carries
       return [[keys.providers, NOW]];
@@ -844,6 +849,7 @@ function startEventFeed(client: QueryClient): () => void {
     es.onopen = () => {
       attempts = 0;
       setFeedState('open');
+      reachability.answered();
     };
     es.addEventListener('stream.hello', (raw) => {
       let hello: StreamHelloEvent;
@@ -873,6 +879,9 @@ function startEventFeed(client: QueryClient): () => void {
     });
     for (const type of Object.keys(EVENT_TYPES)) es.addEventListener(type, (raw) => onEvent(raw as MessageEvent));
     es.onerror = () => {
+      // An EventSource error carries no cause, so a dropped stream is only a suspicion: a probe of
+      // the server decides whether it is the network (and the unreachable screen) or the stream
+      void reachability.suspect();
       // While the browser is retrying by itself it says CONNECTING; CLOSED means it gave up (the
       // server answered with an error), and only a new EventSource can recover
       if (es.readyState !== EventSource.CLOSED) return setFeedState('connecting');
@@ -889,6 +898,16 @@ function startEventFeed(client: QueryClient): () => void {
     source = null;
   };
   connect();
+
+  // The server came back after the screen for an unreachable one: the browser's own retry of a
+  // stream may be minutes away, so a new connection is opened now, from the last id it saw
+  const stopRecovery = reachability.onRecovered(() => {
+    // The stream opening is itself what ended the screen when it did: leave that connection alone
+    if (stopped || source?.readyState === EventSource.OPEN) return;
+    disconnect();
+    attempts = 0;
+    connect();
+  });
 
   // Let go while the page sits in the back/forward cache, and pick up from the last id when it comes back
   const leaveCache = onBackForwardCache(
@@ -930,6 +949,7 @@ function startEventFeed(client: QueryClient): () => void {
   return () => {
     stopped = true;
     clearTimeout(park);
+    stopRecovery();
     leaveCache();
     document.removeEventListener('visibilitychange', onVisibility);
     disconnect();

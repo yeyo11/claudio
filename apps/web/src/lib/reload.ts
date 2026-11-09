@@ -4,6 +4,7 @@
 // being current, so all this module does is raise an offer the shell shows as a banner, and carry
 // out the reload once the person presses it.
 import { useSyncExternalStore } from 'react';
+import { reachability, useUnreachable, type Reachability } from './reachability';
 
 // Replaced by Vite's `define` with the root package.json's version (vite.config.ts). Under the unit
 // tests nothing replaces it, and `typeof` is the one way to read an undeclared name without throwing.
@@ -22,17 +23,25 @@ export function serverVersionChange(build: string, server: unknown): string | nu
   return server;
 }
 
-// Each engine words it its own way (Chrome, Safari, Firefox), and Vite has one for a stylesheet
-const CHUNK_ERROR = /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload CSS/i;
+// Each engine words it its own way (Chrome, Safari, Firefox), and Vite has one for a stylesheet.
+// WebKit also says "'text/html' is not a valid JavaScript MIME type" when a script URL answered
+// with the shell, and a bare "Load failed" when an import cannot be fetched.
+const CHUNK_ERROR =
+  /Failed to fetch dynamically imported module|Importing a module script failed|error loading dynamically imported module|Unable to preload CSS|is not a valid JavaScript MIME type/i;
+// "Load failed" is also what WebKit says about any fetch that fails (the API, an image), so it only
+// counts when the same message names the import or the build's `/assets/` file it was after
+const IMPORT_LOAD_FAILED = /\bLoad failed\b[^]*(?:\bimport|\/assets\/)|(?:\bimport|\/assets\/)[^]*\bLoad failed\b/i;
+
+const isChunkMessage = (message: string): boolean => CHUNK_ERROR.test(message) || IMPORT_LOAD_FAILED.test(message);
 
 /**
  * Whether an error is a lazy chunk that is no longer there. After a deploy the old build's hashed
  * files are gone from the server, so the first route this page has not visited yet fails to load.
  */
 export function isChunkLoadError(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return typeof error === 'string' && CHUNK_ERROR.test(error);
+  if (!error || typeof error !== 'object') return typeof error === 'string' && isChunkMessage(error);
   const { name, message } = error as { name?: unknown; message?: unknown };
-  return name === 'ChunkLoadError' || (typeof message === 'string' && CHUNK_ERROR.test(message));
+  return name === 'ChunkLoadError' || (typeof message === 'string' && isChunkMessage(message));
 }
 
 // ---------- the offer ----------
@@ -115,12 +124,24 @@ export class ReloadOffers {
 const offers = new ReloadOffers(BUILD_VERSION);
 
 export const noticeServerVersion = (server: unknown): void => offers.serverVersion(server);
-export const noticeStaleChunk = (): void => offers.staleChunk();
+/**
+ * A chunk would not load. With the network down it fails exactly as a deployed-away one does, so
+ * before taking it for a new version the server is asked whether it answers: if it does not, the
+ * unreachable screen is the explanation and no reload is offered. Exported for the tests, which
+ * hand in their own store and offers.
+ */
+export async function noticeChunkFailure(reach: Pick<Reachability, 'suspect'> = reachability, target: ReloadOffers = offers): Promise<void> {
+  if (await reach.suspect(true)) target.staleChunk();
+}
+export const noticeStaleChunk = (): void => void noticeChunkFailure();
 export const dismissReloadOffer = (): void => offers.dismiss();
 export const holdReloadBanner = (): (() => void) => offers.holdBanner();
 
 export function useReloadOffer(): ReloadOffer | null {
-  return useSyncExternalStore(offers.subscribe, offers.current, offers.current);
+  const offer = useSyncExternalStore(offers.subscribe, offers.current, offers.current);
+  // A server that cannot be reached has its own screen, and a reload would only fail the same way:
+  // the offer is kept, and comes back if the server answers with another version
+  return useUnreachable() ? null : offer;
 }
 
 // ---------- the reload ----------

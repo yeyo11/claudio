@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-08T18:00:00Z
 tags:
     - ui
     - web
@@ -96,9 +96,12 @@ Shift design system ([design-system.md](design-system.md)); this page says what 
 - **Updates**: Settings → General → Updates has an **Updates** card with the version in use, the newest
   Claudio release, its notes and **Check for updates**, and the steps that take it for this install —
   the commands for Docker or a source checkout, or Download and Restart to update in the desktop app.
+  For a desktop `.deb` the card, on any device, also has **Update the desktop app** and **Restart**
+  ([updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart)).
   While a newer release is known, a dot marks Settings in the sidebar (More, on a phone); it never
   goes in the bell. A page left open while its server moves to another version says **Claudio was
-  updated to X** and offers **Reload**, but never reloads on its own. See
+  updated to X** and offers **Reload**, but never reloads on its own; a server that cannot be reached shows a screen of its own instead
+  ([pwa.md](pwa.md#when-the-server-cannot-be-reached)). See
   [docs/plans/app-updates.md](plans/app-updates.md).
 - **What an agent is doing right now**: from the stream-json events of each live process, Claudio
   keeps one line per chat — the tool it is calling and on what (`Editing src/app.ts`,

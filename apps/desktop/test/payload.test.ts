@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
-import { keyId } from '@claudio/core/launcher/protocol';
+import { RELAUNCH_EXIT_CODE, keyId } from '@claudio/core/launcher/protocol';
 import {
   PayloadHost,
   forgetOverlays,
@@ -89,6 +89,8 @@ interface Plan {
   ready?: boolean;
   health?: boolean;
   page?: boolean;
+  /** What one that never listens exits with; 1 unless said */
+  exitCode?: number;
 }
 
 interface Started {
@@ -120,7 +122,7 @@ function host(w: ReturnType<typeof world>, plans: Plan[], extra: Partial<Payload
       const entry: Started = { boot, exit: (code) => resolveExit(code), stopped: false };
       started.push(entry);
       const listens = plan.ready !== false;
-      if (!listens) setTimeout(() => resolveExit(1), 5);
+      if (!listens) setTimeout(() => resolveExit(plan.exitCode ?? 1), 5);
       return {
         ready: listens ? Promise.resolve('http://127.0.0.1:41000/') : Promise.reject(new Error('exited before READY')),
         exited,
@@ -351,6 +353,25 @@ test('once the shell was replaced underneath, a restart becomes a relaunch of th
   const end = await run;
   assert.equal(end.why, 'relaunch');
   assert.equal(started.length, 1, 'this Electron did not start another server');
+});
+
+test('exit 76 is the person asking for the whole app to start again: the run ends in a relaunch, no server restart', async () => {
+  const w = world();
+  const { h, started } = host(w, [{}]);
+  const run = h.run();
+  await until('a boot', () => started.length === 1);
+  started[0]?.exit(RELAUNCH_EXIT_CODE);
+  const end = await run;
+  assert.deepEqual(end, { why: 'relaunch', code: RELAUNCH_EXIT_CODE });
+  assert.equal(started.length, 1, 'this Electron did not start another server');
+});
+
+test('exit 76 from a server that never listened is a crash, not a request: no relaunch loop', async () => {
+  const w = world();
+  const { h, started } = host(w, [{ ready: false, exitCode: RELAUNCH_EXIT_CODE }]);
+  const end = await h.run();
+  assert.equal(started.length, 1);
+  assert.deepEqual(end.why === 'exited' ? [end.code, end.ready] : end, [RELAUNCH_EXIT_CODE, false]);
 });
 
 test('overlays nobody points at and half-done downloads are collected; the ones in use stay', async () => {

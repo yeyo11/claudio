@@ -43,13 +43,32 @@ function handles(request, url) {
   if (url.origin !== self.location.origin) return false;
   // A range request is a partial read the network has to serve; a cache hit would answer 200
   if (request.headers.has('range')) return false;
-  if (request.mode === 'navigate') return APP_ROUTES.has(url.pathname.split('/')[1] ?? '');
+  // A path that names a file (`/assets/x.js`, `/settings/x.png`) is never a page of the app, even
+  // under a route's first segment: the shell must not stand in for a file that is gone.
+  if (request.mode === 'navigate') return APP_ROUTES.has(url.pathname.split('/')[1] ?? '') && !namesFile(url.pathname);
   return SHELL_PATHS.has(url.pathname);
+}
+
+/** Whether the last segment of a path has an extension, which is how the server tells a file from a route. */
+function namesFile(pathname) {
+  return /\.[A-Za-z0-9]+$/.test(pathname.slice(pathname.lastIndexOf('/') + 1));
+}
+
+/**
+ * A cached HTML document under the key of anything but the shell. An older server answered a
+ * missing `/assets/*` file with `index.html` and a 200, and `cache.addAll` stored that as the
+ * asset: a script served from it fails with "'text/html' is not a valid JavaScript MIME type".
+ */
+function isShellImpostor(response, key) {
+  if (key === SHELL_DOCUMENT || !response || !response.headers || typeof response.headers.get !== 'function') return false;
+  return /text\/html/i.test(response.headers.get('content-type') || '');
 }
 
 async function answer(request, key) {
   const cached = await caches.match(key, { cacheName: CACHE });
-  return cached ?? fetch(request);
+  // The network decides instead, and says 404 when the file is gone
+  if (cached && !isShellImpostor(cached, key)) return cached;
+  return fetch(request);
 }
 
 self.addEventListener('install', (event) => {

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-09T12:00:00Z
 tags:
     - desktop
     - electron
@@ -274,13 +274,16 @@ no `pkexec`, no password dialog, no `dpkg` under the running app.
   working. A copy you downloaded by hand as `Claudio-<version>-x86_64.AppImage` is replaced by a file
   under the new version's name, so a launcher or a shortcut pointing at the old name has to be
   pointed at the new one.
-- **`.deb` with the apt source** (`apt-managed`). The system's updater (Software Updater,
-  `unattended-upgrades`, `apt upgrade`) installs the new version. The app downloads nothing for the
-  shell; it only tells you a newer one is out. Once apt replaced the files, the app notices
+- **`.deb` with the apt source** (`apt-managed`). Nothing on a stock Ubuntu installs the new version
+  by itself: `unattended-upgrades` allows only Ubuntu's origins and this repository's `Origin` is
+  `Claudio`, so an upgrade happens only when someone runs apt. The package therefore ships its own
+  way, a root unit started from the card (see **The update unit** below), from the desktop window,
+  a browser or a phone. A system updater (Software Updater, `apt upgrade`) that installs the new
+  version first works too. Once apt replaced the files, the app notices
   (it re-reads `<resources>/shell.json` every minute, when the window gets focus and when the folder
-  changes), says "The system installed desktop app X", and offers **Restart Claudio**. Until you
-  restart it, any restart of the server is upgraded to a full relaunch, because the binary on disk
-  is no longer the one running.
+  changes), says "The system installed desktop app X", and offers **Restart**, which asks for
+  confirmation. Until you restart it, any restart of the server is upgraded to a full relaunch,
+  because the binary on disk is no longer the one running.
 - **`.deb` without the apt source** (installs from before the repository, or after you removed the
   source). The app downloads the `.deb`, checks it against the signed desktop manifest and shows one
   command to copy into a terminal. It copies the file to a root-owned path, checks its sha256 and only
@@ -293,6 +296,39 @@ no `pkexec`, no password dialog, no `dpkg` under the running app.
 
   There is no `-y`: apt shows what it will change and asks. The new package registers the apt
   source, so you need this command **once**.
+
+**The update unit.** The `.deb` installs `claudio-update.service` (a root oneshot, never enabled),
+its helper `/usr/lib/claudio/claudio-update`, and the polkit rule
+`/usr/share/polkit-1/rules.d/50-claudio-update.rules`. The rule lets the members of the group
+`claudio-update` start that one unit without a password, and nothing else. The postinst creates the
+group and adds the person who installed (`SUDO_USER`, else the user of `PKEXEC_UID`; never root or an
+account that does not exist) and reloads systemd; installing as plain root with no `sudo` adds
+nobody. The postrm leaves everything alone on an upgrade, removes the rule and the group on
+`remove` and `purge`, and `/var/lib/claudio-update` on `purge`. To let another person update,
+`sudo usermod -aG claudio-update <user>`. The server starts the unit as its own user with
+`systemctl start --no-block --no-ask-password`, so the app still holds no elevation: no `pkexec`, no
+`sudo`. What the unit runs, what its status file says, the routes, the restart and the states are in
+[updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart); what the rule allows
+and what it does not, in [security-model.md](security-model.md#the-desktop-update-unit).
+
+**The apt pin.** The `.deb` also ships `/etc/apt/preferences.d/claudio.pref`, a conffile (an
+admin's edit survives upgrades; kept on `remove`, deleted on `purge`). It gives `claudio` from
+Claudio's repository (`release o=Claudio`) priority 990 and `claudio` from any other repository -1,
+so neither the update unit nor the system's updater ever installs a package named `claudio` from
+another source. 990 is below 1000, so apt never downgrades to it; a version installed by hand from a
+`.deb` file is left alone and still upgrades from Claudio's repository
+([updates.md](updates.md#the-desktop-app-package-the-update-unit-and-restart)). The pin cannot be tied
+to a signing key, only to the `Origin` field, so a second source that also declares `Origin: Claudio`
+would match it too. The helper installs with `--no-remove`, so an upgrade that would need another
+package taken off fails instead.
+
+**`needs-login`.** When polkit refuses the start the card says the group is not in effect for this
+session yet and asks for one log-out and log-in. The plan assumed membership only counts after a new
+login; polkit reads a user's groups from the system when it decides, so it may apply sooner, but that
+was not checked on a machine, and the card's wording covers both. **Ubuntu 22.04 (polkit 0.105)**
+ignores `.rules` files, so there the start is always refused and the card keeps showing
+`needs-login`; use the apt command or the AppImage. A package from before the unit has no unit, and
+the card (`unavailable`) says how to get it: install the newer `.deb` once by hand.
 
 **Switch to the AppImage.** On a `.deb`, when the host lets the AppImage sandbox without root and FUSE
 works, the card offers **Use the AppImage instead**. It downloads the AppImage, checks it against the
@@ -316,8 +352,8 @@ A copy is an AppImage when its runtime sets `APPIMAGE`, and a `.deb` when `resou
 The app passes the answer to its server as `CLAUDIO_DISTRIBUTION`, and the facts about the shell
 (`CLAUDIO_SHELL_VERSION`, `CLAUDIO_SHELL_INPUTS`, `CLAUDIO_SHELL_PACKAGE`, `CLAUDIO_SHELL_APT`),
 which is how a browser pointed at this server tells the payload from the shell. A browser or a phone
-on this server sees the Claudio zone, and for the shell only "The desktop app is updated on the
-computer that runs it."
+on this server sees the Claudio zone and, for the shell, the same Update and Restart as the desktop
+window when the server runs from a `.deb`; the old line "updated on the computer that runs it" is gone.
 
 **How it is verified.** The payload and the desktop manifest carry Ed25519 signatures with a key id,
 so a key rotation can overlap; an AppImage must match both `latest-linux.yml`'s sha512 and the signed
@@ -511,4 +547,4 @@ release.
 
 ## Related
 
-[[plans/splash-eat-the-code.md]] · [[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/unified-updates.md]] · [[decisions/shell-payload-updates.md]] · [[decisions/apt-repository.md]] · [[updates.md]] · [[tunnel.md]]
+[[plans/splash-eat-the-code.md]] · [[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/unified-updates.md]] · [[decisions/shell-payload-updates.md]] · [[decisions/apt-repository.md]] · [[updates.md]] · [[plans/remote-updates.md]] · [[tunnel.md]]

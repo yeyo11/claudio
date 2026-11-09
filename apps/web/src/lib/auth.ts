@@ -1,6 +1,7 @@
 import { useSyncExternalStore } from 'react';
 import type { AuthMode, ClaimHostResult, HostRefusal } from '@claudio/shared';
 import { HUB_API } from '@claudio/ui/lib/server-scope';
+import { reachability } from './reachability';
 
 /*
  * The credential this browser sends, and what happens when the API refuses it.
@@ -141,9 +142,15 @@ function settle(): void {
  */
 export async function probeAuth(fetcher: typeof fetch = fetch, waitMs = PROBE_WAIT_MS): Promise<void> {
   settled = false;
-  const timer = setTimeout(settle, waitMs);
+  // A wrapper this slow may be one that cannot be reached at all (a phone off its VPN hangs rather
+  // than fails): the shell opens, and the reachability probe decides whether the screen takes over
+  const timer = setTimeout(() => {
+    settle();
+    void reachability.suspect();
+  }, waitMs);
   try {
     const res = await fetcher(PROBE_PATH, { headers: authHeaders() });
+    reachability.answered();
     if (res.status === 401) {
       const { mode, firstRunToken: first } = challengeOf(await res.json().catch(() => null));
       setChallenge(mode, first);
@@ -151,7 +158,8 @@ export async function probeAuth(fetcher: typeof fetch = fetch, waitMs = PROBE_WA
       setHostRefusal(hostRefusalOf(await res.json().catch(() => null)));
     }
   } catch {
-    // Unreachable is not refused: the shell has its own way of saying the API is down
+    // Unreachable is not refused: the screen for an unreachable server says so, once a probe confirms it
+    void reachability.suspect();
   } finally {
     clearTimeout(timer);
     settle();

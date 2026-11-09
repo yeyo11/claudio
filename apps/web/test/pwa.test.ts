@@ -350,6 +350,26 @@ test('a hashed asset of the shell is served from the cache, one from another bui
   assert.equal(await worker.fetch(request('/assets/CodeEditorImpl-Zz99.js')), null, 'a lazy chunk is not the shell');
 });
 
+test('a navigation that names a file is never painted from the shell, even under a route of the app', async () => {
+  const worker = await ready();
+  for (const path of ['/assets/index-Aa11Bb22.js', '/chats/old-chunk.js', '/settings/logo.png']) {
+    assert.equal(await worker.fetch(navigation(path)), null, `${path} is left to the server, which answers 404`);
+  }
+});
+
+test('an asset cached as an HTML document is not served: the network answers instead', async () => {
+  const worker = await ready();
+  // What an older server's `index.html`-for-everything fallback left in the cache under the asset's name
+  const shell = [...worker.caches.stores.entries()].find(([name]) => name.startsWith('claudio-shell-'))?.[1];
+  assert.ok(shell);
+  const html = { headers: { get: (name: string) => (name === 'content-type' ? 'text/html; charset=utf-8' : null) } };
+  shell.entries.set('/assets/index-Aa11Bb22.js', html as unknown as string);
+  assert.equal(await worker.fetch(request('/assets/index-Aa11Bb22.js')), `network ${ORIGIN}/assets/index-Aa11Bb22.js`);
+  // The shell document itself is HTML on purpose
+  shell.entries.set('/index.html', html as unknown as string);
+  assert.equal(await worker.fetch(navigation('/chats')), html as unknown as string);
+});
+
 test('a new build takes over: the previous shell cache is dropped and nothing else is', async () => {
   const worker = load(SHELL, { seeded: ['claudio-shell-oldbuild', 'some-other-cache'] });
   await worker.install();

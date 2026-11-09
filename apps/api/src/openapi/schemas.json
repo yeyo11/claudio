@@ -7773,6 +7773,9 @@
         "$ref": "#/components/schemas/SystemServerUpdateEvent"
       },
       {
+        "$ref": "#/components/schemas/DesktopUpdateChangedEvent"
+      },
+      {
         "$ref": "#/components/schemas/ProvidersChangedEvent"
       },
       {
@@ -10146,6 +10149,130 @@
       "failed-before"
     ],
     "description": "Why the newest release cannot be installed in-app, known before any download: `no-bundle`, it was published without a signed server bundle; `unverified`, its manifest could not be fetched or does not verify; `needs-image`/`needs-shell`, it needs a newer image or desktop app; `failed-before`, it did not start here before."
+  },
+  "DesktopUpdateChangedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "desktop-update.changed"
+      },
+      "status": {
+        "$ref": "#/components/schemas/DesktopUpdateStatus"
+      }
+    },
+    "required": [
+      "at",
+      "id",
+      "status",
+      "title",
+      "type"
+    ],
+    "description": "The desktop app's package update moved: the unit started, ran, installed, failed, or polkit refused it"
+  },
+  "DesktopUpdateStatus": {
+    "type": "object",
+    "properties": {
+      "state": {
+        "$ref": "#/components/schemas/DesktopUpdateState"
+      },
+      "installed": {
+        "type": "string",
+        "description": "The desktop app's version on disk now (`<resources>/shell.json`); `running` when it cannot be read"
+      },
+      "running": {
+        "type": "string",
+        "description": "The shell version this process started under; this server's own version outside the desktop app"
+      },
+      "from": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The last run's versions, from the unit's status file"
+      },
+      "to": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "startedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "endedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "restartNeeded": {
+        "type": "boolean",
+        "description": "`installed !== running`: a restart starts the version on disk"
+      },
+      "reason": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/DesktopUpdateReasonCode"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      }
+    },
+    "required": [
+      "state",
+      "installed",
+      "running",
+      "from",
+      "to",
+      "startedAt",
+      "endedAt",
+      "restartNeeded"
+    ]
+  },
+  "DesktopUpdateState": {
+    "type": "string",
+    "enum": [
+      "unavailable",
+      "needs-login",
+      "idle",
+      "installing",
+      "installed",
+      "up-to-date",
+      "failed"
+    ],
+    "description": "The desktop app's package update through Claudio's root unit (docs/plans/remote-updates.md, D1, D3): `unavailable`, no unit to start (not a `.deb` under the desktop app, or an older package); `needs-login`, the unit is there but polkit refused the start (the `claudio-update` group is not in effect yet); `installing`, the unit runs; `installed`, its last run installed a version this process does not run yet; `up-to-date`, its last run found nothing newer, or what it installed runs now; `failed`, its last run failed (`reason` says why); `idle`, it never ran here."
+  },
+  "DesktopUpdateReasonCode": {
+    "type": "string",
+    "enum": [
+      "update.unit-missing",
+      "update.needs-login",
+      "update.apt-locked",
+      "update.apt-failed",
+      "update.source-missing",
+      "update.start-limited",
+      "update.unit-failed",
+      "update.start-failed"
+    ],
+    "description": "Why the desktop update is in its state, as an i18n code: `update.unit-missing`, `update.needs-login`, `update.apt-locked` (the package manager stayed busy), `update.apt-failed`, `update.source-missing` (Claudio's apt source was removed, so there is no repository to update from), `update.start-limited` (systemd refused the start: too many starts in ten minutes), `update.unit-failed` (systemd ended the run before it could say why: a timeout, a signal, out of memory), `update.start-failed` (systemd did not start the unit for another reason)."
   },
   "ProvidersChangedEvent": {
     "type": "object",
@@ -21885,6 +22012,30 @@
       "terminals"
     ],
     "description": "What is live on this server, counted as the overview counts it: what a restart would stop"
+  },
+  "RestartRequest": {
+    "type": "object",
+    "properties": {
+      "whenIdle": {
+        "type": "boolean"
+      }
+    },
+    "description": "`whenIdle` waits until no chat, orchestration or terminal is live, instead of refusing over them"
+  },
+  "RestartResult": {
+    "type": "object",
+    "properties": {
+      "scheduled": {
+        "type": "string",
+        "enum": [
+          "now",
+          "when-idle"
+        ]
+      }
+    },
+    "required": [
+      "scheduled"
+    ]
   },
   "ProjectSettings": {
     "type": "object",

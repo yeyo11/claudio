@@ -37,6 +37,7 @@ import { TopBar } from './components/shell/TopBar';
 import { isActive, NavDot, navTarget, TabBar, type NavItem } from './components/shell/TabBar';
 import { HostRefused } from './components/HostRefused';
 import { SignIn } from './components/SignIn';
+import { Unreachable } from './components/Unreachable';
 import { useSetupGate } from './lib/first-run';
 import { Empty, Skeleton } from '@claudio/ui/components/ui';
 import { useUsageNow } from './lib/usage-now';
@@ -45,6 +46,7 @@ import { listRequest } from '@claudio/chat-ui/lib/chat-model';
 import { useDesktopNavigation } from './lib/desktop';
 import { useKeyboardInset } from './lib/viewport';
 import { useEventFeed } from './lib/events';
+import { reachability, useUnreachable } from './lib/reachability';
 import { ProjectScopeProvider, useProjectScope } from './lib/project-scope';
 import { useServerScope } from './lib/server-scope';
 import { terminalWindowId } from './components/terminal/terminal-window';
@@ -103,8 +105,21 @@ const PREFETCH_FRESH_MS = 10_000;
 const transitionKey = (pathname: string) => (pathname === '/settings' || pathname.startsWith('/settings/') ? '/settings' : pathname);
 
 
+/**
+ * Keeps the app's end of the unreachable-server screen: the events that say the network may be back
+ * (online, focus, a tab shown again) retry the server at once, and when it answers the queries are
+ * read again where they stand, with no reload. The events feed reopens itself (lib/events.ts), and a
+ * version that changed meanwhile arrives with its hello and raises the reload banner as it always did.
+ */
+function useReachabilityWatch(): void {
+  const client = useQueryClient();
+  useEffect(() => reachability.watch(window), []);
+  useEffect(() => reachability.onRecovered(() => void client.invalidateQueries()), [client]);
+}
+
 export function App() {
   const { pathname } = useLocation();
+  useReachabilityWatch();
   // A guarded wrapper reached without a credential answers 401 to everything, so the shell is not
   // mounted at all: one screen that asks, instead of every page failing on its own
   const challenge = useAuthChallenge();
@@ -135,8 +150,10 @@ function FirstRunGate() {
 
 function LocalFirstRunGate() {
   const gate = useSetupGate();
-  // Held back for the read, as the sign-in is, so the shell does not flash and then vanish
-  if (gate.state === 'pending') return null;
+  const unreachable = useUnreachable();
+  // Held back for the read, as the sign-in is, so the shell does not flash and then vanish. When the
+  // read cannot be made because the server cannot be reached, that is the screen: not a blank page
+  if (gate.state === 'pending') return unreachable ? <Unreachable standalone /> : null;
   if (gate.state === 'shown') {
     return (
       <Suspense fallback={null}>
@@ -193,6 +210,7 @@ function Shell() {
   const [collapsed, setCollapsed] = useRailCollapsed();
   const [workflowOpen, setWorkflowOpen] = useState(false);
   const queryClient = useQueryClient();
+  const unreachable = useUnreachable();
 
   // Pointing at Chats is a good sign of a click: its code and the list it opens on (no filters, the
   // top bar's project) start loading then, so the page opens with its rows instead of a skeleton.
@@ -320,7 +338,12 @@ function Shell() {
   const railTip = (label: string) => (collapsed ? label : undefined);
 
   return (
-    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''} ${bare ? 'shell-bare' : ''}`} data-phone-header={phoneHeader}>
+    <>
+    {/* While the server cannot be reached the screen stands in for the whole shell (D9): its
+        controls would act on nothing, and its live rows and counts are what the server said last.
+        The shell stays mounted, out of sight, so a half-written message survives the outage */}
+    {unreachable && <Unreachable standalone />}
+    <div className={`shell ${collapsed ? 'shell-rail' : ''} ${tabBar ? 'shell-has-tabbar' : ''} ${fab ? 'shell-has-fab' : ''} ${bare ? 'shell-bare' : ''} ${unreachable ? 'shell-held' : ''}`} data-phone-header={phoneHeader}>
       <a
         href="#main"
         className="skip-link"
@@ -495,5 +518,6 @@ function Shell() {
       <NotificationHost />
       <DetailHost />
     </div>
+    </>
   );
 }

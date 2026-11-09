@@ -1,0 +1,133 @@
+#!/bin/bash
+# Installed as /usr/lib/claudio/claudio-update, root-owned, and run only as claudio-update.service's
+# ExecStart (docs/plans/remote-updates.md, D1). It upgrades the claudio package from Claudio's signed
+# apt repository and nothing else, and records the outcome for the app to read.
+#
+# The boundary: members of the claudio-update group may start the unit without a password (the polkit
+# rule beside it). So nothing a caller controls reaches this script: it reads no argument, no
+# environment variable and no file a user can write, and it sets PATH and the locale itself. The worst
+# a caller can do is install the newest claudio the signed source offers, which apt never resolves to
+# a downgrade (--only-upgrade, and the package's pin, claudio.pref, stays below priority 1000).
+#
+# Not an electron-builder template (it ships through fpm as a plain file), so braces are fine here.
+
+set -u
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+# apt's messages are matched below, so they must not be translated
+export LC_ALL=C
+export DEBIAN_FRONTEND=noninteractive
+umask 022
+
+SOURCE=/etc/apt/sources.list.d/claudio.sources
+STATE_DIR=/var/lib/claudio-update
+STATUS="$STATE_DIR/status.json"
+PACKAGE=claudio
+# Another apt (Software Updater, unattended-upgrades, a person's apt) may hold the lock: wait for it,
+# but a bounded time, LOCK_TRIES * LOCK_PAUSE seconds, so a stuck lock fails the run with its reason
+LOCK_TRIES=60
+LOCK_PAUSE=5
+
+# apt-get update reads this one source and keeps every other list, the way install.sh does: another
+# repository that fails to update must not stop this one, and no list of the system is thrown away
+UPDATE_ARGS=(-q -o Dir::Etc::sourcelist=sources.list.d/claudio.sources -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0 update)
+# No conffile question can block a run with no terminal: keep the admin's file where one changed.
+# --no-remove: a run anyone in the group starts from a phone may upgrade claudio and pull in what it
+# depends on, but never take another package off the machine to make room for it; such an upgrade
+# fails with apt's reason and is left to an admin
+INSTALL_ARGS=(-q -y --no-remove -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold install --only-upgrade "$PACKAGE")
+
+LOG="$(mktemp)" || exit 1
+trap 'rm -f "$LOG"' EXIT
+
+now() { date -u +%Y-%m-%dT%H:%M:%S.%3NZ; }
+
+installed_version() { dpkg-query -W -f='${Version}' "$PACKAGE" 2>/dev/null || true; }
+
+# A JSON string, or null for an empty value. apt's text may hold quotes, backslashes and control bytes.
+json() {
+  if [ -z "$1" ]; then
+    printf 'null'
+    return
+  fi
+  local s
+  s="$(printf '%s' "$1" | tr -d '\000-\010\013-\037\177' | tr '\t' ' ' | sed -e 's/\\/\\\\/g' -e 's/"/\\"/g' | sed -e ':a' -e 'N' -e '$!ba' -e 's/\n/\\n/g')"
+  printf '"%s"' "$s"
+}
+
+# Written beside the target and renamed, so a reader never sees half a file; world-readable, because
+# the app reading it runs as the person
+write_status() {
+  local result="$1" to="$2" ended="$3" code="$4" error="$5" tmp
+  mkdir -p "$STATE_DIR" && chmod 0755 "$STATE_DIR" || return 0
+  tmp="$(mktemp "$STATE_DIR/.status.XXXXXX")" || return 0
+  printf '{"result":%s,"from":%s,"to":%s,"startedAt":%s,"endedAt":%s,"code":%s,"error":%s}\n' \
+    "$(json "$result")" "$(json "$FROM")" "$(json "$to")" "$(json "$STARTED")" "$(json "$ended")" \
+    "$(json "$code")" "$(json "$error")" > "$tmp"
+  if ! { chmod 0644 "$tmp" && mv -f "$tmp" "$STATUS"; }; then
+    rm -f "$tmp"
+  fi
+}
+
+fail() {
+  local code="$1" error="$2"
+  echo "claudio-update: $error" >&2
+  write_status failed "$(installed_version)" "$(now)" "$code" "$error"
+  exit 1
+}
+
+# Runs apt-get with the arguments given, retrying while another process holds one of apt's locks.
+# Answers apt-get's status; 75 when the lock never came free.
+apt_locked=75
+apt() {
+  local try=1 status
+  while :; do
+    apt-get "$@" > "$LOG" 2>&1
+    status=$?
+    cat "$LOG"
+    [ "$status" -eq 0 ] && return 0
+    if ! grep -q -E 'Could not get lock|Unable to acquire the dpkg frontend lock|Unable to lock' "$LOG"; then
+      return "$status"
+    fi
+    [ "$try" -ge "$LOCK_TRIES" ] && return "$apt_locked"
+    try=$((try + 1))
+    sleep "$LOCK_PAUSE"
+  done
+}
+
+# apt's last error lines, which carry its reason, or its last lines when it printed none
+apt_error() {
+  local lines
+  lines="$(grep -E '^(E|W): ' "$LOG" | tail -n 5)"
+  [ -n "$lines" ] || lines="$(tail -n 3 "$LOG")"
+  [ -n "$lines" ] || lines="apt-get failed and printed nothing"
+  printf '%s' "$lines"
+}
+
+FROM="$(installed_version)"
+STARTED="$(now)"
+write_status installing "" "" "" ""
+
+# Without the source, apt would resolve the upgrade against stale lists and report success
+[ -f "$SOURCE" ] || fail update.source-missing "$SOURCE is missing, so there is no repository to update from"
+
+apt "${UPDATE_ARGS[@]}"
+case $? in
+  0) ;;
+  "$apt_locked") fail update.apt-locked "another package manager held apt's lock for too long" ;;
+  *) fail update.apt-failed "$(apt_error)" ;;
+esac
+
+apt "${INSTALL_ARGS[@]}"
+case $? in
+  0) ;;
+  "$apt_locked") fail update.apt-locked "another package manager held apt's lock for too long" ;;
+  *) fail update.apt-failed "$(apt_error)" ;;
+esac
+
+TO="$(installed_version)"
+if [ "$TO" = "$FROM" ]; then
+  write_status up-to-date "$TO" "$(now)" "" ""
+else
+  write_status installed "$TO" "$(now)" "" ""
+fi
+exit 0

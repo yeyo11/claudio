@@ -13,6 +13,8 @@ const SOURCE = readFileSync(path.join(WEB, 'boot-guard.js'), 'utf8');
 const STRINGS = bootStrings(WEB);
 
 class FakeElement {
+  /** A text node is an element with no tag: `textOf` reads it */
+  isText = false;
   className = '';
   textContent = '';
   type = '';
@@ -49,6 +51,14 @@ class Tab {
   language: string | null = null;
   languages = ['en-US'];
   now = 1_000_000;
+  /** `navigator.onLine`; unset like a browser that does not say */
+  onLine: boolean | undefined;
+  /** The probe of the health route; absent, the guard has no way to ask and says what it always said */
+  fetcher: ((url: string) => Promise<unknown>) | undefined;
+  probes: string[] = [];
+  host = '192.168.0.28:8797';
+  /** Timers with a delay wait here until a test runs them; `setTimeout(fn, 0)` is the document's tick and runs at once */
+  delayed: Array<() => void> = [];
 
   /** Loads a document; `boots` says whether its module graph loaded and the app's first module ran. */
   load({ boots }: { boots: boolean }) {
@@ -72,12 +82,21 @@ class Tab {
     const win: Record<string, unknown> & { __claudioBooted?: () => void } = {
       sessionStorage: storage(this.session),
       localStorage: storage(local),
-      navigator: { languages: this.languages, language: this.languages[0] },
-      location: { reload: () => void this.reloads++ },
-      setTimeout: (fn: () => void) => fn(),
+      navigator: { languages: this.languages, language: this.languages[0], ...(this.onLine === undefined ? {} : { onLine: this.onLine }) },
+      location: { reload: () => void this.reloads++, host: this.host },
+      setTimeout: (fn: () => void, ms?: number) => (ms ? void this.delayed.push(fn) : fn()),
+      ...(this.fetcher
+        ? {
+            fetch: (url: string) => {
+              this.probes.push(url);
+              return this.fetcher?.(url);
+            },
+          }
+        : {}),
       document: {
         getElementById: (id: string) => (id === 'root' ? root : null),
         createElement: (tag: string) => new FakeElement(tag),
+        createTextNode: (text: string) => Object.assign(new FakeElement('#text'), { textContent: text, isText: true }),
         addEventListener: (type: string, listener: () => void) => {
           if (type === 'DOMContentLoaded') ready = listener;
         },
@@ -163,11 +182,101 @@ test('the fallback speaks the stored language, then the browser’s', () => {
 test('the build inlines the guard where index.html marks it, with the locales’ words, and refuses a page without the marker', () => {
   const html = readFileSync(path.join(WEB, 'index.html'), 'utf8');
   assert.ok(html.indexOf(BOOT_GUARD_MARKER) < html.indexOf('<script type="module"'), 'the guard comes before the app');
-  const script = bootGuardScript(SOURCE, { en: { title: '</script>', hint: 'h', action: 'a' }, es: STRINGS.es });
+  const script = bootGuardScript(SOURCE, { en: { ...STRINGS.en, title: '</script>' }, es: STRINGS.es });
   const page = injectBootGuard(html, script);
   assert.ok(!page.includes(BOOT_GUARD_MARKER));
   assert.equal(page.match(/<\/script>/g)?.length, (html.match(/<\/script>/g)?.length ?? 0) + 1, 'no string closes the element early');
   assert.match(page, /\(window, \{"en":/);
   assert.throws(() => injectBootGuard('<html></html>', script), /no <!-- boot-guard -->/);
   assert.deepEqual(STRINGS.es.action, 'Recargar');
+});
+
+const settle = () => new Promise((resolve) => setImmediate(resolve));
+const textOf = (el: FakeElement | undefined) =>
+  el
+    ?.all()
+    .filter((node) => node.isText || node.children.length === 0)
+    .map((node) => node.textContent)
+    .join('');
+
+/** The tab that failed once already, so its next failure is the one that shows the fallback */
+async function secondFailure(setup: (tab: Tab) => void) {
+  const tab = new Tab();
+  tab.load({ boots: false });
+  setup(tab);
+  const { root } = tab.load({ boots: false });
+  await settle();
+  return { tab, root };
+}
+
+test('a bundle that failed to load with no network says there is no connection, in the screen’s words', async () => {
+  const { root } = await secondFailure((tab) => {
+    tab.onLine = false;
+    tab.fetcher = () => Promise.reject(new TypeError('Failed to fetch'));
+  });
+  const fallback = fallbackOf(root);
+  assert.ok(fallback);
+  const texts = fallback.all().map((el) => el.textContent);
+  assert.ok(texts.includes(STRINGS.en.offline.title) && texts.includes(STRINGS.en.offline.hint));
+  assert.equal(STRINGS.es.offline.title, 'Sin conexión');
+  assert.equal(fallback.all().find((el) => el.tag === 'button')?.textContent, STRINGS.en.offline.action);
+});
+
+test("with no network, a server that still answers (the desktop app's own, on 127.0.0.1) means the bundle is broken", async () => {
+  const { tab, root } = await secondFailure((t) => {
+    t.onLine = false;
+    t.fetcher = () => Promise.resolve({ ok: true });
+  });
+  assert.deepEqual(tab.probes, ['/api/health'], 'offline is no reason to skip the probe');
+  const fallback = fallbackOf(root);
+  assert.ok(fallback);
+  assert.ok(fallback.all().some((el) => el.textContent === STRINGS.en.title), 'the bundle’s own words, not "no connection"');
+});
+
+test('a bundle that failed because the server does not answer names the address in mono', async () => {
+  const { tab, root } = await secondFailure((t) => {
+    t.fetcher = () => Promise.reject(new TypeError('Failed to fetch'));
+  });
+  assert.deepEqual(tab.probes, ['/api/health']);
+  const fallback = fallbackOf(root);
+  assert.ok(fallback);
+  assert.ok(fallback.all().some((el) => el.textContent === STRINGS.en.unreachable.title));
+  const mono = fallback.all().find((el) => el.className === 'mono');
+  assert.equal(mono?.textContent, '192.168.0.28:8797');
+  assert.match(textOf(fallback) ?? '', /192\.168\.0\.28:8797 isn't answering\./);
+  const button = fallback.all().find((el) => el.tag === 'button');
+  assert.equal(button?.textContent, STRINGS.en.unreachable.action);
+  button?.click();
+  assert.equal(tab.reloads, 2, 'the person’s retry reloads');
+});
+
+test('the same words in Spanish', async () => {
+  const { root } = await secondFailure((t) => {
+    t.language = 'es';
+    t.fetcher = () => Promise.reject(new TypeError('Failed to fetch'));
+  });
+  const fallback = fallbackOf(root);
+  assert.ok(fallback?.all().some((el) => el.textContent === 'No se puede contactar con Claudio'));
+  assert.match(textOf(fallback) ?? '', /No llega a 192\.168\.0\.28:8797\. Si estás fuera de casa, activa Tailscale/);
+});
+
+test('a server that answers the probe means the files are what is broken: the bundle’s own words', async () => {
+  const { root } = await secondFailure((t) => {
+    t.fetcher = () => Promise.resolve({ ok: true });
+  });
+  const fallback = fallbackOf(root);
+  assert.ok(fallback);
+  assert.ok(fallback.all().some((el) => el.textContent === STRINGS.en.title));
+  assert.equal(fallback.all().find((el) => el.tag === 'button')?.textContent, STRINGS.en.action);
+});
+
+test('a probe that hangs does not leave the page blank: after its wait the server is taken as out of reach', async () => {
+  const tab = new Tab();
+  tab.load({ boots: false });
+  tab.fetcher = () => new Promise(() => {});
+  const { root } = tab.load({ boots: false });
+  await settle();
+  assert.equal(fallbackOf(root), undefined, 'still waiting for the probe');
+  tab.delayed.forEach((fn) => fn());
+  assert.ok(fallbackOf(root)?.all().some((el) => el.textContent === STRINGS.en.unreachable.title));
 });

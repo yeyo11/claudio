@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { createHash, generateKeyPairSync, type KeyObject, sign } from 'node:crypto';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, test } from 'node:test';
@@ -61,26 +61,71 @@ Architectures: amd64
 Signed-By: /usr/share/keyrings/claudio-archive-keyring.gpg`;
 
 /**
- * The apt part of a maintainer script (from its marker on), with the system paths moved under `root`
- * so the real script runs without root. Signed-By, inside the source it writes, keeps the real path.
+ * Claudio's part of a maintainer script (from its apt marker on: the apt repository, then the update
+ * unit), with the system paths moved under `root` so the real script runs without root. Signed-By,
+ * inside the source it writes, keeps the real path.
  */
 function aptPart(script: string, root: string): string {
   const marker = "# --- Claudio's apt repository";
   assert.ok(script.includes(marker), 'the apt part is marked');
+  assert.ok(script.indexOf("# --- Claudio's update unit") > script.indexOf(marker), 'the update unit part comes after it');
   const part = script.slice(script.indexOf(marker))
     .replaceAll('/etc/apt/sources.list.d', `${root}/etc/apt/sources.list.d`)
+    .replaceAll('/etc/apt/preferences.d', `${root}/etc/apt/preferences.d`)
     .replaceAll('/etc/default', `${root}/etc/default`)
-    .replace('CLAUDIO_KEYRING=/usr/share/keyrings', `CLAUDIO_KEYRING=${root}/usr/share/keyrings`);
+    .replace('CLAUDIO_KEYRING=/usr/share/keyrings', `CLAUDIO_KEYRING=${root}/usr/share/keyrings`)
+    .replaceAll('/run/systemd/system', `${root}/run/systemd/system`)
+    .replaceAll('/usr/share/polkit-1/rules.d', `${root}/usr/share/polkit-1/rules.d`)
+    .replaceAll('/var/lib/claudio-update', `${root}/var/lib/claudio-update`);
   return `#!/bin/bash\n${part}`;
 }
 
+/**
+ * groupadd, usermod, groupdel, getent and systemctl for a fake root: they read and write
+ * `root/etc/group` and `root/etc/passwd` and log each call to `root/calls`. They come first on PATH,
+ * so no test ever touches the machine's own accounts or systemd.
+ */
+function stubSystem(root: string): string {
+  const bin = join(root, 'stub-bin');
+  mkdirSync(bin, { recursive: true });
+  mkdirSync(join(root, 'etc'), { recursive: true });
+  for (const db of ['group', 'passwd']) if (!existsSync(join(root, 'etc', db))) writeFileSync(join(root, 'etc', db), '');
+  const stubs: Record<string, string> = {
+    getent: `file="${root}/etc/$1"
+[ -f "$file" ] || exit 2
+field=1
+if [ "$1" = passwd ] && [[ "$2" =~ ^[0-9]+$ ]]; then field=3; fi
+awk -F: -v f="$field" -v k="$2" '$f == k { print; found = 1 } END { exit !found }' "$file" || exit 2`,
+    groupadd: `echo "groupadd $*" >> "${root}/calls"
+[ -z "$FAIL_GROUPADD" ] || exit 10
+name="\${*: -1}"
+if grep -q "^$name:" "${root}/etc/group"; then exit 9; fi
+echo "$name:x:999:" >> "${root}/etc/group"`,
+    usermod: `echo "usermod $*" >> "${root}/calls"
+[ "$1 $2" = "-a -G" ] || exit 2
+awk -F: -v OFS=: -v g="$3" -v u="$4" '$1 == g { $4 = ($4 == "" ? u : $4 "," u) } { print }' "${root}/etc/group" > "${root}/group.new"
+mv "${root}/group.new" "${root}/etc/group"`,
+    groupdel: `echo "groupdel $*" >> "${root}/calls"
+grep -q "^$1:" "${root}/etc/group" || exit 6
+grep -v "^$1:" "${root}/etc/group" > "${root}/group.new"
+mv "${root}/group.new" "${root}/etc/group"`,
+    systemctl: `echo "systemctl $*" >> "${root}/calls"`,
+  };
+  for (const [name, body] of Object.entries(stubs)) {
+    writeFileSync(join(bin, name), `#!/bin/bash\n${body}\n`);
+    chmodSync(join(bin, name), 0o755);
+  }
+  return bin;
+}
+
 let scripts = 0;
-/** Runs a maintainer script's apt part as dpkg would, with `arg`; answers its stdout and stderr */
+/** Runs a maintainer script's Claudio part as dpkg would, with `arg`; answers its stdout and stderr */
 function runScript(script: string, root: string, arg: string, env: Record<string, string> = {}): string {
   scripts += 1;
   const file = join(root, `script-${String(scripts)}.sh`);
   writeFileSync(file, aptPart(script, root));
-  const run = spawnSync('bash', [file, arg], { env: { PATH: process.env.PATH ?? '/usr/bin:/bin', ...env }, encoding: 'utf8' });
+  const path = `${stubSystem(root)}:${process.env.PATH ?? '/usr/bin:/bin'}`;
+  const run = spawnSync('bash', [file, arg], { env: { PATH: path, ...env }, encoding: 'utf8' });
   assert.equal(run.status, 0, `${arg}: ${run.stderr}`);
   rmSync(file);
   return run.stdout + run.stderr;
@@ -178,16 +223,122 @@ test('postinst writes no source when the keyring is missing, which would break e
   assert.equal(existsSync(source), false);
 });
 
-test('postrm removes the source on remove and purge, /etc/default/claudio on purge, and nothing on upgrade', () => {
+test('postrm removes the source on remove and purge, /etc/default/claudio and the apt pin on purge, and nothing on upgrade', () => {
   const { root, source, defaults } = packageRoot();
+  // The pin is a file of the package (a conffile): dpkg puts it there, not the postinst
+  const pin = join(root, 'etc/apt/preferences.d/claudio.pref');
+  mkdirSync(dirname(pin), { recursive: true });
+  writeFileSync(pin, read('build/linux/claudio.pref'));
   runScript(postinst, root, 'configure');
   runScript(postrm, root, 'upgrade');
-  assert.ok(existsSync(source) && existsSync(defaults), 'an upgrade keeps both');
+  assert.ok(existsSync(source) && existsSync(defaults) && existsSync(pin), 'an upgrade keeps all three');
   runScript(postrm, root, 'remove');
   assert.equal(existsSync(source), false);
   assert.ok(existsSync(defaults), 'remove keeps /etc/default/claudio');
+  assert.ok(existsSync(pin), 'remove keeps the pin, like any conffile');
   runScript(postrm, root, 'purge');
   assert.equal(existsSync(defaults), false);
+  assert.equal(existsSync(pin), false, 'purge removes the pin');
+});
+
+// --- The update unit's group (docs/plans/remote-updates.md, D2) ---
+
+/** A fake root with two people, a running systemd and the files the package ships */
+function unitRoot(): { root: string; group: () => string; calls: () => string[]; rule: string; state: string } {
+  const { root } = packageRoot();
+  mkdirSync(join(root, 'etc'), { recursive: true });
+  writeFileSync(join(root, 'etc/passwd'), 'root:x:0:0::/root:/bin/bash\nalice:x:1000:1000::/home/alice:/bin/bash\nbob:x:1001:1001::/home/bob:/bin/bash\n');
+  writeFileSync(join(root, 'etc/group'), 'root:x:0:\nsudo:x:27:alice\n');
+  mkdirSync(join(root, 'run/systemd/system'), { recursive: true });
+  const rules = join(root, 'usr/share/polkit-1/rules.d');
+  mkdirSync(rules, { recursive: true });
+  const rule = join(rules, '50-claudio-update.rules');
+  writeFileSync(rule, read('build/linux/50-claudio-update.rules'));
+  const state = join(root, 'var/lib/claudio-update');
+  mkdirSync(state, { recursive: true });
+  writeFileSync(join(state, 'status.json'), '{}\n');
+  const callsFile = join(root, 'calls');
+  return {
+    root,
+    rule,
+    state,
+    group: () => readFileSync(join(root, 'etc/group'), 'utf8').split('\n').find((line) => line.startsWith('claudio-update:')) ?? '',
+    calls: () => (existsSync(callsFile) ? readFileSync(callsFile, 'utf8').split('\n').filter(Boolean) : []),
+  };
+}
+
+test('postinst creates the claudio-update group, adds the person behind sudo, reloads systemd, and is idempotent', () => {
+  const { root, group, calls } = unitRoot();
+  assert.match(runScript(postinst, root, 'configure', { SUDO_USER: 'alice' }), /alice may now update Claudio from the app, from their next login on/);
+  assert.equal(group(), 'claudio-update:x:999:alice');
+  assert.deepEqual(calls(), ['groupadd --system claudio-update', 'usermod -a -G claudio-update alice', 'systemctl --system daemon-reload']);
+
+  // Every upgrade runs configure again: no second group, no second membership
+  runScript(postinst, root, 'configure', { SUDO_USER: 'alice' });
+  assert.equal(group(), 'claudio-update:x:999:alice');
+  assert.deepEqual(calls().slice(3), ['systemctl --system daemon-reload']);
+
+  // Someone else installing later joins beside the first
+  runScript(postinst, root, 'configure', { PKEXEC_UID: '1001' });
+  assert.equal(group(), 'claudio-update:x:999:alice,bob');
+});
+
+test('postinst adds the user behind pkexec, and nobody for root, an unknown account or no installer at all', () => {
+  const pkexec = unitRoot();
+  runScript(postinst, pkexec.root, 'configure', { PKEXEC_UID: '1001' });
+  assert.equal(pkexec.group(), 'claudio-update:x:999:bob');
+
+  const both = unitRoot();
+  runScript(postinst, both.root, 'configure', { SUDO_USER: 'alice', PKEXEC_UID: '1001' });
+  assert.equal(both.group(), 'claudio-update:x:999:alice', 'SUDO_USER first');
+
+  // The update unit's own upgrade runs as root with neither, and must add nobody
+  const nobody: Record<string, string>[] = [{}, { SUDO_USER: 'root' }, { PKEXEC_UID: '0' }, { SUDO_USER: 'ghost' }, { PKEXEC_UID: '4242' }, { SUDO_USER: 'alice:x' }];
+  for (const env of nobody) {
+    const fake = unitRoot();
+    runScript(postinst, fake.root, 'configure', env);
+    assert.equal(fake.group(), 'claudio-update:x:999:', JSON.stringify(env));
+    assert.ok(!fake.calls().some((call) => call.startsWith('usermod')), JSON.stringify(env));
+  }
+});
+
+test('postinst survives a groupadd that fails, skips the reload without systemd, and does nothing on abort-*', () => {
+  const failing = unitRoot();
+  assert.match(runScript(postinst, failing.root, 'configure', { SUDO_USER: 'alice', FAIL_GROUPADD: '1' }), /could not create the claudio-update group/);
+  assert.equal(failing.group(), '');
+  assert.ok(!failing.calls().some((call) => call.startsWith('usermod')));
+
+  const chroot = unitRoot();
+  rmSync(join(chroot.root, 'run/systemd/system'), { recursive: true });
+  runScript(postinst, chroot.root, 'configure', { SUDO_USER: 'alice' });
+  assert.equal(chroot.group(), 'claudio-update:x:999:alice');
+  assert.ok(!chroot.calls().some((call) => call.startsWith('systemctl')));
+
+  const aborted = unitRoot();
+  runScript(postinst, aborted.root, 'abort-upgrade', { SUDO_USER: 'alice' });
+  assert.deepEqual(aborted.calls(), []);
+});
+
+test('postrm keeps the group and the rule on upgrade, removes both on remove, the status on purge, and runs twice cleanly', () => {
+  const { root, group, calls, rule, state } = unitRoot();
+  runScript(postinst, root, 'configure', { SUDO_USER: 'alice' });
+  const configured = calls().length;
+
+  runScript(postrm, root, 'upgrade');
+  assert.equal(group(), 'claudio-update:x:999:alice', 'an upgrade keeps the members');
+  assert.ok(existsSync(rule) && existsSync(state));
+  assert.equal(calls().length, configured);
+
+  runScript(postrm, root, 'remove');
+  assert.equal(group(), '');
+  assert.equal(existsSync(rule), false);
+  assert.ok(existsSync(state), 'remove keeps the last outcome');
+  assert.deepEqual(calls().slice(configured), ['groupdel claudio-update', 'systemctl --system daemon-reload']);
+
+  // purge after remove: the group is gone already, so no groupdel and no failure
+  runScript(postrm, root, 'purge');
+  assert.equal(existsSync(state), false);
+  assert.deepEqual(calls().slice(configured + 2), ['systemctl --system daemon-reload']);
 });
 
 /** One of install.sh's functions, with the file sourced under CLAUDIO_INSTALL_LIB=1 */

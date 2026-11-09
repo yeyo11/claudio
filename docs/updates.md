@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-09T12:00:00Z
 tags:
     - updates
     - docker
@@ -9,6 +9,8 @@ tags:
     - claude-code
     - desktop
     - apt
+    - polkit
+    - systemd
 ---
 # Updating Claudio and Claude Code from the app
 
@@ -32,6 +34,7 @@ the plans are [plans/container-polish.md](plans/container-polish.md) and
 | `CLAUDIO_LAUNCHER` | `1` | `desktop` |
 | A newer shell is needed (`minImage` / `minShell`) | new image: host commands | new desktop app: the Desktop app zone ([desktop.md](desktop.md#updating)) |
 | Who may ask | an owner token or OIDC actor | the same, and the shell's per-launch desktop credential, for the four update writes only |
+| The shell's own update | new image: host commands | AppImage swap, or the `.deb` through [the update unit](#the-desktop-app-package-the-update-unit-and-restart) |
 
 **The same tarball serves both.** The container runs `api.mjs`; the desktop runs `server.mjs`. Both
 native modules (`node-pty`, `@number0/iroh`) are N-API prebuilds, so a bundle built in the image's
@@ -133,6 +136,138 @@ restart of any kind, since the trial is set at download time.
 **Going back.** On an overlay, *Go back to the image's version* (`POST /system/server-update/revert`)
 restarts onto `/app` (on the desktop, the shell's bundled payload), with the same live-work question. Open terminals count as live work (`LiveWork.terminals`), because a restart ends every shell.
 
+## The desktop app package: the update unit and restart
+
+The payload above updates in-app on its own. The **shell** (the `.deb`: Electron, the guard, the keys)
+cannot, because only root replaces it. Nothing upgrades it unattended either: on a stock Ubuntu,
+`unattended-upgrades` allows only Ubuntu's origins and the repository's `Origin` is `Claudio`, and
+every `claudio` upgrade in the owner's `/var/log/apt/history.log` was a `sudo apt-get install`. So
+the `.deb` ships its own root helper, and the person starts it from Settings → General → Updates on
+**any device**: the desktop window, a browser, a phone
+([plans/remote-updates.md](plans/remote-updates.md), decisions D1–D5, D8).
+
+**The unit.** `claudio-update.service` is a root `Type=oneshot` unit, never enabled (no `[Install]`).
+Its `ExecStart` is `/usr/lib/claudio/claudio-update` with no argument, and the script reads no
+argument, no environment variable and no file a user can write. It runs
+`apt-get update` limited to `/etc/apt/sources.list.d/claudio.sources` (the same options as
+`scripts/install.sh`, so no other list is touched or cleaned), then
+`apt-get install -y --no-remove --only-upgrade claudio` with `DEBIAN_FRONTEND=noninteractive` and the
+admin's existing config files kept. `--no-remove` means a run started from a phone may upgrade
+`claudio` and install what it needs, but never takes another package off the machine to make room;
+such an upgrade fails with apt's reason and is left to an admin. When another apt holds the lock it retries every 5 s up to 60 times,
+then fails with `update.apt-locked`. `StartLimitBurst=4` per 600 s makes a fifth start fail with
+`start-limit-hit` instead of hammering apt, and a run is cut at 30 minutes. It writes
+`/var/lib/claudio-update/status.json` (root-owned, 0644, atomically):
+
+```json
+{"result":"installing|installed|up-to-date|failed","from":"0.14.2","to":"0.15.0","startedAt":"…Z","endedAt":"…Z","code":null,"error":null}
+```
+
+`code` is `update.apt-locked`, `update.apt-failed` or `update.source-missing` (the source file was
+removed, so apt would otherwise "succeed" against stale lists). The contract declares every reason
+code, `update.source-missing`, `update.start-limited` and `update.unit-failed` included, and a web
+test fails to compile when a code has no words on the card. While it works `result` is
+`installing`, with `to` and `endedAt` `null`.
+
+The server also reads systemd's `Result` for the unit. `start-limit-hit` is `failed` with
+`update.start-limited`: the refused start ran nothing, so the status file still describes the run
+before it and must not be shown as this one's outcome. Any other failed run the status file does
+not describe (a timeout, a signal, out of memory, the script dying before it wrote) is `failed` with
+`update.unit-failed`. A code in the file that the contract does not declare reads as
+`update.apt-failed`.
+
+**The pin.** The package ships `/etc/apt/preferences.d/claudio.pref`, a conffile (kept on remove,
+deleted on purge): `claudio` from `release o=Claudio` (the repository's `Origin`) at 990, and
+`claudio` from `origin *`, every other repository, at -1. So apt, the unit's helper or the system's
+own updater never install a package named `claudio` from another source. 990 is below 1000, so the
+pin never downgrades. `origin *` leaves dpkg's status alone, so a version installed by hand keeps
+its candidate and still upgrades from Claudio's repository.
+
+**The trigger.** `GET /system/desktop-update` returns a `DesktopUpdateStatus` and
+`POST /system/desktop-update` starts the unit. The server runs
+`systemctl start --no-block --no-ask-password claudio-update.service` **as its own user**, never
+through `pkexec` or `sudo`; polkit allows it for the members of the group `claudio-update`
+([security-model.md](security-model.md#the-desktop-update-unit)). It reads the state with
+`systemctl show` and the status file, and sends `desktop-update.changed` on `/events` at every
+change (module `packages/core/src/updates/desktop-update.ts`, whose `systemctl` is injected, so no
+test touches the system). The card reads the status once when it opens and `desktop-update.changed` refetches it (`events.ts`);
+it does not poll. The states:
+
+| `state` | Meaning | Card |
+| --- | --- | --- |
+| `unavailable` | No unit: not a `.deb`, or a package older than the unit (`412 update.unit-missing`) | says how to get the update service, links the release page (an information alert, not a warning) |
+| `needs-login` | The unit is there but polkit refused the start (`403 update.needs-login`) | explains the one log-out and log-in |
+| `idle`, `installing`, `up-to-date`, `failed` | the unit's last run | **Update the desktop app**, "Updating…", the reason from its code, **Try again** (the green "Up to date" tag is hidden while a newer Claudio exists) |
+| `installed` | the package is newer than the running shell (`restartNeeded`) | **Restart** |
+
+A start while one runs is `409 update.busy`; any other refusal from systemd is
+`500 update.start-failed`. Both routes are for the **owner** from any device (`token:*`, OIDC, or the
+servers feature's `server:*` actor): `403 update.needs-auth` under `mode: none`,
+`403 update.not-owner` otherwise. The desktop credential is **not** accepted on them, so the four
+update writes above stay the only thing it opens.
+
+**Restart, on confirmation.** Nothing restarts by itself after the package upgrade. The card shows
+the installed version and **Restart** in a dialog; `POST /system/restart` takes
+`{ whenIdle?: boolean }` and answers `{ scheduled: 'now' | 'when-idle' }`.
+
+- With chats, orchestrations or terminals live it answers `409 update.live-work` (with the counts)
+  unless `whenIdle` is set; the card then offers **Restart when nothing is running**, checked every
+  15 s like the payload's.
+- The server exits with **76** (`RELAUNCH_EXIT_CODE`, beside the payload's 75). The desktop shell
+  turns it into `app.relaunch()`, so the whole app starts from the binary now on disk. A shell that
+  predates 76 gets 75, which relaunches once it saw apt replace the package. With no desktop shell at
+  all (`CLAUDIO_LAUNCHER` is not `desktop`) the answer is `412 update.no-shell`.
+- A payload trial that exits with 76 **after** it proved itself (answered its health check) is not a
+  failed boot. One that exits with 76 **before** it proved itself spends an attempt like any other
+  boot that never answered (`TRIAL_ATTEMPTS` = 2, then the version goes into `bad` and the rollback is
+  recorded), because a bundle that asked for a relaunch before it was healthy would otherwise relaunch
+  the app forever and never be rolled back.
+- While the server is gone the web shows **Restarting Claudio…** instead of the unreachable screen's
+  failure words (see [pwa.md](pwa.md#when-the-server-cannot-be-reached)). The card calls
+  `expectRestart()` once `POST /system/restart` answers `scheduled: 'now'`; a restart scheduled for
+  when nothing is running does not, because the server goes down long after the click, so that one
+  shows the plain unreachable screen when it happens.
+
+**No false rollback.** When apt installs the version the overlay already was, or a later one, the
+launcher's `pick()` drops the overlay quietly: no rollback row, no entry in `bad`
+(`packages/core/src/launcher/machine.ts`). It still never boots an overlay that is not newer than the
+base, so the downgrade rule holds. The stale `bad` list and `lastRollback` that earlier false
+rollbacks left (finding 3 of the plan) are cleared the first time a boot reads them.
+
+**Fewer package upgrades to begin with.** A release raises `minShell` when Electron, a native module
+or the launcher changes, which forces this path. D7 of the plan groups those dependency bumps apart
+in Dependabot (Electron and `node-pty` apart, Electron majors left out of the automatic groups) and
+prints a notice in the release PR when a release raises it (`.github/dependabot.yml` and the release
+workflow).
+
+## After an update: stale chunks
+
+A page opened before an update keeps asking for the hashed files of the build it came from, and the
+new server no longer has them. Until 2026-11-08 the server answered every unknown path outside `/api`
+with `index.html` and `200`, so Safari reported "'text/html' is not a valid JavaScript MIME type" in
+each Home widget. Skew protection (D6) has four parts:
+
+- **The API never answers a missing file with the shell.** A path whose last segment has an extension
+  is a plain-text `404`; a navigation to a client route still gets `index.html`, and `/api` keeps its
+  own 404 (`apps/api/src/web-assets.ts`, `app.ts`).
+- **Old assets are served from the builds the launcher keeps.** A miss under `/assets/<name>` is looked
+  up in `<dataDir>/app/<version>/web/assets` of the kept payload versions, newest first, and answered
+  with `Cache-Control: max-age=31536000, immutable` (hashed names never change content). Only flat
+  names and regular files whose real path stays inside that folder qualify. After a `.deb` upgrade the
+  previous build was the base payload and no longer exists, so there the clean 404 and the offer to
+  reload are what remain.
+- **The page recognises the failure.** `CHUNK_ERROR` (`apps/web/src/lib/reload.ts`) knows "is not a
+  valid JavaScript MIME type", and "Load failed" counts only when the same message mentions `import`
+  or `/assets/`, because WebKit uses it for any failed fetch. A bare "Load failed" from an
+  `import()` in Safari is still not detected; that needs a real device to check.
+- **A widget says it, in the person's language.** `WidgetBoundary` hands a chunk error to
+  `noticeStaleChunk` (the reload banner) and shows `shell:reload.stalePageHint`, never the raw
+  English message. The service worker (`public/sw.js`) never paints the shell for a navigation that
+  names a file and drops an asset cached as `text/html`.
+
+A server that cannot be reached at all is a different case, with its own screen:
+[pwa.md](pwa.md#when-the-server-cannot-be-reached).
+
 ## How it is trusted
 
 - **Signing.** Each release carries `claudio-server-<v>-linux-x64.tar.gz`, its manifest `….json`
@@ -209,6 +344,8 @@ The Claude Code CLI updates in-app too, into `/data/cli/<version>/`
 | `/data/app/state.json` | `{ active, previous, trial, attempts, bad, lastRollback, scheduled, rollbackAudited }` |
 | `~/.config/Claudio/data/app/<version>/`, `…/state.json` | the same, on the desktop |
 | `<resources>/keys/*.pub`, `<resources>/shell.json` | the desktop shell's keys and `{ version, shellInputs }` |
+| `/usr/lib/claudio/claudio-update`, `/usr/lib/systemd/system/claudio-update.service`, `/usr/share/polkit-1/rules.d/50-claudio-update.rules` | the update unit's helper, unit and polkit rule, from the `.deb` |
+| `/var/lib/claudio-update/status.json` | the unit's last outcome |
 | `/data/cli/<version>/bin/claude`, `/data/cli/current` | an installed CLI and the link to the one in use |
 
 `CLAUDIO_SERVER_UPDATE`, `CLAUDIO_BUNDLE_KEYS_DIR`, `CLAUDIO_LAUNCHER` and `CLAUDIO_APP_DIR` are in
@@ -228,9 +365,9 @@ launch. These are for the shell, not for setting by hand. The routes are in
 - A release that changed the OS layer, Node or the native modules needs a new image.
 - Without a public key in the image the card shows host commands (`no-keys`).
 - Tests: `packages/core/test/launcher.test.ts`, `server-update.test.ts`, `cli-install.test.ts`,
-  `apps/api/test/server-update.test.ts`, `apps/desktop/test/{payload,desktop-manifest,switch,updater}.test.ts`, and `e2e/specs/updates.spec.mjs` for the card in a container.
+  `apps/api/test/server-update.test.ts`, `apps/desktop/test/{payload,desktop-manifest,switch,updater,update-unit,packaging}.test.ts`, `packages/core/test/{desktop-update,launcher-machine}.test.ts`, `apps/api/test/{desktop-update,stale-assets}.test.ts`, `apps/web/test/{desktop-unit-view,reload,widget-boundary}.test.tsx`, `packaging/apt/test/roundtrip.sh` (CI only), and `e2e/specs/updates.spec.mjs` for the card in a container.
   The full flow (download, restart, rollback) is checked by the integrator on a real container, not by a spec: it needs a launcher, a key and a signed bundle that the e2e runner does not have.
 
 ## Related
 
-[[deploy.md]] · [[desktop.md]] · [[security-model.md]] · [[configuration.md]] · [[plans/container-polish.md]] · [[plans/unified-updates.md]] · [[plans/app-updates.md]] · [[decisions/container-in-app-updates.md]] · [[decisions/shell-payload-updates.md]]
+[[deploy.md]] · [[desktop.md]] · [[security-model.md]] · [[configuration.md]] · [[plans/container-polish.md]] · [[plans/unified-updates.md]] · [[plans/app-updates.md]] · [[plans/remote-updates.md]] · [[pwa.md]] · [[decisions/container-in-app-updates.md]] · [[decisions/shell-payload-updates.md]]

@@ -155,6 +155,18 @@
     "stalePage": "This page belongs to an older version of Claudio",
     "stalePageHint": "The server was updated. Reload to open the current version."
   },
+  "unreachable": {
+    "offlineTitle": "No connection",
+    "offlineBody": "This device has no internet connection.",
+    "title": "Can't reach Claudio",
+    "body": "<mono>{{address}}</mono> isn't answering. If you're away from home, turn on Tailscale or join your local network.",
+    "retryIn": "Retrying in {{seconds}} s",
+    "retrying": "Retrying…",
+    "retryNow": "Retry now",
+    "restartingTitle": "Restarting Claudio…",
+    "restartingBody": "The server is starting again. This page comes back by itself when it answers.",
+    "restartingWait": "Waiting for the server"
+  },
   "phoneHeader": {
     "back": "Back",
     "more": "More actions",

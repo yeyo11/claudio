@@ -323,6 +323,9 @@ import type {
   SettingState,
   SettingsState,
   StoredDashboardLayout,
+  DesktopUpdateStatus,
+  RestartRequest,
+  RestartResult,
 } from '@claudio/shared';
 import i18n from './i18n';
 import { authHeaders, challengeOf, confirmHubSession, hostRefusalOf, setChallenge, setHostRefusal, withToken } from './lib/auth';
@@ -330,6 +333,7 @@ import { activeBase, HUB_API } from '@claudio/ui/lib/server-scope';
 import { chatKeys, type ChatClient } from '@claudio/chat-ui/lib/context';
 import { useFallbackInterval } from './lib/feed';
 import { mergeRefetchMs } from './lib/merge';
+import { reachability } from './lib/reachability';
 import { askSpendCap, acknowledgeSpend, SPEND_OVERRIDE_HEADER, spendAcknowledged, spendScope } from './lib/spend-cap';
 import { filterKey, normalizeKey, openCount } from './lib/work-items';
 
@@ -454,9 +458,18 @@ export async function requestResponseAt(base: string, path: string, init: CallIn
     }
     // fetch rejects with a bare TypeError ("Failed to fetch", "NetworkError…") when no answer came
     // back at all: the browser's wording, in the browser's language, and nothing a person can act on
-    if (err instanceof TypeError) throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
+    if (err instanceof TypeError) {
+      // One failed call is a suspicion, not a verdict: a probe decides whether the screen takes over.
+      // Fresh: the server may have gone a moment after its last answer, and with the event stream
+      // half-open nothing else would ever ask (calls that fail together share the one probe). Only
+      // the hub is ever dialled from the page: a remote that is down answers through its gateway
+      void reachability.suspect(true);
+      throw new ApiRequestError(i18n.t('common:networkError'), 0, err.message);
+    }
     throw err;
   }
+  // Whatever the status, the server is there
+  reachability.answered();
   if (!res.ok) {
     const text = await res.text();
     let json: unknown = null;
@@ -622,6 +635,9 @@ export function createApi(base: string | (() => string)) {
     applyServerUpdate: (body: ServerUpdateApplyRequest = {}) => request<ServerUpdateStatus>('/system/server-update/apply', { method: 'POST', body }),
     cancelServerUpdate: () => request<ServerUpdateStatus>('/system/server-update/scheduled', { method: 'DELETE' }),
     revertServerUpdate: (body: ServerUpdateApplyRequest = {}) => request<ServerUpdateStatus>('/system/server-update/revert', { method: 'POST', body }),
+    desktopUpdate: (o: ReadOptions = {}) => request<DesktopUpdateStatus>('/system/desktop-update', o),
+    startDesktopUpdate: () => request<DesktopUpdateStatus>('/system/desktop-update', { method: 'POST' }),
+    restartDesktop: (body: RestartRequest = {}) => request<RestartResult>('/system/restart', { method: 'POST', body }),
     installCli: (body: { version?: string } = {}) => request<CliVersionInfo>('/system/cli-version/install', { method: 'POST', body }),
     useImageCli: () => request<CliVersionInfo>('/system/cli-version/install', { method: 'DELETE' }),
     storage: (o: ReadOptions = {}) => request<StorageReport>('/system/storage', o),
@@ -1386,6 +1402,7 @@ export const keys = {
   auth: ['auth'] as const,
   cliVersion: ['cli-version'] as const,
   serverUpdate: ['server-update'] as const,
+  desktopUpdate: ['desktop-update'] as const,
   release: ['release'] as const,
   storage: ['storage'] as const,
   systemLoad: ['system', 'load'] as const,

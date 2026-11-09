@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
 import { createPublicKey, sign } from 'node:crypto';
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { KILL_AFTER_MS, NODE_FILES, run, type Boot, type Running, type RunOptions } from '../src/launcher/machine.ts';
-import { DATA_DIR_LOCKED_EXIT_CODE, EMPTY_STATE, checkOverlay, keyId, loadKeys, parseManifest, readState, writeState, type LauncherState, type PayloadBase } from '../src/launcher/protocol.ts';
+import { DATA_DIR_LOCKED_EXIT_CODE, EMPTY_STATE, RELAUNCH_EXIT_CODE, checkOverlay, keyId, loadKeys, parseManifest, readState, writeState, type LauncherState, type PayloadBase } from '../src/launcher/protocol.ts';
 import { signedManifest, signingKey, writeOverlay, writeTree, type SigningKey } from './bundle-helpers.ts';
 
 // The launcher's machine as the desktop shell drives it (docs/plans/unified-updates.md, D1): no
@@ -53,6 +53,8 @@ interface Script {
   /** What each boot does, in order: its exit code, and whether its trial proves itself */
   boots: { code: number; proves?: boolean; exitsAtOnce?: boolean }[];
   ignoreOverlays?: boolean;
+  /** The shell this launch runs; `SHELL` unless a test upgrades the package under the overlays */
+  base?: PayloadBase;
 }
 
 /** Runs the machine with a fake server per boot; answers the boots it made and what the host saw */
@@ -69,7 +71,7 @@ async function drive(d: Desk, script: Script) {
     now: () => NOW,
     log: (line) => logs.push(line),
     ignoreOverlays: script.ignoreOverlays,
-    base: () => ({ base: SHELL, keys: loadKeys(d.keysDir) }),
+    base: () => ({ base: script.base ?? SHELL, keys: loadKeys(d.keysDir) }),
     start: (boot): Running => {
       const n = booted.push(boot) - 1;
       const step = script.boots[n] ?? { code: 0 };
@@ -145,6 +147,98 @@ test('a trial that exits because another server holds the data directory is not 
   const after = stateOf(d);
   assert.deepEqual(after.bad, [], 'the payload is not at fault');
   assert.equal(after.trial, '0.7.0', 'it is tried again on the next launch');
+});
+
+// docs/plans/remote-updates.md, finding 3 and D5: apt installs the version the overlay in use was
+const shellAt = (version: string): PayloadBase => ({ kind: 'shell', version, shellInputs: 'shell' });
+const stateFile = (d: Desk) => join(d.dataDir, 'app', 'state.json');
+
+test('a package upgrade to the active overlay\'s own version drops the overlay quietly: no rollback, nothing bad', async () => {
+  const d = desk();
+  const dir = overlay(d, '0.14.0');
+  setState(d, { active: '0.14.0', bad: ['0.13.0'] });
+  const result = await drive(d, { base: shellAt('0.14.0'), boots: [{ code: 0 }] });
+  assert.deepEqual(result.booted, [{ dir: d.baseDir, version: '0.14.0', trial: false }], "the package's own payload boots");
+  const after = stateOf(d);
+  assert.equal(after.active, null);
+  assert.deepEqual(after.bad, [], '0.14.0 is not a failed boot, and 0.13.0 is behind the base now');
+  assert.equal(after.lastRollback, null, 'the card has no "0.14.0 did not start" to say');
+  assert.equal(existsSync(dir), false, 'the outrun overlay is collected');
+  assert.ok(!result.logs.some((line) => /refused/.test(line)), result.logs.join('\n'));
+});
+
+test('a staged trial the package upgrade caught up with is dropped the same way, and its attempts reset', async () => {
+  const d = desk();
+  overlay(d, '0.14.0');
+  setState(d, { trial: '0.14.0', attempts: 1 });
+  const result = await drive(d, { base: shellAt('0.14.1'), boots: [{ code: 0 }] });
+  assert.equal(result.booted[0]?.dir, d.baseDir);
+  const after = stateOf(d);
+  assert.deepEqual([after.trial, after.attempts, after.bad, after.lastRollback], [null, 0, [], null]);
+});
+
+test("the owner's stale state.json is cleared once: bad 0.13.0 and 0.14.0 and the rollback from 0.14.0 to 0.14.0", async () => {
+  const d = desk();
+  // The exact shape the owner's data/app/state.json held under the 0.14.2 package
+  const at = '2026-11-01T09:12:44.000Z';
+  setState(d, { bad: ['0.13.0', '0.14.0'], lastRollback: { from: '0.14.0', to: '0.14.0', at }, rollbackAudited: at });
+  await drive(d, { base: shellAt('0.14.2'), boots: [{ code: 0 }] });
+  const after = stateOf(d);
+  assert.deepEqual(after.bad, []);
+  assert.equal(after.lastRollback, null);
+  // Once: a second boot finds nothing to clear and leaves the file as it is
+  const written = readFileSync(stateFile(d), 'utf8');
+  const mtime = statSync(stateFile(d)).mtimeMs;
+  await drive(d, { base: shellAt('0.14.2'), boots: [{ code: 0 }] });
+  assert.equal(readFileSync(stateFile(d), 'utf8'), written);
+  assert.equal(statSync(stateFile(d)).mtimeMs, mtime);
+});
+
+test('a real failure newer than the base keeps its bad entry and its rollback notice', async () => {
+  const d = desk();
+  const rollback = { from: '0.15.0', to: '0.14.2', at: '2026-11-02T10:00:00.000Z' };
+  setState(d, { bad: ['0.14.0', '0.15.0'], lastRollback: rollback });
+  await drive(d, { base: shellAt('0.14.2'), boots: [{ code: 0 }] });
+  const after = stateOf(d);
+  assert.deepEqual(after.bad, ['0.15.0']);
+  assert.deepEqual(after.lastRollback, rollback);
+});
+
+test('a trial cut short by exit 76 (relaunch the app) is tried again by the relaunched app, and the launcher hands 76 to the host', async () => {
+  const d = desk();
+  overlay(d, '0.7.0');
+  setState(d, { trial: '0.7.0' });
+  const result = await drive(d, { boots: [{ code: RELAUNCH_EXIT_CODE, exitsAtOnce: true }] });
+  assert.equal(result.code, RELAUNCH_EXIT_CODE);
+  assert.equal(result.booted.length, 1, 'not started again here: the relaunched app boots it');
+  const after = stateOf(d);
+  assert.deepEqual([after.trial, after.bad, after.lastRollback], ['0.7.0', [], null]);
+});
+
+test('a trial that keeps exiting 76 before it proves itself is rolled back, not relaunched forever', async () => {
+  const d = desk();
+  overlay(d, '0.7.0');
+  setState(d, { trial: '0.7.0' });
+  // Each launch of the app is one drive: the host relaunches on 76 and the next launch boots the trial again
+  const first = await drive(d, { boots: [{ code: RELAUNCH_EXIT_CODE, exitsAtOnce: true }] });
+  assert.equal(first.code, RELAUNCH_EXIT_CODE);
+  const second = await drive(d, { boots: [{ code: RELAUNCH_EXIT_CODE, exitsAtOnce: true }] });
+  assert.equal(second.code, RELAUNCH_EXIT_CODE);
+  const after = stateOf(d);
+  assert.equal(after.trial, null);
+  assert.deepEqual(after.bad, ['0.7.0']);
+  const third = await drive(d, { boots: [{ code: 0 }] });
+  assert.equal(third.booted[0]?.dir, d.baseDir, 'the next launch boots the shell, not the trial');
+});
+
+test('a trial that proved itself and then exits 76 is kept: the restart was asked of a healthy server', async () => {
+  const d = desk();
+  overlay(d, '0.7.0');
+  setState(d, { trial: '0.7.0' });
+  const result = await drive(d, { boots: [{ code: RELAUNCH_EXIT_CODE, proves: true }] });
+  assert.equal(result.code, RELAUNCH_EXIT_CODE);
+  const after = stateOf(d);
+  assert.deepEqual([after.active, after.trial, after.attempts, after.bad], ['0.7.0', null, 0, []]);
 });
 
 test('exit 75 boots again onto what state.json says now', async () => {
