@@ -340,6 +340,8 @@ export class CollabServer {
     const onAbort = (): void => ended();
     sink.signal.addEventListener('abort', onAbort, { once: true });
     if (sink.signal.aborted) ended();
+    // Only now does a change here reach the watcher: until it hears this, its copy is not live
+    sink.frame({ type: 'ack' }).catch(() => ended());
     try {
       await done;
     } finally {

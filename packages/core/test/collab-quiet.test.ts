@@ -17,8 +17,12 @@ import { tempConfig } from './helpers.ts';
  * failure that repeats is logged once too. The peer is a stand-in transport, no network.
  */
 
-/** `serving`: the owner lists `k1`, a pull of it ends with its cursor, and it refuses the `watch` (a share it no longer serves) */
-type Mode = 'forbidden' | 'ok' | 'down' | 'serving';
+/**
+ * `serving`: the owner lists `k1`, a pull of it ends with its cursor, and it refuses the `watch` (a
+ * share it no longer serves). `listening`: the same, but it keeps the `watch` open and acknowledges
+ * it once `heard` resolves, as an owner does once its listeners are subscribed
+ */
+type Mode = 'forbidden' | 'ok' | 'down' | 'serving' | 'listening';
 
 const seedOwner = randomBytes(32);
 const owner = endpointIdFromSeed(seedOwner);
@@ -27,7 +31,7 @@ const genesis = createGenesis({ seed: seedOwner, name: 'Platform', owner: { name
 const chain = [genesis, addMember(genesis, seedOwner, me, { name: 'Ben' })];
 const groupId = genesisGroupId(genesis);
 
-function setup(mode: { now: Mode }, opts: { reconcileMs?: number; refusedMaxMs?: number; config?: ReturnType<typeof tempConfig>; seed?: boolean } = {}) {
+function setup(mode: { now: Mode; heard?: Promise<void> }, opts: { reconcileMs?: number; refusedMaxMs?: number; config?: ReturnType<typeof tempConfig>; seed?: boolean } = {}) {
   const config = opts.config ?? tempConfig();
   const dir = join(config.dataDir, 'collaborators');
   mkdirSync(dir, { recursive: true });
@@ -48,10 +52,17 @@ function setup(mode: { now: Mode }, opts: { reconcileMs?: number; refusedMaxMs?:
           yield { frame: { type: 'error', code: 'forbidden' } };
           return;
         }
+        const serving = mode.now === 'serving' || mode.now === 'listening';
+        if (type === 'watch' && mode.now === 'listening') {
+          await mode.heard;
+          yield { frame: { type: 'ack' } };
+          // Open until the client lets go of it
+          await new Promise<never>(() => undefined);
+        }
         if (type === 'hello') yield { frame: { type: 'hello', heads: { [groupId]: headOf(chain) } } };
-        else if (type === 'catalog' && mode.now === 'serving') yield { frame: { type: 'catalog', groupId, projects: [{ shareKey: 'k1', name: 'api', kinds: ['chats'], counts: {}, versions: { chats: {} } }] } };
+        else if (type === 'catalog' && serving) yield { frame: { type: 'catalog', groupId, projects: [{ shareKey: 'k1', name: 'api', kinds: ['chats'], counts: {}, versions: { chats: {} } }] } };
         else if (type === 'catalog') yield { frame: { type: 'catalog', groupId, projects: [] } };
-        else if (type === 'pull' && mode.now === 'serving') yield { frame: { type: 'cursor', cursor: null } };
+        else if (type === 'pull' && serving) yield { frame: { type: 'cursor', cursor: null } };
         else yield { frame: { type: 'error', code: 'not-found' } };
       })();
     },
@@ -225,6 +236,25 @@ test('a watch the owner refuses waits like any failure before the peer is synced
   // Backing off from 5 ms and doubling, a handful in 400 ms; at once after each refusal, hundreds
   assert.ok(watches >= 1, 'the watch was opened');
   assert.ok(watches <= 12, `the watch was opened ${String(watches)} times`);
+});
+
+test('a copy is live only once its owner acknowledges the watch, and then pulls what changed before it listened', async () => {
+  let hear: () => void = () => undefined;
+  const mode = { now: 'listening' as Mode, heard: new Promise<void>((resolve) => (hear = resolve)) };
+  const { client, asked } = setup(mode, { reconcileMs: 60_000 });
+  const pulls = () => asked.filter((t) => t === 'pull').length;
+  client.setPeers([owner]);
+  await client.idle(owner);
+  assert.equal(asked.at(-1), 'watch', 'the run ended by opening the watch');
+  // The owner has not subscribed yet: a change it makes now reaches nobody, so the copy is not live
+  assert.equal(client.state(owner, 'k1', { path: null }).state, 'synced');
+  assert.equal(pulls(), 1);
+  hear();
+  const deadline = Date.now() + 5_000;
+  while (pulls() < 2 && Date.now() < deadline) await new Promise((r) => setTimeout(r, 10));
+  assert.equal(pulls(), 2, `asked ${JSON.stringify(asked)}: no catch-up pull followed the acknowledgement`);
+  assert.equal(client.state(owner, 'k1', { path: null }).state, 'live');
+  client.stop();
 });
 
 test('when a copy last synced is kept across restarts, and a copy never pulled has no such time', async () => {

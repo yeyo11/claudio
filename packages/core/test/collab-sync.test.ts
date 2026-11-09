@@ -35,12 +35,17 @@ const needsIroh = irohError ? { skip: `@number0/iroh does not load here: ${irohE
 const root = mkdtempSync(join(tmpdir(), 'collab-sync-'));
 const sha = (bytes: string | Uint8Array): string => createHash('sha256').update(bytes).digest('hex');
 
-async function until<T>(what: string, probe: () => T | null | undefined | false | Promise<T | null | undefined | false>, ms = 30_000): Promise<T> {
+async function until<T>(
+  what: string,
+  probe: () => T | null | undefined | false | Promise<T | null | undefined | false>,
+  ms = 30_000,
+  seen?: () => Promise<unknown>,
+): Promise<T> {
   const deadline = Date.now() + ms;
   for (;;) {
     const value = await probe();
     if (value) return value;
-    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}`);
+    if (Date.now() > deadline) throw new Error(`timed out waiting for ${what}${seen ? `; saw ${JSON.stringify(await seen())}` : ''}`);
     await new Promise((r) => setTimeout(r, 50));
   }
 }
@@ -286,9 +291,15 @@ test('three installs: sync of every kind, live, a relayed join, a transfer, a re
 
   // ---- Live: what Ana's agent appends, and a new journal entry, reach Ben by the watch
   await until('the watch is open', async () => (await ben.service.shared()).find((p) => p.shareKey === SHARE_KEY)?.sync.state === 'live');
+  // Live means Ana listens: an event she sends from now on reaches Ben, however slow the watch's way to her was
+  assert.ok(anaListeners.size > 0, 'Ben read his copy as live before Ana subscribed to her events');
   appendFileSync(transcript, '{"n":3}\n');
   anaEvent('sessions.changed');
-  await until('the appended line', () => ben.service.sharedTranscript(anaId, shareId, chatId).total === 3);
+  await until('the appended line', () => ben.service.sharedTranscript(anaId, shareId, chatId).total === 3, 30_000, async () => ({
+    total: ben.service.sharedTranscript(anaId, shareId, chatId).total,
+    sync: (await ben.service.shared()).find((p) => p.shareKey === SHARE_KEY)?.sync,
+    anaListeners: anaListeners.size,
+  }));
   appendFileSync(subagentTranscript, '{"sub":2}\n');
   anaEvent('sessions.changed');
   await until("the subagent's appended line", () => ben.service.sharedTranscript(anaId, shareId, chatId, { agent: subagent }).total === 2);
