@@ -3007,3 +3007,20 @@ a.cont-from:hover { color: var(--fg); }
 .statusbar-server { max-width: 280px; }
 .servers-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; min-width: 0; }
 /* ---------- end of Servers in the shell ---------- */
+/* ---------- Servers (plans/claudio-servers.md §12.1): the list, the dialogs that pair, edit and test, and the sections that let another Claudio connect. Nothing here is live but "Reconnecting" and "Testing" (braille spinner). A status word is `.collab-tone`. The page's one gradient is "Add a server". ---------- */
+.server-status { font-size: var(--fs-small); }
+.server-row-name, .server-hub-name, .server-pair-name { font-weight: var(--fw-strong); }
+.server-row { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; min-width: 0; padding: 14px 0; border-top: 1px solid var(--border); }
+.server-row-main { display: flex; flex: 1 1 160px; flex-direction: column; gap: 4px; min-width: 0; }
+.server-row-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px; margin-left: auto; }
+.server-identity { display: grid; grid-template-columns: auto minmax(0, 1fr) 96px; align-items: end; gap: 12px; }
+.server-colour { display: inline-flex; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: var(--radius); background: transparent; }
+.server-colour.is-on { border-color: var(--accent); }
+.server-colour-tile { width: 28px; height: 28px; }
+.server-address-row { display: grid; grid-template-columns: minmax(0, 1fr) 128px auto; align-items: center; gap: 8px; padding: 4px 0; }
+.server-fingerprint-value, .lan-fingerprint-value { display: flex; flex-wrap: wrap; gap: 4px 10px; font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
+.server-check { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; padding: 10px 0; border-top: 1px solid var(--border); }
+.server-code-value { font-size: var(--fs-title); font-weight: var(--fw-strong); font-variant-numeric: tabular-nums; }
+.server-hub { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 0; border-top: 1px solid var(--border); }
+.server-submit { min-width: 96px; }
+/* ---------- end of Servers ---------- */

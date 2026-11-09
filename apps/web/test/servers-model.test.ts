@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ClaudioServer, ServerStatus } from '@claudio/shared';
-import { nameHue } from '@claudio/ui/components/icons';
 import { RECENT_SERVERS, recentServers, SERVER_COLORS, SERVER_STATUS, serverHue, serverLetters, serverStatus } from '../src/lib/servers-model';
 
 // What the shell draws of a server (docs/plans/claudio-servers.md §12.1): who is listed in the
@@ -44,10 +43,9 @@ test('a server never used comes after the used ones, newest added first, so a ne
 });
 
 test('a mark takes its colour token’s hue, else one worked out from the name, and its own letters else the initials', () => {
-  assert.equal(serverHue({ name: 'Studio', color: 'violet' }), 270);
-  assert.equal(serverHue({ name: 'Studio', color: null }), nameHue('Studio'));
-  assert.equal(serverHue({ name: 'Studio', color: 'chartreuse' }), nameHue('chartreuse'), 'a token this build does not know still gets a stable hue');
-  assert.ok(SERVER_COLORS.includes('blue'));
+  assert.equal(serverHue({ name: 'Studio', color: 'violet' }), SERVER_COLORS.violet);
+  assert.equal(serverHue({ name: 'Studio', color: null }), serverHue({ name: 'Studio', color: 'chartreuse' }), 'no token and an unknown token both fall back to the name');
+  assert.ok('blue' in SERVER_COLORS);
   assert.equal(serverLetters({ name: 'Mac studio', monogram: null }), 'MS');
   assert.equal(serverLetters({ name: 'Mac studio', monogram: 'jg' }), 'JG');
   assert.equal(serverLetters({ name: 'Mac studio', monogram: '  ' }), 'MS', 'a blank monogram is no monogram');

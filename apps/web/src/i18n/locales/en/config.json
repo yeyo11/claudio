@@ -1997,8 +1997,13 @@
       "fromEnv": "Set by {{variable}} where Claudio runs."
     },
     "http": {
-      "title": "Plain HTTP",
-      "body": "Your token travels unencrypted on this network, and a phone gets no app or notifications here. For the phone, use Tailscale below."
+      "title": "HTTPS with a self-signed certificate",
+      "body": "Traffic on this network is encrypted. A phone's browser warns about the certificate and offers no app or notifications here: accept it once after comparing the fingerprint below, or use Tailscale, below, which a phone trusts."
+    },
+    "fingerprint": {
+      "label": "Certificate fingerprint",
+      "hint": "What a browser shows in its certificate warning, and what another Claudio asks you to compare when it pairs with a token.",
+      "copy": "Copy the fingerprint"
     },
     "saveFailed": "Could not save the local network setting",
     "startFailed": "Could not start listening"

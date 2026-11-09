@@ -9,7 +9,7 @@ export function ServerMark({ server, size = 20 }: { server: Pick<ClaudioServer, 
   return <Monogram name={server.name} size={size} letters={serverLetters(server)} hue={serverHue(server)} />;
 }
 
-const TONE_CLASS: Record<ServerTone, string | undefined> = { ok: 'text-ok', warn: 'text-warn', bad: 'text-bad', idle: undefined };
+const TONE_CLASS: Record<ServerTone, string> = { ok: 'text-ok', warn: 'text-warn', bad: 'text-bad' };
 
 /**
  * A server's status as a word, coloured by what it means and never by colour alone. Reconnecting is
