@@ -79,6 +79,7 @@ const TerminalWindow = lazyPage(() => import('./pages/TerminalWindow').then((m) 
 const TerminalScreen = lazyPage(() => import('./pages/Terminals').then((m) => m.TerminalScreen));
 const Projects = lazyPage(() => import('./pages/Projects').then((m) => m.Projects));
 const Collaborators = lazyPage(() => import('./pages/Collaborators').then((m) => m.Collaborators));
+const Servers = lazyPage(() => import('./pages/Servers').then((m) => m.Servers));
 const SharedProjectPage = lazyPage(() => import('./pages/collaborators/SharedProjectPage').then((m) => m.SharedProjectPage));
 const NewProject = lazyPage(() => import('./pages/projects/NewProject').then((m) => m.NewProject));
 const ClaudioAssistant = lazyPage(() => import('./pages/claudio-assistant/Entry').then((m) => m.ClaudioAssistant));
@@ -445,6 +446,7 @@ function Shell() {
               <Route path="/chats/:id" element={<ChatView />} />
               <Route path="/chats/:id/changes" element={<ChatChangesReview />} />
               <Route path="/projects" element={<Projects />} />
+              <Route path="/servers" element={<Servers />} />
               <Route path="/collaborators" element={<Collaborators />} />
               <Route path="/collaborators/shared/:owner/:shareId" element={<SharedProjectPage />} />
               <Route path="/terminals" element={<Terminals />} />

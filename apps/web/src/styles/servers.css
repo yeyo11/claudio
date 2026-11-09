@@ -1,0 +1,392 @@
+/* ==========================================================================
+   Servers (docs/plans/claudio-servers.md §12.1): the list of the other Claudios this one drives, the
+   dialogs that pair, edit and test them, and the sections that let another Claudio connect to this
+   one. Nothing here is an agent working, so no --live, no loop and no energy border; the only thing
+   that moves is the braille spinner beside "Reconnecting" and "Testing". Status colours always sit
+   beside their word and an icon. The one gradient is the page's primary action, drawn by .btn-primary.
+   ========================================================================== */
+
+.servers-page {
+  min-width: 0;
+}
+
+.servers-empty-text {
+  display: block;
+  max-width: 520px;
+}
+
+.servers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.servers-list > h2 {
+  margin: 0;
+}
+
+.server-rows,
+.server-hubs,
+.server-checks,
+.server-address-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* ---------- A status word: its colour, an icon and the word ---------- */
+.server-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+}
+
+.server-status > svg {
+  flex: none;
+}
+
+.server-status.tone-ok {
+  color: var(--ok);
+}
+
+.server-status.tone-warn {
+  color: var(--warn);
+}
+
+.server-status.tone-bad {
+  color: var(--bad);
+}
+
+/* ---------- The list ---------- */
+.server-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px 16px;
+  min-width: 0;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+}
+
+.server-row:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.server-row:last-child {
+  padding-bottom: 0;
+}
+
+.server-row-main {
+  display: flex;
+  flex: 1 1 260px;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.server-row-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.server-row-name {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.server-row-facts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+
+.server-row-address {
+  min-width: 0;
+}
+
+.server-row-why {
+  color: var(--fg-2);
+}
+
+.server-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+/* ---------- Dialogs ---------- */
+.server-identity {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) 96px;
+  align-items: end;
+  gap: 12px;
+}
+
+.server-identity > .server-mark {
+  margin-bottom: 4px;
+}
+
+.server-monogram-input {
+  text-align: center;
+}
+
+.server-colours {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+/* The chosen colour carries a check in its tile as well as the ring: colour alone never says it */
+.server-colour {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  background: transparent;
+  cursor: pointer;
+}
+
+.server-colour.is-on {
+  border-color: var(--accent);
+}
+
+.server-colour:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.server-address-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 128px auto;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.server-address-moves {
+  display: inline-flex;
+  align-items: center;
+}
+
+.server-address-invalid {
+  grid-column: 1 / -1;
+  color: var(--bad);
+}
+
+.server-address-add {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.server-code-input {
+  max-width: 220px;
+}
+
+/* The certificate's groups of four, each kept whole so two can be compared by eye */
+.server-fingerprint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.server-fingerprint-value,
+.lan-fingerprint-value {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  font-size: var(--fs-small);
+  font-variant-numeric: tabular-nums;
+}
+
+.server-compare {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+}
+
+.server-compare.tone-ok {
+  color: var(--ok);
+}
+
+.server-compare.tone-bad {
+  color: var(--bad);
+}
+
+.server-pair-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.server-pair-who {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* ---------- Test connection ---------- */
+.server-test-running {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+
+.server-check {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 12px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.server-check:first-child {
+  border-top: 0;
+}
+
+.server-check-name {
+  flex: 1 1 160px;
+  min-width: 0;
+}
+
+.server-check-why {
+  flex-basis: 100%;
+}
+
+/* ---------- Let another Claudio connect, and the hubs that did ---------- */
+.server-connect {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.server-connect > p {
+  margin: 0;
+}
+
+.server-code {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.server-code > p {
+  margin: 0;
+}
+
+.server-code-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Machine-read, so mono; large because the person reads it aloud or across a room to type it elsewhere */
+.server-code-value {
+  font-size: var(--fs-title);
+  font-weight: var(--fw-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.server-code-value.is-expired {
+  color: var(--fg-3);
+  text-decoration: line-through;
+}
+
+.lan-fingerprint {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.lan-fingerprint-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.lan-fingerprint-value {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.server-hub {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 10px 0;
+  border-top: 1px solid var(--border);
+}
+
+.server-hub:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.server-hub-main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* ---------- Phone: touch targets of 44, inputs of 16, one column ---------- */
+@media (max-width: 900px) {
+  .server-row-actions {
+    margin-left: 0;
+  }
+
+  .server-row-actions .icon-btn,
+  .server-address-moves .icon-btn,
+  .server-colour {
+    min-width: var(--touch);
+    min-height: var(--touch);
+  }
+
+  .server-address-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .server-address-row > .server-address-kind {
+    grid-column: 1;
+  }
+
+  .server-identity {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .server-identity > :last-child {
+    grid-column: 1 / -1;
+  }
+
+  .server-address-input,
+  .server-code-input,
+  .server-monogram-input {
+    font-size: var(--fs-input);
+  }
+}

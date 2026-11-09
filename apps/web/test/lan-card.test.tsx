@@ -91,12 +91,14 @@ test('a listening card lists each address in mono with Copy and QR, and draws no
   assert.doesNotMatch(html, /grad-border/);
 });
 
-test('the notice about plain HTTP is on screen while the card listens, and never behind a click', () => {
+test('the notice about the self-signed certificate is on screen while the card listens, and never behind a click', () => {
   for (const state of ['listening', 'port-in-use', 'failed'] as const) {
     const html = card(status(state));
     assert.match(html, /data-testid="lan-http-notice"/, state);
-    assert.ok(text(html).includes('Plain HTTP'), state);
-    assert.ok(text(html).includes('use Tailscale below'), state);
+    // Since D6 the listener is HTTPS: the card must not call the connection unencrypted
+    assert.ok(text(html).includes('HTTPS with a self-signed certificate'), state);
+    assert.ok(text(html).includes('use Tailscale, below'), state);
+    assert.ok(!/unencrypted|Plain HTTP/.test(text(html)), state);
     assert.doesNotMatch(html, /<details|collapsible/, state);
   }
   // Nothing travels while it is off or refused
@@ -212,4 +214,15 @@ test('every reason the listener gives is worded in both languages', () => {
   for (const code of codes) {
     for (const lang of ['en', 'es']) assert.ok(i18n.exists(`server:lan.${code}`, { lng: lang }), `${lang}: lan.${code}`);
   }
+});
+
+test('a listening card shows the certificate fingerprint in groups of four, in mono, with a copy button', () => {
+  const fingerprint = 'AB:CD:EF:01:23:45:67:89:AB:CD:EF:01:23:45:67:89';
+  const html = card(status('listening', { fingerprint }));
+  assert.match(html, /data-testid="lan-fingerprint"/);
+  assert.match(html, /<code class="mono lan-fingerprint-value break">ABCD EF01 2345 6789 ABCD EF01 2345 6789<\/code>/);
+  assert.match(html, /aria-label="Copy the fingerprint"/);
+  // Nothing to compare while the listener has no certificate, or is not listening
+  assert.doesNotMatch(card(status('listening')), /lan-fingerprint/);
+  assert.doesNotMatch(card(status('off', { fingerprint })), /lan-fingerprint/);
 });
