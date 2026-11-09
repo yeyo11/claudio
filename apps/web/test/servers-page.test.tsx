@@ -1,5 +1,6 @@
 // tsx compiles test files with the classic runtime; this one renders JSX like the app does
 /** @jsxRuntime automatic */
+import { formatDuration } from '@claudio/ui/lib/format';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test, { afterEach } from 'node:test';
@@ -392,9 +393,12 @@ test('while it runs the test shows the verb with the braille spinner and no resu
 // ---------- Let another Claudio connect, and the hubs ----------
 
 test('the pairing code is mono, large, in two groups, with its countdown; once it ends it says so and stops offering Copy', () => {
-  const live = wrap(<CodeView code={{ code: 'ABCDEFGH', expiresAt: new Date(Date.now() + 125_000).toISOString() }} now={Date.now()} onNew={() => {}} pending={false} />);
+  // One clock for both reads, so the countdown is exactly 125 s
+  const now = Date.now();
+  const live = wrap(<CodeView code={{ code: 'ABCDEFGH', expiresAt: new Date(now + 125_000).toISOString() }} now={now} onNew={() => {}} pending={false} />);
   assert.match(live, /<code class="mono server-code-value "[^>]*>ABCD EFGH<\/code>/);
-  assert.ok(text(live).includes('Valid for 2 min 5 s'));
+  // The duration as this Node's ICU writes it: narrow units differ between ICU versions ("2 min" / "2m")
+  assert.ok(text(live).includes(`Valid for ${formatDuration(125_000)}`), text(live));
   assert.ok(text(live).includes('It works once'));
   assert.match(live, /data-testid="server-link-new"/);
   const gone = wrap(<CodeView code={{ code: 'ABCDEFGH', expiresAt: ago(1000) }} now={Date.now()} onNew={() => {}} pending={false} />);
