@@ -446,7 +446,7 @@
   "index [chatUiEn, chatUiEs]",
   "install [Install]",
   "language [LANGUAGES, Language, currentLanguage, defaultLanguage, detectLanguage, intlLocale, storeLanguage]",
-  "layer [LAYER_ATTR, hasOpenLayer, layerCollisionPadding]",
+  "layer [LAYER_ATTR, focusReturn, hasOpenLayer, layerCollisionPadding]",
   "layout [DashboardLayout, DashboardScope, LayoutWidget, WIDGET_SIZES, WidgetRule, WidgetScope, WidgetSize, configCount, fitsScope, layoutOf, validateLayout]",
   "lead [useLeadingAction, workOnItNeutral]",
   "legacy-storage [migrateLegacyStorage]",

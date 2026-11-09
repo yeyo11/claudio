@@ -3,7 +3,7 @@ import { Check, ChevronRight, Ellipsis, type LucideIcon } from 'lucide-react';
 import { useId, useRef, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '../icons';
-import { LAYER_ATTR, layerCollisionPadding } from './layer';
+import { focusReturn, LAYER_ATTR, layerCollisionPadding } from './layer';
 
 export interface MenuItem {
   id: string;
@@ -100,6 +100,7 @@ export function Menu({
   const name = label ?? t('menu.more');
   // How many modal dialogs were open when the menu opened: one more when it closes means an item opened it
   const dialogsAtOpen = useRef(0);
+  const triggerRef = useRef<HTMLButtonElement>(null);
   return (
     <RadixMenu.Root
       onOpenChange={(open) => {
@@ -107,7 +108,7 @@ export function Menu({
         onOpenChange?.(open);
       }}
     >
-      <RadixMenu.Trigger asChild>
+      <RadixMenu.Trigger asChild ref={triggerRef}>
         {trigger ?? (
           <button type="button" className={`icon-btn ${className}`.trim()} aria-label={name} disabled={disabled}>
             <Ellipsis {...ICON_SM} />
@@ -122,7 +123,7 @@ export function Menu({
           sideOffset={6}
           collisionPadding={layerCollisionPadding()}
           aria-label={name}
-          onCloseAutoFocus={(event) => focusOpenedDialog(event, dialogsAtOpen.current)}
+          onCloseAutoFocus={(event) => focusOpenedDialog(event, dialogsAtOpen.current, triggerRef.current)}
           {...LAYER_ATTR}
         >
           <Entries entries={entries} />
@@ -138,13 +139,15 @@ export const modalDialogs = () => [...document.querySelectorAll<HTMLElement>('[r
  * When an item opened a dialog (Edit, Remove), focus belongs in it. Radix hands focus back to the
  * trigger as the menu closes, which is now behind the dialog's backdrop, so a keyboard user would
  * start outside the modal and Tab into the page underneath. The dialog's own first field is focused
- * instead; with no new dialog, Radix's return to the trigger stands.
+ * instead, and the trigger is where the dialog gives focus back when it closes (the item that opened
+ * it is gone by then); with no new dialog, Radix's return to the trigger stands.
  */
-export function focusOpenedDialog(event: Event, before: number) {
+export function focusOpenedDialog(event: Event, before: number, trigger: HTMLElement | null = null) {
   const dialogs = modalDialogs();
   const opened = dialogs.length > before ? dialogs[dialogs.length - 1] : undefined;
   if (!opened) return;
   event.preventDefault();
+  if (trigger) focusReturn.set(opened, trigger);
   if (opened.contains(document.activeElement)) return;
   // The dialog's own choice (Dialog.tsx): its marked field, else the first control after the close button
   const focusable = opened.querySelectorAll<HTMLElement>('a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])');

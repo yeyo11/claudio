@@ -294,7 +294,7 @@
 .server-check {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 2px 12px;
   padding: 10px 0;
   border-top: 1px solid var(--border);

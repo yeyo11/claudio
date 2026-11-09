@@ -1,5 +1,5 @@
 import type { ClaudioServer, ServerCheck, ServerTestResult } from '@claudio/shared';
-import { CircleCheck, CircleX } from 'lucide-react';
+import { CircleCheck, CircleDashed, CircleX } from 'lucide-react';
 import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Dialog } from '@claudio/ui/components/Dialog';
@@ -52,7 +52,11 @@ export function TestResultView({ result, error }: { result: ServerTestResult | n
                   <span>{check.ok ? t('test.ok') : t('test.failed')}</span>
                 </span>
               ) : (
-                <span className="muted small">…</span>
+                // The same shape as the word that replaces it (icon and word), so a row keeps its height
+                <span className="collab-tone server-status muted" aria-hidden>
+                  <CircleDashed {...ICON_SM} />
+                  <span>…</span>
+                </span>
               )}
               {check?.latencyMs !== undefined && <span className="small muted tnum">{t('test.latency', { ms: formatNumber(check.latencyMs) })}</span>}
               {why && <span className="small muted server-check-why">{why}</span>}

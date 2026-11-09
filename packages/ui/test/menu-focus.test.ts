@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { afterEach, test } from 'node:test';
 import { focusOpenedDialog } from '../src/components/controls/Menu.tsx';
+import { focusReturn } from '../src/components/controls/layer.ts';
 
 // A menu item that opens a dialog (a row's "⋯" → Edit, Remove) must leave focus in that dialog, not
 // on the trigger behind its backdrop. No DOM here: a document of a few stand-ins is enough to drive it.
@@ -47,6 +48,15 @@ test('a dialog opened by the item takes the focus, on its marked field, and Radi
   focusOpenedDialog(event, 0);
   assert.ok(prevented());
   assert.deepEqual(log, ['name']);
+});
+
+test('the menu’s trigger is where the dialog gives focus back, since the item that opened it is gone when it closes', () => {
+  const log: string[] = [];
+  const opened = dialog('edit', log, { autofocus: 'name', controls: ['close', 'name'] });
+  withDialogs([opened]);
+  const trigger = { focus: () => log.push('trigger') } as unknown as HTMLElement;
+  focusOpenedDialog(closing().event, 0, trigger);
+  assert.equal(focusReturn.get(opened as unknown as HTMLElement), trigger);
 });
 
 test('with no field marked, the first control after the close button is focused', () => {
