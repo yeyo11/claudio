@@ -7,7 +7,8 @@ export interface Schema {
 }
 
 export interface Property {
-  type: 'string' | 'integer' | 'number' | 'boolean' | 'array' | 'object';
+  /** Absent only on a property that is one of several shapes (`anyOf`) */
+  type?: 'string' | 'integer' | 'number' | 'boolean' | 'array' | 'object';
   description: string;
   minimum?: number;
   maximum?: number;
@@ -18,10 +19,13 @@ export interface Property {
   /** A list: what each entry is, and how many there may be */
   items?: Property;
   maxItems?: number;
+  minItems?: number;
   /** An object inside a list: its own fields, as strict as the top level */
   properties?: Record<string, Property>;
   required?: string[];
   additionalProperties?: false;
+  /** One of several shapes, such as a command or a list of commands: the first that fits wins */
+  anyOf?: Property[];
 }
 
 /** The problem with an input, or null when it fits the schema */
@@ -45,6 +49,12 @@ function fields(schema: { properties?: Record<string, Property>; required?: stri
 }
 
 function check(prop: Property, v: unknown, key: string): string | null {
+  if (prop.anyOf) {
+    // Judged by the shape the value has, so a bad entry is told as what it tried to be, not as "must be a list"
+    const shapes = prop.anyOf;
+    const shape = shapes.find((candidate) => (candidate.type === 'array') === Array.isArray(v)) ?? shapes[0];
+    return shape ? check(shape, v, key) : null;
+  }
   if (prop.type === 'string') {
     if (typeof v !== 'string') return `${key} must be a string`;
     if (prop.minLength !== undefined && v.length < prop.minLength) return `${key} must not be empty`;
@@ -58,6 +68,7 @@ function check(prop: Property, v: unknown, key: string): string | null {
     if (prop.maximum !== undefined && v > prop.maximum) return `${key} must be at most ${prop.maximum}`;
   } else if (prop.type === 'array') {
     if (!Array.isArray(v)) return `${key} must be a list`;
+    if (prop.minItems !== undefined && v.length < prop.minItems) return `${key} must have at least ${prop.minItems} entries`;
     if (prop.maxItems !== undefined && v.length > prop.maxItems) return `${key} has more than ${prop.maxItems} entries`;
     if (prop.items) {
       for (const [i, entry] of v.entries()) {

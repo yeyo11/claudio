@@ -5,7 +5,7 @@ Object.defineProperty(globalThis, 'navigator', { value: { languages: ['en-US'] }
 // The helper reads the global i18next, which the app's instance sets up
 const { default: i18n } = await import('i18next');
 await import('../src/i18n/index.ts');
-const { describeWrite, previewLines, previewLoading, scheduleToCheck } = await import('@claudio/chat-ui/lib/write-prompts');
+const { describeWrite, previewLines, previewLoading, scheduleToCheck, templateLines, templateToShow } = await import('@claudio/chat-ui/lib/write-prompts');
 const { formatDateTimeIn } = await import('@claudio/ui/lib/format');
 
 const P = 'mcp__claudio__';
@@ -187,4 +187,29 @@ test("the next fires are read on the schedule's own clock, and the zone is named
   assert.deepEqual(lines, ['In words: At 03:00', 'Next fires, Europe/Madrid time: 11/8/2026, 3:00 AM']);
   // The same zone as the browser's says nothing more
   assert.deepEqual(previewLines(preview, formatDateTimeIn, 'Europe/Madrid'), ['In words: At 03:00', 'Next fires: 11/8/2026, 3:00 AM']);
+});
+
+test('a launch from a template says what the template stores, with parallel checks and a review in the person’s words', async () => {
+  const spec = { name: 'Nightly', tasks: [{ name: 'A' }], permissionMode: 'bypassPermissions', permissionPrompts: 'none', allowedTools: ['Bash(pnpm:*)'], guards: { enabled: false }, verification: { commands: ['pnpm install', ['pnpm lint', 'pnpm typecheck']], review: {} } };
+  assert.equal(templateToShow(`${P}launch_orchestration_template`, { templateId: ' t1 ' }), 't1');
+  assert.equal(templateToShow(`${P}launch_orchestration_template`, {}), null);
+  assert.equal(templateToShow(`${P}delete_orchestration_template`, { templateId: 't1' }), null);
+  await i18n.changeLanguage('en');
+  try {
+    assert.deepEqual(templateLines(spec), [
+      'This template runs its workers with:',
+      'Permission mode: bypassPermissions',
+      'Permission prompts: denied',
+      'Allowed without asking: Bash(pnpm:*)',
+      'Guards: off',
+      'Checks: pnpm install · pnpm lint + pnpm typecheck',
+      'Checks include a review of the changes',
+    ]);
+    assert.deepEqual(templateLines({ name: 'Plain', tasks: [] }), ["This template keeps the app's defaults for permissions, tools, guards and checks"]);
+    await i18n.changeLanguage('es');
+    assert.equal(templateLines(spec)[0], 'Esta plantilla ejecuta sus agentes con:');
+    assert.equal(templateLines(spec).at(-1), 'Las comprobaciones incluyen una revisión de los cambios');
+  } finally {
+    await i18n.changeLanguage('en');
+  }
 });

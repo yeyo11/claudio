@@ -808,6 +808,7 @@ export function createApi(base: string | (() => string)) {
     relaunchOrchestration: (id: string, req: RelaunchOrchestrationRequest) =>
       request<Orchestration>(`/orchestrations/${enc(id)}/relaunch`, { method: 'POST', body: req }),
     orchestrationTemplates: (o: ReadOptions = {}) => request<OrchestrationTemplate[]>('/orchestrations/templates', o),
+    orchestrationTemplate: (templateId: string, o: ReadOptions = {}) => request<OrchestrationTemplate>(`/orchestrations/templates/${enc(templateId)}`, o),
     saveOrchestrationTemplate: (req: SaveOrchestrationTemplateRequest) =>
       request<OrchestrationTemplate>('/orchestrations/templates', { method: 'POST', body: req }),
     updateOrchestrationTemplate: (templateId: string, req: UpdateOrchestrationTemplateRequest) =>
