@@ -10,6 +10,7 @@ test('in a remote scope, search and the palette do not offer the hub’s own doo
   const sections = new Set(SETTINGS_INDEX.map((entry) => entry.section));
   assert.equal(sections.has('remote'), false);
   assert.equal(sections.has('access'), false);
+  assert.equal(sections.has('servers'), false);
   // What describes the remote itself stays searchable
   assert.equal(sections.has('guards'), true);
   assert.equal(sections.has('hosts'), true);

@@ -644,6 +644,7 @@
       "access": "Access",
       "hosts": "Allowed hosts",
       "remote": "Remote access",
+      "servers": "Servers",
       "secrets": "Secrets",
       "guards": "Guards",
       "terminal": "Terminal",
@@ -834,6 +835,9 @@
         "enabled": "Local network",
         "port": "Local network port",
         "bind": "Local network interfaces"
+      },
+      "servers": {
+        "enabled": "Drive other Claudios"
       }
     },
     "keywords": {
@@ -1040,6 +1044,10 @@
         "enabled": "lan wifi network home listen phone",
         "port": "lan wifi network 8791",
         "bind": "lan wifi network interface address ip"
+      },
+      "servers": {
+        "section": "servers remote claudio hub pair other machines",
+        "enabled": "servers switch remote pairing hub"
       }
     },
     "consequences": {
@@ -2123,5 +2131,23 @@
     "colCpu": "CPU time",
     "untitled": "Untitled chat",
     "mb": "{{mb}} MB"
+  },
+  "servers": {
+    "title": "Servers",
+    "switch": "Use servers",
+    "states": {
+      "on": "On",
+      "off": "Off"
+    },
+    "intro": {
+      "off": "Turn this on to drive other Claudios from this one."
+    },
+    "offNote": "Turning it off disconnects every server and keeps the list.",
+    "open": "Manage servers",
+    "toast": {
+      "on": "Servers on",
+      "off": "Servers off. Your list is kept.",
+      "saveFailed": "Could not change Servers"
+    }
   }
 }

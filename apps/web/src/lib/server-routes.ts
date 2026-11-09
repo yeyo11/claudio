@@ -36,6 +36,8 @@ const HUB_ONLY_SETTINGS_SECTIONS: ReadonlySet<string> = new Set([
   'remote',
   // The sign-in cards (access mode, owner token, read-only): the hub's credential, which the gateway never forwards
   'access',
+  // The switch of Servers itself: the hub's list, and one hop only (plan D7)
+  'servers',
 ]);
 
 const trimmed = (pathname: string): string => (pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname) || '/';

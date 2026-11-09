@@ -40,7 +40,8 @@
     "space": "Space",
     "tasks": "Tasks",
     "open_one": "open",
-    "open_other": "open"
+    "open_other": "open",
+    "servers": "Servers"
   },
   "tasks": {
     "openCount_one": "{{n}} open",
@@ -103,6 +104,23 @@
       "local": "This Claudio is older than the server's oldest supported version. Update this one, then come back."
     },
     "backToThis": "Back to this server"
+  },
+  "servers": {
+    "local": "This server",
+    "selector": {
+      "label": "Server",
+      "add": "Add a server",
+      "all": "All servers",
+      "switchFailed": "Could not switch server"
+    },
+    "status": {
+      "connected": "Connected",
+      "reconnecting": "Reconnecting",
+      "offline": "Offline",
+      "needs-update": "Needs an update",
+      "needs-pairing": "Pair again",
+      "identity-changed": "Identity changed"
+    }
   },
   "notFound": {
     "body": "The address may be mistyped, or the page is no longer there.",

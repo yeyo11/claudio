@@ -9,6 +9,7 @@ import { RemoteAccessTab } from '../RemoteAccessTab';
 import { AccessCard, ReadOnlyCard, TokenCard } from '../security/AccessCards';
 import { AgentReadsCard, AgentReadsLatest } from '../security/AgentReadsCard';
 import { AuditCard, AuditLatest } from '../security/AuditCard';
+import { ServersCard } from '../security/ServersCard';
 import { TerminalCard } from '../security/TerminalCard';
 import { useHubOnlyHidden } from '../../../lib/server-scope';
 import { sectionLabel } from '../settingsGroups';
@@ -26,6 +27,7 @@ export function Access({ detail }: GroupScreenProps<'access'>) {
   // The sign-in cards and the LAN and tunnel cards describe the hub's own door: not drawn in a remote's Settings (plan D7)
   const hideAccess = useHubOnlyHidden('/settings/access#access');
   const hideRemote = useHubOnlyHidden('/settings/access#remote');
+  const hideServers = useHubOnlyHidden('/settings/access#servers');
 
   if (detail === 'audit') {
     return (
@@ -66,6 +68,11 @@ export function Access({ detail }: GroupScreenProps<'access'>) {
       <SettingsSection id="remote" title={t(sectionLabel('remote'))}>
         {/* The tab marks its own blocks: `lan.*` on the local network card's rows, `remote.tunnel` on the tunnel's */}
         <RemoteAccessTab />
+      </SettingsSection>
+      )}
+      {!hideServers && (
+      <SettingsSection id="servers" title={t(sectionLabel('servers'))}>
+        <ServersCard />
       </SettingsSection>
       )}
       <SettingsSection id="secrets" title={t(sectionLabel('secrets'))}>

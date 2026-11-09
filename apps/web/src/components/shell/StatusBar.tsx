@@ -24,6 +24,7 @@ import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { useTerminalBar } from '../terminal/terminal-bar';
 import { runningCount } from '../terminal/terminal-model';
 import { useTerminalList } from '../terminal/use-terminals';
+import { StatusBarServer } from './CurrentServer';
 import { ProviderDots } from './ProviderDots';
 import { settingsHref } from '../../pages/config/settingsGroups';
 
@@ -337,6 +338,8 @@ export function StatusBar({ now, connection, agents }: { now: Now; connection: C
   const view = useAccountView();
   return (
     <footer className="statusbar" aria-label={t('statusbar.label')}>
+      {/* Inside a remote's scope the first thing the bar says is whose it is; on the hub it says nothing new */}
+      <StatusBarServer />
       <Tooltip content={[connection.title, connection.detail].filter(Boolean).join(' · ')} side="top">
         <NavLink to={settingsHref('claude-code', { section: 'sign-in' })} className="statusbar-item statusbar-conn">
           <StatusDot tone={connection.tone} live={connection.live} />

@@ -1719,6 +1719,15 @@ button.master-item-on:hover {
   color: var(--text);
 }
 
+/* Settings → Servers: the switch, its state in a word and the way to the page */
+.servers-switch {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
 /* The local network card: the switch, the state in a word and the Changed · Reset slot, at the end of the head */
 .lan-head {
   display: flex;

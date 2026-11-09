@@ -10,6 +10,7 @@ import {
   PanelLeftClose,
   PanelLeftOpen,
   Play,
+  Server,
   Settings2,
   SquareCheck,
   SquareTerminal,
@@ -20,10 +21,12 @@ import { Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link, Navigate, NavLink, Route, Routes, useLocation, useNavigate } from 'react-router-dom';
 import { api, chatListQuery, keys, useOpenTaskCount } from './api';
+import { useServersOn } from './lib/api/servers';
 import { CommandPalette, CommandPaletteTrigger, NEW_ORCHESTRATION_PATH, RUN_WORKFLOW_EVENT } from './components/CommandPalette';
 import type { MenuItem } from '@claudio/ui/components/controls/Menu';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { DetailHost } from './components/DetailHost';
+import { MoreServer } from './components/shell/CurrentServer';
 import { BrandMark, ICON, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from '@claudio/ui/components/motion';
@@ -289,6 +292,10 @@ function Shell() {
   const terminals: NavItem = { to: '/terminals', label: t('terminal:page.title'), icon: SquareTerminal, count: { value: runningTerminals, what: t('terminal:bar.running') } };
   const schedules: NavItem = { to: '/schedules', label: t('nav.schedules'), icon: CalendarClock };
   const projects: NavItem = { to: '/projects', label: t('nav.projects'), icon: FolderGit2 };
+  // Before Projects, and only while Servers is on and this is the hub: a remote's scope has no list of its own (plan D7)
+  const serversOn = useServersOn();
+  const servers: NavItem = { to: '/servers', label: t('shell:nav.servers'), icon: Server };
+  const serverEntry = serversOn ? [servers] : [];
   // Network, not UsersRound: that one is Accounts
   const collaborators: NavItem = { to: '/collaborators', label: t('collaborators:nav'), icon: Network };
   const accounts: NavItem = { to: '/accounts', label: t('nav.accounts'), icon: UsersRound };
@@ -303,7 +310,7 @@ function Shell() {
   // What a person does, then where it happens: the sidebar's two groups
   const groups = [
     { id: 'work', label: t('shell:nav.work'), items: [home, assistant, chats, tasks, orchestrations, schedules] },
-    { id: 'space', label: t('shell:nav.space'), items: [projects, collaborators, accounts, usage, settings] },
+    { id: 'space', label: t('shell:nav.space'), items: [...serverEntry, projects, collaborators, accounts, usage, settings] },
   ];
   const items = groups.flatMap((group) => group.items);
 
@@ -501,10 +508,16 @@ function Shell() {
             pathname={pathname}
             projectPage={projectPage}
             tabs={[home, chats, orchestrations]}
-            more={[assistant, tasks, projects, collaborators, accounts, ...(terminalAccess ? [terminals] : []), schedules, usage, settings]}
+            more={[assistant, tasks, ...serverEntry, projects, collaborators, accounts, ...(terminalAccess ? [terminals] : []), schedules, usage, settings]}
             start={startEntries}
             account={<AccountCard now={now} connection={connection} />}
-            connection={connectionLink}
+            connection={
+              <>
+                {/* Inside a remote's scope, whose it is and the way back; nothing on the hub */}
+                <MoreServer />
+                {connectionLink}
+              </>
+            }
           />
         </>
       )}
