@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.15.0](https://github.com/yeyo11/claudio/compare/v0.14.2...v0.15.0) (2026-11-09)
+
+
+### Features
+
+* **chats:** start a chat as an agent by name, without widening it ([#96](https://github.com/yeyo11/claudio/issues/96)) ([6713cbf](https://github.com/yeyo11/claudio/commit/6713cbf0b535f1dc6efa00f1a976f90809b23482))
+* **servers:** one Claudio drives the others through a hub gateway ([#99](https://github.com/yeyo11/claudio/issues/99)) ([0a7cff1](https://github.com/yeyo11/claudio/commit/0a7cff13d42239728e7d44440d69e189d1f2c913))
+
+
+### Bug fixes
+
+* a duplicate case in the eval matchers, and the update helper's times under uutils ([#104](https://github.com/yeyo11/claudio/issues/104)) ([6f3123e](https://github.com/yeyo11/claudio/commit/6f3123e883446cb7fcaf71bbbaaf91a2d0833f7e))
+* **headless:** close the review's minor findings left out of [#71](https://github.com/yeyo11/claudio/issues/71) ([#94](https://github.com/yeyo11/claudio/issues/94)) ([39ef0cf](https://github.com/yeyo11/claudio/commit/39ef0cf070f5edd3076412c324be5b284acd69e8))
+* **providers:** a narrowed session no longer flips Claude Code to degraded, and the warning names what is missing ([#98](https://github.com/yeyo11/claudio/issues/98)) ([ec7fecb](https://github.com/yeyo11/claudio/commit/ec7fecb3fabb555613fbda4ce595e8d27d0f20da))
+* **updates:** remote, passwordless desktop updates, stale-chunk protection and an unreachable-server screen ([#100](https://github.com/yeyo11/claudio/issues/100)) ([ce11a17](https://github.com/yeyo11/claudio/commit/ce11a17f8ef63ed197af9042cbdda74e458a6e5a))
+
+
+### Documentation
+
+* bring the plans' status lines and status.md up to 0.14.2 ([#95](https://github.com/yeyo11/claudio/issues/95)) ([60bfb73](https://github.com/yeyo11/claudio/commit/60bfb732a77a8540974e1f83161e44a4ac6d2e49))
+
 ## [0.14.2](https://github.com/yeyo11/claudio/compare/v0.14.1...v0.14.2) (2026-11-07)
 
 
