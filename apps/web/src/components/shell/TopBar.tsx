@@ -11,6 +11,7 @@ import type { MenuItem } from '@claudio/ui/components/controls/Menu';
 import { BrandMark } from '@claudio/ui/components/icons';
 import { NotificationBell } from '../Notifications';
 import { ProjectSelector } from '../ProjectSelector';
+import { ServerSelector } from '../ServerSelector';
 import { SplitButton } from '@claudio/ui/components/SplitButton';
 import { LiveChip } from './live';
 import { TeamCrumbs } from './TeamCrumbs';
@@ -54,6 +55,8 @@ export function TopBar({
       </NavLink>
       {/* The scope is the crumb's root: every page below it is about that project */}
       <div className="crumbs">
+        {/* Before the project's: the server is the widest scope. It draws its own separator, and nothing at all while Servers is off */}
+        <ServerSelector />
         <ProjectSelector />
         <span className="crumb-sep" aria-hidden>
           /

@@ -37,6 +37,8 @@ export const ROUTES = [
   { path: '/usage' },
   { path: '/schedules' },
   { path: '/collaborators' },
+  // Off by default: the page is the Empty with its switch here, which is the state to keep from shifting
+  { path: '/servers' },
   // General on a desktop, the eight groups on a phone
   { path: '/settings' },
   { path: '/settings/claude-code' },

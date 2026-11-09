@@ -259,6 +259,28 @@ test("a peer's own tab stays on the peer's origin while the main tab moves, and 
   assert.deepEqual(noisy.survivors, { chrome: [], server: false });
 });
 
+test("a peer takes the spec's own environment, its api carries the token, and stop() / start() keep its port", { skip }, async () => {
+  const spec =
+    `export const peers = ['remote'];\n` +
+    `export const peerEnv = { remote: async ({ freePort }) => ({ CLAUDIO_AUTH_MODE: 'token', CLAUDIO_AUTH_TOKEN: 'harness-token-harness-token', LAN_PORT_PROBE: String(await freePort('tcp')) }) };\n` +
+    `export default async ({ check, peers: { remote } }) => {` +
+    ` const open = await fetch(remote.baseUrl + '/api/overview');` +
+    ` const guarded = await remote.api.get('/overview');` +
+    ` check(open.status === 401, 'the peer asks for a credential: ' + open.status);` +
+    ` check(guarded.status === 200, 'its api carries the token: ' + guarded.status);` +
+    ` check(/^\\d+$/.test(remote.env.LAN_PORT_PROBE), 'the free port reached the spec');` +
+    ` remote.stop();` +
+    ` const down = await fetch(remote.baseUrl + '/api/health').then(() => true, () => false);` +
+    ` check(down === false, 'stop() takes the server down');` +
+    ` await remote.start();` +
+    ` check((await remote.api.get('/overview')).status === 200, 'start() brings it back with the same token and port');` +
+    ` console.log('PEERS ' + JSON.stringify({ remote: { port: remote.port } })); };`;
+  const r = await run({ specs: { 'guarded.spec.mjs': spec }, env: { E2E_SHARDS: '1' } });
+  assert.equal(r.code, 0, r.output);
+  for (const port of peerPorts(r.output)) assert.equal(await answers(port), false, `the peer on ${port} was stopped`);
+  assert.deepEqual(r.survivors, { chrome: [], server: false });
+});
+
 // ---------- what a failed wait reports ----------
 
 test('a failed wait names the console errors, the failed requests and what is still open, since the last document only', () => {

@@ -20,7 +20,7 @@ const GROUPS = {
   decisions: { sections: ['engine', 'points'], details: ['history'] },
   runs: { sections: ['runs', 'spend-cap', 'evals', 'machine'], details: ['machine'] },
   access: {
-    sections: ['access', 'hosts', 'remote', 'secrets', 'guards', 'terminal', 'audit', 'agent-reads'],
+    sections: ['access', 'hosts', 'remote', 'servers', 'secrets', 'guards', 'terminal', 'audit', 'agent-reads'],
     details: ['audit', 'agent-reads'],
   },
 } as const satisfies Record<string, { sections: readonly string[]; details: readonly string[] }>;
