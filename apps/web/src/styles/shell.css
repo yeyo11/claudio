@@ -569,6 +569,58 @@
   white-space: nowrap;
 }
 
+/*
+ * The server selector wears the project selector's button (docs/plans/claudio-servers.md §12.1).
+ * Its icon is inside the button, since the wrapper's folder is the project's, so the left padding
+ * the folder asks for is not needed.
+ */
+.topbar .select-trigger.project-selector.server-selector {
+  padding-left: 8px;
+}
+
+.server-selector-value,
+.server-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.server-item {
+  gap: 8px;
+  /* Bounded by its item, so a long name ends in an ellipsis in the phone's sheet too */
+  max-width: 100%;
+}
+
+.server-selector-name,
+.server-item-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.server-local-icon {
+  flex: none;
+  color: var(--fg-2);
+}
+
+/* A status in words, with the braille spinner beside "Reconnecting" */
+.server-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* In the selector the word is the item's second line: it starts under the name, past the 20 px mark
+   and the item's gap, so it reads as that server's and not as a line of its own */
+.menu-item-meta > .server-status {
+  padding-left: 28px;
+}
+
+.statusbar-server {
+  max-width: 280px;
+}
+
 .topbar-actions {
   margin-left: auto;
   display: flex;
@@ -968,10 +1020,22 @@ a.link-more {
     color: var(--fg);
   }
 
+  /* The project is the bar's title; the server is its mark. Its name is in the sheet it opens */
+  .server-selector-name {
+    display: none;
+  }
+
+  /* The mark is all that is left of the value: it must not be squeezed by the title beside it */
+  .topbar .select-trigger.project-selector .select-value.server-selector-value {
+    flex: none;
+    overflow: visible;
+  }
+
   /* Search and the bell, as 44 px icons: the FAB and the tab bar have the rest */
   .topbar .topbar-search {
     display: inline-grid;
     place-items: center;
+    flex: none;
     width: 44px;
     height: 44px;
     min-width: 0;
@@ -1000,11 +1064,19 @@ a.link-more {
   }
 
   .topbar .bell {
+    flex: none;
     width: 44px;
     height: 44px;
   }
 
+  /* The server crumb keeps a finger's width; "All projects" beside it is what gets squeezed */
+  .topbar .project-scope.server-scope {
+    flex: none;
+  }
+
+  /* Never squeezed under its two 44 px icons: the project name, which truncates, takes the squeeze */
   .topbar-actions {
+    flex: none;
     gap: 0;
   }
 

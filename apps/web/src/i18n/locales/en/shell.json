@@ -40,7 +40,8 @@
     "space": "Space",
     "tasks": "Tasks",
     "open_one": "open",
-    "open_other": "open"
+    "open_other": "open",
+    "servers": "Servers"
   },
   "tasks": {
     "openCount_one": "{{n}} open",
@@ -92,17 +93,25 @@
     "signInAgain": "Sign in again"
   },
   "serverScope": {
-    "unreachable": {
-      "title": "This server could not be reached",
-      "body": "Claudio could not read its version through this one. Check that it is running and reachable, then try again."
-    },
-    "retry": "Retry",
-    "needsUpdate": {
-      "title": "This server needs an update",
-      "remote": "Its version is older than this Claudio understands. Update it, then come back.",
-      "local": "This Claudio is older than the server's oldest supported version. Update this one, then come back."
-    },
     "backToThis": "Back to this server"
+  },
+  "servers": {
+    "local": "This server",
+    "selector": {
+      "label": "Server",
+      "add": "Add a server",
+      "all": "All servers",
+      "switchFailed": "Could not switch server"
+    },
+    "status": {
+      "connected": "Connected",
+      "reconnecting": "Reconnecting",
+      "offline": "Offline",
+      "needs-update": "Needs an update",
+      "needs-pairing": "Pair again",
+      "identity-changed": "Identity changed",
+      "unchecked": "Not checked"
+    }
   },
   "notFound": {
     "body": "The address may be mistyped, or the page is no longer there.",

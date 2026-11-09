@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-09T18:00:00Z
 tags:
     - ui
     - web
@@ -33,22 +33,35 @@ Shift design system ([design-system.md](design-system.md)); this page says what 
 | Claudio assistant | `/assistant`: a global chat that knows Claudio, reads it through its own MCP server and changes something only when the person allows each change. See [claudio-assistant.md](claudio-assistant.md) |
 | Accounts | `/accounts`: the Claude accounts of this machine, each signed in once, with their usage, the rotation settings and per-project policies. See [accounts.md](accounts.md) |
 | Collaborators | `/collaborators`: turning sharing on, groups, invites and members, and the read-only copies of what teammates share. See [collaborators.md](collaborators.md) |
+| Servers | `/servers`, off until Settings → Access & safety → Servers turns it on, hub-only (inside another server's pages it goes Home). The other Claudios this one drives, one row each: monogram in its colour, name, a status word (Connected, Reconnecting, Offline, Needs an update, Pair again, Identity changed, or Not checked), version, latency, the address in use, last use and, when it is not connected, why. Per row **Open** (**Pair again** when the identity changed or the token was revoked), **Test connection** (four checks with a word and a latency each), **Update** (only when the server says a newer release is out) and a ⋯ menu with **Edit** (name, colour, initials, addresses with their order and kind) and **Remove** (revokes the token there; if that fails a second question offers **Remove anyway**). **Add a server** (the page's one gradient) pairs with a code or with an owner token, and for a token shows the other Claudio's certificate fingerprint to compare before the token leaves. Two cards close the page: **Let another Claudio connect to this one** (a pairing code with a countdown, and this Claudio's certificate fingerprint) and **Connected hubs** (who may drive this Claudio, with **Revoke**). The switch off shows an `Empty` with **Turn on Servers**; no server yet shows one with **Add a server**. On a phone every row action is in the ⋯ sheet. See [servers.md](servers.md#the-ui) |
 | Terminals | `/terminals`: the person's own shells per project, per chat and in the workspace, off until Settings → Access & safety turns them on. See [terminal.md](terminal.md) |
 
 ## Across the app
 
-- **Top bar**, one row: where you are, the project selector, search (the palette), notifications, a
+- **Top bar**, one row: where you are, the **server selector** (only while Servers is on, in the
+  hub), the project selector, search (the palette), notifications, a
   **live chip** while anything runs (`⠹ 2 working · post-roadmap 11/17`, a menu of what is live, each
   a link) and **New chat ▾**, with Run workflow and New orchestration behind the arrow.
 - **Sidebar**: the pages (Tasks, between Chats and Orchestrations, with the open count of the
-  selected project), then a **Live** section — chats waiting for you, working chats with a line
+  selected project; **Servers** before Projects while the feature is on), then a **Live** section — chats waiting for you, working chats with a line
   saying what each is doing, running orchestrations with their progress as `▰▰▱▱▱ 2/7`. Collapsed to
   a rail, it keeps one button with the live count.
 - **On a phone** (up to 900 px) a bottom tab bar — Home, Chats, Orchestrations and More, with New chat as a gradient FAB — with
   the waiting and working counts on its tabs, replaces the sidebar; More opens a sheet with the rest
-  of the pages (Tasks first, with its open count), the API reference and the connection status. A
+  of the pages (Tasks first, with its open count; Servers while the feature is on), the API reference and the connection status. A
   chat's, an orchestration's and a work item's own page hide it, and so does the project wizard,
   since they have a back button and a footer of their own.
+- **Server selector** (top bar, before the project selector, only while Servers is on, also inside
+  another server's pages, where it names that server and keeps the hub's list): **This server**, the three servers used last with a monogram and a
+  status word, and **All servers** → `/servers` (or **Add a server** when there is none yet). Picking
+  one reloads the page on that server, on the same page when the other server has what the page
+  names, otherwise on that kind's list or Home ([servers.md](servers.md#the-web-client)). A phone
+  opens the list as a sheet.
+- **Inside another server** the status bar's first item is that server's monogram, name and status
+  word, with **Back to this server**; a phone shows the same as a card in More. There is no banner,
+  and the pages that describe the hub itself (Servers, the sign-in, local network and tunnel cards of
+  Settings, the desktop's updates) are hidden. A server that cannot be reached, or whose version does
+  not fit, shows its own screen with its name and the way back.
 - **Project selector** (top bar, beside the search): scopes Home, Chats, Tasks and Orchestrations to one project
   or All projects. The choice is remembered, and a `?project=<id>` in the address overrides it, so a link
   to a project's page works from anywhere. Notifications ignore it: a chat waiting in another project

@@ -13,7 +13,7 @@ import {
 import { X } from 'lucide-react';
 import { createPortal } from 'react-dom';
 import { useTranslation } from 'react-i18next';
-import { hasOpenLayer } from './controls/layer';
+import { focusReturn, hasOpenLayer } from './controls/layer';
 import { ICON } from './icons';
 import { modalStack } from './modal-stack';
 import { EASE_OUT, motion, useReducedMotion } from './motion';
@@ -80,7 +80,9 @@ export function Dialog({
     const pop = modalStack().push(onKeyDown);
     return () => {
       pop();
-      previous?.focus?.();
+      // What had focus may have left the page (the menu item that opened this): then the place its menu named
+      const back = previous?.isConnected ? previous : panel ? focusReturn.get(panel) : undefined;
+      back?.focus?.();
     };
   }, []);
 

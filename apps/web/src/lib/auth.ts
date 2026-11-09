@@ -169,9 +169,10 @@ export async function probeAuth(fetcher: typeof fetch = fetch, waitMs = PROBE_WA
 let confirming = false;
 
 /**
- * A call through the gateway came back 401, which is the remote's answer as much as the hub's.
- * Asks the hub itself whether this browser is still signed in, and only a 401 from the hub brings
- * the sign-in screen. Unlike `probeAuth` it never holds the shell back: the page is already up.
+ * A call through the gateway came back 401 or 421, which is the remote's answer as much as the
+ * hub's. Asks the hub itself whether this browser is still signed in and on a host it answers to:
+ * only the hub's own 401 brings the sign-in screen, and only its own 421 the host screen. Unlike
+ * `probeAuth` it never holds the shell back: the page is already up.
  */
 export async function confirmHubSession(fetcher: typeof fetch = fetch): Promise<void> {
   if (confirming) return;

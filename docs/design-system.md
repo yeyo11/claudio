@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-07T13:00:00Z
+updated_at: 2026-11-09T14:00:00Z
 tags:
     - design-system
     - web
@@ -2173,6 +2173,30 @@ built like the tunnel's and adds `.lan-head`, `.lan-addresses`, `.lan-address`, 
 - **Phone:** the card stacks, URLs wrap (`overflow-wrap: anywhere`), and every target (Copiar, QR,
   the segments, the interface switches, the port steppers) is at least 44 px.
 
+### Servers in the shell: the selector, the status bar item and the Settings switch
+
+Not drawn in `reference/`: it restyles the project selector and the status bar
+([plans/claudio-servers.md](plans/claudio-servers.md) §12.1). It exists only while the hub has Servers
+on, so a person who never turns it on sees none of it. Inside a remote scope it is still drawn, from
+the hub's own list (one hop: a remote's servers are never listed): the button wears the remote's
+mark and name, which on a phone, with no status bar, is what says where the page writes. Classes:
+`.server-scope`, `.server-selector`, `.server-selector-value`, `.server-selector-name`, `.server-item`,
+`.server-item-name`, `.server-local-icon`, `.server-status`, `.statusbar-server`, `.more-server`,
+`.servers-switch` (`shell.css`, `editors.css`, `claudio-ds.css`).
+
+- **The selector** is the first crumb, before the project's, and wears the project selector's button
+  (`.select-trigger.project-selector`). Its menu is `MoreActions`: a dropdown on a desktop and a
+  `Sheet` on a phone. This server is pinned, then the three servers used last (the one in use always
+  among them), the current scope chosen; each has its monogram in the hue of its colour token and its
+  status as a word under the name (`ok`, `warn`, `bad` by what it says; the braille spinner only
+  beside Reconnecting), then one link to the page, or "Add a server" when there is none. On a phone
+  the button keeps its icon (or the remote's monogram) and drops the name.
+- **The status bar** names a remote scope in its first item (monogram, name, status word) with a
+  link back to the hub; the phone's More sheet shows the same as a `.more-connection` card. Names
+  carry a `title` for when they are cut.
+- **Settings → Access & safety → Servers** is one `PrefRow`: the switch, and "Manage servers". The
+  sentence and the link are the same in both states, so turning it on shifts nothing.
+
 ## 3. Live states and motion
 
 | Situation | Pattern |
@@ -2837,6 +2861,48 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   variants lose the old `grad-border`, and its look is restated in `chat.css`.
 - Paths inside a lens are relative to the chat's folder.
 - An `Edit` with no recorded patch uses the generic lens, not a diff.
+
+### Servers: the page, its dialogs and the LAN card's fingerprint
+
+> **Landed** in the `claudio-servers-complete` orchestration (2026-11-09), task `ui-servers-page`.
+> The design is [plans/claudio-servers.md](plans/claudio-servers.md) §12.1; the engine is
+> [servers.md](servers.md). There is no reference screen of its own: the page follows Collaborators'
+> structure (an opt-in page with its switch, cards and an empty state).
+
+- **No new component where one existed.** A status word is `.collab-tone` (colour, icon and word) with
+  `.server-status` only setting the small size; the tile of a server is `.monogram` fed an hue, never
+  a hex (`.server-mark`), and the colour picker's tiles are the same `.monogram` with a check on the
+  chosen one. Buttons, `Tabs`, `Select`, `Sheet`, `MoreActions` and `Dialog` are the shared ones.
+- `claudio-ds.css` gained the `.server-*` variants of the page: `.server-rows` and `.server-row*` (a
+  row: tile, name in the token weight, status word, facts, actions), `.server-identity`,
+  `.server-colours` / `.server-colour*`, `.server-address*` (the addresses' editor: input, kind,
+  up/down/remove), `.server-fingerprint*` and `.server-compare` (the certificate comparison of D13),
+  `.server-check*` (the four checks of Test connection), `.server-code*` (the pairing code: mono,
+  large, 4+4, with its countdown), `.server-hub*` (Connected hubs) and `.server-submit` (a fixed width
+  for a dialog's main button), plus the LAN card's `.lan-fingerprint*`.
+- The page has one gradient action, **Add a server** (**Turn on Servers** while it is off, drawn by
+  its `Empty`). The dialogs' main button is a default primary of the dialog's own layer. The no-server
+  state is the compact `Empty` with an icon, since it sits beside the Connect and Hubs cards; only the
+  off state, alone on the page, takes an illustration (`collaborators`).
+- Only **Reconnecting** and **Testing** move: the braille spinner beside the verb. A server with no
+  reading yet is neutral, "Not checked".
+- A remote that is offline is `Unreachable` in its in-page form (`remote` prop): the server's name and
+  address, Retry (which stays on the screen and says it is trying) and the way back. Never the hub's
+  modal.
+- The LAN card says the listener is HTTPS with a self-signed certificate and shows its fingerprint in
+  mono, in groups of four, with a copy button.
+- On a phone the row's actions are one "⋯" `Sheet`, the dialogs' tabs, move buttons and colour tiles
+  are 44 px, and the inputs are 16 px.
+- **After the UI review** (task `ui-review`): the colour tiles wear the server's initials (an empty
+  tile is a dark square in every hue) and the chosen one its check; initials nobody typed are not
+  stored, so they follow the name, and a server named by its IPv4 address takes its last number
+  (`.28`, `.29`); one address shows no move or remove buttons; the name and initials line up through
+  a subgrid whether or not a hint is under the name; the address in use stays whole
+  (`.server-row-url`: an ellipsis, never a break inside the port); the address that showed a
+  certificate is mono. While this Claudio asks for no sign-in, "Let another Claudio connect" is one
+  sentence with **Go to Access** (`.server-open-access`) and Connected hubs is not drawn; no hub yet
+  is one quiet line (`.server-hubs-card`), not a second empty state. A refusal Servers knows
+  (`servers.*`, a remote's `server-links.*`) is said in the page's language.
 
 ### Collaborators, as built
 

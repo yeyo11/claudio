@@ -109,10 +109,11 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
 // alone, but the full test gate runs every package's suite at once and slows it 10–20×. Each check
 // waits for something to happen, so the budget only bounds how long a real failure takes to report.
 // The budget is read off `performance.now()`, which a test that freezes `Date` leaves running.
-const waitFor = async (check: () => boolean, ms = 30_000): Promise<void> => {
+// `seen` says what the check found when it gave up, so a failure on CI names the state it waited on.
+const waitFor = async (check: () => boolean, ms = 30_000, seen?: () => unknown): Promise<void> => {
   const end = performance.now() + ms;
   while (!check()) {
-    if (performance.now() > end) throw new Error('timed out waiting');
+    if (performance.now() > end) throw new Error(`timed out waiting${seen ? `; saw ${JSON.stringify(seen())}` : ''}`);
     await new Promise((r) => setTimeout(r, 15));
   }
 };
@@ -409,12 +410,16 @@ test('a wait goes on with the first account a new reading gives room, not at the
 
     // The CLI's own login restarts early, and its cache (or another chat's stream) says so
     process.env.FAKE_CLAUDE_LIMITED_DIRS = [r.dirs[r.ids.a], r.dirs[r.ids.b], r.dirs[r.ids.c]].join(',');
-    const reading = roomy(Date.now());
+    // A reading counts for a wait once it is newer than the wait (`roomFor`): one stamped in the very
+    // millisecond the wait began, as a fast run takes it right after seeing the wait, says nothing of
+    // after, and the wait would go on for its hour. Stamped after the wait began, whatever the clock read
+    const reading = roomy(Math.max(Date.now(), Date.parse(move?.at ?? '') + 1));
     assert.ok(reading);
     await r.chats.noteAccountReading(DEFAULT_ID, reading);
 
-    await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed');
-    await waitFor(() => r.spawns().length === 5 && r.chats.get(chat.id)?.status !== 'busy' && r.chats.get(chat.id)?.status !== 'starting');
+    const seen = () => ({ move: r.db.providerMove(move?.id ?? ''), readingAt: reading.at, spawns: r.spawns().length, status: r.chats.get(chat.id)?.status });
+    await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed', undefined, seen);
+    await waitFor(() => r.spawns().length === 5 && r.chats.get(chat.id)?.status !== 'busy' && r.chats.get(chat.id)?.status !== 'starting', undefined, seen);
     assert.equal(r.spawns()[4]?.dir, r.dirs[DEFAULT_ID], 'the turn went on with the account that had room');
     assert.equal(r.chats.accountOf(chat.id), DEFAULT_ID);
     assert.equal(r.chats.atLimit(chat.id), false, 'and went through');

@@ -350,6 +350,8 @@ export class ApiRequestError extends Error {
   problems?: string[];
   /** What a restart would stop, on a refusal at `update.live-work` */
   live?: LiveWork;
+  /** The certificate the address showed, on `servers.confirm-fingerprint`: the person compares it before a token is sent */
+  seenCertificate?: { fingerprint: string; address: string };
 
   constructor(message: string, status: number, detail?: string, code?: string, postId?: string, spend?: SpendState) {
     super(message);
@@ -492,8 +494,13 @@ export async function requestResponseAt(base: string, path: string, init: CallIn
         setChallenge(mode, firstRunToken);
       }
     }
-    // The host is not one this wrapper answers to: the app shows the screen that adds it
-    if (res.status === 421 && !viaGateway) setHostRefusal(hostRefusalOf(err));
+    // The host is not one this wrapper answers to: the app shows the screen that adds it. Through the
+    // gateway the 421 may be the hub's (its host check runs before any route) or a remote's, so the
+    // hub is asked, as for a 401, and its own refusal brings the screen a direct call would
+    if (res.status === 421) {
+      if (viaGateway) void confirmHubSession();
+      else setHostRefusal(hostRefusalOf(err));
+    }
     // No JSON error means Claudio did not write this answer (a proxy's or a tunnel's page): say so in
     // the person's language and keep the status line as the detail
     if (!err?.error) throw new ApiRequestError(i18n.t('common:httpError', { status: res.status }), res.status, `HTTP ${res.status} ${res.statusText}`.trim());
@@ -512,6 +519,9 @@ export async function requestResponseAt(base: string, path: string, init: CallIn
     const refusal = new ApiRequestError(err.error, res.status, err.detail, typeof code === 'string' ? code : undefined, typeof postId === 'string' ? postId : undefined, spend);
     const live = (err as { live?: unknown }).live;
     if (code === 'update.live-work' && typeof live === 'object' && live !== null) refusal.live = live as LiveWork;
+    const fingerprint = (err as { fingerprint?: unknown }).fingerprint;
+    const seenAt = (err as { address?: unknown }).address;
+    if (code === 'servers.confirm-fingerprint' && typeof fingerprint === 'string' && typeof seenAt === 'string') refusal.seenCertificate = { fingerprint, address: seenAt };
     if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
     throw refusal;
   }
@@ -803,6 +813,7 @@ export function createApi(base: string | (() => string)) {
     relaunchOrchestration: (id: string, req: RelaunchOrchestrationRequest) =>
       request<Orchestration>(`/orchestrations/${enc(id)}/relaunch`, { method: 'POST', body: req }),
     orchestrationTemplates: (o: ReadOptions = {}) => request<OrchestrationTemplate[]>('/orchestrations/templates', o),
+    orchestrationTemplate: (templateId: string, o: ReadOptions = {}) => request<OrchestrationTemplate>(`/orchestrations/templates/${enc(templateId)}`, o),
     saveOrchestrationTemplate: (req: SaveOrchestrationTemplateRequest) =>
       request<OrchestrationTemplate>('/orchestrations/templates', { method: 'POST', body: req }),
     updateOrchestrationTemplate: (templateId: string, req: UpdateOrchestrationTemplateRequest) =>

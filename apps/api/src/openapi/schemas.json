@@ -20521,6 +20521,93 @@
       "revoked"
     ]
   },
+  "PairServerAgainResult": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Never 'local'"
+      },
+      "name": {
+        "type": "string"
+      },
+      "color": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "A token name, not a hex"
+      },
+      "monogram": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "addresses": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ServerAddress"
+        },
+        "description": "Ordered by preference"
+      },
+      "identity": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string"
+          },
+          "tlsFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "instanceId",
+          "tlsFingerprint"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "lastUsedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "health": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerHealth"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Runtime, not persisted beyond the last reading"
+      },
+      "previousToken": {
+        "$ref": "#/components/schemas/RemoveServerResult",
+        "description": "The earlier token: `revoked` once the server that issued it no longer takes it (it took it back now, or no longer knew it); otherwise the `reason`, such as `servers.unreachable` or `servers.identity-changed` when no address answers as that server any more"
+      }
+    },
+    "required": [
+      "addresses",
+      "color",
+      "createdAt",
+      "health",
+      "id",
+      "identity",
+      "lastUsedAt",
+      "monogram",
+      "name",
+      "previousToken"
+    ],
+    "description": "`POST /servers/:id/pair`: the server paired again in place (same id, name, colour, monogram and addresses, the identity and token of the new pairing), and what became of the token it replaced."
+  },
   "GuardSettingsView": {
     "type": "object",
     "properties": {

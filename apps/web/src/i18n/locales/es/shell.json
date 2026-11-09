@@ -40,7 +40,8 @@
     "space": "Espacio",
     "tasks": "Tareas",
     "open_one": "abierta",
-    "open_other": "abiertas"
+    "open_other": "abiertas",
+    "servers": "Servidores"
   },
   "tasks": {
     "openCount_one": "{{n}} abierta",
@@ -92,17 +93,25 @@
     "signInAgain": "Volver a iniciar sesión"
   },
   "serverScope": {
-    "unreachable": {
-      "title": "No se ha podido conectar con este servidor",
-      "body": "Claudio no ha podido leer su versión a través de este. Comprueba que está en marcha y que se puede alcanzar, y vuelve a intentarlo."
-    },
-    "retry": "Reintentar",
-    "needsUpdate": {
-      "title": "Este servidor necesita una actualización",
-      "remote": "Su versión es anterior a la que entiende este Claudio. Actualízalo y vuelve.",
-      "local": "Este Claudio es anterior a la versión más antigua que admite el servidor. Actualiza este y vuelve."
-    },
     "backToThis": "Volver a este servidor"
+  },
+  "servers": {
+    "local": "Este servidor",
+    "selector": {
+      "label": "Servidor",
+      "add": "Añadir un servidor",
+      "all": "Todos los servidores",
+      "switchFailed": "No se ha podido cambiar de servidor"
+    },
+    "status": {
+      "connected": "Conectado",
+      "reconnecting": "Reconectando",
+      "offline": "Sin conexión",
+      "needs-update": "Necesita actualizar",
+      "needs-pairing": "Volver a emparejar",
+      "identity-changed": "La identidad ha cambiado",
+      "unchecked": "Sin comprobar"
+    }
   },
   "notFound": {
     "body": "La dirección puede estar mal escrita, o la página ya no existe.",

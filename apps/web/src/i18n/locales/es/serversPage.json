@@ -1,0 +1,253 @@
+{
+  "nav": "Servidores",
+  "page": {
+    "title": "Servidores",
+    "subtitle_one": "{{formatted}} servidor · cada uno conserva sus cuentas, chats y ajustes",
+    "subtitle_other": "{{formatted}} servidores · cada uno conserva sus cuentas, chats y ajustes",
+    "subtitleNone": "Otros Claudios que este controla. Cada uno conserva sus cuentas, chats y ajustes.",
+    "add": "Añadir un servidor",
+    "list": "Servidores"
+  },
+  "off": {
+    "title": "Los servidores están desactivados",
+    "body": "Actívalos para controlar otros Claudios desde este. Mientras estén desactivados no se conecta nada ni se usa ninguna credencial; lo que añadas se conserva.",
+    "turnOn": "Activar los servidores"
+  },
+  "none": {
+    "title": "Todavía no hay otro servidor",
+    "body": "Empareja otro Claudio para controlarlo desde aquí: con el código que muestra su página de Servidores, o con un token de propietario si no tiene pantalla."
+  },
+  "reason": {
+    "servers": {
+      "unreachable": "Ninguna dirección responde.",
+      "needs-pairing": "Su token se ha revocado o ya no se acepta.",
+      "identity-changed": "La máquina de su dirección no es la que se emparejó.",
+      "needs-update": "Su versión no encaja con esta.",
+      "fingerprint-mismatch": "Su certificado no es el que se fijó.",
+      "redirect-refused": "Ha respondido con una redirección, que nunca se sigue."
+    }
+  },
+  "row": {
+    "version": "Versión {{version}}",
+    "latency": "{{ms}} ms",
+    "address": "Conectado en",
+    "lastUsed": "Usado {{when}}",
+    "neverUsed": "Sin usar",
+    "kind": {
+      "lan": "LAN",
+      "tailscale": "Tailscale",
+      "tunnel": "Túnel",
+      "other": "Otra"
+    }
+  },
+  "actions": {
+    "open": "Abrir",
+    "test": "Probar la conexión",
+    "update": "Actualizar",
+    "edit": "Editar",
+    "remove": "Quitar",
+    "pairAgain": "Volver a emparejar",
+    "more": "Acciones de {{name}}",
+    "moreTitle": "{{name}}"
+  },
+  "add": {
+    "title": "Añadir un servidor",
+    "tabs": "Cómo emparejar",
+    "tabCode": "Código",
+    "tabToken": "Token de propietario",
+    "codeIntro": "En el otro Claudio abre Servidores, luego «Permitir que otro Claudio se conecte a este», y muestra un código. Dura 5 minutos y sirve una sola vez.",
+    "tokenIntro": "Para un Claudio sin pantalla o detrás de un inicio de sesión. Pega un token de propietario del otro Claudio: se usa una vez para obtener un token propio para este, y después se olvida.",
+    "addresses": "Direcciones",
+    "addressesHint": "Cómo llegar a él, en el orden en que se prueban. Añade un nombre de Tailscale o un túnel como otra vía de entrada.",
+    "address": "Dirección",
+    "addressPlaceholder": "192.168.0.29:8791",
+    "code": "Código",
+    "codeHint": "Ocho caracteres, con o sin el espacio.",
+    "token": "Token de propietario",
+    "tokenHint": "No se guarda: solo sirve para emparejar.",
+    "name": "Nombre",
+    "nameHint": "Cómo aparece en el selector.",
+    "colour": "Color",
+    "monogram": "Iniciales",
+    "submit": "Emparejar",
+    "pairing": "Emparejando…",
+    "failed": "No se ha podido añadir el servidor"
+  },
+  "addresses": {
+    "add": "Añadir una dirección",
+    "remove": "Quitar la dirección {{n}}",
+    "up": "Subir la dirección {{n}}",
+    "down": "Bajar la dirección {{n}}",
+    "kind": "Tipo de la dirección {{n}}",
+    "invalid": "No es una dirección a la que Claudio pueda llegar: usa un nombre de host o una IP, con puerto si no es el 443.",
+    "max": "Como máximo {{count}} direcciones."
+  },
+  "colours": {
+    "label": "Color",
+    "blue": "Azul",
+    "violet": "Violeta",
+    "magenta": "Magenta",
+    "rose": "Rosa",
+    "orange": "Naranja",
+    "lime": "Lima",
+    "teal": "Verde azulado",
+    "sky": "Celeste"
+  },
+  "confirm": {
+    "title": "Comparar este certificado",
+    "body": "Antes de que el token salga de este Claudio, comprueba que la dirección muestra el certificado del Claudio que quieres. En ese, abre Ajustes, Acceso y seguridad, y lee la huella de la tarjeta de la red local.",
+    "shownBy": "Lo muestra <mono>{{address}}</mono>",
+    "fingerprint": "Huella del certificado",
+    "typed": "Pega la huella del otro Claudio para comprobarla aquí",
+    "typedHint": "Opcional: te avisa si no coinciden.",
+    "matches": "Coinciden",
+    "differs": "No coinciden: no emparejes.",
+    "authority": "Esta dirección es un nombre firmado por una autoridad pública (Tailscale o un túnel), así que su huella no es la de la tarjeta de la red local. Lo que se comprueba es el certificado de ese nombre y que el Claudio que responde es el que quieres.",
+    "pair": "Coincide, emparejar",
+    "cancel": "Cancelar"
+  },
+  "edit": {
+    "title": "Editar {{name}}",
+    "save": "Guardar",
+    "saving": "Guardando…",
+    "saved": "Se ha guardado {{name}}",
+    "failed": "No se ha podido guardar {{name}}",
+    "newAddressNote": "Una dirección nueva tiene que demostrar que es el mismo servidor antes de guardarse."
+  },
+  "test": {
+    "title": "Conexión con {{name}}",
+    "running": "Probando…",
+    "again": "Probar otra vez",
+    "close": "Cerrar",
+    "reachedAt": "Conectado en",
+    "meta": "Identidad y versión",
+    "rest": "Llamadas a la API",
+    "events": "Datos en directo",
+    "socket": "Conexión del terminal",
+    "ok": "Funciona",
+    "failed": "Falla",
+    "latency": "{{ms}} ms",
+    "noAddress": "Ninguna dirección ha respondido.",
+    "failedToRun": "No se ha podido hacer la prueba",
+    "code": {
+      "servers": {
+        "needs-pairing": "Su token ya no se acepta.",
+        "unreachable": "No ha respondido.",
+        "identity-changed": "No es el servidor que se emparejó.",
+        "needs-update": "Su versión no encaja con esta."
+      },
+      "terminal": {
+        "needs-tunnel": "Su terminal está cerrado a otros Claudios por un ajuste propio.",
+        "disabled": "Su terminal está desactivado."
+      }
+    }
+  },
+  "remove": {
+    "title": "¿Quitar {{name}}?",
+    "body": "Este Claudio devuelve su token en {{name}} para que deje de funcionar allí y después olvida el servidor. {{name}} y todo lo que tiene no se tocan.",
+    "confirm": "Quitar",
+    "forceTitle": "No se ha podido avisar a {{name}}",
+    "forceBody": "No se ha podido revocar el token en {{name}}, así que puede seguir funcionando allí hasta que se revoque desde la página de Servidores de ese Claudio (Hubs conectados). ¿Quitarlo de esta lista de todos modos?",
+    "forceConfirm": "Quitar de todos modos",
+    "done": "Se ha quitado {{name}}",
+    "doneUnrevoked": "Se ha quitado {{name}}, pero su token puede seguir funcionando allí",
+    "failed": "No se ha podido quitar {{name}}"
+  },
+  "pairAgain": {
+    "title": "Volver a emparejar {{name}}",
+    "body": "Su identidad ha cambiado o su token se ha revocado. Al emparejar de nuevo se conservan su nombre, color y direcciones, y se sustituye el token. Antes, comprueba que es el Claudio que quieres.",
+    "submit": "Volver a emparejar",
+    "done": "{{name}} está emparejado de nuevo",
+    "doneOldKept": "{{name}} está emparejado de nuevo; no se ha podido revocar su token anterior",
+    "failed": "No se ha podido volver a emparejar {{name}}",
+    "bodyIdentity": "La máquina de su dirección no es la que se emparejó, así que puede haberse reinstalado. Al emparejar de nuevo se conservan su nombre, color y direcciones, y se sustituye el token. Antes, comprueba que es el Claudio que quieres.",
+    "bodyToken": "Su token se ha revocado o ya no se acepta. Al emparejar de nuevo se conservan su nombre, color y direcciones, y se sustituye el token."
+  },
+  "update": {
+    "title": "¿Actualizar {{name}}?",
+    "body": "{{name}} instalará el Claudio más reciente. El servidor se reinicia para terminar, y su trabajo en curso no se interrumpe hasta que lo reinicies.",
+    "from": "De {{from}} a {{to}}",
+    "confirm": "Actualizar",
+    "started": "{{name}} se está actualizando",
+    "failed": "No se ha podido iniciar la actualización de {{name}}"
+  },
+  "connect": {
+    "title": "Permitir que otro Claudio se conecte a este",
+    "body": "Para controlar este Claudio desde otro, muestra aquí un código y escríbelo en «Añadir un servidor» del otro.",
+    "show": "Mostrar un código de emparejamiento",
+    "new": "Código nuevo",
+    "code": "Código de emparejamiento",
+    "expires": "Válido durante {{time}}",
+    "expired": "Este código ha caducado.",
+    "once": "Sirve una sola vez. Un código nuevo anula este.",
+    "fingerprint": "Huella del certificado de este Claudio",
+    "noFingerprint": "La escucha en la red local está desactivada, así que no hay un certificado que comparar. Una dirección de Tailscale o de un túnel se comprueba con su propio certificado.",
+    "failed": "No se ha podido crear un código",
+    "authRequired": "Otro Claudio solo puede conectarse a uno que pida iniciar sesión. Activa antes un token u OIDC en Acceso.",
+    "toAccess": "Ir a Acceso"
+  },
+  "hubs": {
+    "title": "Hubs conectados",
+    "none": "Ningún otro Claudio está conectado a este.",
+    "created": "Emparejado {{when}}",
+    "lastUsed": "Último uso {{when}}",
+    "neverUsed": "Sin usar todavía",
+    "revoke": "Revocar",
+    "revokeTitle": "¿Revocar {{name}}?",
+    "revokeBody": "{{name}} ya no podrá controlar este Claudio. Podrá volver a emparejar con un código nuevo.",
+    "revoked": "Se ha revocado {{name}}",
+    "revokeFailed": "No se ha podido revocar {{name}}",
+    "failed": "No se han podido leer los hubs conectados",
+    "notOwner": "Solo el propietario puede ver qué Claudios están conectados a este."
+  },
+  "toast": {
+    "on": "Los servidores están activados",
+    "onFailed": "No se han podido activar los servidores",
+    "added": "Se ha añadido {{name}}",
+    "openFailed": "No se ha podido abrir {{name}}"
+  },
+  "remote": {
+    "offline": {
+      "title": "No se puede llegar a {{name}}",
+      "body": "Este Claudio no ha podido llegar a {{name}} en <mono>{{address}}</mono>. Puede estar apagado, suspendido o en otra red.",
+      "bodyNoAddress": "Este Claudio no ha podido llegar a {{name}} por ninguna de sus direcciones. Puede estar apagado, suspendido o en otra red.",
+      "retry": "Reintentar",
+      "retrying": "Intentando…",
+      "back": "Volver a este servidor",
+      "servers": "Todos los servidores"
+    },
+    "needsUpdate": {
+      "title": "{{name}} necesita actualizarse",
+      "remoteOld": "{{name}} usa Claudio {{remote}}, más antiguo de lo que este Claudio puede controlar. Actualiza {{name}} y vuelve.",
+      "localOld": "{{name}} usa Claudio {{remote}}, más reciente de lo que este Claudio entiende. Actualiza este Claudio y vuelve.",
+      "unknown": "{{name}} usa una versión de Claudio que este no puede controlar.",
+      "back": "Volver a este servidor",
+      "servers": "Todos los servidores"
+    },
+    "fallbackName": "Este servidor"
+  },
+  "errors": {
+    "servers": {
+      "already-paired": "Ese servidor ya está en la lista.",
+      "self": "Esa dirección es este Claudio.",
+      "unreachable": "No ha respondido nada en esa dirección. Comprueba que el otro Claudio está en marcha y en esta red.",
+      "not-claudio": "Algo ha respondido en esa dirección, pero no es un Claudio.",
+      "bad-answer": "Ese servidor ha respondido más de lo que respondería un Claudio, así que no se ha guardado nada.",
+      "token-invalid": "Ese servidor no acepta este token. Pega un token de propietario de ese servidor.",
+      "address-invalid": "Una de las direcciones no es una dirección.",
+      "address-insecure": "Con HTTP sin cifrar el token viajaría en claro. Usa https://, o http:// solo para esta máquina.",
+      "address-refused": "Una de las direcciones no está permitida: a un servidor se llega por la red, nunca a través de los servicios de esta máquina.",
+      "address-identity": "Una dirección responde como un Claudio distinto al de las demás.",
+      "fingerprint-mismatch": "El certificado que se ha mostrado no es el que ese servidor dice que es suyo. Algo entre los dos ha respondido en su lugar, así que no se ha emparejado nada.",
+      "fingerprint-unexpected": "La dirección muestra ahora un certificado distinto del que has confirmado, así que el token no se ha enviado.",
+      "identity-changed": "El servidor que ha respondido no es el que se emparejó, así que no se ha cambiado nada.",
+      "too-many": "Este Claudio ya guarda todos los servidores que puede. Quita uno antes.",
+      "disabled": "Los servidores están desactivados. Actívalos antes."
+    },
+    "server-links": {
+      "code-invalid": "El otro Claudio no acepta ese código: puede estar mal escrito, usado o caducado. Muestra uno nuevo allí.",
+      "too-many": "Demasiados intentos. Espera un momento y vuelve a intentarlo.",
+      "auth-required": "El otro Claudio no pide iniciar sesión, así que no se puede emparejar. Activa antes un token allí."
+    }
+  }
+}

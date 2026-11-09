@@ -636,7 +636,8 @@
         "allowedTools": "Permitido sin preguntar: {{value}}",
         "guardsOff": "Guardas: desactivadas",
         "guardsRulesOff": "Reglas de las guardas desactivadas: {{value}}",
-        "verification": "Comprobaciones: {{value}}"
+        "verification": "Comprobaciones: {{value}}",
+        "verificationReview": "Las comprobaciones incluyen una revisión de los cambios"
       },
       "guardRules": {
         "integrity": "Integridad",
@@ -650,6 +651,11 @@
         "parallel": "iniciar igualmente",
         "skip": "no iniciar nada",
         "queue": "iniciar al terminar"
+      },
+      "template": {
+        "carries": "Esta plantilla ejecuta sus agentes con:",
+        "defaults": "Esta plantilla mantiene los valores predeterminados de la app para permisos, herramientas, guardas y comprobaciones",
+        "loading": "Leyendo la plantilla…"
       },
       "preview": {
         "words": "En palabras: {{value}}",

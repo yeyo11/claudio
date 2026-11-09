@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T14:36:12.21521472Z
-updated_at: 2026-11-08T22:00:00Z
+updated_at: 2026-11-09T18:00:00Z
 tags:
     - plan
     - servers
@@ -11,11 +11,13 @@ tags:
 ---
 # Plan: Servers — one Claudio drives the others
 
-Status: **orchestration A (engine, stages 1-3, D12 and their docs) built on 2026-11-08, pending the
-security review and the merge; orchestration B (the UI, stage 4) waits for its design phase.** The
-engine as built is [servers.md](../servers.md); what each task delivered is in [Outcome](#10-outcome).
+Status: **built, waiting to merge and release.** The engine shipped in #99 (orchestration A and its
+follow-ups, merged 2026-11-09). Orchestration B (§12) completed Servers on branches merged into one:
+the UI, the five engine gaps E1-E5, the two flaky workflow tests and the docs; what is still open
+is in [§12.4](#124-outcome). The release (0.15.0) waits for that merge. The engine and the UI as
+built are [servers.md](../servers.md); what each task of A delivered is in [Outcome](#10-outcome).
 Requirements gathered from the owner, prior art and pitfalls researched, design validated by the
-owner the same day. The UI (stage 4) waits for its own design phase (orchestration B).
+owner on 2026-11-08; the UI design is settled in §12.1.
 
 ## 1. What the owner asked for
 
@@ -520,6 +522,197 @@ Orchestration `9bb7cfdd`, 2026-11-08, three tasks on branches merged into one; n
 - **D17** is recorded as an accepted risk in [security-model.md](../security-model.md#servers).
 - The `server-meta.ts` mirror is gone: the web uses the shared `ServerMeta`, `API_VERSION` and
   `API_VERSION_MIN`. The e2e suite was not run in this orchestration.
+
+## 12. Orchestration B: completing Servers (owner, 2026-11-09)
+
+The owner holds the 0.15.0 release until Servers is complete and asked for **everything left in one
+orchestration**, on the latest `main` (ce11a17f8, #99 and #100 merged). This section is its source of
+truth: the UI (stage 4), every engine gap of §10 "Left open", the e2e of the visible flow, the two
+flaky workflow tests seen on CI, and the docs. The UI below follows the answers of §1 (selector
+before the projects, local pinned + 3 recents, a page before Projects with full CRUD, status in the
+selector and the status bar, no banner, one hop, off by default) and the design system
+(`docs/design-system.md`, the `claudio-ui` skill); it reuses existing patterns rather than inventing
+new ones. The `ui-review` task checks it against the rubric.
+
+### 12.1 The design
+
+**Names and copy.** en "Servers" / es "Servidores"; the local one "This server" / "Este servidor".
+Status words (always a word beside the colour): Connected / Conectado (ok), Reconnecting /
+Reconectando (warn, braille spinner beside the verb), Offline / Sin conexión (bad), Needs an update /
+Necesita actualizar (warn), Pair again / Volver a emparejar (warn), Identity changed / La identidad ha
+cambiado (bad). Machine literals (addresses, fingerprints, instance ids, versions in tables) in Geist
+Mono; names and words never.
+
+**The selector** (`apps/web/src/components/ServerSelector.tsx`, mounted in
+`components/shell/TopBar.tsx` before `<ProjectSelector />`, line 57). Only while the feature is on
+and only in the hub (never inside a remote scope: one hop). It mirrors `ProjectSelector`'s trigger
+and menu (same classes, restyled, not duplicated): the trigger shows the current server's monogram
+in its colour token and its name; the menu lists **This server** pinned first, then the **3** most
+recently used servers (`lastUsedAt`), each with its monogram, name and status word, then a divider
+and **All servers** → `/servers`. Picking one calls `switchTo(id)` of `lib/server-scope.tsx`. With no
+remote yet, the menu shows This server and **Add a server** → `/servers?add=1`. On a phone the menu
+is a `Sheet`.
+
+**The status bar** (`components/shell/StatusBar.tsx`): in a remote scope, the first item is the
+server's monogram and name with its status word; in the hub it shows nothing new.
+
+**The sidebar item** "Servers" goes before "Projects" in `App.tsx`'s nav (and in the phone's More
+list), only while the feature is on and only in the hub. Icon from lucide (`Server`).
+
+**The Servers page** (`apps/web/src/pages/Servers.tsx`, route `/servers`, hub-only). It follows the
+Collaborators page's structure (`pages/Collaborators.tsx`: an opt-in feature page with its switch,
+cards and empty state):
+- Header: title, one line of what it is, the primary action **Add a server** (`--grad`: the zone's
+  one primary action).
+- Feature off: `Empty` with the illustration that fits best from the set (no new art) and a switch
+  to turn Servers on (the same switch as Settings).
+- No server yet: `Empty` explaining both ways to pair, with **Add a server**.
+- The list: one row per server: monogram in its colour, name, status word, version, latency, the
+  address in use (mono), last used; row actions **Open** (switch to it), **Test connection**,
+  **Update** (desktop update of that server through the gateway, `POST
+  /servers/:id/api/system/desktop-update`, shown when its `DesktopUpdateStatus` says one is
+  available), **Edit**, **Remove**. On a phone the actions go in a "⋯" `Sheet`.
+- **Add a server** dialog, two tabs: *Pairing code* (address(es) + the 8-character code shown on the
+  other Claudio) and *Owner token* (address(es) + token). The token way runs D13's round trip: the
+  first `POST /servers` answers `409 servers.confirm-fingerprint`; the dialog then shows the
+  fingerprint (mono, grouped) and asks the person to compare it with the one on the other Claudio's
+  LAN card (Settings → Access & safety), with **It matches, pair** / **Cancel**. A CA-signed name
+  (tailnet, tunnel) explains that the fingerprint will not match the LAN card's and that the name's
+  certificate is what is checked (D15). Name, colour (a token picker from the existing colour
+  controls) and monogram are asked in the same dialog with sensible defaults (the remote's
+  hostname, a colour not yet used, its initials).
+- **Edit**: name, colour, monogram, the addresses (add, remove, reorder by drag or up/down, each with
+  its kind LAN / Tailscale / Tunnel / Other).
+- **Test connection**: a panel with the four checks (meta, REST, events, socket), each with a word
+  and its latency.
+- **Remove**: a confirmation dialog saying the token is revoked on the remote; if the revoke fails,
+  a second confirmation offers removing anyway (`?force=true`) and says the token may still work.
+- **Identity changed** rows offer **Pair again** (12.2 E3), which keeps the server's id.
+- A section **Let another Claudio connect to this one** (hub-only like the page; every Claudio is the
+  hub of itself, so this is where a remote is prepared for pairing): **Show a pairing code** → the 8-character code (mono, large,
+  grouped 4+4), its 5-minute countdown and **New code**, and the LAN fingerprint below it to compare.
+  Below it, **Connected hubs**: the list of `GET /server-links` (hub name, created, last used) with
+  **Revoke** (D14).
+
+**Settings**: in Settings → Access & safety, a card **Servers** with the on/off switch
+(`PUT /servers/settings`) and a link to the page. Turning it off says what happens (D8: kept,
+disconnected).
+
+**The LAN card** (`pages/config/RemoteAccessTab.tsx`, `LanCard`, line 111): the copy that says the
+connection is unencrypted is wrong since D6: it says HTTPS with a self-signed certificate, shows the
+fingerprint (mono, copy button) and one line on the phone's certificate warning and Tailscale as the
+way without it (R11).
+
+**A remote that is offline** while the hub answers: the remote scope shows the `Unreachable`
+component (`components/Unreachable.tsx`) in its in-page form with the server's name and address and
+**Retry** / **Back to this server**, never the hub-wide modal (that one is for the hub itself).
+**Needs an update** shows `Empty` with the versions and, when the hub can, **Update it**.
+
+**Motion and states**: only Reconnecting and Testing move; everything stops under the motion
+levels. Both themes, phone (touch targets ≥ 44 px, inputs 16 px), en/es parity, the GLOSSARY.
+
+### 12.2 Engine gaps (contracts)
+
+- **E1. Same route across servers.** `mapRoute` (`lib/server-scope.tsx`) sends a page that names a
+  record (a chat, a task, an orchestration, a project page) to Home. Keep it on the target when the
+  record exists there (one `HEAD`/`GET` of the record's route through the target's base, 2 s budget),
+  else go to the list it belongs to (`/chats`, `/orchestrations`, …), else Home.
+- **E2. The desktop terminal window under a remote scope.** `apps/desktop/src/terminal-window.ts`
+  and the IPC navigation (`main.ts`, `${serverOrigin}${path}`) accept the `/s/<id>` prefix, still
+  same-origin only.
+- **E3. Pair again in place.** `POST /servers/:id/pair` (person) with `ServerPairing` re-pairs a
+  server whose identity changed or whose token was revoked, keeping its id, name, colour and
+  addresses; the old token is revoked on the remote when reachable; D13 applies to the token way.
+- **E4. A hub `421` through the gateway** shows the hub's host-refused screen, as a direct call does.
+- **E5. MCP.** The permission prompt of `launch_orchestration_template` shows the template's stored
+  permission mode, prompts, allowed tools and guards; the MCP `verification` schema accepts parallel
+  groups (an entry that is a list) and `review`, as `VerificationSpec` does.
+- **E6. Flaky workflow tests.** `packages/core/test/orchestrator-recovery.test.ts:222` ("a workflow
+  resume refused for good…") and `packages/core/test/workflow-limits.test.ts:201` ("a workflow held
+  for a reset goes on…") fail on loaded CI runners and pass on rerun. First make each failure say
+  what it saw (each task's status and error), then find and fix the cause: wait on an event or a
+  state, never a longer timeout or a looser assertion.
+
+### 12.3 Tasks
+
+Graph `claudio-servers-complete`, engine `graph`, worktrees on, concurrency 4, base
+`feat/servers-complete` (= `main` ce11a17f8 + this section). Default effort **medium** (owner's
+preference); high only where noted. Models by task: opus where security or diagnosis decide, sonnet
+for the specified UI and prose.
+
+| id | Owns | Depends on | Model / effort |
+| --- | --- | --- | --- |
+| `engine-gaps` | E1, E2, E3, E4: `lib/server-scope.tsx` route mapping, `apps/desktop/src/terminal-window.ts` + `main.ts` navigation, `POST /servers/:id/pair` in `packages/core/src/servers/` and `apps/api/src/routes/servers.ts` (OpenAPI, `docs/rest-api.md` row), the 421 path through the gateway in the web's request layer; tests | — | opus · medium |
+| `mcp-gaps` | E5 in `packages/mcp` (prompt text en/es, schema) with tests | — | sonnet · medium |
+| `flaky-tests` | E6 in the two test files and, if the cause is there, the orchestrator code it points to | — | opus · high |
+| `ui-shell` | 12.1 selector, status bar, sidebar item and phone More entry, the Settings card with the switch, i18n en/es | — | sonnet · high |
+| `ui-servers-page` | 12.1 the Servers page with every dialog and section, the remote-offline and needs-update states in a remote scope, the LAN card's copy and fingerprint, the per-server Update; i18n en/es; builds against E3's contract | — | sonnet · high |
+| `e2e` | New specs under `e2e/specs/` with two isolated wrappers: turn the feature on, pair by code and by token (fingerprint confirm), switch with the selector (same route kept for a list and a record), a write lands on the remote, test connection, remote offline state, identity-changed → pair again, remove with revoke, the LAN card fingerprint; phone width for the selector Sheet; run through Sluice's e2e gate | `engine-gaps`, `ui-shell`, `ui-servers-page` | sonnet · high |
+| `ui-review` | The `/ui-review` rubric over the selector, the status bar, the Servers page and its dialogs, the Settings card and the LAN card, both themes and the phone; fixes what it finds | `ui-shell`, `ui-servers-page` | opus · high |
+| `docs` | `docs/servers.md` (the UI as built, no "no visible UI" line), `docs/ui.md` (the page and the selector), `docs/lan-access.md` (the card), `docs/claudio-mcp-server.md` (E5), this plan's §12 Outcome and status line | `engine-gaps`, `mcp-gaps`, `ui-shell`, `ui-servers-page` | sonnet · medium |
+
+Two stages in series. Rules for every task: those of §9.4 (read this plan whole, CLAUDE.md and
+CONTRIBUTING.md; touch only what your row owns; tests with every change; TypeScript strict; English;
+Conventional Commits; never push; verify through Sluice), plus: UI work loads the `claudio-ui`
+skill, opens the design-system reference of the screen it changes before and after, and keeps the
+classes e2e specs select.
+
+### 12.4 Outcome
+
+Orchestration B (graph `claudio-servers-complete`), as reported by each task on 2026-11-09. Nothing
+is pushed; the branches merge into one. The UI as built is [servers.md](../servers.md#the-ui) and
+[ui.md](../ui.md); this table says what each task delivered and where it deviated.
+
+| Task | Result |
+| --- | --- |
+| `engine-gaps` | **E1** switching keeps the page: a record's page reads that record on the other server within 2 s and stays if it is there, otherwise opens its list, an unknown page opens Home (`lib/server-routes.ts`, `server-scope.tsx`). **E2** a remote's terminal window opens as its own window (same origin only), and a tray or update-notice navigation reloads when the window shows a remote's pages (`apps/desktop`). **E3** `POST /servers/:id/pair` pairs in place under the same id with the rules of adding one; the old token is revoked only after the new one is stored and only on an address that still answers as the old server; answer `previousToken: { revoked, reason? }` (new shared type `PairServerAgainResult`). **E4** a 421 through the gateway asks the hub itself, as a 401 does, so only the hub's own refusal shows the host-refused screen. Three API tests with two servers, web and desktop tests |
+| `mcp-gaps` | **E5** a `commands` entry of `verification` may be a list of parallel commands, `review` takes the whole `ReviewGateSpec` and `commands` may be empty when `review` is given (`launch_orchestration`, `relaunch_orchestration`, `create_orchestration_template`, `verify_orchestration`); the permission prompt of `launch_orchestration_template` reads the template and shows its stored permission mode, permission prompts, allowed tools, guards and checks, in `en`/`es`, through an optional `orchestrationTemplate` method on `ChatClient` and the existing `GET /orchestrations/templates/:id` (no new route) |
+| `flaky-tests` | **E6** the two tests seen failing on CI had real races in the orchestrator, fixed there: a journal read begun before a workflow's resume no longer lands on it, and a workflow resumed within a tick of its stop is not settled by the stopped run's watcher (commits `2de6084c7`, `e94bed67b`); the tests now print every task's status and error when they fail |
+| `ui-shell` | The selector (This server pinned, the 3 used last with a status word, **All servers** or **Add a server**; a Sheet on a phone), the remote scope's status bar item and the phone's More card with **Back to this server**, **Servers** in the sidebar and More, and Settings → Access & safety → Servers with the switch and **Manage servers**. `MoreActions` got an optional `trigger`, `Monogram` optional `letters` and `hue` |
+| `ui-servers-page` | `/servers` with its list, the dialogs (add by code or token with D13's fingerprint comparison, edit, test, pair again, remove with the forced second question), the per-server **Update** through the gateway, **Let another Claudio connect to this one** and **Connected hubs** (D14), the in-page offline and needs-update screens of a remote, and the LAN card's HTTPS copy and fingerprint (`LanFingerprint`). A UI review of the page fixed seven blocking findings in the same task |
+| `e2e` | Three specs with two wrappers, the remote guarded and serving TLS on its LAN listener: `servers-pairing` (on, pair by code and by token with the fingerprint confirmed, test connection, the LAN card's fingerprint, remove with revoke), `servers-switch` (the selector and its phone Sheet, the same page kept for a list and a record, a write landing on the remote, the status bar, back to this server, off) and `servers-pair-again` (an identity change, then pairing again under the same id); the harness gained `peerEnv` and a peer's `start()`/`stop()`. On the merged branch with `main` (2026-11-09) the three and the collaborators specs pass through Sluice; `servers-switch` was brought in line with the review's selector (its visible name, and the selector kept inside a remote) |
+| `ui-review` | Four `/ui-review` passes, the last SHIPPABLE with axe clean on `/servers` and in a remote scope. Merged the shell's and the page's client, model and mark into one each; the selector now also shows inside a remote; focus, stable dialog height, initials that follow the name, Spanish pairing errors, and the LAN-off wording of the connect card |
+| `docs` | `servers.md` (the UI, pair again, same-route mapping, the desktop window, the 421 rule), `ui.md`, `lan-access.md`, `claudio-mcp-server.md` and this section. It also resolved the merges of the shell and the page: both had written `lib/api/servers.ts` and `lib/servers-model.ts` |
+
+### Decisions the tasks took where the plan was silent
+
+- **One client and one model for the shell and the page.** The two UI tasks each wrote
+  `lib/api/servers.ts` and `lib/servers-model.ts`; they were merged into one of each. The page's
+  eight-colour palette and its rule for a hue win (a token this build does not know gets a stable hue
+  from the name), the shell's helpers (`recentServers`, `serverStatus`, `serverLetters`) sit on the
+  page's tone table, and `idle` is not a server tone. The ui-review task then left one `ServerMark`
+  and one `ServerStatusWord`, both in `components/ServerMark.tsx`.
+- **The selector shows the current server, also inside a remote scope.** The ui-review task changed
+  the first build (which drew it only on the hub): inside a remote it shows that remote's mark and
+  name, and its list is still the hub's, so a switch stays one hop (D7).
+- **`POST /servers/:id/pair`** takes a bare `ServerPairing` and `{ pairing }` as well. An old token the
+  remote no longer knows counts as revoked. A project page is checked with `GET /projects/:id/docs`,
+  because there is no `GET /projects/:id`.
+- **The template lines of the MCP prompt** go in the muted `permission-preview` block beside the call,
+  and the plan's "prompts" means the permission prompts (`permissionPrompts`), not the tasks' prompts.
+- **Settings card** is hub-only and absent on a Claudio that does not serve the routes.
+
+### Left open (after B)
+
+- The remote-scope status bar, the More card and the Reconnecting spinner were only covered by unit
+  tests: no paired remote was running when the UI was reviewed.
+- Accepted: the Settings row is 92 px tall at 1280 (the shared `PrefRow` wraps the hint); at 320 px
+  the selector reads "All p…" with "All projects" chosen.
+- Timing tests that failed once under load during the orchestration and are not Servers':
+  `chat-account-switch.test.ts:87`, `tunnel.test.ts:400`, `openai-slot-eviction.test.ts:390`;
+  `accounts-rotation.test.ts:410` reads `Date.now()` the way E6's races did. The
+  `update-unit.test.ts:243` failures were uutils' `date` dropping the zeros of `%3N`, fixed in #104.
+  `collab-sync.test.ts:291` (three installs over iroh) timed out once on the merged branch and
+  passed on the next run.
+- `useConfirm` focuses the destructive button app-wide, so Enter twice from a row's "⋯" menu
+  removes a server; a change to every confirmation of the app, left for its own decision.
+- Of §10's "Left open": the record mapping (E1), the desktop terminal window (E2), pairing again
+  (E3), the MCP prompt and schema (E5), the LAN card's fingerprint and copy, and the UI are done
+  (the review notes were closed by D15 and D16 in §11). Still open from §10: the full `ui-check` of
+  `/chats` under load.
+- The "Needs an update" state and a row's **Update** have no e2e; the e2e specs need a non-loopback
+  IPv4 address on the machine.
+- The 0.15.0 release.
 
 ## Related
 

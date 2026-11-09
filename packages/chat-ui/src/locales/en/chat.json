@@ -636,7 +636,8 @@
         "allowedTools": "Allowed without asking: {{value}}",
         "guardsOff": "Guards: off",
         "guardsRulesOff": "Guard rules switched off: {{value}}",
-        "verification": "Checks: {{value}}"
+        "verification": "Checks: {{value}}",
+        "verificationReview": "Checks include a review of the changes"
       },
       "guardRules": {
         "integrity": "Integrity",
@@ -650,6 +651,11 @@
         "parallel": "start anyway",
         "skip": "start nothing",
         "queue": "start when it ends"
+      },
+      "template": {
+        "carries": "This template runs its workers with:",
+        "defaults": "This template keeps the app's defaults for permissions, tools, guards and checks",
+        "loading": "Reading the template…"
       },
       "preview": {
         "words": "In words: {{value}}",

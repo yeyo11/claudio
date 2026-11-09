@@ -36,6 +36,12 @@
 // its iroh endpoint on the minimal preset to a fixed loopback port (CLAUDIO_COLLAB_PRESET,
 // CLAUDIO_COLLAB_BIND): no relay and no discovery, so installs reach each other by their loopback
 // tickets and the suite needs no network, and an invite stays good across a turn off and on.
+// Servers (docs/plans/claudio-servers.md §12.3): a spec that exports `peerEnv = { remote: env }` (or a
+// function `({ freePort }) => env`, sync or async, per name) starts that peer with those variables on top
+// of its own, which is how a peer becomes a guarded remote (CLAUDIO_AUTH_MODE=token with its
+// CLAUDIO_AUTH_TOKEN, and its LAN listener, CLAUDIO_LAN=on on a free CLAUDIO_LAN_PORT). It reads them back
+// as `peer.env`, its `api` carries the token as a bearer when it has one, and `stop()` / `start()` take
+// its server down and bring it back on the same port and directories (`restart()` is both).
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
@@ -383,11 +389,12 @@ async function serverAnswers() {
 }
 const SERVER_PROBE_MS = 5000;
 
-function apiAt(url) {
+/** `headers` go on every call: a guarded peer's client carries its owner token */
+function apiAt(url, headers = {}) {
   const client = {
     baseUrl: url,
     async request(method, path, body) {
-      const res = await fetch(`${url}/api${path}`, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined });
+      const res = await fetch(`${url}/api${path}`, { method, headers: { ...headers, ...(body ? { 'content-type': 'application/json' } : {}) }, body: body ? JSON.stringify(body) : undefined });
       return { status: res.status, body: await res.json().catch(() => null) };
     },
     get: (path) => client.request('GET', path),
@@ -427,7 +434,7 @@ function stopPeers() {
  * machine, and nothing a spec does there may reach the real `claude`. Each run of a spec gets fresh
  * directories, so no spec sees what an earlier one left on a peer.
  */
-async function startPeer(name, page, browser) {
+async function startPeer(name, page, browser, extraEnv = {}) {
   const home = join(sandbox, 'peers', `${name}-${++peerRuns}`);
   const peerDirs = { configDir: join(home, 'claude'), workspaceDir: join(home, 'workspace'), dataDir: join(home, 'data') };
   for (const dir of Object.values(peerDirs)) mkdirSync(dir, { recursive: true });
@@ -447,6 +454,8 @@ async function startPeer(name, page, browser) {
     FAKE_TAILSCALE_STATE: join(home, 'tailscale-node.json'),
     FAKE_STATE_DIR: peerDirs.dataDir,
     ...(await collabEnv()),
+    // The spec's own variables go last: a guarded remote replaces the suite's auth mode `none`
+    ...extraEnv,
   };
   const entry = { child: null };
   peers.set(name, entry);
@@ -474,27 +483,38 @@ async function startPeer(name, page, browser) {
     },
   });
   /**
+   * Stops the peer's server: a machine that went off. SIGTERM first, as the main server: the API closes
+   * its database, and the port is free on return.
+   */
+  const stop = () => killGroup(entry.child.pid, { graceMs: 3000 });
+  /** Starts it again on what it left on disk, as itself: the same port, directories and iroh bind */
+  const start = () => boot();
+  /**
    * Stops the peer's server and starts it again on what it left on disk: a teammate's machine that
    * restarted. A spec changes those files in between (a vault lost, say) to see what the app makes of it.
    */
   const restart = async () => {
-    // SIGTERM first, as the main server: the API closes its database, and the port is free on return
-    killGroup(entry.child.pid, { graceMs: 3000 });
-    await boot();
+    stop();
+    await start();
   };
   const openTab = async () => {
     const tab = await browser.openTab(url);
     peerTabs.push({ name, tab });
     return tab;
   };
-  return { name, baseUrl: url, port, api: apiAt(url), dirs: peerDirs, fakeCli: peerFake, page: peerPage, openTab, restart };
+  const token = extraEnv.CLAUDIO_AUTH_TOKEN;
+  return { name, baseUrl: url, port, api: apiAt(url, token ? { authorization: `Bearer ${token}` } : {}), env: extraEnv, dirs: peerDirs, fakeCli: peerFake, page: peerPage, openTab, restart, stop, start };
 }
 
-async function startPeers(names, page, browser) {
+async function startPeers(names, page, browser, envs = {}) {
   if (!Array.isArray(names) || names.some((n) => typeof n !== 'string' || !PEER_NAME.test(n)) || new Set(names).size !== names.length) {
     throw new Error(`\`peers\` must be distinct lower-case names, got ${JSON.stringify(names)}`);
   }
-  const started = await Promise.all(names.map((name) => startPeer(name, page, browser)));
+  const extra = async (name) => {
+    const given = envs[name];
+    return typeof given === 'function' ? await given({ freePort }) : (given ?? {});
+  };
+  const started = await Promise.all(names.map(async (name) => startPeer(name, page, browser, await extra(name))));
   return Object.fromEntries(started.map((peer) => [peer.name, peer]));
 }
 
@@ -549,7 +569,7 @@ try {
       // captures it from its own `catch`, and says why with what the servers logged meanwhile
       context.capture = (label) => captureFailure(`FAILED-${file}-${label}`, browser.page);
       context.serverLog = (pattern) => (specLog ?? []).filter((line) => !pattern || pattern.test(line));
-      if (spec.peers !== undefined) context.peers = await startPeers(spec.peers, browser.page, browser);
+      if (spec.peers !== undefined) context.peers = await startPeers(spec.peers, browser.page, browser, spec.peerEnv);
       await within(spec.default(context), limit, file);
       const errors = [...browser.page.takeErrors(), ...takePeerTabErrors()];
       check(errors.length === 0, `console errors:\n  ${[...new Set(errors)].join('\n  ')}`);

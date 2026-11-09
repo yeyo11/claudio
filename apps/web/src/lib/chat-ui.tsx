@@ -38,6 +38,7 @@ export const chatClient: ChatClient = {
     const words = describeCron(cron);
     return words ? { ...preview, description: words } : preview;
   },
+  orchestrationTemplate: (templateId) => api.orchestrationTemplate(templateId),
   accounts: () => api.accounts(),
   accountModels: (id) => api.accountModels(id),
   switchChatAccount: api.switchChatAccount,

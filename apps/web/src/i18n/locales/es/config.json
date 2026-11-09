@@ -644,6 +644,7 @@
       "access": "Acceso",
       "hosts": "Hosts permitidos",
       "remote": "Acceso remoto",
+      "servers": "Servidores",
       "secrets": "Secretos",
       "guards": "Guardas",
       "terminal": "Terminal",
@@ -834,6 +835,9 @@
         "enabled": "Red local",
         "port": "Puerto de la red local",
         "bind": "Interfaces de la red local"
+      },
+      "servers": {
+        "enabled": "Usar servidores"
       }
     },
     "keywords": {
@@ -1040,6 +1044,10 @@
         "enabled": "lan wifi red casa escuchar móvil",
         "port": "lan wifi red 8791",
         "bind": "lan wifi red interfaz dirección ip"
+      },
+      "servers": {
+        "section": "servidores remoto claudio hub emparejar otras máquinas",
+        "enabled": "servidores cambiar remoto emparejar hub"
       }
     },
     "consequences": {
@@ -1989,8 +1997,13 @@
       "fromEnv": "Lo fija {{variable}} donde se ejecuta Claudio."
     },
     "http": {
-      "title": "HTTP sin cifrar",
-      "body": "Tu token viaja sin cifrar por esta red, y el móvil no tiene aplicación ni notificaciones aquí. Para el móvil, usa Tailscale, más abajo."
+      "title": "HTTPS con un certificado autofirmado",
+      "body": "El tráfico de esta red va cifrado. El navegador de un móvil avisa por el certificado y aquí no ofrece aplicación ni notificaciones: acéptalo una vez tras comparar la huella de abajo, o usa Tailscale, más abajo, en el que un móvil confía."
+    },
+    "fingerprint": {
+      "label": "Huella del certificado",
+      "hint": "La que muestra un navegador en su aviso del certificado y la que otro Claudio te pide comparar cuando empareja con un token.",
+      "copy": "Copiar la huella"
     },
     "saveFailed": "No se ha podido guardar el ajuste de la red local",
     "startFailed": "No se ha podido empezar a escuchar"
@@ -2123,5 +2136,16 @@
     "colCpu": "Tiempo de CPU",
     "untitled": "Chat sin título",
     "mb": "{{mb}} MB"
+  },
+  "servers": {
+    "title": "Servidores",
+    "switch": "Usar servidores",
+    "open": "Gestionar servidores",
+    "toast": {
+      "on": "Servidores activados",
+      "off": "Servidores desactivados. La lista se conserva.",
+      "saveFailed": "No se ha podido cambiar Servidores"
+    },
+    "hint": "Al desactivarlo, los servidores se desconectan y la lista se conserva."
   }
 }

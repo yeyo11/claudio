@@ -568,6 +568,13 @@ export class Orchestrator {
   private readonly journalTasks = new Map<string, Set<string>>();
   /** Workflow graphs whose journal is being read, so a slow read is not stacked under the next tick */
   private readonly journalReading = new Set<string>();
+  /**
+   * How many launches each workflow graph had, resumes included. A journal read begun before the
+   * latest one belongs to the run that was there: a resume sets the graph running again at once,
+   * but moves `journalFrom` only once the old lead has exited, and a read that lands in between
+   * would put the failed attempt's lines back on the tasks it just reset.
+   */
+  private readonly workflowLaunches = new Map<string, number>();
   /** Workflow graphs being settled, so a slow settle is not started again by the next tick */
   private readonly finishing = new Set<string>();
   /** Each workflow graph's watcher: a launch into the same session after a limit replaces the one before */
@@ -3570,7 +3577,7 @@ ${quoted}
       this.timers.delete(scheduled.timer);
       this.scheduled.delete(id);
     }
-    for (const map of [this.workflowBaseline, this.journalFrom, this.journalTasks, this.workflowGrowth, this.journalBytes, this.followedAt]) map.delete(id);
+    for (const map of [this.workflowBaseline, this.journalFrom, this.workflowLaunches, this.journalTasks, this.workflowGrowth, this.journalBytes, this.followedAt]) map.delete(id);
     for (const set of [this.recordEnded, this.lateArrivals, this.journalReading, this.finishing, this.workflowLaunching]) set.delete(id);
     const prefix = `${id}:`;
     for (const key of [...this.warned]) if (key.startsWith(prefix)) this.warned.delete(key);
@@ -3812,6 +3819,10 @@ ${quoted}
    * the cache that replays the agents that had already finished.
    */
   private launchWorkflow(orch: Orchestration, resumeFrom: string | null): void {
+    this.workflowLaunches.set(orch.id, (this.workflowLaunches.get(orch.id) ?? 0) + 1);
+    // A graph stopped and resumed within a tick still has the stopped run's watcher, which would settle
+    // the resumed graph from the stopped lead's end; this launch follows the run with its own
+    this.clearWorkflowWatcher(orch.id);
     // The first start of a workflow waits for the daily cap like a graph's first task; the tasks stay
     // pending and `spendChanged` launches it. A resume goes back to a session that already ran.
     if (!resumeFrom && !orch.workflow?.runId && this.spendOpen?.(orch.id) === false) {
@@ -4177,14 +4188,17 @@ ${quoted}
    */
   private async syncJournal(orch: Orchestration): Promise<void> {
     if (orch.status !== 'running' || !orch.workflow?.runId) return;
+    const launch = this.workflowLaunches.get(orch.id);
     if (!orch.workflow.workflowRunId) await this.learnWorkflowRunId(orch);
     const sessionId = orch.workflow?.runId;
     const workflowRunId = orch.workflow?.workflowRunId;
     if (!this.workflowJournal || !sessionId || !workflowRunId) return;
     const from = this.journalFrom.get(orch.id) ?? 0;
     const read = await this.workflowJournal(sessionId, workflowRunId, from).catch(() => null);
-    // Stopped, relaunched, resumed after a limit or closed while the files were read: what was read belongs to what is gone
+    // Stopped, relaunched, resumed (after a limit, or by hand after it ended) or closed while the files
+    // were read: what was read belongs to what is gone
     if (!read || this.closed || orch.status !== 'running' || orch.workflow?.runId !== sessionId || orch.workflow.workflowRunId !== workflowRunId) return;
+    if (this.workflowLaunches.get(orch.id) !== launch) return;
     if ((this.journalFrom.get(orch.id) ?? 0) !== from) return;
     this.journalBytes.set(orch.id, read.bytes);
     this.applyJournal(orch, read.tasks);
