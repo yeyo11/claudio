@@ -225,6 +225,11 @@
   flex: none;
 }
 
+/* The strip clips what passes its edge (it scrolls): the ring is drawn inside the tab, so it shows whole */
+.server-pairing .tabs > .tab:focus-visible {
+  outline-offset: -2px;
+}
+
 /* The certificate's groups of four, each kept whole so two can be compared by eye */
 .server-fingerprint {
   display: flex;

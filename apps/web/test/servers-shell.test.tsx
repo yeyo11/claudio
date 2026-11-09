@@ -68,8 +68,10 @@ const off: ServersSettings = { enabled: false };
 
 test('the selector is a quiet button in the project selector’s shape, with the separator that leads to the project', () => {
   const html = page(<ServerSelector />, { settings: on, servers: [server('a', 'Studio')] });
-  // The name holds the words the button shows, so a voice user can say them
-  assert.match(html, /<button[^>]*class="select-trigger project-selector server-selector"[^>]*aria-label="Server: This server"/);
+  // Named by what it shows, with a hidden "Server:" before it: no aria-label that could leave out
+  // the visible text (a remote's mark letters), so a voice user can say what they see
+  assert.match(html, /<button type="button" class="select-trigger project-selector server-selector"[^>]*><span class="sr-only">Server: <\/span>/);
+  assert.doesNotMatch(html, /server-selector"[^>]*aria-label/);
   assert.match(html, /This server/);
   assert.match(html, /class="crumb-sep"/);
 });
@@ -82,8 +84,7 @@ test('it draws nothing while Servers is off or before the switch is known', () =
 test('inside a remote’s scope the selector names that remote with its mark, so a phone with no status bar still says where the page writes', () => {
   setActiveServer('a');
   const html = page(<ServerSelector />, { settings: on, servers: [server('a', 'Studio', { color: 'violet' }), server('b', 'Beta')] });
-  assert.match(html, /aria-label="Server: Studio"/);
-  assert.match(html, /class="monogram"[^>]*>ST</);
+  assert.match(html, /<span class="sr-only">Server: <\/span>[\s\S]*class="monogram"[^>]*>ST<[\s\S]*>Studio</);
   assert.doesNotMatch(html, /This server/, 'the button is the remote’s, not the hub’s');
 });
 
@@ -130,9 +131,9 @@ test('the menu pins This server, lists the three used last and ends with the way
   assert.equal(listed.radio?.value, 'local', 'the hub is the one chosen');
   const words = listed.items.map((item) => renderToStaticMarkup(<>{item.label}{item.meta}</>));
   assert.match(words[0] ?? '', /This server/);
-  assert.match(words[1] ?? '', /Beta[\s\S]*text-ok[^>]*>Connected/);
-  assert.match(words[2] ?? '', /Gamma[\s\S]*text-bad[^>]*>Offline/);
-  assert.match(words[3] ?? '', /Delta[\s\S]*text-warn[\s\S]*Reconnecting/, 'the spinner sits beside the verb');
+  assert.match(words[1] ?? '', /Beta[\s\S]*tone-ok[\s\S]*Connected/);
+  assert.match(words[2] ?? '', /Gamma[\s\S]*tone-bad[\s\S]*Offline/);
+  assert.match(words[3] ?? '', /Delta[\s\S]*tone-warn[\s\S]*Reconnecting/, 'the spinner sits beside the verb');
   assert.deepEqual(items(entries).map((item) => item.id), ['all']);
 
   listed.radio?.onChange('c');
@@ -162,7 +163,7 @@ test('inside a remote’s scope the status bar names it with its status and offe
   const html = page(<StatusBarServer />, { servers, path: '/chats' });
   assert.match(html, /data-testid="statusbar-server"/);
   assert.match(html, /Mac studio/);
-  assert.match(html, /text-ok[^>]*>Connected/);
+  assert.match(html, /tone-ok[\s\S]*Connected/);
   assert.match(html, /<a href="\/chats" class="statusbar-item">Back to this server<\/a>/);
 });
 
@@ -179,7 +180,7 @@ test('the phone’s More sheet carries the same: a card with the name, the statu
   const html = page(<MoreServer />, { servers: [server('a', 'Mac studio', { health: health('needs-update') })], path: '/usage' });
   assert.match(html, /<a href="\/usage" class="more-connection more-server"/);
   assert.match(html, /Mac studio/);
-  assert.match(html, /text-warn[^>]*>Needs an update/);
+  assert.match(html, /tone-warn[\s\S]*Needs an update/);
   assert.match(html, /Back to this server/);
 });
 

@@ -1,29 +1,52 @@
-import type { ClaudioServer } from '@claudio/shared';
+import type { ClaudioServer, ServerStatus } from '@claudio/shared';
+import { ArrowUpCircle, CircleCheck, CircleDashed, KeyRound, ShieldAlert, WifiOff, type LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
-import { Monogram } from '@claudio/ui/components/icons';
+import { ICON_SM, Monogram } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
-import { serverHue, serverLetters, serverStatus, type ServerTone } from '../lib/servers-model';
+import { SERVER_TONE, serverHue, serverLetters } from '../lib/servers-model';
 
-/** A server's monogram in its colour token's hue (docs/plans/claudio-servers.md §12.1) */
-export function ServerMark({ server, size = 20 }: { server: Pick<ClaudioServer, 'name' | 'color' | 'monogram'>; size?: number }) {
-  return <Monogram name={server.name} size={size} letters={serverLetters(server)} hue={serverHue(server)} />;
+/*
+ * A server as every surface draws it (docs/plans/claudio-servers.md §12.1): the selector, the status
+ * bar, the phone's More sheet, the Servers page and its dialogs. One mark and one status word, so a
+ * server looks and reads the same wherever it shows.
+ */
+
+/** A server's monogram in its colour token's hue: the project's `.monogram`, fed an hue, never a hex */
+export function ServerMark({ server, size = 20, className }: { server: Pick<ClaudioServer, 'name' | 'color' | 'monogram'>; size?: number; className?: string }) {
+  return <Monogram name={server.name} size={size} letters={serverLetters(server)} hue={serverHue(server)} className={className} />;
 }
 
-const TONE_CLASS: Record<ServerTone, string | undefined> = { ok: 'text-ok', warn: 'text-warn', bad: 'text-bad', idle: undefined };
+const ICONS: Record<ServerStatus, LucideIcon> = {
+  connected: CircleCheck,
+  reconnecting: CircleDashed,
+  offline: WifiOff,
+  'needs-update': ArrowUpCircle,
+  'needs-pairing': KeyRound,
+  'identity-changed': ShieldAlert,
+};
 
 /**
- * A server's status as a word, coloured by what it means and never by colour alone. Reconnecting is
- * the one that moves: a braille spinner beside the verb, which stops under the motion levels. A
- * server nobody has read yet shows nothing.
+ * A status in its word, its tone and an icon, so colour never says it alone (the Collaborators
+ * page's `.collab-tone`). Reconnecting is the one that moves: the braille spinner beside the verb.
+ * A server nobody has read yet (the hub keeps health in memory only) says nothing in the shell, and
+ * "Not checked", neutral, where the page lists it (`unchecked`).
  */
-export function ServerStatusWord({ server }: { server: Pick<ClaudioServer, 'health'> }) {
+export function ServerStatusWord({ status, unchecked = false }: { status: ServerStatus | null; unchecked?: boolean }) {
   const { t } = useTranslation('shell');
-  const status = serverStatus(server);
-  if (!status) return null;
+  if (status === null) {
+    if (!unchecked) return null;
+    return (
+      <span className="collab-tone server-status" data-status="unchecked">
+        <CircleDashed {...ICON_SM} />
+        <span>{t('servers.status.unchecked')}</span>
+      </span>
+    );
+  }
+  const Icon = ICONS[status];
   return (
-    <span className={`server-status ${TONE_CLASS[status.tone] ?? ''}`.trim()}>
-      {status.key === 'reconnecting' && <Spinner />}
-      {t(`servers.status.${status.key}`)}
+    <span className={`collab-tone server-status tone-${SERVER_TONE[status]}`} data-status={status}>
+      {status === 'reconnecting' ? <Spinner /> : <Icon {...ICON_SM} />}
+      <span>{t(`servers.status.${status}`)}</span>
     </span>
   );
 }

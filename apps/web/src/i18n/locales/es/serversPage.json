@@ -17,15 +17,6 @@
     "title": "Todavía no hay otro servidor",
     "body": "Empareja otro Claudio para controlarlo desde aquí: con el código que muestra su página de Servidores, o con un token de propietario si no tiene pantalla."
   },
-  "status": {
-    "connected": "Conectado",
-    "reconnecting": "Reconectando",
-    "offline": "Sin conexión",
-    "needs-update": "Necesita actualizar",
-    "needs-pairing": "Volver a emparejar",
-    "identity-changed": "La identidad ha cambiado",
-    "unchecked": "Sin comprobar"
-  },
   "reason": {
     "servers": {
       "unreachable": "Ninguna dirección responde.",

@@ -97,6 +97,13 @@ function parseAddress(input: string): URL | null {
   }
 }
 
+/**
+ * An address as a row shows it: without the `https://` every server address has by default, as the
+ * person types it (`192.168.0.29:8791`), so it fits a phone's row whole. Plain `http://` stays
+ * written, since it says something; the title keeps the whole origin.
+ */
+export const shownAddress = (url: string): string => url.replace(/^https:\/\//i, '');
+
 /** The kind a typed address is saved with, unless the person chose one */
 export const addressOf = (input: string, kind?: ServerAddressKind): ServerAddress | null => {
   const url = normalizeAddress(input);

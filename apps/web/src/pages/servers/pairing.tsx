@@ -57,6 +57,7 @@ export function PairingFields({ draft, onChange, group }: { draft: PairingDraft;
                 autoCapitalize="characters"
                 spellCheck={false}
                 maxLength={CODE_LENGTH + 2}
+                data-autofocus
                 data-testid="server-code"
               />
             </Field>

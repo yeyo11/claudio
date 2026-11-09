@@ -17,15 +17,6 @@
     "title": "No other server yet",
     "body": "Pair another Claudio to drive it from here: with the code its own Servers page shows, or with an owner token for one that has no screen."
   },
-  "status": {
-    "connected": "Connected",
-    "reconnecting": "Reconnecting",
-    "offline": "Offline",
-    "needs-update": "Needs an update",
-    "needs-pairing": "Pair again",
-    "identity-changed": "Identity changed",
-    "unchecked": "Not checked"
-  },
   "reason": {
     "servers": {
       "unreachable": "No address answers.",

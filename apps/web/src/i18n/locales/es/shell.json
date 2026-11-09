@@ -109,7 +109,8 @@
       "offline": "Sin conexión",
       "needs-update": "Necesita actualizar",
       "needs-pairing": "Volver a emparejar",
-      "identity-changed": "La identidad ha cambiado"
+      "identity-changed": "La identidad ha cambiado",
+      "unchecked": "Sin comprobar"
     }
   },
   "notFound": {

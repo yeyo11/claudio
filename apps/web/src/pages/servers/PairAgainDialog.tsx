@@ -6,7 +6,7 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox } from '@claudio/ui/components/ui';
 import { serversApi, useServersMutation } from '../../lib/api/servers';
 import { emptyPairing, FingerprintConfirm, mayPair, pairingOf, PairingFields, usePairingFlow, type PairingDraft } from './pairing';
-import { ServerMark, ServerStatusWord } from './ServerMark';
+import { ServerMark, ServerStatusWord } from '../../components/ServerMark';
 import { localizedError } from './words';
 
 /**
@@ -68,10 +68,10 @@ export function PairAgainDialog({ server, onClose }: { server: ClaudioServer; on
         ) : (
           <>
             <div className="server-pair-head">
-              <ServerMark server={server} size={36} />
+              <ServerMark server={server} size={36} className="server-mark" />
               <div className="server-pair-who">
                 <span className="server-pair-name">{server.name}</span>
-                <ServerStatusWord status={server.health?.status ?? null} />
+                <ServerStatusWord status={server.health?.status ?? null} unchecked />
               </div>
             </div>
             <p>{t(server.health?.status === 'identity-changed' ? 'pairAgain.bodyIdentity' : server.health?.status === 'needs-pairing' ? 'pairAgain.bodyToken' : 'pairAgain.body')}</p>

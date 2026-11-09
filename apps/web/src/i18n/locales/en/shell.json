@@ -109,7 +109,8 @@
       "offline": "Offline",
       "needs-update": "Needs an update",
       "needs-pairing": "Pair again",
-      "identity-changed": "Identity changed"
+      "identity-changed": "Identity changed",
+      "unchecked": "Not checked"
     }
   },
   "notFound": {

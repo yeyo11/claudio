@@ -9,7 +9,7 @@ import { serversApi, serversKeys } from '../../lib/api/servers';
 import { addressesOf, defaultMonogram, defaultServerName, freeColor, MAX_SERVER_NAME, newDraft, type AddressDraft } from '../../lib/servers-model';
 import { AddressesEditor, ColourPicker } from './AddressesEditor';
 import { emptyPairing, FingerprintConfirm, mayPair, pairingOf, PairingFields, usePairingFlow, type PairingDraft } from './pairing';
-import { ServerMark } from './ServerMark';
+import { ServerMark } from '../../components/ServerMark';
 import { localizedError } from './words';
 
 export interface AddFormState {
@@ -51,7 +51,7 @@ export function AddServerForm({ state, onChange, invalid = [], group }: { state:
         <span className="field-hint">{t('add.addressesHint')}</span>
       </div>
       <div className="server-identity">
-        <ServerMark server={{ name, color: state.colour, monogram }} size={44} />
+        <ServerMark server={{ name, color: state.colour, monogram }} size={44} className="server-mark" />
         <Field label={t('add.name')} hint={t('add.nameHint')}>
           <input value={name} onChange={(e) => onChange({ ...state, name: e.target.value })} maxLength={MAX_SERVER_NAME} autoComplete="off" data-testid="server-name" />
         </Field>

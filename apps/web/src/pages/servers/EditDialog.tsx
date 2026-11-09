@@ -7,7 +7,7 @@ import { ErrorBox, Field } from '@claudio/ui/components/ui';
 import { serversApi, useServersMutation } from '../../lib/api/servers';
 import { addressesOf, defaultMonogram, draftsOf, MAX_SERVER_NAME, sameAddresses, type AddressDraft } from '../../lib/servers-model';
 import { AddressesEditor, ColourPicker } from './AddressesEditor';
-import { ServerMark } from './ServerMark';
+import { ServerMark } from '../../components/ServerMark';
 import { localizedError } from './words';
 
 export interface EditState {
@@ -44,7 +44,7 @@ export function EditServerForm({ state, onChange, invalid = [], addressesChanged
   return (
     <div className="stack" data-testid="server-edit-form">
       <div className="server-identity">
-        <ServerMark server={{ name: state.name, color: state.colour, monogram }} size={44} />
+        <ServerMark server={{ name: state.name, color: state.colour, monogram }} size={44} className="server-mark" />
         <Field label={t('add.name')}>
           <input value={state.name} onChange={(e) => onChange({ ...state, name: e.target.value })} maxLength={MAX_SERVER_NAME} autoComplete="off" required data-autofocus data-testid="server-name" />
         </Field>

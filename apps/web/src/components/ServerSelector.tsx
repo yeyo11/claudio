@@ -82,7 +82,7 @@ export function selectorEntries(servers: readonly ClaudioServer[], t: TFunction<
               <span className="server-item-name">{server.name}</span>
             </span>
           ),
-          meta: <ServerStatusWord server={server} />,
+          meta: <ServerStatusWord status={server.health?.status ?? null} />,
         })),
       ],
     },
@@ -122,7 +122,10 @@ export function SelectorView({ servers, current = LOCAL_SERVER_ID }: { servers: 
           label={t('servers.selector.label')}
           align="start"
           trigger={
-            <button type="button" className="select-trigger project-selector server-selector" aria-label={`${t('servers.selector.label')}: ${name}`}>
+            // Named by what it shows, not by an aria-label: a label that leaves out the mark's
+            // letters is a name that does not contain the visible text (axe, WCAG 2.5.3)
+            <button type="button" className="select-trigger project-selector server-selector">
+              <span className="sr-only">{`${t('servers.selector.label')}: `}</span>
               <span className="select-value server-selector-value">
                 {remote ? <ServerMark server={remote} /> : <Server {...ICON_SM} className="server-local-icon" aria-hidden />}
                 <span className="server-selector-name">{name}</span>

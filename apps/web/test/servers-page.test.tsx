@@ -12,6 +12,7 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { ApiRequestError, keys } from '../src/api';
+import { ServerStatusWord } from '../src/components/ServerMark';
 import { Unreachable } from '../src/components/Unreachable';
 import i18n from '../src/i18n';
 import { serversApi } from '../src/lib/api/servers';
@@ -34,6 +35,7 @@ import {
   secondsLeft,
   SERVER_COLOR_NAMES,
   SERVER_TONE,
+  shownAddress,
   sortServers,
 } from '../src/lib/servers-model';
 import { ServersView } from '../src/pages/Servers';
@@ -205,7 +207,7 @@ test('each server row says its status in a word, its version, latency and the ad
     assert.ok(text(html).includes(words[status]), status);
     assert.ok(text(html).includes('Version 0.15.0'), status);
     assert.ok(text(html).includes('12 ms'), status);
-    assert.match(html, /<code class="mono server-row-url"[^>]*>https:\/\/192\.168\.0\.29:8791<\/code>/, status);
+    assert.match(html, /<code class="mono server-row-url" title="https:\/\/192\.168\.0\.29:8791">192\.168\.0\.29:8791<\/code>/, status);
   }
   assert.match(view([server({ status: 'reconnecting' })]), /spinner/);
   assert.match(view([server({ status: 'offline' })]), /No address answers\./);
@@ -561,4 +563,24 @@ test('the pairing code keeps its large size against the rule that gives every li
   assert.match(css, /\.server-code-row \.server-code-value\s*\{[^}]*font-size: var\(--fs-title\);/);
   // An address in a row stays whole: an ellipsis, never a break inside the port
   assert.match(css, /\.server-row-url\s*\{[^}]*white-space: nowrap;/);
+});
+
+test('a row shows its address as it is typed, without the default https://, so it fits a phone whole; plain http stays written', () => {
+  assert.equal(shownAddress('https://192.168.0.29:8791'), '192.168.0.29:8791');
+  assert.equal(shownAddress('https://studio.tail1234.ts.net'), 'studio.tail1234.ts.net');
+  assert.equal(shownAddress('http://127.0.0.1:8917'), 'http://127.0.0.1:8917');
+});
+
+test('Add a server opens on the code it asks for, not on its tabs', () => {
+  const html = wrap(<AddServerForm state={addState()} onChange={() => {}} group="g" />);
+  assert.match(html, /data-autofocus="true" data-testid="server-code"/);
+});
+
+test('a status reads the same on the page and in the shell: one component, a word, an icon and its tone; "Not checked" only where the page lists it', () => {
+  const page = wrap(<ServerStatusWord status="offline" unchecked />);
+  const shell = wrap(<ServerStatusWord status="offline" />);
+  assert.equal(page, shell);
+  assert.match(page, /class="collab-tone server-status tone-bad" data-status="offline"><svg/);
+  assert.ok(text(wrap(<ServerStatusWord status={null} unchecked />)).includes('Not checked'));
+  assert.equal(wrap(<ServerStatusWord status={null} />).replace(/<div class="toasts"[^>]*><\/div>/, ''), '');
 });
