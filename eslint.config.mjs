@@ -49,4 +49,13 @@ export default [
       'no-restricted-imports': ['error', { patterns: COLLAB_FORBIDDEN }],
     },
   },
+  // A second clause for the same case is dead code the type checker lets through, and two merged
+  // branches leave one behind (packages/core/src/evals/matchers.ts carried a second 'judged' until 0.15.0)
+  {
+    files: ['packages/*/src/**/*.ts', 'apps/*/src/**/*.ts'],
+    languageOptions: { parser: stripTypes },
+    rules: {
+      'no-duplicate-case': 'error',
+    },
+  },
 ];
