@@ -86,8 +86,22 @@ the fix:
   does not count; it is stamped after the wait began.
 
 Proof through Sluice: lint, typecheck and the full test gate passed on the merged tree (job
-`1794243622638-20935-124e05`), and again on this tree alongside the e2e gate (see the review's
-result).
+`1794243622638-20935-124e05`) and again after the review (`1794244213957-20935-1052ee`), and the
+e2e gate passed `servers-*` and `collaborators*`, all six specs in two shards
+(`1794244734525-20935-54fa69`). A third run of lint, typecheck and test passed alongside the whole
+e2e suite (`1794244915481-20935-ac578b`), so the plan's tests also held with the browser suite
+loading the machine.
+
+That whole e2e run failed, on two things outside this plan:
+
+- `a11y-core.spec.mjs` passed the e2e runner's 300 s per-spec limit while the test gate ran beside
+  it, and its shard stopped, leaving 46 specs not run. Alone it passes in 117 s
+  (`1794246288965-20935-87e49f`): a spec slowed 2.5× by load, a candidate for the next round.
+- `terminal.spec.mjs`, `terminal-paste.spec.mjs`, `terminal-autoclose.spec.mjs` and `motion.spec.mjs`
+  could not turn the terminal on (`PUT /terminal/settings` 403, then `terminal.off`). The terminal
+  gate refuses a request from a process whose ancestry carries `CLAUDIO_CHAT_ID`, which the
+  Sluice job most likely inherited from the agent's chat (not checked); no file this plan changed
+  touches the terminal. CI, which has no such variable, is where they are judged.
 
 ## Related
 
