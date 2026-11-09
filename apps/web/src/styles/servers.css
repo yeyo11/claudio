@@ -102,7 +102,20 @@
 }
 
 .server-row-address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
   min-width: 0;
+}
+
+/* An address stays whole: on a narrow row it moves under its label, and one longer than the row
+   (a tunnel's name) ends in an ellipsis with the whole of it in the title, never split mid-port */
+.server-row-url {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .server-row-why {
@@ -119,15 +132,24 @@
 }
 
 /* ---------- Dialogs ---------- */
+/* Mark, name and initials share three rows (label, field, hint) through a subgrid, so the two labels
+   and the two fields line up whether or not the name carries a hint, and the mark sits by the fields */
 .server-identity {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) 96px;
-  align-items: end;
-  gap: 12px;
+  grid-template-rows: auto auto auto;
+  align-items: center;
+  gap: 6px 12px;
+}
+
+.server-identity > .field {
+  display: grid;
+  grid-row: 1 / span 3;
+  grid-template-rows: subgrid;
 }
 
 .server-identity > .server-mark {
-  margin-bottom: 4px;
+  grid-row: 2;
 }
 
 .server-monogram-input {
@@ -198,6 +220,16 @@
   max-width: 220px;
 }
 
+/* A tab keeps its width: on a narrow dialog the strip scrolls, as tabs do, instead of the labels shrinking into each other */
+.server-pairing .tabs > .tab {
+  flex: none;
+}
+
+/* The strip clips what passes its edge (it scrolls): the ring is drawn inside the tab, so it shows whole */
+.server-pairing .tabs > .tab:focus-visible {
+  outline-offset: -2px;
+}
+
 /* The certificate's groups of four, each kept whole so two can be compared by eye */
 .server-fingerprint {
   display: flex;
@@ -243,6 +275,15 @@
 }
 
 /* ---------- Test connection ---------- */
+/* The line above the checks holds the verb while testing and the address after: one height for
+   both (the address's chip is the taller), so the centred dialog does not jump as a test ends */
+.server-test-line {
+  display: flex;
+  align-items: center;
+  min-height: 26px;
+  margin: 0;
+}
+
 .server-test-running {
   display: inline-flex;
   align-items: center;
@@ -253,7 +294,7 @@
 .server-check {
   display: flex;
   flex-wrap: wrap;
-  align-items: baseline;
+  align-items: center;
   gap: 2px 12px;
   padding: 10px 0;
   border-top: 1px solid var(--border);
@@ -273,6 +314,21 @@
 }
 
 /* ---------- Let another Claudio connect, and the hubs that did ---------- */
+.server-hubs-card > p {
+  margin: 0;
+}
+
+.server-open-access {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+}
+
+.server-open-access > p {
+  margin: 0;
+}
+
 .server-connect {
   display: flex;
   flex-direction: column;
@@ -299,8 +355,9 @@
   gap: 8px;
 }
 
-/* Machine-read, so mono; large because the person reads it aloud or across a room to type it elsewhere */
-.server-code-value {
+/* Machine-read, so mono; large because the person reads it aloud or across a room to type it elsewhere.
+   Two classes, to outweigh base.css's `.mono:not(input…)`, which gives every literal its line's size */
+.server-code-row .server-code-value {
   font-size: var(--fs-title);
   font-weight: var(--fw-strong);
   font-variant-numeric: tabular-nums;
@@ -354,6 +411,12 @@
 
 /* ---------- Phone: touch targets of 44, inputs of 16, one column ---------- */
 @media (max-width: 900px) {
+  /* Here the actions are the "⋯" alone (media.ts NARROW): it stays beside the name at 320 instead of
+     wrapping onto a line of its own under the mark */
+  .server-row {
+    flex-wrap: nowrap;
+  }
+
   .server-row-actions {
     margin-left: 0;
   }
@@ -370,16 +433,23 @@
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
+  /* The address takes the whole width, the kind and the moves share the line under it */
+  .server-address-row > .server-address-input {
+    grid-column: 1 / -1;
+  }
+
   .server-address-row > .server-address-kind {
     grid-column: 1;
   }
 
   .server-identity {
     grid-template-columns: auto minmax(0, 1fr);
+    grid-template-rows: repeat(6, auto);
   }
 
   .server-identity > :last-child {
     grid-column: 1 / -1;
+    grid-row: 4 / span 3;
   }
 
   .server-address-input,

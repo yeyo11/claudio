@@ -4,6 +4,13 @@
  */
 export const LAYER_ATTR = { 'data-escape-layer': '' } as const;
 
+/**
+ * Where focus goes back when a dialog closes whose opener has left the page: a menu item that opened
+ * it (Edit, Remove in a row's "⋯") is gone by then, so the menu names its trigger here, keyed by the
+ * dialog's panel, and the dialog returns focus to it instead of to nothing.
+ */
+export const focusReturn = new WeakMap<HTMLElement, HTMLElement>();
+
 export function hasOpenLayer(): boolean {
   return document.querySelector('[data-escape-layer]') !== null;
 }

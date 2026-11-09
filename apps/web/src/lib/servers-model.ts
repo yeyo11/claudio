@@ -2,9 +2,15 @@ import type { ClaudioReleaseInfo, ClaudioServer, DesktopUpdateStatus, ServerAddr
 import { monogramLetters, nameHue } from '@claudio/ui/components/icons';
 
 /*
- * What the Servers page and the shell decide from a server's data, apart from the components so a
- * test reads them without the app (docs/plans/claudio-servers.md §12.1). Plain functions over plain data.
+ * What the shell and the Servers page decide from a server's data (docs/plans/claudio-servers.md
+ * §12.1): its mark, its status in words, the few the selector lists, and what the page's forms
+ * check. Plain functions over plain data, apart from the components so a test reads them without
+ * the app. The selector, the status bar and the page draw a server from these same rules, so its
+ * mark and its word are the same wherever it shows.
  */
+
+/** How many servers besides This server the selector lists (§1: "local pinned + 3 recents") */
+export const RECENT_SERVERS = 3;
 
 export type ServerTone = 'ok' | 'warn' | 'bad' | 'idle';
 
@@ -21,6 +27,20 @@ export const SERVER_TONE: Record<ServerStatus, ServerTone> = {
   'needs-pairing': 'warn',
   'identity-changed': 'bad',
 };
+
+/** A status in words: the key of its word, and the colour that goes with it (always beside the word) */
+export const SERVER_STATUS = Object.fromEntries(
+  (Object.keys(SERVER_TONE) as ServerStatus[]).map((key) => [key, { key, tone: SERVER_TONE[key] }]),
+) as Readonly<Record<ServerStatus, { key: ServerStatus; tone: ServerTone }>>;
+
+/**
+ * A server's status; one nobody has read yet (the hub keeps health in memory only) has none, and
+ * the shell then says nothing rather than guessing "Offline".
+ */
+export function serverStatus(server: Pick<ClaudioServer, 'health'>): { key: ServerStatus; tone: ServerTone } | null {
+  const status = server.health?.status;
+  return status ? (SERVER_STATUS[status] ?? null) : null;
+}
 
 /** A server with no reading yet has no tone, "Not checked": nothing is probed until it is used or tested */
 export const serverTone = (server: Pick<ClaudioServer, 'health'>): ServerTone | null => (server.health ? SERVER_TONE[server.health.status] : null);
@@ -77,6 +97,13 @@ function parseAddress(input: string): URL | null {
   }
 }
 
+/**
+ * An address as a row shows it: without the `https://` every server address has by default, as the
+ * person types it (`192.168.0.29:8791`), so it fits a phone's row whole. Plain `http://` stays
+ * written, since it says something; the title keeps the whole origin.
+ */
+export const shownAddress = (url: string): string => url.replace(/^https:\/\//i, '');
+
 /** The kind a typed address is saved with, unless the person chose one */
 export const addressOf = (input: string, kind?: ServerAddressKind): ServerAddress | null => {
   const url = normalizeAddress(input);
@@ -91,14 +118,22 @@ export function defaultServerName(address: string): string {
   return host.replace(/\.local$/, '').split('.')[0] ?? host;
 }
 
-/** Up to two letters for the tile: the initials of the words of a name, or its first two letters */
-export function defaultMonogram(name: string): string {
-  const words = name
-    .trim()
-    .split(/[\s._-]+/)
-    .filter(Boolean);
-  const letters = words.length >= 2 ? words.slice(0, 2).map((word) => [...word][0] ?? '') : [...(words[0] ?? '')].slice(0, 2);
-  return letters.join('').toUpperCase();
+/**
+ * Up to two letters for the tile when none was chosen: the initials of the first two words, or the
+ * first two letters of a lone word, the rule every project mark follows (`studio` ST, `Mac studio` MS)
+ */
+export const defaultMonogram = (name: string): string => {
+  // A server named by its IPv4 address (the default for a LAN one) is told apart by its last
+  // number: 192.168.0.28 and .29 would both be "19" by their initials
+  const ipv4 = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.(\d{1,3})$/.exec(name.trim());
+  if (ipv4?.[1]) return ipv4[1].slice(-2);
+  return monogramLetters(name, true);
+};
+
+/** The letters of a server's mark: the ones it was given, else the initials of its name */
+export function serverLetters(server: Pick<ClaudioServer, 'name' | 'monogram'>): string {
+  const own = server.monogram?.trim();
+  return own ? Array.from(own).slice(0, 2).join('').toUpperCase() : defaultMonogram(server.name);
 }
 
 /**
@@ -122,8 +157,9 @@ export const SERVER_COLOR_NAMES = Object.keys(SERVER_COLORS) as ServerColor[];
 export const isServerColor = (value: string | null | undefined): value is ServerColor => value !== null && value !== undefined && Object.hasOwn(SERVER_COLORS, value);
 
 /**
- * The hue of a server's mark: its colour token's, else the one every monogram takes from its name
- * (also for a token this build does not know, another client's), so a mark is never blank and is stable.
+ * The hue of a server's mark: its colour token's; a token this build does not know (another
+ * client's) gets a stable hue from the token, and no colour at all one from the name, the way every
+ * monogram is tinted, so a server is never blank.
  */
 export function serverHue(server: Pick<ClaudioServer, 'color' | 'name'>): number {
   if (isServerColor(server.color)) return SERVER_COLORS[server.color];
@@ -187,6 +223,18 @@ export function sortServers(servers: readonly ClaudioServer[]): ClaudioServer[] 
   });
 }
 
+/**
+ * The servers the selector lists after This server: the most recently used first, and one never
+ * used (just paired) after them by when it was added, so a new server is in the menu before its
+ * first visit instead of being reachable only from the page.
+ */
+export function recentServers(servers: readonly ClaudioServer[], limit: number = RECENT_SERVERS): ClaudioServer[] {
+  const stamp = (value: string | null) => (value === null ? 0 : Date.parse(value) || 0);
+  return [...servers]
+    .sort((a, b) => stamp(b.lastUsedAt) - stamp(a.lastUsedAt) || stamp(b.createdAt) - stamp(a.createdAt) || a.name.localeCompare(b.name))
+    .slice(0, limit);
+}
+
 /** Moves the item at `from` to `to`, for the addresses' order: a copy, and the same array when nothing moves */
 export function moveItem<T>(items: readonly T[], from: number, to: number): T[] {
   const next = [...items];
@@ -226,44 +274,3 @@ export function addressesOf(drafts: readonly AddressDraft[]): { addresses: Serve
 /** Whether the edit changes the addresses (a new or moved one), which the server then has to prove */
 export const sameAddresses = (a: readonly ServerAddress[], b: readonly ServerAddress[]): boolean =>
   a.length === b.length && a.every((address, i) => address.url === b[i]?.url && address.kind === b[i]?.kind);
-
-
-/** How many servers besides This server the selector lists (§1: "local pinned + 3 recents") */
-export const RECENT_SERVERS = 3;
-
-/** The letters of a server's mark: the ones it was given, else the initials of its name */
-export function serverLetters(server: Pick<ClaudioServer, 'name' | 'monogram'>): string {
-  const own = server.monogram?.trim();
-  return own ? Array.from(own).slice(0, 2).join('').toUpperCase() : monogramLetters(server.name);
-}
-
-/**
- * The servers the selector lists after This server: the most recently used first, and one never
- * used (just paired) after them by when it was added, so a new server is in the menu before its
- * first visit instead of being reachable only from the page.
- */
-export function recentServers(servers: readonly ClaudioServer[], limit: number = RECENT_SERVERS): ClaudioServer[] {
-  const stamp = (value: string | null) => (value === null ? 0 : Date.parse(value) || 0);
-  return [...servers]
-    .sort((a, b) => stamp(b.lastUsedAt) - stamp(a.lastUsedAt) || stamp(b.createdAt) - stamp(a.createdAt) || a.name.localeCompare(b.name))
-    .slice(0, limit);
-}
-
-/** A status in words: the key under `shell:servers.status`, and the colour that goes with it (always beside the word) */
-export const SERVER_STATUS: Readonly<Record<ServerStatus, { key: ServerStatus; tone: ServerTone }>> = {
-  connected: { key: 'connected', tone: 'ok' },
-  reconnecting: { key: 'reconnecting', tone: 'warn' },
-  offline: { key: 'offline', tone: 'bad' },
-  'needs-update': { key: 'needs-update', tone: 'warn' },
-  'needs-pairing': { key: 'needs-pairing', tone: 'warn' },
-  'identity-changed': { key: 'identity-changed', tone: 'bad' },
-};
-
-/**
- * A server's status; one nobody has read yet (the hub keeps health in memory only) has none, and
- * the menu then says nothing rather than guessing "Offline".
- */
-export function serverStatus(server: Pick<ClaudioServer, 'health'>): { key: ServerStatus; tone: ServerTone } | null {
-  const status = server.health?.status;
-  return status ? (SERVER_STATUS[status] ?? null) : null;
-}

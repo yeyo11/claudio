@@ -2146,6 +2146,6 @@
       "off": "Servidores desactivados. La lista se conserva.",
       "saveFailed": "No se ha podido cambiar Servidores"
     },
-    "hint": "Desactivado, desconecta los servidores y conserva la lista."
+    "hint": "Al desactivarlo, los servidores se desconectan y la lista se conserva."
   }
 }

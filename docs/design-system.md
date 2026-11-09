@@ -2176,18 +2176,21 @@ built like the tunnel's and adds `.lan-head`, `.lan-addresses`, `.lan-address`, 
 ### Servers in the shell: the selector, the status bar item and the Settings switch
 
 Not drawn in `reference/`: it restyles the project selector and the status bar
-([plans/claudio-servers.md](plans/claudio-servers.md) §12.1). It exists only while Servers is on and
-only on the hub (one hop), so a person who never turns it on sees none of it. Classes:
+([plans/claudio-servers.md](plans/claudio-servers.md) §12.1). It exists only while the hub has Servers
+on, so a person who never turns it on sees none of it. Inside a remote scope it is still drawn, from
+the hub's own list (one hop: a remote's servers are never listed): the button wears the remote's
+mark and name, which on a phone, with no status bar, is what says where the page writes. Classes:
 `.server-scope`, `.server-selector`, `.server-selector-value`, `.server-selector-name`, `.server-item`,
 `.server-item-name`, `.server-local-icon`, `.server-status`, `.statusbar-server`, `.more-server`,
 `.servers-switch` (`shell.css`, `editors.css`, `claudio-ds.css`).
 
 - **The selector** is the first crumb, before the project's, and wears the project selector's button
   (`.select-trigger.project-selector`). Its menu is `MoreActions`: a dropdown on a desktop and a
-  `Sheet` on a phone. This server is pinned and chosen, then the three servers used last, each with
-  its monogram in the hue of its colour token and its status as a word (`ok`, `warn`, `bad` by what
-  it says; the braille spinner only beside Reconnecting), then one link to the page, or "Add a
-  server" when there is none. On a phone the button keeps its icon and drops the name.
+  `Sheet` on a phone. This server is pinned, then the three servers used last (the one in use always
+  among them), the current scope chosen; each has its monogram in the hue of its colour token and its
+  status as a word under the name (`ok`, `warn`, `bad` by what it says; the braille spinner only
+  beside Reconnecting), then one link to the page, or "Add a server" when there is none. On a phone
+  the button keeps its icon (or the remote's monogram) and drops the name.
 - **The status bar** names a remote scope in its first item (monogram, name, status word) with a
   link back to the hub; the phone's More sheet shows the same as a `.more-connection` card. Names
   carry a `title` for when they are cut.
@@ -2890,6 +2893,16 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   mono, in groups of four, with a copy button.
 - On a phone the row's actions are one "⋯" `Sheet`, the dialogs' tabs, move buttons and colour tiles
   are 44 px, and the inputs are 16 px.
+- **After the UI review** (task `ui-review`): the colour tiles wear the server's initials (an empty
+  tile is a dark square in every hue) and the chosen one its check; initials nobody typed are not
+  stored, so they follow the name, and a server named by its IPv4 address takes its last number
+  (`.28`, `.29`); one address shows no move or remove buttons; the name and initials line up through
+  a subgrid whether or not a hint is under the name; the address in use stays whole
+  (`.server-row-url`: an ellipsis, never a break inside the port); the address that showed a
+  certificate is mono. While this Claudio asks for no sign-in, "Let another Claudio connect" is one
+  sentence with **Go to Access** (`.server-open-access`) and Connected hubs is not drawn; no hub yet
+  is one quiet line (`.server-hubs-card`), not a second empty state. A refusal Servers knows
+  (`servers.*`, a remote's `server-links.*`) is said in the page's language.
 
 ### Collaborators, as built
 

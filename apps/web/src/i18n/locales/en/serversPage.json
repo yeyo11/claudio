@@ -17,15 +17,6 @@
     "title": "No other server yet",
     "body": "Pair another Claudio to drive it from here: with the code its own Servers page shows, or with an owner token for one that has no screen."
   },
-  "status": {
-    "connected": "Connected",
-    "reconnecting": "Reconnecting",
-    "offline": "Offline",
-    "needs-update": "Needs an update",
-    "needs-pairing": "Pair again",
-    "identity-changed": "Identity changed",
-    "unchecked": "Not checked"
-  },
   "reason": {
     "servers": {
       "unreachable": "No address answers.",
@@ -105,7 +96,7 @@
   "confirm": {
     "title": "Compare this certificate",
     "body": "Before the token leaves this Claudio, check that the address shows the certificate of the Claudio you mean. On that one, open Settings, Access and safety, and read the fingerprint of its local network card.",
-    "shownBy": "Shown by {{address}}",
+    "shownBy": "Shown by <mono>{{address}}</mono>",
     "fingerprint": "Certificate fingerprint",
     "typed": "Paste the fingerprint from the other Claudio to check it here",
     "typedHint": "Optional: it tells you if the two do not match.",
@@ -192,7 +183,8 @@
     "fingerprint": "This Claudio's certificate fingerprint",
     "noFingerprint": "Listening on the local network is off, so there is no certificate to compare. A Tailscale or tunnel address is checked by its own certificate.",
     "failed": "Could not make a code",
-    "authRequired": "Another Claudio can only connect to one that asks for a sign-in. Turn on a token in Settings, Access and safety."
+    "authRequired": "Another Claudio can only connect to one that asks for a sign-in. Turn on a token or OIDC in Access first.",
+    "toAccess": "Go to Access"
   },
   "hubs": {
     "title": "Connected hubs",
@@ -233,5 +225,29 @@
       "servers": "All servers"
     },
     "fallbackName": "This server"
+  },
+  "errors": {
+    "servers": {
+      "already-paired": "That server is on the list already.",
+      "self": "That address is this Claudio.",
+      "unreachable": "Nothing answered at that address. Check that the other Claudio is running and on this network.",
+      "not-claudio": "Something answered at that address, but not a Claudio.",
+      "bad-answer": "That server answered more than a Claudio would, so nothing was kept.",
+      "token-invalid": "That server does not take this token. Paste an owner token of that server.",
+      "address-invalid": "One of the addresses is not an address.",
+      "address-insecure": "Plain HTTP would carry the token in the clear. Use https://, or http:// only for this machine.",
+      "address-refused": "One of the addresses is not allowed: a server is reached on the network, never through this machine's own services.",
+      "address-identity": "One address answers as a different Claudio from the others.",
+      "fingerprint-mismatch": "The certificate shown is not the one that server says is its own. Something between the two answered in its place, so nothing was paired.",
+      "fingerprint-unexpected": "The address now shows a different certificate from the one you confirmed, so the token was not sent.",
+      "identity-changed": "The server that answered is not the one that was paired, so nothing was changed.",
+      "too-many": "This Claudio already keeps as many servers as it can. Remove one first.",
+      "disabled": "Servers are off. Turn them on first."
+    },
+    "server-links": {
+      "code-invalid": "The other Claudio does not take that code: it may be mistyped, used or expired. Show a new one there.",
+      "too-many": "Too many tries. Wait a moment, then try again.",
+      "auth-required": "The other Claudio asks for no sign-in, so it cannot be paired. Turn on a token there first."
+    }
   }
 }

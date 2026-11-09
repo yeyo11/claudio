@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { ClaudioServer, ServerStatus } from '@claudio/shared';
 import { nameHue } from '@claudio/ui/components/icons';
-import { RECENT_SERVERS, recentServers, SERVER_COLOR_NAMES, SERVER_STATUS, serverHue, serverLetters, serverStatus } from '../src/lib/servers-model';
+import { RECENT_SERVERS, recentServers, SERVER_COLORS, SERVER_STATUS, serverHue, serverLetters, serverStatus } from '../src/lib/servers-model';
 
 // What the shell draws of a server (docs/plans/claudio-servers.md §12.1): who is listed in the
 // selector, its mark and its status in words.
@@ -44,10 +44,10 @@ test('a server never used comes after the used ones, newest added first, so a ne
 });
 
 test('a mark takes its colour token’s hue, else one worked out from the name, and its own letters else the initials', () => {
-  assert.equal(serverHue({ name: 'Studio', color: 'violet' }), 265);
+  assert.equal(serverHue({ name: 'Studio', color: 'violet' }), SERVER_COLORS.violet);
   assert.equal(serverHue({ name: 'Studio', color: null }), nameHue('Studio'));
   assert.equal(serverHue({ name: 'Studio', color: 'chartreuse' }), nameHue('chartreuse'), 'a token this build does not know still gets a stable hue');
-  assert.ok(SERVER_COLOR_NAMES.includes('blue'));
+  assert.ok(Object.values(SERVER_COLORS).every((hue) => hue < 130 || hue > 160), 'no colour a server wears is the ok green, which would read as a state');
   assert.equal(serverLetters({ name: 'Mac studio', monogram: null }), 'MS');
   assert.equal(serverLetters({ name: 'Mac studio', monogram: 'jg' }), 'JG');
   assert.equal(serverLetters({ name: 'Mac studio', monogram: '  ' }), 'MS', 'a blank monogram is no monogram');

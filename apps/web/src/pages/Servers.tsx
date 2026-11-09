@@ -11,7 +11,7 @@ import { Card, Empty, ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { ApiRequestError } from '../api';
 import { PageHeader } from '../components/PageHeader';
-import { remoteUpdateApi, serversApi, serversKeys, useServersList, useServersMutation, useServersSettings } from '../lib/api/servers';
+import { remoteUpdateApi, serversApi, serversKeys, useServers, useServersMutation, useServersSettings } from '../lib/api/servers';
 import { useHubOnlyHidden, useServerScope } from '../lib/server-scope';
 import { sortServers } from '../lib/servers-model';
 import { AddServerDialog } from './servers/AddDialog';
@@ -37,7 +37,7 @@ export function Servers() {
   const [params, setParams] = useSearchParams();
   const settings = useServersSettings();
   const enabled = settings.data?.enabled === true;
-  const list = useServersList(enabled);
+  const list = useServers({ enabled });
   const turnOn = useServersMutation((on: boolean) => serversApi.setEnabled(on));
 
   // The selector's "Add a server" lands here with ?add=1, once, so a reload does not reopen it

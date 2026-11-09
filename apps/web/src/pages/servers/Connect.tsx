@@ -2,20 +2,40 @@ import type { ServerLink, ServerLinkCode } from '@claudio/shared';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { api, ApiRequestError, keys } from '../../api';
 import type { AuthConfig } from '@claudio/shared';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Card, CopyButton, Empty, ErrorBox } from '@claudio/ui/components/ui';
+import { Card, CopyButton, ErrorBox } from '@claudio/ui/components/ui';
 import { formatDuration, timeAgo } from '@claudio/ui/lib/format';
 import { serversApi, useServerLinks, useServersMutation } from '../../lib/api/servers';
 import { groupCode, secondsLeft } from '../../lib/servers-model';
 import { LanFingerprint } from '../config/RemoteAccessTab';
+import { settingsHref } from '../config/settingsGroups';
 
-/** Whether this Claudio asks for no sign-in: another Claudio can only connect to one that does (the pairing routes answer 409/403 otherwise) */
-function useOpenAccess(): boolean {
+/**
+ * Whether this Claudio asks for no sign-in: another Claudio can only connect to one that does (the
+ * pairing routes answer 409/403 otherwise). Undefined until the auth mode is read, so nothing that
+ * depends on it is asked or drawn on a guess.
+ */
+function useOpenAccess(): boolean | undefined {
   const auth = useQuery({ queryKey: keys.securityAuth, queryFn: ({ signal }) => api.securityAuth({ signal }) });
-  return (auth.data as AuthConfig | undefined)?.mode === 'none';
+  const mode = (auth.data as AuthConfig | undefined)?.mode;
+  return mode === undefined ? undefined : mode === 'none';
+}
+
+/** Why nothing can connect yet, with the way to the setting that changes it */
+function OpenAccessNote() {
+  const { t } = useTranslation('serversPage');
+  return (
+    <div className="server-open-access" role="status" data-testid="server-link-auth-required">
+      <p className="small muted">{t('connect.authRequired')}</p>
+      <Link className="btn btn-small" to={settingsHref('access', { section: 'access' })}>
+        {t('connect.toAccess')}
+      </Link>
+    </div>
+  );
 }
 
 /** The code as shown: mono, large, in two groups of four, with its countdown and what to do when it ends */
@@ -76,23 +96,27 @@ export function ConnectCard() {
     });
   const needsSignIn = make.error instanceof ApiRequestError && make.error.code === 'server-links.auth-required';
 
+  // While nothing can connect, the card says why and where to change it, and nothing else: no
+  // button that would be refused, no fingerprint to compare for a pairing that cannot happen
   return (
-    <Card title={t('connect.title')} className="server-connect" >
+    <Card title={t('connect.title')} className="server-connect">
       <p className="small muted">{t('connect.body')}</p>
-      {open ? null : code ? (
-        <CodeView code={code} now={now} onNew={ask} pending={make.isPending} />
+      {open === undefined ? null : open || needsSignIn ? (
+        <OpenAccessNote />
       ) : (
-        <div className="form-actions">
-          <button type="button" className="btn" onClick={ask} disabled={make.isPending} data-testid="server-link-show">
-            {t('connect.show')}
-          </button>
-        </div>
-      )}
-      {open || needsSignIn ? <p className="small muted" role="status" data-testid="server-link-auth-required">{t('connect.authRequired')}</p> : make.error ? <ErrorBox error={make.error} title={t('connect.failed')} /> : null}
-      {fingerprint ? (
-        <LanFingerprint fingerprint={fingerprint} />
-      ) : (
-        lan.data && <p className="small muted" data-testid="server-link-no-fingerprint">{t('connect.noFingerprint')}</p>
+        <>
+          {code ? (
+            <CodeView code={code} now={now} onNew={ask} pending={make.isPending} />
+          ) : (
+            <div className="form-actions">
+              <button type="button" className="btn" onClick={ask} disabled={make.isPending} data-testid="server-link-show">
+                {t('connect.show')}
+              </button>
+            </div>
+          )}
+          {make.error ? <ErrorBox error={make.error} title={t('connect.failed')} /> : null}
+          {fingerprint ? <LanFingerprint fingerprint={fingerprint} /> : lan.data && <p className="small muted" data-testid="server-link-no-fingerprint">{t('connect.noFingerprint')}</p>}
+        </>
       )}
     </Card>
   );
@@ -119,7 +143,8 @@ export function HubRow({ link, busy, onRevoke }: { link: ServerLink; busy: boole
 /** The list inside the card, drawn from data */
 export function HubsList({ links, busy, onRevoke }: { links: readonly ServerLink[]; busy: boolean; onRevoke: (link: ServerLink) => void }) {
   const { t } = useTranslation('serversPage');
-  if (links.length === 0) return <Empty title={t('hubs.none')} />;
+  // One quiet line: an empty list in a card among others is not a state that needs a picture
+  if (links.length === 0) return <p className="small muted" data-testid="server-hubs-none">{t('hubs.none')}</p>;
   return (
     <ul className="server-hubs" data-testid="server-hubs">
       {links.map((link) => (
@@ -135,8 +160,9 @@ export function HubsCard() {
   const toast = useToast();
   const confirm = useConfirm();
   const open = useOpenAccess();
-  // Not asked while nobody can connect: the route refuses it, and a refusal here would read as a fault
-  const links = useServerLinks(!open);
+  // Not asked while nobody can connect, nor before that is known: the route refuses it, and a
+  // refusal here would read as a fault
+  const links = useServerLinks(open === false);
   const refused = links.error instanceof ApiRequestError && links.error.status === 403;
   const revoke = useServersMutation((link: ServerLink) => serversApi.revokeLink(link.tokenId));
 
@@ -145,9 +171,11 @@ export function HubsCard() {
       if (ok) revoke.mutate(link, { onSuccess: () => toast.success(t('hubs.revoked', { name: link.hubName })), onError: (err) => toast.error(t('hubs.revokeFailed', { name: link.hubName }), err) });
     });
 
+  // A Claudio nobody can connect to has no hubs to list: the card above already says why
+  if (open !== false) return null;
   return (
-    <Card title={t('hubs.title')}>
-      {open || refused ? <p className="small muted" data-testid="server-hubs-unavailable">{t(open ? 'connect.authRequired' : 'hubs.notOwner')}</p> : null}
+    <Card title={t('hubs.title')} className="server-hubs-card">
+      {refused ? <p className="small muted" data-testid="server-hubs-unavailable">{t('hubs.notOwner')}</p> : null}
       {links.error && !refused ? <ErrorBox error={links.error} title={t('hubs.failed')} /> : null}
       {links.data && <HubsList links={links.data} busy={revoke.isPending} onRevoke={ask} />}
     </Card>

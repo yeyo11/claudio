@@ -1,12 +1,14 @@
 /**
  * The Servers routes (docs/plans/claudio-servers.md §9.2): the switch, the list of the other
  * Claudios this one drives, and the two halves of pairing. They are the hub's own: every call goes
- * to `HUB_API` whatever the page's scope, because a hub never forwards `/servers*` to a remote (D7)
- * and because the page that uses them is hidden in a remote scope anyway.
+ * to `HUB_API` whatever the page's scope, because a hub never forwards `/servers*` to a remote (D7).
+ * A page scoped to a remote asks this one who the remote is and how it is doing, never the remote
+ * through the gateway.
  *
  * Every query is keyed under `'servers'`, so a write marks the list, the switch and the connected
  * hubs stale together. No event announces a change here: the page's own writes invalidate, and a
- * health reading is taken only by a use, a test or gateway traffic (nothing polls).
+ * health reading is taken by a use, a test or gateway traffic. Only the shell, while a remote is in
+ * use, polls the list slowly to follow that remote's health.
  */
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
@@ -36,7 +38,7 @@ const hub = <T>(path: string, init: Parameters<typeof requestAt>[2] = {}) => req
 
 export const serversApi = {
   settings: (o: ReadOptions = {}) => hub<ServersSettings>('/servers/settings', o),
-  setEnabled: (enabled: boolean) => hub<ServersSettings>('/servers/settings', { method: 'PUT', body: { enabled } }),
+  setEnabled: (enabled: boolean) => hub<ServersSettings>('/servers/settings', { method: 'PUT', body: { enabled } satisfies ServersSettings }),
   list: (o: ReadOptions = {}) => hub<ClaudioServer[]>('/servers', o),
   add: (body: AddServerRequest) => hub<ClaudioServer>('/servers', { method: 'POST', body }),
   update: (id: string, body: UpdateServerRequest) => hub<ClaudioServer>(`/servers/${enc(id)}`, { method: 'PATCH', body }),
@@ -72,11 +74,12 @@ export const serversKeys = {
 
 /**
  * Whether Servers is on. A hub that does not serve the routes (a headless Claudio is never a hub)
- * answers 404: that is "off", not an error to show, so it is not retried. `enabled` is false in a
- * remote scope, where the switch is the hub's and is not asked.
+ * answers 404: that is "off", not an error to show, so it is not retried. `enabled` is false where
+ * the answer is not needed (the hub-only page and its entry, inside a remote).
  */
-export const useServersSettings = (enabled = true) =>
-  useQuery({ queryKey: serversKeys.settings, queryFn: ({ signal }) => serversApi.settings({ signal }), retry: false, staleTime: 60_000, enabled });
+export function useServersSettings(enabled = true) {
+  return useQuery({ queryKey: serversKeys.settings, queryFn: ({ signal }) => serversApi.settings({ signal }), retry: false, staleTime: 60_000, enabled });
+}
 
 /** The switch, once the hub has answered: false while it is unknown, off, or this page is a remote's */
 export function useServersOn(): boolean {
@@ -85,9 +88,17 @@ export function useServersOn(): boolean {
 }
 
 /**
- * The servers and what the hub last read of each, for the shell. Health is kept in memory only and
- * refreshed by the hub while a server is in use, so a surface that shows a status polls slowly
- * (`poll`) instead of trusting a reading from when it loaded.
+ * The hub's switch whatever the scope: what the selector follows, since inside a remote it still
+ * names that remote and switches from it. The question goes to the hub (`HUB_API`), never to the remote.
+ */
+export function useServersFeatureOn(): boolean {
+  return useServersSettings().data?.enabled === true;
+}
+
+/**
+ * The servers and what the hub last read of each. Health is kept in memory only and refreshed by the
+ * hub while a server is in use, so a view that follows a remote in use polls slowly (`poll`) instead
+ * of trusting a reading from when it loaded.
  */
 export function useServers({ enabled = true, poll = false }: { enabled?: boolean; poll?: boolean } = {}) {
   return useQuery({
@@ -99,7 +110,9 @@ export function useServers({ enabled = true, poll = false }: { enabled?: boolean
   });
 }
 
-/** The switch from Settings. Off keeps the servers and their tokens (plan D8); the list is read again either way. */
+export const useServerLinks = (enabled = true) => useQuery({ queryKey: serversKeys.links, queryFn: ({ signal }) => serversApi.links({ signal }), enabled });
+
+/** The switch. Off keeps the servers and their tokens (plan D8); the list is read again either way. */
 export function useUpdateServersSettings() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -110,8 +123,6 @@ export function useUpdateServersSettings() {
     },
   });
 }
-export const useServersList = (enabled = true) => useQuery({ queryKey: serversKeys.list, queryFn: ({ signal }) => serversApi.list({ signal }), enabled });
-export const useServerLinks = (enabled = true) => useQuery({ queryKey: serversKeys.links, queryFn: ({ signal }) => serversApi.links({ signal }), enabled });
 
 /**
  * One server's update state, read through its gateway: whether a newer release is out and where its

@@ -11,7 +11,8 @@ import { MemoryRouter } from 'react-router-dom';
 import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { ToastProvider } from '@claudio/ui/components/Toast';
-import { ApiRequestError } from '../src/api';
+import { ApiRequestError, keys } from '../src/api';
+import { ServerStatusWord } from '../src/components/ServerMark';
 import { Unreachable } from '../src/components/Unreachable';
 import i18n from '../src/i18n';
 import { serversApi } from '../src/lib/api/servers';
@@ -28,19 +29,23 @@ import {
   groupFingerprint,
   guessAddressKind,
   moveItem,
+  newDraft,
   normalizeAddress,
   sameFingerprint,
   secondsLeft,
   SERVER_COLOR_NAMES,
   SERVER_TONE,
+  shownAddress,
   sortServers,
 } from '../src/lib/servers-model';
 import { ServersView } from '../src/pages/Servers';
-import { AddServerForm, monogramOf, nameOf, type AddFormState } from '../src/pages/servers/AddDialog';
-import { CodeView, HubsList } from '../src/pages/servers/Connect';
+import { addRequestOf, AddServerForm, monogramOf, nameOf, type AddFormState } from '../src/pages/servers/AddDialog';
+import { AddressesEditor, ColourPicker } from '../src/pages/servers/AddressesEditor';
+import { CodeView, ConnectCard, HubsCard, HubsList } from '../src/pages/servers/Connect';
 import { changesOf, EditServerForm, editStateOf } from '../src/pages/servers/EditDialog';
 import { emptyPairing, FingerprintConfirm, mayPair, pairingOf, seenCertificateOf } from '../src/pages/servers/pairing';
 import { TestResultView } from '../src/pages/servers/TestDialog';
+import { localizedError } from '../src/pages/servers/words';
 
 // The Servers page (docs/plans/claudio-servers.md §12.1): every state of the list, the dialogs' bodies
 // drawn from data, D13's certificate comparison, and the remote that is offline. The Dialog shells
@@ -184,7 +189,7 @@ test('with no server yet it explains both ways to pair and offers Add a server, 
   // The gradient is the header's action only
   assert.equal((html.match(/btn-primary/g) ?? []).length, 1);
   assert.ok(text(html).includes('Let another Claudio connect to this one'));
-  assert.ok(text(html).includes('Connected hubs'));
+  // Connected hubs waits for the auth mode, since nobody can connect to a Claudio that asks for no sign-in (tested below)
 });
 
 test('each server row says its status in a word, its version, latency and the address in mono', () => {
@@ -202,7 +207,7 @@ test('each server row says its status in a word, its version, latency and the ad
     assert.ok(text(html).includes(words[status]), status);
     assert.ok(text(html).includes('Version 0.15.0'), status);
     assert.ok(text(html).includes('12 ms'), status);
-    assert.match(html, /<code class="mono break">https:\/\/192\.168\.0\.29:8791<\/code>/, status);
+    assert.match(html, /<code class="mono server-row-url" title="https:\/\/192\.168\.0\.29:8791">192\.168\.0\.29:8791<\/code>/, status);
   }
   assert.match(view([server({ status: 'reconnecting' })]), /spinner/);
   assert.match(view([server({ status: 'offline' })]), /No address answers\./);
@@ -457,4 +462,136 @@ test('a colour tile has a size of its own, since an empty monogram has no letter
   const css = readFileSync(new URL('../src/styles/servers.css', import.meta.url), 'utf8');
   assert.match(css, /\.server-colour-tile\s*\{[^}]*width: 28px;[^}]*height: 28px;/);
   assert.match(css, /\.server-row-name,[^{]*\{\s*font-weight: var\(--fw-strong\);/);
+});
+
+// ---------- what the review of everything Servers shows found ----------
+
+test('a server named by its IPv4 address gets its last number as initials, so .28 and .29 can be told apart', () => {
+  assert.equal(defaultMonogram('192.168.0.28'), '28');
+  assert.equal(defaultMonogram('192.168.0.130'), '30');
+  assert.equal(defaultMonogram('10.0.0.5'), '5');
+  assert.equal(defaultMonogram('Mac studio'), 'MS');
+  assert.equal(monogramOf(addState({ drafts: draftsOf([{ url: 'https://192.168.0.29:8791', kind: 'lan' }]) })), '29');
+});
+
+test('initials nobody typed are not stored, so they follow the name when it changes; typed ones are kept', () => {
+  const pairing = { kind: 'code', code: 'ABCDEFGH' } as const;
+  assert.equal(addRequestOf(addState(), pairing).monogram, null);
+  assert.equal(addRequestOf(addState({ monogram: 'zz ' }), pairing).monogram, 'zz');
+  assert.equal(addRequestOf(addState(), pairing).name, 'studio');
+
+  const derived = server({ monogram: null });
+  const state = editStateOf(derived);
+  assert.equal(state.monogram, null);
+  assert.deepEqual(changesOf(derived, { ...state, name: 'Mac mini' }), { name: 'Mac mini' }, 'a rename sends no initials');
+  assert.match(wrap(<EditServerForm state={{ ...state, name: 'Mac mini' }} onChange={() => {}} addressesChanged={false} />), /value="MM"/);
+  const own = server({ monogram: 'JG' });
+  assert.deepEqual(changesOf(own, { ...editStateOf(own), monogram: null }), { monogram: null }, 'clearing typed initials hands them back to the name');
+});
+
+test('one address has nowhere to move and cannot go, so it shows no move or remove buttons; a second brings them', () => {
+  const one = wrap(<AddressesEditor drafts={[newDraft('https://192.168.0.29:8791', 'lan')]} onChange={() => {}} />);
+  assert.doesNotMatch(one, /Move address|Remove address/);
+  const two = wrap(<AddressesEditor drafts={[newDraft('https://192.168.0.29:8791', 'lan'), newDraft('https://studio.tail1234.ts.net', 'tailscale')]} onChange={() => {}} />);
+  assert.match(two, /aria-label="Move address 1 up"/);
+  assert.match(two, /aria-label="Remove address 2"/);
+});
+
+test('each colour tile wears the server’s initials, and the chosen one its check', () => {
+  const html = wrap(<ColourPicker value="blue" letters="MS" onChange={() => {}} />);
+  assert.equal((html.match(/>MS</g) ?? []).length, SERVER_COLOR_NAMES.length - 1);
+  assert.match(html, /aria-checked="true"[^>]*><span[^>]*><svg/);
+});
+
+test('the address that showed a certificate is a literal, in mono', () => {
+  const html = wrap(<FingerprintConfirm fingerprint={FINGERPRINT} address="https://192.168.0.29:8791" typed="" onTyped={() => {}} />);
+  assert.match(html, /Shown by <span class="mono">https:\/\/192\.168\.0\.29:8791<\/span>/);
+});
+
+test('a refusal Servers knows is said in the page’s language; any other error keeps the server’s sentence', async () => {
+  const known = new ApiRequestError('that server is on the list already, as Studio', 409, undefined, 'servers.already-paired');
+  assert.equal((localizedError(known) as Error).message, 'That server is on the list already.');
+  assert.ok((localizedError(new ApiRequestError('wrong', 403, undefined, 'server-links.code-invalid')) as Error).message.startsWith('The other Claudio does not take that code'));
+  await i18n.changeLanguage('es');
+  assert.equal((localizedError(known) as Error).message, 'Ese servidor ya está en la lista.');
+  const other = new ApiRequestError('boom', 500, undefined, 'servers.something-new');
+  assert.equal(localizedError(other), other);
+  const plain = new Error('x');
+  assert.equal(localizedError(plain), plain);
+});
+
+/** The two sections under the list, with what they read already in the cache */
+function sections(mode: 'none' | 'token', links: ServerLink[] = []) {
+  const client = new QueryClient();
+  client.setQueryData(keys.securityAuth, { mode, tokenSet: mode === 'token', readOnly: false, firstRunPending: false, firstRunToken: false });
+  client.setQueryData(keys.lan, { state: 'off', fingerprint: null });
+  client.setQueryData(['servers', 'links'], links);
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <TooltipProvider>
+          <ToastProvider>
+            <ConfirmProvider>
+              <ConnectCard />
+              <HubsCard />
+            </ConfirmProvider>
+          </ToastProvider>
+        </TooltipProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+test('while nobody can connect, the section says why with the way to Access, and there is no code, fingerprint or hubs card', () => {
+  const open = sections('none');
+  assert.match(open, /data-testid="server-link-auth-required"/);
+  assert.match(open, /<a[^>]*href="\/settings\/access[^"]*"[^>]*>Go to Access<\/a>/);
+  assert.doesNotMatch(open, /server-link-show|server-link-no-fingerprint|lan-fingerprint/);
+  assert.doesNotMatch(open, /Connected hubs/);
+
+  const guarded = sections('token');
+  assert.match(guarded, /data-testid="server-link-show"/);
+  assert.doesNotMatch(guarded, /server-link-auth-required/);
+  assert.ok(text(guarded).includes('Connected hubs'));
+  // No hub yet is one quiet line, not a second empty state on the page
+  assert.match(guarded, /<p class="small muted" data-testid="server-hubs-none">No other Claudio is connected to this one\.<\/p>/);
+  assert.doesNotMatch(guarded, /state-icon/);
+});
+
+test('the pairing code keeps its large size against the rule that gives every literal its line’s size', () => {
+  const css = readFileSync(new URL('../src/styles/servers.css', import.meta.url), 'utf8');
+  assert.match(css, /\.server-code-row \.server-code-value\s*\{[^}]*font-size: var\(--fs-title\);/);
+  // An address in a row stays whole: an ellipsis, never a break inside the port
+  assert.match(css, /\.server-row-url\s*\{[^}]*white-space: nowrap;/);
+});
+
+test('a row shows its address as it is typed, without the default https://, so it fits a phone whole; plain http stays written', () => {
+  assert.equal(shownAddress('https://192.168.0.29:8791'), '192.168.0.29:8791');
+  assert.equal(shownAddress('https://studio.tail1234.ts.net'), 'studio.tail1234.ts.net');
+  assert.equal(shownAddress('http://127.0.0.1:8917'), 'http://127.0.0.1:8917');
+});
+
+test('the test keeps one status line in every state, so the dialog does not jump as a test starts and ends, and the end is announced', () => {
+  const line = (html: string) => html.match(/<p class="small server-test-line" role="status"[^>]*>/g) ?? [];
+  const done: ServerTestResult = { address: 'https://192.168.0.29:8791', meta: { ok: true }, rest: { ok: true }, events: { ok: true }, socket: { ok: true } };
+  assert.equal(line(wrap(<TestResultView result={null} />)).length, 1);
+  assert.equal(line(wrap(<TestResultView result={done} />)).length, 1);
+  assert.equal(line(wrap(<TestResultView result={{ ...done, address: null }} />)).length, 1);
+  assert.equal(line(wrap(<TestResultView result={null} error={new Error('down')} />)).length, 1);
+  const css = readFileSync(new URL('../src/styles/servers.css', import.meta.url), 'utf8');
+  assert.match(css, /\.server-test-line\s*\{[^}]*min-height: 26px;/);
+});
+
+test('Add a server opens on the code it asks for, not on its tabs', () => {
+  const html = wrap(<AddServerForm state={addState()} onChange={() => {}} group="g" />);
+  assert.match(html, /data-autofocus="true" data-testid="server-code"/);
+});
+
+test('a status reads the same on the page and in the shell: one component, a word, an icon and its tone; "Not checked" only where the page lists it', () => {
+  const page = wrap(<ServerStatusWord status="offline" unchecked />);
+  const shell = wrap(<ServerStatusWord status="offline" />);
+  assert.equal(page, shell);
+  assert.match(page, /class="collab-tone server-status tone-bad" data-status="offline"><svg/);
+  assert.ok(text(wrap(<ServerStatusWord status={null} unchecked />)).includes('Not checked'));
+  assert.equal(wrap(<ServerStatusWord status={null} />).replace(/<div class="toasts"[^>]*><\/div>/, ''), '');
 });

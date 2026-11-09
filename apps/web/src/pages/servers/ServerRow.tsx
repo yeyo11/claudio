@@ -7,8 +7,8 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useRemoteUpdate } from '../../lib/api/servers';
-import { canUpdateServer, needsPairingAgain } from '../../lib/servers-model';
-import { ServerMark, ServerStatusWord } from './ServerMark';
+import { canUpdateServer, needsPairingAgain, shownAddress } from '../../lib/servers-model';
+import { ServerMark, ServerStatusWord } from '../../components/ServerMark';
 import { codeWords } from './words';
 
 export interface RowActions {
@@ -34,7 +34,9 @@ export function ServerFacts({ server }: { server: ClaudioServer }) {
       </span>
       {health?.address && (
         <span className="small muted server-row-address">
-          {t('row.address')} <code className="mono break">{health.address}</code>
+          {t('row.address')} <code className="mono server-row-url" title={health.address}>
+            {shownAddress(health.address)}
+          </code>
         </span>
       )}
       {why && <span className="small server-row-why">{why}</span>}
@@ -77,11 +79,11 @@ export function ServerRow({ server, busy, actions }: { server: ClaudioServer; bu
 
   return (
     <li className="server-row" data-testid="server-row" data-server-id={server.id} data-status={status ?? 'unchecked'}>
-      <ServerMark server={server} />
+      <ServerMark server={server} size={36} className="server-mark" />
       <div className="server-row-main">
         <div className="server-row-head">
           <span className="server-row-name">{server.name}</span>
-          <ServerStatusWord status={status} />
+          <ServerStatusWord status={status} unchecked />
         </div>
         <ServerFacts server={server} />
       </div>

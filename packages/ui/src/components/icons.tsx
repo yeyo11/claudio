@@ -156,6 +156,7 @@ export function Monogram({
   project = false,
   letters: given,
   hue,
+  className,
 }: {
   name: string;
   size?: number;
@@ -165,10 +166,12 @@ export function Monogram({
   letters?: string;
   /** The hue to tint with instead of the name's own (a server's colour) */
   hue?: number;
+  /** A class of the place that lays it out (a server's tile in a form's grid) */
+  className?: string;
 }) {
   const letters = given ?? monogramLetters(name, project);
   return (
-    <span className="monogram" style={{ '--hue': hue ?? nameHue(name), '--monogram-size': `${size}px`, width: size, height: size } as React.CSSProperties} aria-hidden>
+    <span className={className ? `monogram ${className}` : 'monogram'} style={{ '--hue': hue ?? nameHue(name), '--monogram-size': `${size}px`, width: size, height: size } as React.CSSProperties} aria-hidden>
       {letters || '?'}
     </span>
   );
