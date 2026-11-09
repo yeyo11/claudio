@@ -61,7 +61,8 @@ export default async ({ page, api, check, dirs, peers: { remote }, capture }) =>
     // ---------- the selector: This server pinned, the remote with its status in a word ----------
     await page.goto('/chats', 1500);
     await page.waitFor(`return !!document.querySelector(${JSON.stringify(SELECTOR)})`, { label: 'the server selector' });
-    check((await page.text(SELECTOR)).trim() === 'This server', 'the selector reads This server on the hub');
+    // The visible name: the button also carries a name for screen readers ("Servers: …", WCAG 2.5.3)
+    check((await page.text(`${SELECTOR} .server-selector-name`)).trim() === 'This server', 'the selector reads This server on the hub');
     await openMenu(page, SELECTOR);
     const items = await page.eval(`return [...document.querySelectorAll('[role=menu] [role=menuitemradio]')].map((el) => ({ text: el.innerText.replace(/\\s+/g, ' ').trim(), checked: el.getAttribute('aria-checked') }))`);
     check(items.length === 2 && items[0].text === 'This server' && items[0].checked === 'true', `This server is first and chosen (${JSON.stringify(items)})`);
@@ -75,7 +76,10 @@ export default async ({ page, api, check, dirs, peers: { remote }, capture }) =>
     await page.waitFor(`return !!document.querySelector('[data-testid=statusbar-server]')`, { label: "the status bar naming the remote" });
     const bar = await page.text('[data-testid=statusbar-server]');
     check(bar.includes(NAME) && bar.includes('Connected'), `the status bar names the remote and says it is connected (${bar})`);
-    check(await page.eval(`return !document.querySelector(${JSON.stringify(SELECTOR)}) && !document.querySelector('.sidebar a[href$="/servers"]')`), 'inside the remote there is no selector and no Servers entry: one hop');
+    // The hub's selector stays, naming the remote, so the way back is one click; it only ever lists the
+    // hub's own servers, and the Servers page is the hub's alone: one hop (owner, 2026-11-09)
+    check((await page.text(`${SELECTOR} .server-selector-name`)).trim() === NAME, 'inside the remote the selector names it');
+    check(await page.eval(`return !document.querySelector('.sidebar a[href$="/servers"]')`), 'inside the remote there is no Servers entry: one hop');
     check((await api.get('/servers')).body[0].lastUsedAt !== null, 'picking it recorded the use');
 
     // ---------- the way back is a link, on the page the person is on ----------

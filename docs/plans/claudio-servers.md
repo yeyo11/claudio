@@ -667,10 +667,10 @@ is pushed; the branches merge into one. The UI as built is [servers.md](../serve
 | --- | --- |
 | `engine-gaps` | **E1** switching keeps the page: a record's page reads that record on the other server within 2 s and stays if it is there, otherwise opens its list, an unknown page opens Home (`lib/server-routes.ts`, `server-scope.tsx`). **E2** a remote's terminal window opens as its own window (same origin only), and a tray or update-notice navigation reloads when the window shows a remote's pages (`apps/desktop`). **E3** `POST /servers/:id/pair` pairs in place under the same id with the rules of adding one; the old token is revoked only after the new one is stored and only on an address that still answers as the old server; answer `previousToken: { revoked, reason? }` (new shared type `PairServerAgainResult`). **E4** a 421 through the gateway asks the hub itself, as a 401 does, so only the hub's own refusal shows the host-refused screen. Three API tests with two servers, web and desktop tests |
 | `mcp-gaps` | **E5** a `commands` entry of `verification` may be a list of parallel commands, `review` takes the whole `ReviewGateSpec` and `commands` may be empty when `review` is given (`launch_orchestration`, `relaunch_orchestration`, `create_orchestration_template`, `verify_orchestration`); the permission prompt of `launch_orchestration_template` reads the template and shows its stored permission mode, permission prompts, allowed tools, guards and checks, in `en`/`es`, through an optional `orchestrationTemplate` method on `ChatClient` and the existing `GET /orchestrations/templates/:id` (no new route) |
-| `flaky-tests` | **E6** two fixes in the orchestrator, on its own branch: a journal read begun before a workflow's resume no longer lands on it, and a workflow resumed within a tick of its stop is not settled by the stopped run's watcher (commits `2de6084c7`, `e94bed67b`) |
+| `flaky-tests` | **E6** the two tests seen failing on CI had real races in the orchestrator, fixed there: a journal read begun before a workflow's resume no longer lands on it, and a workflow resumed within a tick of its stop is not settled by the stopped run's watcher (commits `2de6084c7`, `e94bed67b`); the tests now print every task's status and error when they fail |
 | `ui-shell` | The selector (This server pinned, the 3 used last with a status word, **All servers** or **Add a server**; a Sheet on a phone), the remote scope's status bar item and the phone's More card with **Back to this server**, **Servers** in the sidebar and More, and Settings → Access & safety → Servers with the switch and **Manage servers**. `MoreActions` got an optional `trigger`, `Monogram` optional `letters` and `hue` |
 | `ui-servers-page` | `/servers` with its list, the dialogs (add by code or token with D13's fingerprint comparison, edit, test, pair again, remove with the forced second question), the per-server **Update** through the gateway, **Let another Claudio connect to this one** and **Connected hubs** (D14), the in-page offline and needs-update screens of a remote, and the LAN card's HTTPS copy and fingerprint (`LanFingerprint`). A UI review of the page fixed seven blocking findings in the same task |
-| `e2e` | The visible flow with two wrappers, a guarded remote with TLS on its LAN listener (`e2e/specs/`); see the task's own commits |
+| `e2e` | Three specs with two wrappers, the remote guarded and serving TLS on its LAN listener: `servers-pairing` (on, pair by code and by token with the fingerprint confirmed, test connection, the LAN card's fingerprint, remove with revoke), `servers-switch` (the selector and its phone Sheet, the same page kept for a list and a record, a write landing on the remote, the status bar, back to this server, off) and `servers-pair-again` (an identity change, then pairing again under the same id); the harness gained `peerEnv` and a peer's `start()`/`stop()`. On the merged branch with `main` (2026-11-09) the three and the collaborators specs pass through Sluice; `servers-switch` was brought in line with the review's selector (its visible name, and the selector kept inside a remote) |
 | `ui-review` | Four `/ui-review` passes, the last SHIPPABLE with axe clean on `/servers` and in a remote scope. Merged the shell's and the page's client, model and mark into one each; the selector now also shows inside a remote; focus, stable dialog height, initials that follow the name, Spanish pairing errors, and the LAN-off wording of the connect card |
 | `docs` | `servers.md` (the UI, pair again, same-route mapping, the desktop window, the 421 rule), `ui.md`, `lan-access.md`, `claudio-mcp-server.md` and this section. It also resolved the merges of the shell and the page: both had written `lib/api/servers.ts` and `lib/servers-model.ts` |
 
@@ -698,14 +698,21 @@ is pushed; the branches merge into one. The UI as built is [servers.md](../serve
   tests: no paired remote was running when the UI was reviewed.
 - Accepted: the Settings row is 92 px tall at 1280 (the shared `PrefRow` wraps the hint); at 320 px
   the selector reads "All p…" with "All projects" chosen.
-- A full `test` run failed once on `chat-account-switch` (under load, 885 s) and
-  `apps/desktop/test/update-unit.test.ts:243` failed twice on a timestamp comparison and passed on
-  rerun; neither touches Servers.
+- Timing tests that failed once under load during the orchestration and are not Servers':
+  `chat-account-switch.test.ts:87`, `tunnel.test.ts:400`, `openai-slot-eviction.test.ts:390`;
+  `accounts-rotation.test.ts:410` reads `Date.now()` the way E6's races did. The
+  `update-unit.test.ts:243` failures were uutils' `date` dropping the zeros of `%3N`, fixed in #104.
+  `collab-sync.test.ts:291` (three installs over iroh) timed out once on the merged branch and
+  passed on the next run.
+- `useConfirm` focuses the destructive button app-wide, so Enter twice from a row's "⋯" menu
+  removes a server; a change to every confirmation of the app, left for its own decision.
 - Of §10's "Left open": the record mapping (E1), the desktop terminal window (E2), pairing again
   (E3), the MCP prompt and schema (E5), the LAN card's fingerprint and copy, and the UI are done
   (the review notes were closed by D15 and D16 in §11). Still open from §10: the full `ui-check` of
   `/chats` under load.
-- The 0.15.0 release, and the merge of the orchestration's branches into one.
+- The "Needs an update" state and a row's **Update** have no e2e; the e2e specs need a non-loopback
+  IPv4 address on the machine.
+- The 0.15.0 release.
 
 ## Related
 
