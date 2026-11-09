@@ -12,8 +12,10 @@
 // the server is there. Once flipped, the store retries on its own with a back-off, and at once when
 // the browser says the network came back or the tab is looked at again.
 import { useSyncExternalStore } from 'react';
+import { HUB_API } from '@claudio/ui/lib/server-scope';
 
-export const HEALTH_PATH = '/api/health';
+/** The hub's own health: the page only ever dials the hub, whatever server it is looking at */
+export const HEALTH_PATH = `${HUB_API}/health`;
 /** A probe this slow is no answer: a phone off its VPN often hangs on packets that go nowhere instead of failing. */
 export const PROBE_TIMEOUT_MS = 8_000;
 export const BACKOFF_FIRST_MS = 2_000;

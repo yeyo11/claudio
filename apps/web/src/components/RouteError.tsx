@@ -3,6 +3,7 @@ import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useRouteError } from 'react-router-dom';
 import { Empty } from '@claudio/ui/components/ui';
+import { activeServerId, scopedHref } from '@claudio/ui/lib/server-scope';
 import { isChunkLoadError, noticeStaleChunk } from '../lib/reload';
 import { ReloadButton } from './ReloadOffer';
 
@@ -36,7 +37,7 @@ export function RouteError() {
           <span className="route-error-actions">
             <ReloadButton />
             {/* A plain link: the router that failed is not trusted to navigate */}
-            <a href="/" className="btn btn-small">
+            <a href={scopedHref(activeServerId(), '/')} className="btn btn-small">
               {t('notFound.home')}
             </a>
           </span>

@@ -13045,6 +13045,13 @@
           }
         ],
         "description": "While `port-in-use`: what holds the port (the address it was taken on) and the next free one"
+      },
+      "fingerprint": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "SHA-256 of the listener's kept TLS certificate (its DER), upper-case hex pairs joined by colons: what a browser's certificate warning and a pairing hub are compared against. Null until the listener has made one"
       }
     },
     "required": [
@@ -13055,7 +13062,8 @@
       "interfaces",
       "settings",
       "available",
-      "portTaken"
+      "portTaken",
+      "fingerprint"
     ],
     "description": "`GET /lan`, and what `lan.changed` carries."
   },
@@ -13086,7 +13094,7 @@
       },
       "url": {
         "type": "string",
-        "description": "`http://<ip or host>:<port>`"
+        "description": "`https://<ip or host>:<port>`: the listener speaks TLS, and plain HTTP there is only a redirect"
       }
     },
     "required": [
@@ -19980,6 +19988,538 @@
       }
     },
     "description": "The query of `GET /audit`; every field narrows the page and its `total`."
+  },
+  "ServerMeta": {
+    "type": "object",
+    "properties": {
+      "instanceId": {
+        "type": "string",
+        "description": "Random, made once, kept in `<data dir>/instance.json`"
+      },
+      "version": {
+        "type": "string",
+        "description": "The app version"
+      },
+      "apiVersion": {
+        "type": "object",
+        "properties": {
+          "current": {
+            "type": "number"
+          },
+          "min": {
+            "type": "number"
+          }
+        },
+        "required": [
+          "current",
+          "min"
+        ]
+      },
+      "capabilities": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "e.g. 'server-links', 'gateway', 'lan-tls'"
+      }
+    },
+    "required": [
+      "instanceId",
+      "version",
+      "apiVersion",
+      "capabilities"
+    ],
+    "description": "`GET /meta`, open: who this server is and which API it speaks, and nothing about its accounts, paths or hosts"
+  },
+  "ServerLinkCode": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string"
+      },
+      "expiresAt": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "code",
+      "expiresAt"
+    ],
+    "description": "A one-time pairing code: 8 characters, 5 minutes, single use"
+  },
+  "RedeemServerLinkRequest": {
+    "type": "object",
+    "properties": {
+      "code": {
+        "type": "string"
+      },
+      "hubInstanceId": {
+        "type": "string"
+      },
+      "hubName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "code",
+      "hubInstanceId",
+      "hubName"
+    ]
+  },
+  "CreateServerLinkRequest": {
+    "type": "object",
+    "properties": {
+      "hubInstanceId": {
+        "type": "string"
+      },
+      "hubName": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "hubInstanceId",
+      "hubName"
+    ]
+  },
+  "ServerLinkGrant": {
+    "type": "object",
+    "properties": {
+      "token": {
+        "type": "string",
+        "description": "Shown once, never readable again"
+      },
+      "tokenId": {
+        "type": "string"
+      },
+      "instanceId": {
+        "type": "string",
+        "description": "This server's"
+      },
+      "tlsFingerprint": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "SHA-256 of the LAN certificate's DER, hex with colons; null without TLS"
+      }
+    },
+    "required": [
+      "token",
+      "tokenId",
+      "instanceId",
+      "tlsFingerprint"
+    ]
+  },
+  "ServerLink": {
+    "type": "object",
+    "properties": {
+      "tokenId": {
+        "type": "string"
+      },
+      "hubName": {
+        "type": "string",
+        "description": "The hub's name, as it gave it when pairing"
+      },
+      "hubInstanceId": {
+        "type": "string"
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "lastUsedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "tokenId",
+      "hubName",
+      "hubInstanceId",
+      "createdAt",
+      "lastUsedAt"
+    ],
+    "description": "A paired hub's token as the remote's owner sees it (`GET /server-links`, D14): never the secret"
+  },
+  "ClaudioServer": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string",
+        "description": "Never 'local'"
+      },
+      "name": {
+        "type": "string"
+      },
+      "color": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "A token name, not a hex"
+      },
+      "monogram": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "addresses": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ServerAddress"
+        },
+        "description": "Ordered by preference"
+      },
+      "identity": {
+        "type": "object",
+        "properties": {
+          "instanceId": {
+            "type": "string"
+          },
+          "tlsFingerprint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "instanceId",
+          "tlsFingerprint"
+        ]
+      },
+      "createdAt": {
+        "type": "string"
+      },
+      "lastUsedAt": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "health": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/ServerHealth"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Runtime, not persisted beyond the last reading"
+      }
+    },
+    "required": [
+      "id",
+      "name",
+      "color",
+      "monogram",
+      "addresses",
+      "identity",
+      "createdAt",
+      "lastUsedAt",
+      "health"
+    ]
+  },
+  "ServerAddress": {
+    "type": "object",
+    "properties": {
+      "url": {
+        "type": "string"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/ServerAddressKind"
+      }
+    },
+    "required": [
+      "url",
+      "kind"
+    ]
+  },
+  "ServerAddressKind": {
+    "type": "string",
+    "enum": [
+      "lan",
+      "tailscale",
+      "tunnel",
+      "other"
+    ]
+  },
+  "ServerHealth": {
+    "type": "object",
+    "properties": {
+      "status": {
+        "$ref": "#/components/schemas/ServerStatus"
+      },
+      "address": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The URL in use"
+      },
+      "version": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "apiVersion": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "latencyMs": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "checkedAt": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "description": "i18n code, e.g. 'servers.unreachable'"
+      }
+    },
+    "required": [
+      "status",
+      "address",
+      "version",
+      "apiVersion",
+      "latencyMs",
+      "checkedAt"
+    ]
+  },
+  "ServerStatus": {
+    "type": "string",
+    "enum": [
+      "connected",
+      "reconnecting",
+      "offline",
+      "needs-update",
+      "needs-pairing",
+      "identity-changed"
+    ]
+  },
+  "ServersSettings": {
+    "type": "object",
+    "properties": {
+      "enabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "enabled"
+    ]
+  },
+  "AddServerRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "color": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "monogram": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "addresses": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ServerAddress"
+        }
+      },
+      "pairing": {
+        "$ref": "#/components/schemas/ServerPairing"
+      }
+    },
+    "required": [
+      "name",
+      "addresses",
+      "pairing"
+    ]
+  },
+  "ServerPairing": {
+    "anyOf": [
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "code"
+          },
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "code"
+        ]
+      },
+      {
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string",
+            "const": "token"
+          },
+          "token": {
+            "type": "string"
+          },
+          "expectedFingerprint": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "kind",
+          "token"
+        ]
+      }
+    ],
+    "description": "How a hub pairs. With an owner token, the hub first reads the certificate the address shows without sending anything (D13): `expectedFingerprint` is the one the person read off the remote's LAN card, and without it the answer is `409 servers.confirm-fingerprint` with the seen one (`ServerFingerprintConfirmation`), which a second call carries. Ignored over plain loopback HTTP."
+  },
+  "ServerFingerprintConfirmation": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "const": "servers.confirm-fingerprint"
+      },
+      "fingerprint": {
+        "type": "string",
+        "description": "SHA-256 of the certificate's DER, upper-case hex with colons"
+      },
+      "address": {
+        "type": "string",
+        "description": "The address that showed it, where the pairing goes once confirmed"
+      }
+    },
+    "required": [
+      "error",
+      "code",
+      "fingerprint",
+      "address"
+    ],
+    "description": "`POST /servers`' 409 before a pasted token is sent: the certificate the address showed, for the person to confirm"
+  },
+  "UpdateServerRequest": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "color": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "monogram": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "addresses": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ServerAddress"
+        }
+      }
+    }
+  },
+  "ServerTestResult": {
+    "type": "object",
+    "properties": {
+      "address": {
+        "type": [
+          "string",
+          "null"
+        ]
+      },
+      "meta": {
+        "$ref": "#/components/schemas/ServerCheck"
+      },
+      "rest": {
+        "$ref": "#/components/schemas/ServerCheck"
+      },
+      "events": {
+        "$ref": "#/components/schemas/ServerCheck"
+      },
+      "socket": {
+        "$ref": "#/components/schemas/ServerCheck"
+      }
+    },
+    "required": [
+      "address",
+      "meta",
+      "rest",
+      "events",
+      "socket"
+    ]
+  },
+  "ServerCheck": {
+    "type": "object",
+    "properties": {
+      "ok": {
+        "type": "boolean"
+      },
+      "latencyMs": {
+        "type": "number"
+      },
+      "code": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "ok"
+    ]
+  },
+  "RemoveServerResult": {
+    "type": "object",
+    "properties": {
+      "revoked": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ]
+      }
+    },
+    "required": [
+      "revoked"
+    ]
   },
   "GuardSettingsView": {
     "type": "object",

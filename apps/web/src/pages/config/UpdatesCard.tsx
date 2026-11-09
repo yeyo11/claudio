@@ -9,7 +9,7 @@ import { Dialog } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { CopyButton, ErrorBox, Skeleton, Tag } from '@claudio/ui/components/ui';
-import type { DesktopUpdatesBridge } from '../../lib/desktop';
+import { hubDesktopBridge, type DesktopUpdatesBridge } from '../../lib/desktop';
 import { formatDate, formatPercent, timeAgo } from '@claudio/ui/lib/format';
 import {
   canRetryUpdate,
@@ -60,7 +60,8 @@ export function UpdatesCard() {
     mutationFn: api.checkRelease,
     onSuccess: (fresh) => queryClient.setQueryData(keys.release, fresh),
   });
-  const bridge = typeof window !== 'undefined' ? window.claudioDesktop?.updates : undefined;
+  // The shell's updates are the hub's: a remote scope never offers them, whatever window this is
+  const bridge = hubDesktopBridge(typeof window !== 'undefined' ? window.claudioDesktop?.updates : undefined);
   const route = info && updateRoute({ distribution: info.distribution, desktopUpdates: Boolean(bridge), hostname: window.location.hostname });
   // Claudio may update itself in a container and under a desktop server, whether this page is the
   // desktop window or a browser or phone reaching it; where it cannot, the status says why and the steps stay

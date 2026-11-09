@@ -1,5 +1,6 @@
 import { useSyncExternalStore } from 'react';
 import type { NotificationKind } from '@claudio/shared';
+import { activeServerId, LOCAL_SERVER_ID } from '@claudio/ui/lib/server-scope';
 import { api } from '../api';
 import i18n from '../i18n';
 import { getPrefs, KINDS } from './notifications';
@@ -51,6 +52,25 @@ let state: PushDeviceState = { blocker: null, enabled: false, id: null, busy: fa
 function set(change: Partial<PushDeviceState>): void {
   state = { ...state, ...change };
   for (const listener of [...listeners]) listener();
+}
+
+/**
+ * A browser's subscription belongs to its origin, which is the hub's whatever server the page drives
+ * (docs/plans/claudio-servers.md, D7): a remote scope never registers it with the remote, never
+ * stores the remote's key for the worker and never subscribes the origin to that key. The remote
+ * cannot push to this origin, so in its scope the page's own notifications stay on.
+ */
+const hubScope = (): boolean => activeServerId() === LOCAL_SERVER_ID;
+
+/**
+ * Opens the path of a notification the service worker was tapped for. A push is the hub's (only the
+ * hub holds this origin's subscription), so its path is the hub's: in a remote scope the router would
+ * put it under `/s/<id>/`, open another server's record by the hub's id and report the open to the
+ * remote. There the page leaves for the hub's own address instead.
+ */
+export function openPushedPath(href: string, navigate: (href: string) => void, leave: (href: string) => void = (to) => window.location.assign(to)): void {
+  if (hubScope()) navigate(href);
+  else leave(href);
 }
 
 const supported = (): boolean =>
@@ -153,6 +173,7 @@ async function register(subscription: PushSubscription, key: string): Promise<vo
  * load is a permission a browser ignores, and one a person refuses is refused for good.
  */
 export async function enablePush(): Promise<void> {
+  if (!hubScope()) return;
   set({ busy: true });
   try {
     if (!supported()) return void set({ blocker: blockerNow(), ready: true });
@@ -175,6 +196,7 @@ export async function enablePush(): Promise<void> {
 
 /** Turns it off: the browser drops the subscription, and the server drops the row it could send to. */
 export async function disablePush(): Promise<void> {
+  if (!hubScope()) return;
   set({ busy: true });
   try {
     const subscription = await current();
@@ -198,6 +220,7 @@ export async function disablePush(): Promise<void> {
  */
 export async function syncPush(): Promise<void> {
   started = true;
+  if (!hubScope()) return void set({ enabled: false, id: null, ready: true });
   try {
     const subscription = await current();
     if (!subscription) {
@@ -219,7 +242,7 @@ export async function syncPush(): Promise<void> {
  * causing that.
  */
 export async function ensurePushConfigured(): Promise<void> {
-  if (configured === null && blockerNow() === null) {
+  if (hubScope() && configured === null && blockerNow() === null) {
     try {
       await serverKey();
     } catch {

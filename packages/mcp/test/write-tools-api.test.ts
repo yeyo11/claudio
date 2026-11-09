@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
-import { CLAUDIO_MCP_WRITE_TOOL_NAMES } from '../src/names.ts';
-import { WRITE_TOOLS } from '../src/write-tools.ts';
+import { CLAUDIO_MCP_OWNER_TOOL_NAMES, CLAUDIO_MCP_WRITE_TOOL_NAMES } from '../src/names.ts';
+import { OWNER_TOOLS, WRITE_TOOLS } from '../src/write-tools.ts';
 import { FAKE_CLI, injectFetch, routeOf, seed, type SeenRequest, type Seeded } from './fixture.ts';
 
 /*
@@ -30,11 +30,21 @@ after(async () => {
 
 const covered = new Set<string>();
 
+/** Stops a graph and waits, bounded, until it is no longer running: a retry or a rerun may have started it again */
+async function stopAndSettle(id: string): Promise<void> {
+  await write('stop_orchestration', { orchestrationId: id }, false);
+  const deadline = Date.now() + 30_000;
+  while (['running', 'waiting'].includes(s.core.orchestrator.get(id)?.status ?? '')) {
+    assert.ok(Date.now() < deadline, `the graph is still ${String(s.core.orchestrator.get(id)?.status)}`);
+    await new Promise((r) => setTimeout(r, 100));
+  }
+}
+
 /** Calls a tool and holds every request it made to the route table; `ok` says whether the call must succeed */
 async function write(name: string, args: Record<string, unknown>, ok = true): Promise<{ isError: boolean; text: string; json: unknown }> {
   const from = s.seen.length;
   const out = await s.call(name, args);
-  const tool = WRITE_TOOLS.find((t) => t.name === name);
+  const tool = [...WRITE_TOOLS, ...OWNER_TOOLS].find((t) => t.name === name);
   assert.ok(tool, name);
   const made = s.seen.slice(from);
   assert.ok(made.length > 0, `${name} made no request: ${out.text}`);
@@ -115,6 +125,79 @@ test('the orchestration tools: plan, launch, stop, resume, retry a task', async 
   // Nothing failed, so the retry is refused by the route, not missed by the tool
   await write('retry_orchestration_task', { orchestrationId: id, taskId: 'b' }, false);
   await write('stop_orchestration', { orchestrationId: id }, false);
+});
+
+test("the person's fields of a launch, and every other orchestration and template tool, reach their routes", async () => {
+  // Driven as the owner (the fixture's open install): the API, not the tool, decides who may send these (D12)
+  const launched = await write('launch_orchestration', {
+    projectId: s.project.id,
+    name: 'Guarded run',
+    concurrency: 1,
+    permissionMode: 'acceptEdits',
+    permissionPrompts: 'host',
+    allowedTools: ['Bash(pnpm test:*)'],
+    guards: { rules: { push: true } },
+    tasks: [{ id: 'a', name: 'Extract totals', prompt: 'hello' }],
+  });
+  const id = idOf(launched.json);
+  const stored = s.core.orchestrator.get(id);
+  assert.deepEqual(
+    [stored?.permissionMode, stored?.permissionPrompts, stored?.allowedTools, stored?.guards?.rules],
+    ['acceptEdits', 'host', ['Bash(pnpm test:*)'], { push: true }],
+  );
+  // A verification reaches the route, which checks it against the graph: it runs on an integration branch, which needs worktrees
+  assert.match((await write('launch_orchestration', { projectId: s.project.id, name: 'Checked', verification: { commands: ['true'] }, tasks: [{ id: 'a', name: 'a', prompt: 'hello' }] }, false)).text, /verification runs on the integration branch/);
+  await write('stop_orchestration', { orchestrationId: id }, false);
+
+  // What the graph's state allows decides each answer; each call reached its route either way
+  const task = { orchestrationId: id, taskId: 'a' };
+  await write('message_orchestration_task', { ...task, text: 'look at the totals first' }, false);
+  await write('skip_orchestration_task', task, false);
+  await write('retry_orchestration_task_clean', task, false);
+  await write('rerun_orchestration_task', task, false);
+  await write('verify_orchestration', { orchestrationId: id, verification: { commands: ['true'] } }, false);
+  await write('retry_orchestration_review', { orchestrationId: id }, false);
+  await write('integrate_orchestration', { orchestrationId: id }, false);
+  await write('open_orchestration_pull_request', { orchestrationId: id }, false);
+  await write('accept_orchestration_review', { orchestrationId: id, reason: 'read every finding' }, false);
+  await write('send_supervisor_proposal', { ...task, proposalId: 'no-such-proposal' }, false);
+  await write('dismiss_supervisor_proposal', { ...task, proposalId: 'no-such-proposal' }, false);
+  await write('save_orchestration_workflow', { orchestrationId: id, name: 'guarded-run' }, false);
+  await write('prune_orchestration_worktrees', { orchestrationId: id }, false);
+
+  // The spend pass is granted whatever the day's spend
+  const pass = await write('grant_orchestration_spend_pass', { orchestrationId: id });
+  assert.equal(idOf(pass.json), id);
+
+  // A relaunch with a new task list and a setting is a new graph that records the original; it is
+  // refused while the original runs, which the retry, the clean retry or the rerun above may have restarted
+  await stopAndSettle(id);
+  const relaunched = await write('relaunch_orchestration', { orchestrationId: id, name: 'Guarded run, again', tasks: [{ id: 'z', name: 'Only this', prompt: 'hello' }] });
+  const again = s.core.orchestrator.get(idOf(relaunched.json));
+  assert.deepEqual([again?.name, again?.tasks.map((t) => t.id), again?.relaunchedFrom], ['Guarded run, again', ['z'], id]);
+  await write('stop_orchestration', { orchestrationId: idOf(relaunched.json) }, false);
+
+  // Templates: saved from a graph and from tasks, read, changed keeping what was not given, launched, deleted
+  const fromGraph = await write('create_orchestration_template', { name: 'From the graph', fromOrchestration: id });
+  const saved = await write('create_orchestration_template', { name: 'Nightly', description: 'the nightly graph', projectId: s.project.id, permissionMode: 'plan', tasks: [{ id: 'a', name: 'Look', prompt: 'look' }] });
+  const templateId = idOf(saved.json);
+  const listed = (await s.call('list_orchestration_templates')).json as Array<{ id: string; name: string; tasks: number }>;
+  assert.deepEqual(listed.map((t) => [t.name, t.tasks]).sort(), [['From the graph', 1], ['Nightly', 1]]);
+  const read = (await s.call('get_orchestration_template', { templateId })).json as { spec: { cwd: string; permissionMode: string } };
+  assert.deepEqual([read.spec.cwd, read.spec.permissionMode], [s.project.path, 'plan']);
+  await write('update_orchestration_template', { templateId, concurrency: 2 });
+  const changed = s.core.orchestrator.templates.get(templateId);
+  assert.deepEqual([changed?.spec.concurrency, changed?.spec.permissionMode, changed?.spec.tasks.length], [2, 'plan', 1], 'the stored spec is kept where nothing was given');
+  const fromTemplate = await write('launch_orchestration_template', { templateId, objective: 'tonight', projectId: s.project.id });
+  await write('stop_orchestration', { orchestrationId: idOf(fromTemplate.json) }, false);
+  assert.deepEqual((await write('delete_orchestration_template', { templateId })).json, { deleted: true, templateId });
+  await write('delete_orchestration_template', { templateId: idOf(fromGraph.json) });
+  assert.match((await write('delete_orchestration_template', { templateId }, false)).text, /failed: 404/);
+
+  // Deleting a graph that does not run removes it
+  await stopAndSettle(id);
+  assert.deepEqual((await write('delete_orchestration', { orchestrationId: id })).json, { deleted: true, orchestrationId: id });
+  assert.equal(s.core.orchestrator.get(id), null);
 });
 
 test("the chat tools: start in a project's folder, message, hint, interrupt, stop, resume and fork", async () => {
@@ -207,5 +290,5 @@ test('the check catches a tool that calls a route the API does not have', async 
 });
 
 test('every write tool was driven against the real API', () => {
-  assert.deepEqual([...covered].sort(), [...CLAUDIO_MCP_WRITE_TOOL_NAMES].sort());
+  assert.deepEqual([...covered].sort(), [...CLAUDIO_MCP_WRITE_TOOL_NAMES, ...CLAUDIO_MCP_OWNER_TOOL_NAMES].sort());
 });

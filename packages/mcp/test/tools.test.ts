@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { after, before, test } from 'node:test';
-import { CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_READ_TOOL_NAMES, CLAUDIO_MCP_WRITE_TOOL_NAMES } from '../src/names.ts';
+import { CLAUDIO_MCP_OWNER_TOOL_NAMES, CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_READ_TOOL_NAMES, CLAUDIO_MCP_WRITE_TOOL_NAMES } from '../src/names.ts';
 import { createClient } from '../src/client.ts';
 import { createServer, internalError } from '../src/server.ts';
 import { TOOLS } from '../src/tools.ts';
@@ -28,7 +28,7 @@ test('the catalogue is the list of names, and every tool has a description and a
   assert.deepEqual(CLAUDIO_MCP_READ_TOOLS, CLAUDIO_MCP_READ_TOOL_NAMES.map((n) => `mcp__claudio__${n}`));
   const server = createServer({ api: createClient({ baseUrl: 'http://x/api', fetch: injectFetch(s.app) }), version: '1.2.3' });
   const listed = (await rpc(server, 'tools/list')).result.tools as Array<{ name: string; description: string; inputSchema: { additionalProperties: unknown } }>;
-  assert.deepEqual(listed.map((t) => t.name), [...CLAUDIO_MCP_READ_TOOL_NAMES, ...CLAUDIO_MCP_WRITE_TOOL_NAMES]);
+  assert.deepEqual(listed.map((t) => t.name), [...CLAUDIO_MCP_READ_TOOL_NAMES, ...CLAUDIO_MCP_WRITE_TOOL_NAMES, ...CLAUDIO_MCP_OWNER_TOOL_NAMES]);
   for (const tool of listed) {
     assert.ok(tool.description.length > 10, tool.name);
     assert.equal(tool.inputSchema.additionalProperties, false, tool.name);
@@ -62,6 +62,7 @@ test('every tool is called once and answers with the seeded data', async () => {
     ['list_accounts', {}, 'default'],
     ['list_schedules', {}, '['],
     ['preview_schedule', { cron: '0 3 * * *', timezone: 'UTC' }, 'valid'],
+    ['list_orchestration_templates', {}, '['],
   ];
   for (const [name, args, expected] of calls) {
     const result = await s.call(name, args);
@@ -80,7 +81,11 @@ test('every tool is called once and answers with the seeded data', async () => {
   const runs = await s.call('get_schedule_runs', { scheduleId: 'nope' });
   assert.equal(runs.isError, true);
   assert.match(runs.text, /^get_schedule_runs failed: 404/);
-  const covered = new Set([...calls.map(([n]) => n), 'get_chat', 'get_orchestration_plan', 'get_schedule_runs']);
+  // A template that does not exist: the route is reached and answers so (write-tools-api.test.ts reads real ones)
+  const template = await s.call('get_orchestration_template', { templateId: 'nope' });
+  assert.equal(template.isError, true);
+  assert.match(template.text, /^get_orchestration_template failed: 404/);
+  const covered = new Set([...calls.map(([n]) => n), 'get_chat', 'get_orchestration_plan', 'get_schedule_runs', 'get_orchestration_template']);
   assert.deepEqual([...covered].sort(), [...CLAUDIO_MCP_READ_TOOL_NAMES].sort());
 });
 

@@ -20,7 +20,7 @@ import {
   type NotificationDraft,
 } from '../lib/notifications';
 import { takeNotificationParam } from '../lib/notification-open';
-import { pushIsActive, syncPush } from '../lib/push';
+import { openPushedPath, pushIsActive, syncPush } from '../lib/push';
 import '../notifications.css';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON } from '@claudio/ui/components/icons';
@@ -138,7 +138,7 @@ export function NotificationHost() {
       if (!data || typeof data !== 'object' || (data as { type?: unknown }).type !== 'claudio:open') return;
       const href = (data as { href?: unknown }).href;
       if (typeof href !== 'string') return;
-      navigate(href);
+      openPushedPath(href, navigate);
       event.ports[0]?.postMessage('opened');
     };
     navigator.serviceWorker.addEventListener('message', onMessage);

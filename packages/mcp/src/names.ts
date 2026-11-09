@@ -14,6 +14,8 @@ export const CLAUDIO_MCP_READ_TOOL_NAMES = [
   'list_orchestrations',
   'get_orchestration',
   'get_orchestration_plan',
+  'list_orchestration_templates',
+  'get_orchestration_template',
   'list_assistant_proposals',
   'get_team',
   'list_agents',
@@ -54,6 +56,14 @@ export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
   'stop_orchestration',
   'resume_orchestration',
   'retry_orchestration_task',
+  'retry_orchestration_task_clean',
+  'rerun_orchestration_task',
+  'skip_orchestration_task',
+  'message_orchestration_task',
+  'verify_orchestration',
+  'retry_orchestration_review',
+  'relaunch_orchestration',
+  'launch_orchestration_template',
   'start_chat',
   'send_chat_message',
   'hint_chat',
@@ -72,6 +82,33 @@ export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
 export type ClaudioMcpWriteToolName = (typeof CLAUDIO_MCP_WRITE_TOOL_NAMES)[number];
 
 /**
+ * The writes that call the person's own orchestration routes (`person`): deleting a graph,
+ * integrating it, its pull request, accepting its review gate, the spend pass, the Supervisor's
+ * proposals, pruning worktrees, saving its workflow and changing the templates. A chat's token
+ * reaches them only while the person has switched Claudio's server on for that chat, which makes it
+ * the owner on every `/orchestrations*` route (D12 of docs/plans/claudio-servers.md); the API reads
+ * the switch at every call and refuses every other chat, the assistant and the workers included. So
+ * they are kept out of the assistant's guide (`CAPABILITIES`), which promises only what it can do.
+ * They are writes like the others: never allowed ahead of time, each confirmed by the person.
+ */
+export const CLAUDIO_MCP_OWNER_TOOL_NAMES = [
+  'delete_orchestration',
+  'integrate_orchestration',
+  'open_orchestration_pull_request',
+  'accept_orchestration_review',
+  'grant_orchestration_spend_pass',
+  'send_supervisor_proposal',
+  'dismiss_supervisor_proposal',
+  'prune_orchestration_worktrees',
+  'save_orchestration_workflow',
+  'create_orchestration_template',
+  'update_orchestration_template',
+  'delete_orchestration_template',
+] as const;
+
+export type ClaudioMcpOwnerToolName = (typeof CLAUDIO_MCP_OWNER_TOOL_NAMES)[number];
+
+/**
  * The reads of what teammates share (docs/plans/collaborators-agent-access.md). Offered only to a
  * chat whose scope allows it: the assistant while its switch is on, a chat of a project that opted
  * in. Each reads this install's copy, and the API checks the chat's scope again at every call.
@@ -87,7 +124,7 @@ export const CLAUDIO_MCP_COLLAB_TOOL_NAMES = [
 ] as const;
 
 export type ClaudioMcpCollabToolName = (typeof CLAUDIO_MCP_COLLAB_TOOL_NAMES)[number];
-export type ClaudioMcpToolName = ClaudioMcpReadToolName | ClaudioMcpWriteToolName | ClaudioMcpCollabToolName;
+export type ClaudioMcpToolName = ClaudioMcpReadToolName | ClaudioMcpWriteToolName | ClaudioMcpOwnerToolName | ClaudioMcpCollabToolName;
 
 export const CLAUDIO_MCP_COLLAB_TOOLS: readonly string[] = CLAUDIO_MCP_COLLAB_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
 
@@ -112,7 +149,8 @@ export function toolsetsFrom(value: string | undefined): ClaudioMcpToolset[] {
   return [...new Set(named)];
 }
 
-export const CLAUDIO_MCP_WRITE_TOOLS: readonly string[] = CLAUDIO_MCP_WRITE_TOOL_NAMES.map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
+/** Every write as the CLI names it, the owner's orchestration writes included: none is ever pre-allowed nor "always allowed" */
+export const CLAUDIO_MCP_WRITE_TOOLS: readonly string[] = [...CLAUDIO_MCP_WRITE_TOOL_NAMES, ...CLAUDIO_MCP_OWNER_TOOL_NAMES].map((name) => `mcp__${CLAUDIO_MCP_SERVER}__${name}`);
 
 /** Whether the CLI's name for a tool is one of Claudio's write tools */
 export const isClaudioMcpWriteTool = (toolName: string): boolean => CLAUDIO_MCP_WRITE_TOOLS.includes(toolName);

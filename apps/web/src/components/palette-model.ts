@@ -1,5 +1,6 @@
 import type { LucideIcon } from 'lucide-react';
 import type { MotionLevel } from '@claudio/ui/lib/motion';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /*
  * The command palette's model: what a command is, how a query ranks it, and the recent commands
@@ -46,7 +47,7 @@ export function score(query: string, text: string): number {
 
 export function readRecent(): string[] {
   try {
-    const parsed: unknown = JSON.parse(localStorage.getItem(RECENT_KEY) ?? '[]');
+    const parsed: unknown = JSON.parse(localStorage.getItem(scopedKey(RECENT_KEY)) ?? '[]');
     return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
   } catch {
     return [];

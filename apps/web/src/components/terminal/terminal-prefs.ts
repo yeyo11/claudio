@@ -1,4 +1,5 @@
 import { useSyncExternalStore } from 'react';
+import { scopedKey } from '@claudio/ui/lib/server-scope';
 
 /*
  * What this browser remembers about its terminals (`claudio-terminal-*` in localStorage): the cell
@@ -29,7 +30,7 @@ const subscribe = (listener: () => void) => {
 
 export function readPref(key: string): string | null {
   try {
-    return localStorage.getItem(key);
+    return localStorage.getItem(scopedKey(key));
   } catch {
     return null;
   }
@@ -37,8 +38,8 @@ export function readPref(key: string): string | null {
 
 export function writePref(key: string, value: string | null): void {
   try {
-    if (value === null) localStorage.removeItem(key);
-    else localStorage.setItem(key, value);
+    if (value === null) localStorage.removeItem(scopedKey(key));
+    else localStorage.setItem(scopedKey(key), value);
   } catch {
     // private mode: the choice lasts until the page is left
   }

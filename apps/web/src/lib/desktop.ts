@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { activeServerId, LOCAL_SERVER_ID } from '@claudio/ui/lib/server-scope';
 import type { PayloadAction } from './updates';
 
 /**
@@ -102,6 +103,14 @@ export function syncDesktopTitleBar(): void {
 }
 
 /**
+ * The desktop shell's bridge, or its part, only where this page is the hub's: the shell is this
+ * machine's, so a remote scope never drives it (its IPC and its app updates are hub-only, plan D7).
+ */
+export function hubDesktopBridge<T>(bridge: T | undefined): T | undefined {
+  return activeServerId() === LOCAL_SERVER_ID ? bridge : undefined;
+}
+
+/**
  * Tells the shell this page rendered. A new payload's trial boot waits for it (30 s after the window
  * loads) before it counts as good, so a web that answers /api/health and never paints is rolled back.
  * Once per page load; nothing in a browser or under an older shell.
@@ -120,6 +129,8 @@ export function notifyPageReady(): void {
 export function useDesktopNavigation(): void {
   const navigate = useNavigate();
   useEffect(() => {
+    // The tray names chats of this machine's own server: opened in a remote's scope they would be another server's records
+    if (activeServerId() !== LOCAL_SERVER_ID) return;
     const subscribe = typeof window !== 'undefined' ? window.claudioDesktop?.onNavigate : undefined;
     return subscribe?.((path) => {
       if (path.startsWith('/') && !path.startsWith('//')) navigate(path);
