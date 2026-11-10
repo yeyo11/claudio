@@ -126,6 +126,7 @@ test('the arrows move between steps, except in a field, with a modifier, or on a
   assert.equal(key('ArrowRight', { defaultPrevented: true }), null);
   assert.equal(key('ArrowRight', { target: { tagName: 'INPUT' } }), null);
   assert.equal(key('ArrowRight', { target: { tagName: 'BUTTON', getAttribute: () => 'tab' } }), null);
+  assert.equal(key('ArrowRight', { target: { tagName: 'DIV', getAttribute: () => 'region' } }), null, 'a diff that scrolls sideways keeps its arrows');
   assert.equal(key('ArrowRight', { target: { tagName: 'A', getAttribute: () => null } }), 1);
 });
 

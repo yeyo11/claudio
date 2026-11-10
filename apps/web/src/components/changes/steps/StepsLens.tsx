@@ -180,7 +180,6 @@ function StepList({ steps, current, hrefOf, note }: { steps: EditStep[]; current
                   <span className="edit-step-path" title={s.path}>
                     {splitPath(s.path).name}
                   </span>
-                  <StepRisk risk={s.risk} inLink />
                   {s.pending && (
                     <>
                       <Spinner />
@@ -189,6 +188,8 @@ function StepList({ steps, current, hrefOf, note }: { steps: EditStep[]; current
                   )}
                   <Counts additions={s.additions} deletions={s.deletions} />
                 </span>
+                {/* A line of its own: beside the path in a 340 px list it would push the counts out of the card */}
+                <StepRisk risk={s.risk} inLink />
                 {s.intent && <span className="edit-step-intent">{plainIntent(s.intent)}</span>}
               </span>
             </Link>

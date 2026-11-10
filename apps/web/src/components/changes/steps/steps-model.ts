@@ -92,9 +92,10 @@ export function stepKey(e: Pick<KeyboardEvent, 'key' | 'target' | 'ctrlKey' | 'm
   const target = e.target as { tagName?: string; isContentEditable?: boolean; getAttribute?: (name: string) => string | null } | null;
   const tag = target?.tagName?.toLowerCase();
   if (tag === 'input' || tag === 'textarea' || tag === 'select' || target?.isContentEditable) return null;
-  // A tab list, a slider or a segmented control answers the arrows itself
+  // A tab list, a slider or a segmented control answers the arrows itself, and so does a diff that
+  // scrolls sideways (a focusable region): there the arrows move along its long lines
   const role = target?.getAttribute?.('role');
-  if (role === 'tab' || role === 'slider' || role === 'radio') return null;
+  if (role === 'tab' || role === 'slider' || role === 'radio' || role === 'region') return null;
   if (typeof document !== 'undefined' && document.querySelector('[data-escape-layer]')) return null;
   return e.key === 'ArrowLeft' ? -1 : 1;
 }

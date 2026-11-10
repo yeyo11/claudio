@@ -368,6 +368,8 @@
     "binary": "Archivo binario: no hay texto que comparar.",
     "tooLarge": "Este diff es demasiado grande para mostrarlo.",
     "truncated": "El diff se corta aquí: el resto es demasiado largo para mostrarlo.",
+    "region": "Cambios en {{path}}",
+    "regionPlain": "Cambios",
     "unexplained": "Lo que {{agent}} escribió antes de este cambio no lo explica.",
     "onlyRenamed": "Solo se ha renombrado: no ha cambiado ninguna línea.",
     "noChanges": "No ha cambiado ninguna línea.",

@@ -253,7 +253,11 @@ function SelectRow({ item, selection, project }: { item: WorkItem; selection: Bo
       <span className="workitem-mrow-title">{item.title}</span>
       {(project || item.epic) && (
         <span className="workitem-context">
-          {project && <span className="workitem-project">{project}</span>}
+          {project && (
+            <span className="workitem-project" title={project}>
+              <span className="ellipsis">{project}</span>
+            </span>
+          )}
           {item.epic && (
             <span className="workitem-epic is-bare" style={{ '--hue': nameHue(item.epic.id) } as CSSProperties}>
               {item.epic.title}
