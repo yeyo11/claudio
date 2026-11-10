@@ -18,7 +18,7 @@ import { ICON } from './icons';
 import { modalStack } from './modal-stack';
 import { EASE_OUT, motion, useReducedMotion } from './motion';
 
-const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"])';
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea, input, select, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
 
 /**
  * Accessible modal surface: focus is trapped inside, Esc and the backdrop close it, and focus

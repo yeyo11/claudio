@@ -759,13 +759,15 @@ export class ChatService {
     const stream = this.deps.runtime.streamPosition(id);
     const page = await this.fromStores(id, (store, key) => store.page(key, opts));
     if (page) this.deps.transcriptRead?.(id, page.entries);
-    if (page) return { chat, entries: page.entries, from: page.from, total: page.total, stream };
+    const sent = this.deps.runtime.sentToAgents(id);
+    const toAgents = sent.length ? { toAgents: sent } : {};
+    if (page) return { chat, entries: page.entries, from: page.from, total: page.total, stream, ...toAgents };
     const messages = this.deps.runtime.messages(id) ?? [];
     const visible = opts.includeSidechains ? messages : messages.filter((m) => !m.isSidechain);
     const limit = pageSize(opts.limit);
     const until = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.min(Math.trunc(opts.before), visible.length)) : visible.length;
     const from = Math.max(0, until - limit);
-    return { chat, entries: visible.slice(from, until), from, total: visible.length, stream };
+    return { chat, entries: visible.slice(from, until), from, total: visible.length, stream, ...toAgents };
   }
 
   /**

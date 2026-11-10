@@ -19,7 +19,10 @@ import type {
   PermissionRequest,
   ResumeChatRequest,
   OrchestrationTemplate,
+  HintRequest,
   SchedulePreview,
+  SubagentMessageReceipt,
+  SubagentMessageRequest,
   SwitchChatAccountResponse,
 } from '@claudio/shared';
 import { RUN_TAG } from './chat-pages';
@@ -39,6 +42,12 @@ export interface StartChoices {
 /** What the chat package asks of the server. `api` in apps/web satisfies it, plus two URL builders. */
 export interface ChatClient {
   chat(id: string, page?: { limit?: number; before?: number }, o?: { signal?: AbortSignal }): Promise<ChatDetail>;
+  /** A person's hint for the lead agent: the fallback when a subagent could not be written to */
+  hintChat?(id: string, req: HintRequest): Promise<ChatSummary>;
+  /** A person's words straight to one subagent, carried by the chat's bridge mod; absent, the subagent view has no composer */
+  sendToSubagent?(chatId: string, agentId: string, req: SubagentMessageRequest): Promise<SubagentMessageReceipt>;
+  /** Withdraws one still waiting, or puts away one that was lost (409 once the subagent took it) */
+  withdrawSubagentMessage?(chatId: string, agentId: string, messageId: string): Promise<SubagentMessageReceipt>;
   chatPermissions(id: string): Promise<PermissionRequest[]>;
   chatTasks(id: string): Promise<ChatBackgroundTask[]>;
   answerPermission(id: string, requestId: string, decision: PermissionDecision): Promise<unknown>;

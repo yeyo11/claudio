@@ -806,5 +806,16 @@
   },
   "hint": {
     "tag": "Pista"
+  },
+  "agentComposer": {
+    "placeholder": "Escribir a {{agent}}…",
+    "note": "Llega directamente a este subagente; el agente principal no lo ve.",
+    "resumes": "Ha terminado: tu mensaje lo reanudará.",
+    "stopped": "Lo paraste tú, así que no se puede reanudar.",
+    "chatGone": "El chat no está en marcha.",
+    "viaLead": "Enviar a través del principal",
+    "discard": "Descartar",
+    "bridgeDown": "Claudio no ha podido hablar con este chat.",
+    "waiting": "Espera al siguiente paso del subagente"
   }
 }

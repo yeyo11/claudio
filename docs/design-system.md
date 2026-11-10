@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-10T12:00:00Z
+updated_at: 2026-11-10T13:00:00Z
 tags:
     - design-system
     - web
@@ -1010,6 +1010,19 @@ messages" section of `claudio-ds.css`; the components are `AgentMessageCard`, `S
   agente" and the exact text, prefix included, in the body font (`.sys-msg-text`, `pre-wrap`). No
   status colour: it informs. In the lead's transcript a message the person wrote to a subagent is a
   `RelayRow` ("Tú → E2: <first line>", `.sys-msg-relay`), which never folds: the name is a button.
+- **The subagent composer** (`.agent-composer`): the footer of a subagent's drawer, outside
+  `.detail-scroll`, for a subagent only (a workflow agent stays read only). `--bg-1`, a top hairline,
+  padding 12 × 16. It holds the queued cards of that subagent's messages (`QueuedCards`, filtered by
+  `to.agentId`; the chat's own queue leaves them out), the chat's box (`ComposerBox`, with the same
+  send button and Enter / Shift+Enter, without the "+" menu and the status chips) and one note line
+  (`.agent-composer-note`, `--fs-small` `--text-faint`) under it. The note is the state: "Llega
+  directamente a este subagente; el agente principal no lo ve" while it runs, "Ha terminado: tu mensaje
+  lo reanudará" when it ended, and the box is disabled with "Lo paraste tú, así que no se puede
+  reanudar" or "El chat no está en marcha". A message the bridge could not carry stays as a lost card
+  that says "Claudio no ha podido hablar con este chat" and offers "Enviar a través del principal" (a
+  hint to the lead) and "Descartar". It never takes the energy border: the chat's composer may have it
+  on the same screen. On a phone the drawer fills the screen, the box input is 16 px and the card's buttons
+  are 44 px high; a lost card's buttons move under its words, which are shown in full.
 - **The person's hint**: the `.msg-user` bubble without its prefix, with `Tag tone="info"` "Pista"
   in its head. A bubble's head is said to screen readers only; `.msg-head.is-shown` draws it when it
   carries the tag, or the "Tú → E2" route (`.agent-msg-route`) of a message the person wrote straight

@@ -92,6 +92,7 @@ export function agentPendingView(m: AgentMessage): ChatPendingMessage {
     sentAt: m.sentAt,
     source: m.source,
     ...(m.state === 'undelivered' && m.reason ? { reason: m.reason } : {}),
+    ...(m.state === 'undelivered' && m.reasonCode ? { reasonCode: m.reasonCode } : {}),
     to: { agentId: m.agentId },
   };
 }
