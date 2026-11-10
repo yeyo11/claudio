@@ -619,11 +619,12 @@
   flex: none;
 }
 
-/* The risk of a call, after its hint: it keeps its size while the hint is the one that gives way */
+/*
+ * The risk of a call, after its hint. Narrow, both give way: the hint keeps a stub of what was called
+ * and the tag's word ends in an ellipsis (the overflow task's Tag puts the whole word in its title).
+ */
 .risk-tag {
   display: inline-flex;
-  /* It gives way before the hint does: a narrow row keeps a stub of what was called, and the tag's
-     word ends in an ellipsis (its full text is the badge's title) */
   flex: 0 1 auto;
   min-width: 0;
   max-width: 100%;
