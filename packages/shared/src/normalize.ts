@@ -347,7 +347,9 @@ function queuedCommand(o: Record<string, unknown>): TranscriptEntry | null {
   if (!attachment || attachment.type !== 'queued_command') return null;
   // A coordinator's message (the lead's `SendMessage` to a subagent, or a mod's `$.session.send`) is
   // recorded here with `isMeta` on the attachment and no `commandMode`; it is read as the user entry
-  // it is, tagged with who sent it
+  // it is, tagged with who sent it. A subagent's message that reached a lead in the middle of a turn
+  // is recorded here too, as a `prompt` with a `peer` origin and without the CLI's frame: it keeps
+  // its origin like any other, or the page would draw an agent's words as the person's
   const origin = readOrigin(attachment.origin);
   const coordinator = origin?.kind === 'coordinator';
   if (!coordinator && (o.isMeta === true || attachment.commandMode !== 'prompt')) return null;
@@ -362,7 +364,7 @@ function queuedCommand(o: Record<string, unknown>): TranscriptEntry | null {
     isSidechain: o.isSidechain === true,
     parentToolUseId: null,
     blocks,
-    ...(coordinator ? { origin } : {}),
+    ...(origin ? { origin } : {}),
   };
 }
 
