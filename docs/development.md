@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-10T20:00:00Z
 tags:
     - development
     - e2e
@@ -91,13 +91,19 @@ same way, with a one-off script against the same kind of sandbox.
 ## Checks through Sluice
 
 The repository's checks run through [Sluice](https://github.com/josegarridodigio/sluice), the verification
-queue and cache the agents on a machine share (`.sluice.toml`, 0.5.0 or later). Three gates run from hooks: `lint`
-and `typecheck` before each commit, and `test` (`pnpm test` with `CI=1`) before each push, through
-the hooks in `.githooks/` (`git config core.hooksPath .githooks` once per clone; `sluice init` sets
-it). A tree that already passed is answered from the cache, so several agents verifying the same
+queue and cache the agents on a machine share (`.sluice.toml`, 0.5.0 or later). Four gates run from hooks: `lint`
+and `typecheck` before each commit, and `test` (`pnpm test` with `CI=1`) and `ci-checks` before each
+push, through the hooks in `.githooks/` (`git config core.hooksPath .githooks` once per clone;
+`sluice init` sets it). `ci-checks` is `scripts/ci-checks.mjs`: the OpenAPI drift, the
+`docs/status.md` counts, the build and the e2e runner's own tests, the same script CI's `checks` job
+calls, so a push runs every check of that job but `pnpm audit`. That job came to fail on checks only it ran
+(PR #106), which is why the two share one list. A tree that already passed is answered from the cache, so several agents verifying the same
 commit run it once. Without `sluice` on the `PATH` the hooks do nothing. A fourth gate, `e2e`, has no
 hook: it runs the browser suite on demand ([decisions/e2e-through-sluice.md](decisions/e2e-through-sluice.md)).
 An agent verifies with Sluice's `verify` tool instead of running the commands itself.
+Before a pull request is opened, and before each push to one, the whole suite runs once through that
+gate, with no spec prefixes. A change in how every run starts broke a spec no prefix of the change
+named (PR #106, `orchestration-v2`), and the cache makes a second run of the same tree free.
 
 ## Monorepo layout
 

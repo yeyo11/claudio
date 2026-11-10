@@ -1,6 +1,8 @@
 // Generates src/openapi/schemas.json (OpenAPI component schemas) from the shared TypeScript types,
 // so the API reference can never drift from the contract. Run: pnpm --filter @claudio/api openapi:schemas
-import { writeFileSync } from 'node:fs';
+// With --check it writes nothing and fails when the file on disk differs, which is how the pre-push
+// gate and CI tell a drift without leaving the tree changed (scripts/ci-checks.mjs).
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createGenerator } from 'ts-json-schema-generator';
@@ -123,5 +125,20 @@ for (const type of ROOT_TYPES) Object.assign(schema.definitions, generator.creat
 
 // JSON Schema `#/definitions/X` -> OpenAPI `#/components/schemas/X`
 const definitions = JSON.parse(JSON.stringify(schema.definitions ?? {}).replaceAll('#/definitions/', '#/components/schemas/'));
-writeFileSync(out, `${JSON.stringify(definitions, null, 2)}\n`);
-console.log(`wrote ${Object.keys(definitions).length} schemas to ${out}`);
+const body = `${JSON.stringify(definitions, null, 2)}\n`;
+if (process.argv.includes('--check')) {
+  let current = '';
+  try {
+    current = readFileSync(out, 'utf8');
+  } catch {
+    // a missing file is a drift like any other
+  }
+  if (current !== body) {
+    console.error(`${out} is out of date with packages/shared/src/types.ts: run pnpm --filter @claudio/api openapi:schemas and commit the result`);
+    process.exit(1);
+  }
+  console.log(`${Object.keys(definitions).length} schemas are up to date`);
+} else {
+  writeFileSync(out, body);
+  console.log(`wrote ${Object.keys(definitions).length} schemas to ${out}`);
+}

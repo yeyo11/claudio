@@ -46,6 +46,11 @@ host ([docs/decisions/e2e-through-sluice.md](docs/decisions/e2e-through-sluice.m
 whole suite on every pull request. `E2E_ALLOW_LOCAL=1` is the owner's, to watch one spec in a browser; an agent
 never sets it, nor `SLUICE_JOB`.
 
+**Nothing reaches CI untested.** The pre-push hook runs `test` and `ci-checks` (`scripts/ci-checks.mjs`,
+the same script as CI's `checks` job). Before opening a pull request or pushing to one, also run the
+whole e2e suite once: `verify` with `gates: ["e2e"]` and no `extra_args`. Spec prefixes are for
+iterating; they miss what a change breaks elsewhere (PR #106).
+
 After changing `packages/shared/src/types.ts`, regenerate the OpenAPI schemas (CI fails if they
 drift): `pnpm --filter @claudio/api openapi:schemas`. Every new route needs a summary and a tag in
 `apps/api/src/openapi/routes.ts`, and a row in `docs/rest-api.md` (a test checks both).
