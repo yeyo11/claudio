@@ -267,10 +267,10 @@ function MilestoneCard({ milestone, project, featured, phone, onEdit }: { milest
       <Flag size={16} strokeWidth={1.75} aria-hidden className="milestone-flag" />
       <h3 className="milestone-name">{milestone.name}</h3>
       {project && (
-            <span className="workitem-project" title={project}>
-              <span className="ellipsis">{project}</span>
-            </span>
-          )}
+        <span className="workitem-project" title={project}>
+          <span className="ellipsis">{project}</span>
+        </span>
+      )}
       <span className="badge milestone-state">{t('milestones.stateOpen')}</span>
     </div>
   );

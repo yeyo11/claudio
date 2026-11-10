@@ -14,6 +14,33 @@
   font-variant-ligatures: none;
 }
 
+/*
+ * Code keeps its lines (docs/design-system.md, "Truncation and scroll"). Outside a phone's wrap the
+ * diff scrolls sideways inside its own block, never the pane around it: one column as wide as the
+ * widest row and never narrower than the block, so every row, its tint and its rail run the same
+ * width and the numbers, rails and marks stay on their line while it scrolls. The scrollbar shows
+ * on hover and focus; what is not code (notes, the gap rows, threads) stays put at the block's width.
+ */
+.diff:not(.diff-wrap) {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr);
+  container-type: inline-size;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-color: transparent transparent;
+}
+
+.diff:not(.diff-wrap):hover,
+.diff:not(.diff-wrap):focus-within {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.diff:not(.diff-wrap) > :is(.diff-note, .diff-unexplained, .diff-gap) {
+  position: sticky;
+  left: 0;
+  max-width: 100cqw;
+}
+
 .diff-row {
   position: relative;
   display: grid;
@@ -40,7 +67,6 @@
 .diff-code {
   padding-left: 18px;
   white-space: pre;
-  overflow: hidden;
 }
 
 .diff-sign {

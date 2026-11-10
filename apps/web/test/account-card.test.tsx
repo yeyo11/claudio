@@ -46,7 +46,7 @@ const render = async (a: Account): Promise<string> => {
 
 test('the card names the plan as a tag beside the name, not in the muted line', async () => {
   const html = await render(account());
-  assert.match(html, /<span class="badge badge-muted"><span class="badge-text"[^>]*>Max<\/span><\/span>/);
+  assert.match(html, /<span class="badge badge-muted"><span class="badge-text">Max<\/span><\/span>/);
   assert.doesNotMatch(html, /Org · Max/);
 });
 
@@ -75,7 +75,7 @@ test('a reached spend cap is a warn tag with a word', async () => {
 
 test('an API-key account is tagged as one and says it has no limits', async () => {
   const html = await render(account({ kind: 'api-key', alias: 'ci', email: null, plan: null, limits: unreadable() }));
-  assert.match(html, /badge-text"[^>]*>API key</);
+  assert.match(html, /badge-text">API key</);
 });
 
 test('a token account the CLI cannot read says so, rather than calling itself an API key', async () => {
@@ -145,7 +145,7 @@ test('Use this account sets the preference; the preferred one carries the tag in
   assert.doesNotMatch(words(offered), /Preferred/);
   const chosen = await renderWith(account({ id: 'work' }), { preferred: true, onPrefer: () => undefined });
   assert.doesNotMatch(words(chosen), /Use this account/);
-  assert.match(chosen, /<span class="badge badge-muted"><span class="badge-text"[^>]*>Preferred<\/span><\/span>/);
+  assert.match(chosen, /<span class="badge badge-muted"><span class="badge-text">Preferred<\/span><\/span>/);
   // An account that cannot take work cannot be preferred
   assert.doesNotMatch(words(await renderWith(account({ id: 'off', enabled: false }), { onPrefer: () => undefined })), /Use this account/);
 });

@@ -253,7 +253,9 @@ function VirtualRows({
           data-index={item.index}
           // Only a wrapped row, or one with cards under it, has a height of its own; the others are what rowHeight says
           ref={measured ? virtualizer.measureElement : undefined}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flow-root', transform: `translateY(${item.start - margin}px)` }}
+          // As wide as its line and never narrower than the block: a long line widens the diff's own
+          // sideways scroll instead of being cut at the edge
+          style={{ position: 'absolute', top: 0, left: 0, width: wrap ? '100%' : 'max-content', minWidth: '100%', display: 'flow-root', transform: `translateY(${item.start - margin}px)` }}
         >
           {draw(rows[item.index]!)}
         </div>

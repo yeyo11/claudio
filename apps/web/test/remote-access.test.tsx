@@ -428,7 +428,7 @@ test('a setting the environment set is shown read-only, naming its variable', ()
   assert.ok(html.includes('CLAUDIO_ALLOWED_HOSTS'));
   assert.ok(html.includes('CLAUDIO_DEFAULT_PERMISSION_MODE'));
   // The environment's hosts are a tagged list; the ones added here stay editable beside them
-  assert.match(html, /<li class="app-settings-host"><span class="mono">\*\.devtunnels\.ms<\/span><span class="badge badge-muted"><span class="badge-text"[^>]*>Set by the environment/);
+  assert.match(html, /<li class="app-settings-host"><span class="mono">\*\.devtunnels\.ms<\/span><span class="badge badge-muted"><span class="badge-text">Set by the environment/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*>claudio.example.com<\/textarea>/);
   assert.ok(text(html).includes('beside the ones from the environment'));
   // The mode's picker is disabled; the run limit stays editable
@@ -440,7 +440,7 @@ test("the tunnel's host is listed read-only while it is lent, and is not in the 
   const client = new QueryClient();
   client.setQueryData(keys.appSettings, layered({}, { file: [], runtime: ['abc123.lhr.life'] }));
   const html = wrap(<AppSettingsSections />, client);
-  assert.match(html, /<span class="mono">abc123\.lhr\.life<\/span><span class="badge badge-muted"><span class="badge-text"[^>]*>tunnel, while it is open/);
+  assert.match(html, /<span class="mono">abc123\.lhr\.life<\/span><span class="badge badge-muted"><span class="badge-text">tunnel, while it is open/);
   assert.match(html, /<textarea[^>]*data-testid="allowed-hosts"[^>]*><\/textarea>/);
   assert.doesNotMatch(html, /CLAUDIO_ALLOWED_HOSTS/);
 });

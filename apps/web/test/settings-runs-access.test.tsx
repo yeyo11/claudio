@@ -99,7 +99,7 @@ test('the sections carry no card title of their own: the section heading names e
   assert.doesNotMatch(html, /<div class="card-head"><h2>/);
   assert.equal((html.match(/id="guards"/g) ?? []).length, 1, 'the guards card no longer repeats the anchor');
   // Access holds three parts, each named a level under the section's heading, with its state in words
-  assert.match(html, /<h4 class="settings-block-title">Authentication mode<\/h4><span class="badge badge-ok">.*?<span class="badge-text"[^>]*>token/);
+  assert.match(html, /<h4 class="settings-block-title">Authentication mode<\/h4><span class="badge badge-ok">.*?<span class="badge-text">token/);
   assert.match(html, /<h4 class="settings-block-title">Token<\/h4>/);
   assert.match(html, /<h4 class="settings-block-title">Read-only mode<\/h4>/);
   assert.ok(text(html).includes('Turn it on to show the panel without letting anyone change it.'));
