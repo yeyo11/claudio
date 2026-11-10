@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-10-30T12:00:00Z
+updated_at: 2026-11-10T14:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -262,10 +262,18 @@ CLI; D5 and C3 of [the regression fixes](plans/regression-fixes-2026-10-29.md) s
   every 15 s for up to 5 minutes, and with no room by then nothing is recorded, so the next
   announcement asks again.
 - **It names the agent.** The runtime's trace keeps each call's `parentToolUseId`, so a signal about
-  a subagent's call carries `agent: { parentToolUseId, description, subagentType }`. The Supervisor
-  then reads that agent's steps (its branch of the live stream), not the lead's, and the hint the lead
-  gets starts "Your background agent `<description>` is stuck. Relay this to it with SendMessage, or
-  stop it…": nothing documented writes to one subagent, and the lead's own tools can.
+  a subagent's call carries `agent: { parentToolUseId, agentId?, description, subagentType }`
+  (`agentId` is the CLI's id, filled from the live branch once the subagent has started). The
+  Supervisor then reads that agent's steps (its branch of the live stream), not the lead's.
+- **A hint about a subagent goes straight to it.** With an `agentId`, the proposal keeps the raw hint
+  and sending it (Active on its own, or a person's Send from the health panel) calls
+  `ChatService.messageAgent` with `source: 'supervisor'` (`'person'` for the panel), which writes it
+  through the `claudio-bridge` mod ([agent messages](agent-messages.md)). Core waits up to 25 s for
+  the row to turn `delivered`. When the write is refused (chat not live, subagent stopped or unknown)
+  or the row ends `undelivered` (`bridge-unavailable`, `agent-stopped`, `not-read`, or no answer in
+  time), it falls back **once** to the old relay: the lead gets "Your background agent `<description>`
+  is stuck. Relay this to it with SendMessage, or stop it…". A signal with no `agentId` yet, and a
+  proposal stored before this change as that relay text, go to the lead as before.
 - **Active cancels a hung command.** A hint is a message the agent reads only once the call it is
   blocked in returns. For `hung-command` and `repeat-stall` with a running call, Active cancels the
   command (`ChatService.cancelCommand`) with the hint as the reason: the failed result reaches the
