@@ -1484,3 +1484,250 @@
     color: var(--text-faint);
   }
 }
+
+/*
+ * A message one agent sent another (docs/plans/agent-messages.md, "Agent message card"): not a
+ * bubble, because no person wrote it. The violet rail is the one `.msg-sidechain` uses, the colour
+ * that marks agents. Nothing on it moves: it is a record, not something live.
+ */
+.agent-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: var(--rail-w) solid var(--accent-2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+}
+
+/* Under a step, as a branch card is */
+.msg-step .agent-msg {
+  margin-top: 10px;
+}
+
+.agent-msg-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs-small);
+}
+
+.agent-msg-glyph,
+.agent-msg-arrow {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* A description can be a sentence: each name shortens inside the head rather than pushing the time out */
+.agent-msg-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40ch;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: var(--fw-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-msg-name.link-btn {
+  color: var(--accent);
+}
+
+.agent-msg-head > .badge {
+  flex: none;
+}
+
+.agent-msg-not-sent {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--bad);
+}
+
+.agent-msg-time {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-msg-body {
+  min-width: 0;
+  font-size: var(--fs-body);
+  overflow-wrap: anywhere;
+}
+
+/* Three lines, cut clean: no gradient mask over the words; "Show all" under them says there is more */
+.agent-msg-body.is-clamped {
+  max-height: calc(var(--lh-body) * 3);
+  overflow: hidden;
+}
+
+.agent-msg-more {
+  align-self: flex-start;
+  font-size: var(--fs-small);
+}
+
+.agent-msg-reason {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+/* "You → E2" over a bubble the person wrote straight to a subagent */
+.agent-msg-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The head of a person's bubble is said to screen readers only, unless it carries a tag or a route */
+.msg:not(.msg-sidechain) > .msg-body > .msg-head.is-shown {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+}
+
+.msg:not(.msg-sidechain) > .msg-body > .msg-head.is-shown > .msg-role:not(.agent-msg-route) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.msg-user .msg-head.is-shown {
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .agent-msg {
+    padding: 10px 12px;
+  }
+
+  /* A finger needs the room the eye does not: the target grows, the line does not */
+  .agent-msg-name.link-btn,
+  .agent-msg-more {
+    min-height: 44px;
+    margin: -12px 0;
+    padding: 12px 0;
+  }
+}
+
+/*
+ * What Claudio or its Supervisor wrote into the chat (docs/plans/agent-messages.md, "System row"):
+ * a line in the rhythm of `.notice`, outside the bubbles, with Claudio's mark and without the English
+ * prefix. It carries no status colour: it informs, so only its mark takes the neutral `--info`.
+ */
+.sys-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.sys-msg-glyph {
+  flex: none;
+  color: var(--info);
+}
+
+.sys-msg-label {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-weight: var(--fw-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-msg-relay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sys-msg-relay .agent-msg-name {
+  color: var(--text-muted);
+}
+
+.sys-msg-relay .agent-msg-name.link-btn {
+  color: var(--accent);
+}
+
+.sys-msg-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-msg .agent-msg-time {
+  padding-left: 0;
+}
+
+/* With the exact text behind it, the line is the fold's trigger and keeps its shape */
+.fold.sys-msg-fold {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+}
+
+.fold.sys-msg-fold > .collapsible-trigger {
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.fold.sys-msg-fold > .collapsible-trigger:hover {
+  background: none;
+  color: var(--text);
+}
+
+.sys-msg-received {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 8px 22px;
+}
+
+.sys-msg-received-label {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+/* Prose the agent read, in the body font: it is words, not a literal */
+.sys-msg-text {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg-sys .msg-body,
+.msg-agent .msg-body {
+  gap: 0;
+}

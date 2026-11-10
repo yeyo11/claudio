@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-09T14:00:00Z
+updated_at: 2026-11-10T12:00:00Z
 tags:
     - design-system
     - web
@@ -977,6 +977,43 @@ the classes are the last section of `claudio-ds.css`.
   and in its panel.
 - Motion: the braille spinner only, still under `subtle`/`off`. Status colour always beside a word.
   Text contrast in both themes checked with `tools/check.mjs` on the seven screens (0 findings).
+
+### Agent messages and Claudio's system rows
+
+Drawn for [plans/agent-messages.md](plans/agent-messages.md) ("Design"). No reference screen of its
+own: it sits in the transcript of `DesktopChatEnMarcha` and `DesktopChatLlamadas`, and in the
+subagent drawer. The classes are in `packages/chat-ui/src/styles/transcript.css` and in the "Agent
+messages" section of `claudio-ds.css`; the components are `AgentMessageCard`, `SystemRow` and
+`RelayRow` in `packages/chat-ui/src/components/AgentMessages.tsx`.
+
+- **The agent message card** (`.agent-msg`): a message one agent sent another, never a bubble. Full
+  width of the message column, `--bg-2`, a hairline, `--radius-lg`, padding 10 × 14 (10 × 12 on a
+  phone), and the violet `--accent-2` rail of `.msg-sidechain`, the colour that marks agents. Nothing
+  on it moves. The head (`.agent-msg-head`, `--fs-small`) reads `glyph · sender → receiver · tag ·
+  time`: the agent glyph and the arrow in `--text-faint`, each name (`.agent-msg-name`) in
+  `--fw-strong`, cut with an ellipsis; a subagent another view is about is a `.link-btn` that opens
+  it (a 44 px target on a phone), the lead ("Principal"), the person ("Tú") and the subagent the
+  view is about stay text. A hand-back carries `Tag tone="info"` "Informe final"; a `SendMessage`
+  that did not go out says "No entregado" in `--bad` with its icon (`.agent-msg-not-sent`) and the
+  CLI's reason under the body (`.agent-msg-reason`). The time is right, tabular. The body
+  (`.agent-msg-body`) is Markdown, folded to three lines (`.is-clamped`, no gradient mask) with
+  "Ver todo" / "Ver menos" (`.agent-msg-more`) below when it is longer. The same card shows what an
+  agent received (its own row in the transcript, `.msg-agent`) and what the lead sent (under the step
+  that made it, as a branch card is); the step row keeps the lens `→ <receiver> · <summary>`, and a
+  `ListAgents` row reads "Agentes disponibles (n)".
+- **The system row** (`.sys-msg`): what Claudio or its Supervisor wrote, outside the bubbles, in the
+  `.notice` rhythm: `padding: 6px 0`, a top hairline, `--fs-small`, one line of `ClaudioGlyph` in
+  `--info`, the label (`.sys-msg-label`, `--fw-strong` `--text-muted`: "Claudio · automático",
+  "Supervisor", "Cancelaste un comando", "Claudio canceló un comando"), the words without the English
+  prefix (`.sys-msg-words`, first line, ellipsis) and the time right in `--text-faint`. With more than
+  one line, and always for a hint, the line is a fold (`.sys-msg-fold`) holding "Lo que recibió el
+  agente" and the exact text, prefix included, in the body font (`.sys-msg-text`, `pre-wrap`). No
+  status colour: it informs. In the lead's transcript a message the person wrote to a subagent is a
+  `RelayRow` ("Tú → E2: <first line>", `.sys-msg-relay`), which never folds: the name is a button.
+- **The person's hint**: the `.msg-user` bubble without its prefix, with `Tag tone="info"` "Pista"
+  in its head. A bubble's head is said to screen readers only; `.msg-head.is-shown` draws it when it
+  carries the tag, or the "Tú → E2" route (`.agent-msg-route`) of a message the person wrote straight
+  to a subagent, drawn in that subagent's transcript.
 
 ### Integrations: the code hosts' CLIs
 
