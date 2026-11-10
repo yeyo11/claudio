@@ -76,6 +76,8 @@ export function buildArgs(spec: SessionLaunch): string[] {
   // The guard's hooks come from a settings file of ours and nothing else: never `--bare` or
   // `--safe-mode`, which would leave the hooks, and with them the guard, out (docs/plans/guards.md, D1)
   if (spec.guard) args.push('--settings', spec.guard.settingsPath, '--include-hook-events');
+  // For this process only: nothing is installed, and the person's own plugins load as before
+  for (const dir of spec.pluginDirs ?? []) args.push('--plugin-dir', dir);
   if (spec.jsonSchema) args.push('--json-schema', JSON.stringify(spec.jsonSchema));
   if (spec.systemPromptSnapshot === 'off') args.push('--system-prompt-snapshot', 'off');
   if (spec.internal) args.push('--no-session-persistence');

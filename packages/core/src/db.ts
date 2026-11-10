@@ -83,6 +83,7 @@ const CHAT_ROW_TABLES = [
   'openai_conversations',
   'openai_responses',
   'openai_chat_prompts',
+  'agent_messages',
 ] as const;
 
 /**
@@ -94,7 +95,11 @@ const OWN_CHAT_ROW_TABLES = CHAT_ROW_TABLES.filter((t) => t !== 'chat_uploads' &
 
 /** Deletes the rows of chats that are no longer in `chats`, in the tables only Claudio's own chats write. */
 function sweepChatOrphans(db: DatabaseSync): void {
-  for (const table of OWN_CHAT_ROW_TABLES) db.exec(`DELETE FROM ${table} WHERE chat_id NOT IN (SELECT id FROM chats)`);
+  for (const table of OWN_CHAT_ROW_TABLES) {
+    // Run once as a migration, before the tables a later migration creates exist
+    if (db.prepare("SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?").get(table) === undefined) continue;
+    db.exec(`DELETE FROM ${table} WHERE chat_id NOT IN (SELECT id FROM chats)`);
+  }
 }
 
 /** Statements prepared once per connection: `node:sqlite` keeps no cache, and the chat store's writes run on every turn of every chat. */
@@ -1587,6 +1592,26 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    DROP TABLE usage_history;
    ALTER TABLE usage_history_text RENAME TO usage_history;
    CREATE INDEX usage_history_at ON usage_history (at);`,
+
+  // Messages written straight to one subagent (docs/agent-messages.md): Claudio's queue for the
+  // chat's `claudio-bridge` mod, as rows so a reload of the page or of the server still finds each
+  // one and what became of it. `text` is what the subagent reads, `words` the person's own
+  `CREATE TABLE agent_messages (
+     id           TEXT PRIMARY KEY,
+     chat_id      TEXT NOT NULL,
+     agent_id     TEXT NOT NULL,
+     source       TEXT NOT NULL,
+     words        TEXT NOT NULL,
+     text         TEXT NOT NULL,
+     state        TEXT NOT NULL,
+     reason_code  TEXT,
+     reason       TEXT,
+     sent_at      TEXT NOT NULL,
+     taken_at     TEXT,
+     delivered_at TEXT,
+     dismissed    INTEGER NOT NULL DEFAULT 0
+   );
+   CREATE INDEX agent_messages_chat ON agent_messages (chat_id, state);`,
 ];
 
 /**
@@ -3349,6 +3374,7 @@ function agentOfRow(text: string | null): { agent: HealthSignalAgent } | null {
     return {
       agent: {
         parentToolUseId: value.parentToolUseId,
+        ...(typeof value.agentId === 'string' ? { agentId: value.agentId } : {}),
         ...(typeof value.description === 'string' ? { description: value.description } : {}),
         ...(typeof value.subagentType === 'string' ? { subagentType: value.subagentType } : {}),
       },

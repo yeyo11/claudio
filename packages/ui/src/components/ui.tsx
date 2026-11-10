@@ -23,6 +23,7 @@ import { ICON, ICON_SM } from './icons';
 import { Illustration, type IllustrationName, type IllustrationSize, type IllustrationTone } from './illustrations';
 import { AnimatePresence, motion, SlidingIndicator, useIndicatorId } from './motion';
 import { copyText } from '../lib/clipboard';
+import { FullText } from './FullText';
 
 const TONES = {
   starting: 'info',
@@ -114,7 +115,8 @@ export function Tag({ children, tone = 'muted', icon }: { children: ReactNode; t
   return (
     <span className={`badge badge-${tone}`}>
       {Icon && <Icon size={12} strokeWidth={2} aria-hidden />}
-      <span className="badge-text">{children}</span>
+      {/* Carries its whole word as a title once a narrow column ends it in an ellipsis */}
+      <FullText className="badge-text">{children}</FullText>
     </span>
   );
 }

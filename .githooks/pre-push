@@ -2,3 +2,4 @@
 set -e
 command -v sluice >/dev/null 2>&1 || exit 0
 sluice run --hook pre-push test
+sluice run --hook pre-push ci-checks

@@ -2157,6 +2157,22 @@ a.attachment-chip:hover {
   flex: 1;
 }
 
+/* A row with buttons of its own: on a narrow card they move under the words instead of eating them */
+.chat-queued-item:has(> .chat-queued-actions) {
+  flex-wrap: wrap;
+}
+
+.chat-queued-item:has(> .chat-queued-actions) > .chat-queued-text {
+  flex: 1 1 12rem;
+}
+
+/* What a person has to decide on is read in full, not cut to two lines */
+.chat-queued-item.is-lost:has(> .chat-queued-actions) > .chat-queued-text {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
 .chat-queued-item > .icon-btn {
   flex: none;
   margin-top: -2px;
@@ -2215,6 +2231,65 @@ a.attachment-chip:hover {
 .chat-queued-item.is-lost > svg,
 .chat-queued.is-lost .chat-queued-item > svg {
   color: var(--warn);
+}
+
+/*
+ * The subagent drawer's footer (docs/design-system.md "The subagent composer"): the chat's box with
+ * its queued cards over it and one note line under it. It never takes the energy border, because the
+ * chat's own composer may already have it on the same screen.
+ */
+.dialog-foot:has(> .agent-composer) {
+  display: block;
+  /* Pinned to the drawer's foot: a short transcript must not leave the box floating mid-drawer and
+     moving down with every message that lands */
+  margin-top: auto;
+  padding: 0;
+  background: var(--bg-1);
+}
+
+/* Nothing to say yet (the agent has not been read): no empty strip with a border */
+.dialog-drawer > .dialog-foot:not(:has(*)) {
+  display: none;
+}
+
+.agent-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 16px;
+}
+
+.agent-composer .composer-wrap,
+.agent-composer .chat-queued {
+  max-width: none;
+  align-self: stretch;
+}
+
+.agent-composer .composer-wrap {
+  gap: 6px;
+  padding: 0;
+}
+
+/* The note takes the line the chat's status chips have, with the keys on its right */
+.agent-composer .composer-foot {
+  justify-content: space-between;
+  /* The phone sheet puts the chat's chips over its box; the note stays under it */
+  order: 0;
+}
+
+.agent-composer-note {
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+/* Under 44 px a thumb misses the card's two small buttons on a phone */
+@media (pointer: coarse), (max-width: 767px) {
+  .agent-composer .chat-queued-actions .btn {
+    min-height: 44px;
+  }
 }
 
 /* ---------- Context control (docs/plans/context-control.md) ----------

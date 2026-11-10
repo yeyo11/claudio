@@ -566,7 +566,7 @@ export type ComposerLayout = 'chat' | 'start';
  * one, the editor, the stop and send buttons, and the line of chips and keys under it. The `start`
  * layout is New chat's: see `StartComposer`.
  */
-function ComposerBox({
+export function ComposerBox({
   editor,
   layout = 'chat',
   files,
@@ -582,9 +582,12 @@ function ComposerBox({
   error,
   note,
   busy = false,
+  hideKeys = false,
 }: {
   editor: RefObject<RichEditorHandle | null>;
   layout?: ComposerLayout;
+  /** The box cannot send now (a disabled subagent's): the keys that send would be a hint that does not apply */
+  hideKeys?: boolean;
   /** Left out where nothing can be attached: no tray, no drop zone, no pasted files */
   files?: AttachmentsState;
   slash: SlashMenuState;
@@ -678,7 +681,7 @@ function ComposerBox({
         <>
           <div className="composer-foot">
             {status}
-            {hint}
+            {!hideKeys && hint}
           </div>
           {error}
         </>

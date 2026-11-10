@@ -8,7 +8,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { I18nextProvider, initReactI18next } from 'react-i18next';
 import type { ChatPendingMessage, MessageDelivery, TranscriptEntry } from '@claudio/shared';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
-import { datedByDelivery, readDismissed, reconcileCards, writeDismissed, type DeliveryFacts, type QueuedCard, type QueuedMessage } from '../src/composer/queued';
+import { datedByDelivery, ownQueue, readDismissed, reconcileCards, subagentQueue, writeDismissed, type DeliveryFacts, type QueuedCard, type QueuedMessage } from '../src/composer/queued';
 import { QueuedCards, type QueuedCardsProps } from '../src/composer/QueuedCards';
 
 // The queued cards over the composer, matched by the id each message was sent with
@@ -212,4 +212,49 @@ test('the card is quiet without opacity, which took its muted text under 4.5:1 i
   const rules = [...css.matchAll(/(?:^|\n)(\.chat-queued[^{]*)\{([^}]*)\}/g)].map((m) => ({ selector: (m[1] ?? '').trim(), body: m[2] ?? '' }));
   assert.ok(rules.length > 5, 'the queued card rules were found');
   for (const rule of rules) assert.doesNotMatch(rule.body, /(?:^|[\s;])opacity\s*:/, `${rule.selector} sets no opacity`);
+});
+
+// ---------- the subagent's cards (the plan's "The subagent composer") ----------
+
+test("a subagent's waiting message has no Send now, and says where it goes", () => {
+  const html = draw([card('m1')], { onSendNow: undefined, footWords: { waiting: 'Goes straight to this subagent; the lead does not see it.' } });
+  assert.deepEqual(buttonsOf(html), []);
+  assert.match(html, /Goes straight to this subagent/);
+  assert.match(html, /aria-label="Take it back to the box"/);
+});
+
+test('a message the bridge could not carry offers the lead and Discard, and says Claudio could not reach the chat', () => {
+  const lost = card('m1', { state: 'lost', reasonCode: 'bridge-unavailable' });
+  const html = draw([lost], { onViaLead: () => {}, footWords: { lost: 'Claudio could not reach this chat.' } });
+  assert.deepEqual(buttonsOf(html), ['Send through the lead', 'Discard']);
+  assert.match(html, /Claudio could not reach this chat\./);
+  assert.doesNotMatch(html, /Put it back in the box/);
+});
+
+test('without the lead to offer (the subagent stopped, the chat gone), a lost message still offers Discard', () => {
+  const html = draw([card('m1', { state: 'lost', reasonCode: 'bridge-unavailable' })], { footWords: { lost: 'Claudio could not reach this chat.' } });
+  assert.deepEqual(buttonsOf(html), ['Discard']);
+});
+
+test('any other lost reason keeps the chat card: put it back in the box', () => {
+  const html = draw([card('m1', { state: 'lost', reasonCode: 'not-read' })], { onViaLead: () => {} });
+  assert.deepEqual(buttonsOf(html), []);
+  assert.match(html, /aria-label="Put it back in the box"/);
+});
+
+test("the chat's queue and a subagent's are told apart by `to`", () => {
+  const list = [pending('a'), pending('b', 'written', { to: { agentId: 'ag1' } }), pending('c', 'undelivered', { to: { agentId: 'ag2' }, reasonCode: 'bridge-unavailable' })];
+  assert.deepEqual(
+    ownQueue(list).map((m) => m.id),
+    ['a'],
+  );
+  assert.deepEqual(
+    subagentQueue(list, 'ag1').map((m) => [m.id, m.state]),
+    [['b', 'waiting']],
+  );
+  assert.deepEqual(
+    subagentQueue(list, 'ag2').map((m) => [m.id, m.state, m.reasonCode]),
+    [['c', 'lost', 'bridge-unavailable']],
+  );
+  assert.deepEqual(subagentQueue(undefined, 'ag1'), []);
 });

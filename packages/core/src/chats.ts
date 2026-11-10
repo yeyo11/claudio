@@ -7,7 +7,7 @@ import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { errorMessage, type AccountSwitchReason, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
+import { errorMessage, type AccountSwitchReason, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type SentToAgent, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, goIdle, idleTimeoutMs, NOT_READ, recordEntry } from './chat-fold.ts';
@@ -41,6 +41,8 @@ import {
 } from './live-chat.ts';
 import { removeChatExtrasConfigs, writeChatExtrasConfigSync } from './chat-tools.ts';
 import { ChatTable } from './chat-table.ts';
+import { AgentMessages } from './agent-messages.ts';
+import { writeBridgeMod } from './bridge-mod.ts';
 import { ThrottledLog } from './throttled-log.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
@@ -242,6 +244,13 @@ export class ChatManager extends EventEmitter {
    * chat can call a guarded API. Core replaces it with the one its guard reads.
    */
   chatTokens = new ChatTokenStore();
+  /**
+   * Messages written straight to one subagent, which the chat's `claudio-bridge` mod carries
+   * (docs/agent-messages.md): Claudio's queue, as rows
+   */
+  readonly agentMessages: AgentMessages;
+  /** Whether runs may load the `claudio-bridge` mod at all; Core turns it off where the bridge routes are not served */
+  subagentBridge = true;
   /** The workspaces root (D7), where a confined API chat's git stops looking for a repository; Core sets it */
   workspacesRoot: string | null = null;
   /**
@@ -341,6 +350,10 @@ export class ChatManager extends EventEmitter {
       }
     }
     this.environments = new EnvironmentIndex(db);
+    this.agentMessages = new AgentMessages(db.connection, {
+      delivery: (chatId, delivery) => this.chats.peek(chatId)?.push({ kind: 'delivery', delivery }),
+      agentStopped: (chatId, agentId) => this.subagentOf(chatId, agentId)?.status === 'stopped',
+    });
     const manager = this;
     this.host = {
       db,
@@ -747,7 +760,46 @@ export class ChatManager extends EventEmitter {
 
   /** A retired chat answers with the summary it was retired with, which is what waking it would read back */
   get(id: string): ChatRuntime | null {
-    return this.chats.summaryOf(id);
+    const summary = this.chats.summaryOf(id);
+    if (!summary) return null;
+    // A message to one subagent is listed with the chat's own: the page tells them apart by `to`
+    const toAgents = this.agentMessages.list(id, this.chats.peek(id)?.alive === true);
+    return toAgents.length ? { ...summary, pending: [...(summary.pending ?? []), ...toAgents] } : summary;
+  }
+
+  /** The person's messages to subagents that were delivered, oldest first: what the lead's transcript is drawn with a row for */
+  sentToAgents(id: string): SentToAgent[] {
+    return this.agentMessages
+      .history(id)
+      .filter((m) => m.source === 'person' && m.state === 'delivered')
+      .map((m) => ({ id: m.id, agentId: m.agentId, text: m.words, at: m.deliveredAt ?? m.sentAt }));
+  }
+
+  /**
+   * One subagent of a live chat, by the CLI's agent id or by the tool call that launched it: what a
+   * message to it needs (its agent id) and whether it can still take one
+   */
+  subagentOf(chatId: string, id: string): { agentId: string | null; status: 'running' | 'waiting' | 'completed' | 'failed' | 'stopped' } | null {
+    const chat = this.chats.peek(chatId);
+    if (!chat) return null;
+    for (const sub of chat.branches.subagents.values()) {
+      if (sub.agentId === id || sub.toolUseId === id) return { agentId: sub.agentId ?? null, status: sub.status };
+    }
+    return null;
+  }
+
+  /** Whether the chat has a process of its own up now: a message to a subagent needs its bridge */
+  live(id: string): boolean {
+    return this.chats.peek(id)?.alive === true;
+  }
+
+  /**
+   * Whether the chat's process loads the `claudio-bridge` mod: a run without it (the assistant, a
+   * confined or policy-bound API chat, `api: false`) would only lose the message after 15 s
+   */
+  bridged(id: string): boolean {
+    const chat = this.chats.peek(id);
+    return chat?.alive === true && this.loadsBridge(chat);
   }
 
   /**
@@ -820,7 +872,7 @@ export class ChatManager extends EventEmitter {
     for (const call of calls.values()) {
       if (!call.parentToolUseId || agents.has(call.parentToolUseId)) continue;
       const sub = chat.branches.subagents.get(call.parentToolUseId);
-      agents.set(call.parentToolUseId, sub ? { description: sub.description, subagentType: sub.subagentType } : {});
+      agents.set(call.parentToolUseId, sub ? { ...(sub.agentId ? { agentId: sub.agentId } : {}), description: sub.description, subagentType: sub.subagentType } : {});
     }
     return {
       executionStartedAt: live.startedAt,
@@ -1817,6 +1869,7 @@ export class ChatManager extends EventEmitter {
     }
     // The processes take a moment to exit; their credentials go now, with the wrapper
     this.chatTokens.revokeAll();
+    this.agentMessages.dispose();
     if (trees.length === 0 && closing.length === 0) return;
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([Promise.all(closing), new Promise<void>((resolve) => (timer = setTimeout(resolve, graceMs)))]);
@@ -2114,8 +2167,19 @@ export class ChatManager extends EventEmitter {
       ...(opts.agent ? { agent: opts.agent } : {}),
       ...(opts.agentsFile ? { agentsFile: opts.agentsFile } : {}),
       ...(opts.guards ? { guard: { settingsPath: opts.guards.settingsPath } } : {}),
+      ...(this.loadsBridge(chat) ? { pluginDirs: [writeBridgeMod(this.config.dataDir)] } : {}),
       policy: opts.toolConfig?.policy ?? null,
     };
+  }
+
+  /**
+   * Whether a process gets the `claudio-bridge` mod: every run handed a chat token, since the mod
+   * polls with it (D1 of docs/plans/agent-messages.md). Never the assistant or a confined API chat,
+   * which run `--restricted` and hold no token, nor a run with `api: false`.
+   */
+  private loadsBridge(chat: LiveChat): boolean {
+    const { opts } = chat;
+    return this.subagentBridge && this.apiUrl !== null && opts.api !== false && !opts.claudioAssistant && !opts.confine && !opts.apiPolicy;
   }
 
   /**
@@ -2627,6 +2691,8 @@ export class ChatManager extends EventEmitter {
       chat.pending.delete(message.id);
       if (!chat.carrying) chat.lose(message, chat.stopRequested ? STOPPED : (chat.error ?? ENDED));
     }
+    // So did the bridge that carried messages to its subagents
+    this.agentMessages.endChat(chat.id, chat.stopRequested ? STOPPED : (chat.error ?? ENDED));
     chat.activity.clear();
     chat.branchActivity.clear();
     chat.setStatus(status);

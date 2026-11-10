@@ -67,6 +67,7 @@ export const CLAUDIO_MCP_WRITE_TOOL_NAMES = [
   'start_chat',
   'send_chat_message',
   'hint_chat',
+  'message_chat_subagent',
   'interrupt_chat',
   'stop_chat',
   'resume_chat',

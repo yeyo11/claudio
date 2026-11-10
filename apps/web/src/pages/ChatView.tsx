@@ -462,6 +462,7 @@ export function ChatView() {
                 messages={messages}
                 edits={edits}
                 compactions={compactions}
+                relays={transcript.query.data?.toAgents}
               />
             )}
             {/* Pinned under the transcript: a chat waiting on a decision is stuck until it gets one */}

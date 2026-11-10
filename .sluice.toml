@@ -50,6 +50,16 @@ key_inputs = ["node --version", "pnpm --version"]
 # 30 on 12 threads and failed timing tests (a boot trial, an invite's expiry) that pass alone
 env = { CI = "1", npm_config_workspace_concurrency = "1" }
 
+[gates.ci-checks]
+# What CI's `checks` job runs besides lint, typecheck and the tests: the OpenAPI drift, the
+# docs/status.md counts, the build and the e2e runner's own tests (scripts/ci-checks.mjs, the same
+# script CI calls). Before each push, so a branch never reaches CI with a failure only CI would see.
+cmd = "pnpm run ci:checks"
+weight = 2
+timeout = "15m"
+hooks = ["pre-push"]
+key_inputs = ["node --version", "pnpm --version"]
+
 [gates.e2e]
 # The browser suite, on demand only (no hook): `verify` with gates = ["e2e"], and spec prefixes in
 # extra_args to run only those. It builds first, so a cached pass always means this tree's UI.

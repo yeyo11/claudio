@@ -1,7 +1,8 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { ChatNotFoundError } from './chat-errors.ts';
-import { EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
+import { AgentMessageRefusal, BRIDGE_WAIT_MAX_S } from './agent-messages.ts';
+import { AGENT_MESSAGE_AUTO_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, AUTO_CANCEL_NOTICE_PREFIX, AUTO_HINT_PREFIX, SUPERVISOR_HINT_PREFIX, NotFoundError, type BridgeNextResponse, type BridgeReport, type SubagentMessageReceipt, CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
 import { randomUUID } from 'node:crypto';
 import { TYPED_COMPACT } from './context-notes.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
@@ -33,17 +34,6 @@ import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 import { usageBreakdown, usageSeries } from './usage-series.ts';
 import { REVIEW_CHAT_ROLE } from './orchestration-timings.ts';
-
-/** How Claudio begins the messages it writes into a chat on a person's behalf; the lessons' signals recognise them by it */
-export const CHAT_HINT_PREFIX = 'A hint from the person following this chat:';
-export const CANCEL_NOTICE_PREFIX = 'A person cancelled the command';
-/**
- * How Claudio begins a hint nobody typed (the Supervisor's): the agent must not take it for the
- * person's word, and the lessons' signals, which read the person's corrections, do not count it.
- */
-export const AUTO_HINT_PREFIX = 'An automatic hint from Claudio, not from the person following this chat:';
-/** ...and the notice of a command it cancelled on its own */
-export const AUTO_CANCEL_NOTICE_PREFIX = 'Claudio cancelled the command on its own';
 
 /**
  * How long the CLI's list of its sessions is trusted between reads. Read from the CLI's own records
@@ -769,13 +759,15 @@ export class ChatService {
     const stream = this.deps.runtime.streamPosition(id);
     const page = await this.fromStores(id, (store, key) => store.page(key, opts));
     if (page) this.deps.transcriptRead?.(id, page.entries);
-    if (page) return { chat, entries: page.entries, from: page.from, total: page.total, stream };
+    const sent = this.deps.runtime.sentToAgents(id);
+    const toAgents = sent.length ? { toAgents: sent } : {};
+    if (page) return { chat, entries: page.entries, from: page.from, total: page.total, stream, ...toAgents };
     const messages = this.deps.runtime.messages(id) ?? [];
     const visible = opts.includeSidechains ? messages : messages.filter((m) => !m.isSidechain);
     const limit = pageSize(opts.limit);
     const until = opts.before !== undefined && Number.isFinite(opts.before) ? Math.max(0, Math.min(Math.trunc(opts.before), visible.length)) : visible.length;
     const from = Math.max(0, until - limit);
-    return { chat, entries: visible.slice(from, until), from, total: visible.length, stream };
+    return { chat, entries: visible.slice(from, until), from, total: visible.length, stream, ...toAgents };
   }
 
   /**
@@ -1142,7 +1134,8 @@ export class ChatService {
     if (!words) throw new Error('text is required');
     if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
     const source = opts.source ?? 'person';
-    const prefix = source === 'person' ? CHAT_HINT_PREFIX : AUTO_HINT_PREFIX;
+    // The Supervisor's own prefix lets the page say "Supervisor" rather than "Claudio" (D6)
+    const prefix = source === 'person' ? CHAT_HINT_PREFIX : source === 'supervisor' ? SUPERVISOR_HINT_PREFIX : AUTO_HINT_PREFIX;
     await this.inOrder(id, () => {
       // Read when its turn in the order comes: a process that ended meanwhile is not started again for a nudge
       if (this.deps.runtime.get(id)?.pid == null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
@@ -1183,6 +1176,62 @@ export class ChatService {
   async backgroundCall(id: string, toolUseId: string): Promise<ChatSummary> {
     await this.deps.runtime.backgroundCall(id, toolUseId);
     return this.require(id);
+  }
+
+  /**
+   * Writes to one subagent of a live chat, straight, through the chat's `claudio-bridge` mod
+   * (docs/agent-messages.md): the lead does not see it. The subagent reads who wrote it from the
+   * frame, a person or Claudio, since the CLI calls every such message the coordinator's. Refused up
+   * front when the chat has no live process (nothing would carry it), when the subagent is unknown,
+   * and when the person stopped it (the CLI does not resume those); a finished one is accepted,
+   * because the send resumes it. Goes through the chat's sends in order, like `hint`.
+   */
+  async messageAgent(id: string, agentId: string, text: string, opts: { source?: ChatMessageSource } = {}): Promise<SubagentMessageReceipt> {
+    const words = typeof text === 'string' ? text.trim() : '';
+    if (!words) throw new Error('text is required');
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
+    const source = opts.source ?? 'person';
+    return this.inOrder(id, async () => {
+      if (!this.deps.runtime.live(id)) throw new ChatConflictError('The chat has no live process to carry a message to its subagent.', null);
+      if (!this.deps.runtime.bridged(id)) throw new ChatConflictError("This chat's run cannot carry a message to one of its subagents.", null);
+      const target = await this.agentTarget(id, agentId);
+      if (!target) throw new NotFoundError('this chat has no subagent with that id');
+      if (target.status === 'stopped') throw new AgentMessageRefusal('You stopped this subagent, and a stopped subagent cannot be resumed.', 409, 'agent-stopped');
+      const prefix = source === 'person' ? AGENT_MESSAGE_PERSON_PREFIX : AGENT_MESSAGE_AUTO_PREFIX;
+      return this.deps.runtime.agentMessages.write(id, target.agentId, { words, text: `${prefix}\n\n${words}`, source });
+    });
+  }
+
+  /**
+   * The CLI's agent id of one subagent and how it stands, from the live branches first (by agent id
+   * or by the tool call that launched it), else from the transcript's own files. A subagent whose
+   * agent id is not known yet cannot be addressed: the mod sends by agent id.
+   */
+  private async agentTarget(id: string, agentId: string): Promise<{ agentId: string; status: string } | null> {
+    const live = this.deps.runtime.subagentOf(id, agentId);
+    if (live?.agentId) return { agentId: live.agentId, status: live.status };
+    if (live) return null;
+    const found = (await this.subagents(id)).find((sub) => sub.id === agentId);
+    return found ? { agentId: found.id, status: found.status } : null;
+  }
+
+  /** Takes back a message to a subagent its bridge has not taken, or dismisses a lost one; 409 `taken` once taken */
+  withdrawAgentMessage(id: string, agentId: string, messageId: string): SubagentMessageReceipt {
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
+    return this.deps.runtime.agentMessages.withdraw(id, agentId, messageId);
+  }
+
+  /** The bridge's long poll (`GET /chats/:id/bridge/next`): `wait` seconds at most, bounded */
+  bridgeNext(id: string, waitS: number, signal?: AbortSignal): Promise<BridgeNextResponse> {
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
+    const wait = Number.isFinite(waitS) ? Math.max(0, Math.min(BRIDGE_WAIT_MAX_S, waitS)) : 0;
+    return this.deps.runtime.agentMessages.next(id, wait, signal);
+  }
+
+  /** What `$.session.send` answered for one message; a report for a message not taken from this chat counts for nothing */
+  bridgeReport(id: string, messageId: string, report: BridgeReport): boolean {
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
+    return this.deps.runtime.agentMessages.report(id, messageId, report);
   }
 
   /** Withdraws a message the agent has not read yet; 409 once it has. */

@@ -377,6 +377,9 @@ Terms of the chats redesign. Like the CLI's, most stay in English.
 | home (page) | Inicio |
 | inbox | la bandeja |
 | resource (agents, skills, commands…) | el recurso |
+| lead agent (of a chat with subagents) | el agente principal; short form "Principal" in a message head ("Principal → Revisar el inspector") |
+| agent message | el mensaje entre agentes |
+| system message (Claudio's own, in a chat) | el mensaje del sistema; its row reads "Claudio · automático" or "Supervisor" |
 
 More terms of the chats redesign, as the screens use them.
 

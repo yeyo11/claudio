@@ -6,6 +6,8 @@ import { Link } from 'react-router-dom';
 import { AgentScope } from '@claudio/chat-ui/lib/agent';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { branchLive, chatBusy, effectiveBranch } from '@claudio/chat-ui/lib/liveness';
+import { useOptionalChatUi } from '@claudio/chat-ui/lib/context';
+import { SubagentComposer } from '@claudio/chat-ui/composer/SubagentComposer';
 import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '@claudio/chat-ui/lib/chats';
 import { keys } from '../api';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
@@ -16,6 +18,7 @@ import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ScrollJump } from '@claudio/ui/components/ScrollJump';
 import { RichText, Transcript } from '@claudio/chat-ui/components/Transcript';
+import type { AgentDirectory } from '@claudio/chat-ui/components/AgentMessages';
 import { BranchStatus, StateBadge } from '@claudio/chat-ui/components/ChatBadges';
 import { ErrorBox, Loading, Tag } from '@claudio/ui/components/ui';
 
@@ -187,6 +190,19 @@ const agentRef = (target: AgentTarget): AgentRef =>
     ? { chatId: target.chatId, agentId: target.agentId }
     : { chatId: target.chatId, agentId: target.agentId, workflowId: target.workflowId };
 
+/**
+ * The box under a subagent's view, for a subagent only: a workflow agent has no way to be written
+ * to. It reads what it needs from the caches the body fills (the chat, the agent), and draws nothing
+ * until it has them.
+ */
+function SubagentFooter({ target }: { target: Extract<AgentTarget, { kind: 'subagent' }> }) {
+  const { chat } = useChatTranscript(target.chatId);
+  const alive = chat?.alive ?? true;
+  const { data } = useAgentDetail(agentRef(target), false, alive);
+  if (!chat || !data) return null;
+  return <SubagentComposer chatId={target.chatId} agentId={data.agentId} name={data.description || data.subagentType || target.agentId} status={data.status} alive={alive} pending={chat.pending} />;
+}
+
 function AgentBody({ target }: { target: AgentTarget }) {
   const { t } = useTranslation('components');
   const { open } = useDetailPanel();
@@ -201,6 +217,19 @@ function AgentBody({ target }: { target: AgentTarget }) {
   const hidden = data && !showAll ? Math.max(0, data.entries.length - RENDERED_ENTRIES) : 0;
   // Held across the tick above: a new array every second would fold the whole transcript again
   const shown = useMemo(() => (data ? (hidden > 0 ? data.entries.slice(hidden) : data.entries) : []), [data, hidden]);
+  // Who the messages in this view are from and to: this agent by its own name, its siblings as links to their views
+  const siblings = chat?.children?.subagents;
+  const selfId = data?.agentId;
+  const selfName = data ? data.description || data.subagentType || target.agentId : '';
+  const directory = useMemo<AgentDirectory | undefined>(() => {
+    if (target.kind !== 'subagent' || !selfId) return undefined;
+    const byId = new Map((siblings ?? []).map((sub) => [sub.id, sub.description.trim() || sub.kind]));
+    return {
+      self: { id: selfId, name: selfName },
+      name: (agentId) => byId.get(agentId) ?? null,
+      open: (agentId) => open({ kind: 'subagent', chatId: target.chatId, agentId }),
+    };
+  }, [target.kind, target.chatId, selfId, selfName, siblings, open]);
 
   if (isLoading) return <Loading />;
   if (error || !data) return <ErrorBox error={error} title={t('detail.agentFailed')} />;
@@ -338,7 +367,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
                 {t('detail.showEarlier', { count: hidden })}
               </button>
             )}
-            <Transcript entries={shown} />
+            <Transcript entries={shown} {...(directory ? { agents: directory } : {})} />
           </div>
         )}
       </section>
@@ -465,6 +494,9 @@ function AgentTitle({ target }: { target: AgentTarget }) {
  * all, so opening a task from a subagent's list swaps the content instead of stacking a second panel.
  */
 export default function DetailPanel({ target, onClose }: { target: DetailRef; onClose: () => void }) {
+  // Only a server that can carry a message to one subagent gets the box
+  const chatClient = useOptionalChatUi()?.client;
+  const writable = Boolean(chatClient?.sendToSubagent && chatClient.withdrawSubagentMessage);
   if (target.kind === 'chat') {
     return (
       <Dialog title={<ChatTitle chatId={target.chatId} />} onClose={onClose} variant="drawer" width={760}>
@@ -473,7 +505,13 @@ export default function DetailPanel({ target, onClose }: { target: DetailRef; on
     );
   }
   return (
-    <Dialog title={target.kind === 'task' ? <TaskTitle chatId={target.chatId} taskId={target.taskId} /> : <AgentTitle target={target} />} onClose={onClose} variant="drawer" width={760}>
+    <Dialog
+      title={target.kind === 'task' ? <TaskTitle chatId={target.chatId} taskId={target.taskId} /> : <AgentTitle target={target} />}
+      onClose={onClose}
+      variant="drawer"
+      width={760}
+      footer={target.kind === 'subagent' && writable ? <SubagentFooter key={`${target.chatId}:${target.agentId}`} target={target} /> : undefined}
+    >
       {target.kind === 'task' ? (
         <TaskBody key={`${target.chatId}:${target.taskId}`} chatId={target.chatId} taskId={target.taskId} />
       ) : (

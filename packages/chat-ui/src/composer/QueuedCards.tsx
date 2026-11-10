@@ -18,15 +18,19 @@ export interface QueuedCardsProps {
   /** The agent's name, as the page calls it ("Claude Code") */
   agent: string;
   /** "Send now": the turn ends so the agent reads what waits, for the oldest message still waiting */
-  onSendNow: (messageId: string) => void;
+  onSendNow?: (messageId: string) => void;
   /** The foreground call the turn waits on goes to the background, and the agent reads what waits */
-  onBackground: (toolUseId: string) => void;
+  onBackground?: (toolUseId: string) => void;
   /** A person's waiting message is withdrawn and its words and files go back in the box */
   onWithdraw: (message: QueuedMessage) => void;
   /** A notice is withdrawn before the agent reads it, or put away once it was lost */
   onDismiss: (message: QueuedMessage) => void;
   /** A person's lost message: its words and files go back in the box */
   onRestore: (message: QueuedMessage) => void;
+  /** A subagent's lost message: sent through the lead instead. Offered, with "Discard", for the ones its bridge could not carry */
+  onViaLead?: (message: QueuedMessage) => void;
+  /** What the foot says, for a view whose messages do not wait on the chat's turn: the subagent's */
+  footWords?: { waiting?: string; lost?: string };
   /** What is on its way, so a button is not pressed twice */
   sending?: boolean;
   backgrounding?: boolean;
@@ -38,7 +42,7 @@ function blockerText(t: TFunction<'chat'>, blocker: ChatPendingBlocker): string 
   return blocker.name === 'Bash' ? t('view.queued.blockedCommand', { what }) : t('view.queued.blockedAgent', { what });
 }
 
-export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw, onDismiss, onRestore, sending = false, backgrounding = false }: QueuedCardsProps) {
+export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw, onDismiss, onRestore, onViaLead, footWords, sending = false, backgrounding = false }: QueuedCardsProps) {
   const { t } = useTranslation('chat');
   if (queued.length === 0) return null;
   const people = queued.filter((message) => !isNotice(message));
@@ -47,11 +51,11 @@ export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw
   const blocker = waiting?.blockedBy;
   const lost = people.some((message) => message.state === 'lost');
   const foot = lost
-    ? t('view.queued.undelivered', { agent })
+    ? (footWords?.lost ?? t('view.queued.undelivered', { agent }))
     : blocker
       ? blockerText(t, blocker)
       : waiting
-        ? t('view.queued.hint', { count: people.length })
+        ? (footWords?.waiting ?? t('view.queued.hint', { count: people.length }))
         : people.length > 0
           ? t('view.queued.held', { count: people.length, agent })
           : t('view.queued.noticeHint', { agent });
@@ -74,6 +78,18 @@ export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw
                     <X {...ICON_SM} />
                   </button>
                 </Tooltip>
+              ) : message.state === 'lost' && message.reasonCode === 'bridge-unavailable' ? (
+                // Only a message to a subagent is lost this way; the lead is offered while it can still pass it on
+                <span className="chat-queued-actions">
+                  {onViaLead && (
+                    <button type="button" className="btn btn-small" disabled={sending} onClick={() => onViaLead(message)}>
+                      {t('agentComposer.viaLead')}
+                    </button>
+                  )}
+                  <button type="button" className="btn btn-small" disabled={sending} onClick={() => onDismiss(message)}>
+                    {t('agentComposer.discard')}
+                  </button>
+                </span>
               ) : message.state === 'lost' ? (
                 <Tooltip content={t('view.queued.restore')}>
                   <button type="button" className="icon-btn" aria-label={t('view.queued.restore')} onClick={() => onRestore(message)}>
@@ -93,7 +109,7 @@ export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw
       </ul>
       <div className="chat-queued-foot">
         <span className="small muted">{foot}</span>
-        {waiting && blocker && (
+        {waiting && blocker && onBackground && onSendNow && (
           <span className="chat-queued-actions">
             <Tooltip content={t('view.queued.backgroundHint', { agent })}>
               <button type="button" className="btn btn-small" onClick={() => onBackground(blocker.toolUseId)} disabled={backgrounding || sending}>
@@ -105,7 +121,7 @@ export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw
             </button>
           </span>
         )}
-        {waiting && !blocker && (
+        {waiting && !blocker && onSendNow && (
           <Tooltip content={t('view.queued.sendNowHint', { agent })}>
             <button type="button" className="btn btn-small" onClick={() => onSendNow(waiting.id)} disabled={sending}>
               {sending ? t('view.queued.sending') : t('view.queued.sendNow')}

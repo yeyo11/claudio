@@ -35,7 +35,7 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@claudio/shared';
-import { EFFORT_LEVELS, errorMessage, isEffort, MODEL_RE, NotFoundError, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
+import { NOTE_PREFIX, SUPERVISOR_HINT_PREFIX, ORCHESTRATION_HINT_PREFIX, EFFORT_LEVELS, errorMessage, isEffort, MODEL_RE, NotFoundError, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -76,7 +76,7 @@ import {
 } from './git.ts';
 import type { CoreConfig } from './paths.ts';
 import type { ChatManager, ChatRuntime, RunResult } from './chats.ts';
-import { AUTO_HINT_PREFIX, type ChatWork } from './chat-service.ts';
+import type { ChatWork } from './chat-service.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { SLOT_RETRY_MS, startWhenAdmitted } from './admission-queue.ts';
 import { isTransientRefusal } from './chat-errors.ts';
@@ -129,8 +129,6 @@ import type { GuardLauncher } from './guards/launch.ts';
 import type { ChatGuardPlan } from './live-chat.ts';
 
 const ID_RE = /^[\w-]{1,40}$/;
-/** How the hint a person sends a worker begins; the lessons' signals recognise it by this */
-export const ORCHESTRATION_HINT_PREFIX = 'A hint from the person following this orchestration:';
 
 /** The planner's own name, which is how a past planner run is recognised later. */
 export const PLANNER_RUN_NAME = 'orchestration-planner';
@@ -931,7 +929,7 @@ export class Orchestrator {
           if (this.warned.has(key) || !this.runs.get(task.runId)?.pid || this.relaunching.has(`${orch.id}:${task.id}`)) continue;
           this.warned.add(key);
           try {
-            this.runs.send(task.runId, `A note from Claudio:\n\n${timeWarning(elapsed, limits)}`);
+            this.runs.send(task.runId, `${NOTE_PREFIX}\n\n${timeWarning(elapsed, limits)}`);
           } catch {
             // the worker is between two processes: the health signal still tells the person
           }
@@ -3762,7 +3760,7 @@ ${quoted}
     const words = text?.trim();
     if (!words) throw new Error('text is required');
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
-    const prefix = source === 'person' ? ORCHESTRATION_HINT_PREFIX : AUTO_HINT_PREFIX;
+    const prefix = source === 'person' ? ORCHESTRATION_HINT_PREFIX : SUPERVISOR_HINT_PREFIX;
     this.runs.send(task.runId, `${prefix}\n\n${words}`, [], undefined, { source, words });
     return orch;
   }

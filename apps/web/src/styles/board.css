@@ -581,6 +581,8 @@ button.workitem-mrow-more-link {
   align-items: center;
   gap: 5px;
   min-width: 0;
+  /* A long project name shortens inside the card instead of running out of it */
+  max-width: 100%;
   font-size: var(--fs-small);
   font-weight: var(--fw-regular);
   color: var(--fg-2);

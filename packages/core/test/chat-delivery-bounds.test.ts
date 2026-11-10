@@ -5,9 +5,8 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test } from 'node:test';
 import { AccountStore } from '@claudio/accounts';
-import type { MessageDelivery } from '@claudio/shared';
+import { CHAT_HINT_PREFIX, SUPERVISOR_HINT_PREFIX, type MessageDelivery } from '@claudio/shared';
 import { ChatManager, ChatRefusal, DeliveryRefusal, RunSlotRefusal } from '../src/chats.ts';
-import { AUTO_HINT_PREFIX, CHAT_HINT_PREFIX } from '../src/chat-service.ts';
 import { Db } from '../src/db.ts';
 import { Core } from '../src/index.ts';
 import type { LiveChat } from '../src/live-chat.ts';
@@ -473,7 +472,7 @@ test('a hint goes through the chat\'s sends in order, framed by who sent it', as
     const enqueued = () => readFileSync(queueLog, 'utf8').trim().split('\n').map((l) => JSON.parse(l) as Op).filter((o) => o.op === 'enqueue').map((o) => o.text ?? '');
     const written = await until(() => (enqueued().length >= 2 ? enqueued() : null), 'both to reach the CLI');
     assert.equal(written[0], 'one');
-    assert.equal(written[1], `${AUTO_HINT_PREFIX}\n\ntwo, from the Supervisor`);
+    assert.equal(written[1], `${SUPERVISOR_HINT_PREFIX}\n\ntwo, from the Supervisor`);
     const pending = core.runtime.get(chat.id)?.pending ?? [];
     const hint = pending.find((m) => m.source === 'supervisor');
     // The page reads the words, without the framing the agent gets

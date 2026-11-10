@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-09T14:00:00Z
+updated_at: 2026-11-10T13:00:00Z
 tags:
     - design-system
     - web
@@ -977,6 +977,56 @@ the classes are the last section of `claudio-ds.css`.
   and in its panel.
 - Motion: the braille spinner only, still under `subtle`/`off`. Status colour always beside a word.
   Text contrast in both themes checked with `tools/check.mjs` on the seven screens (0 findings).
+
+### Agent messages and Claudio's system rows
+
+Drawn for [plans/agent-messages.md](plans/agent-messages.md) ("Design"). No reference screen of its
+own: it sits in the transcript of `DesktopChatEnMarcha` and `DesktopChatLlamadas`, and in the
+subagent drawer. The classes are in `packages/chat-ui/src/styles/transcript.css` and in the "Agent
+messages" section of `claudio-ds.css`; the components are `AgentMessageCard`, `SystemRow` and
+`RelayRow` in `packages/chat-ui/src/components/AgentMessages.tsx`.
+
+- **The agent message card** (`.agent-msg`): a message one agent sent another, never a bubble. Full
+  width of the message column, `--bg-2`, a hairline, `--radius-lg`, padding 10 × 14 (10 × 12 on a
+  phone), and the violet `--accent-2` rail of `.msg-sidechain`, the colour that marks agents. Nothing
+  on it moves. The head (`.agent-msg-head`, `--fs-small`) reads `glyph · sender → receiver · tag ·
+  time`: the agent glyph and the arrow in `--text-faint`, each name (`.agent-msg-name`) in
+  `--fw-strong`, cut with an ellipsis; a subagent another view is about is a `.link-btn` that opens
+  it (a 44 px target on a phone), the lead ("Principal"), the person ("Tú") and the subagent the
+  view is about stay text. A hand-back carries `Tag tone="info"` "Informe final"; a `SendMessage`
+  that did not go out says "No entregado" in `--bad` with its icon (`.agent-msg-not-sent`) and the
+  CLI's reason under the body (`.agent-msg-reason`). The time is right, tabular. The body
+  (`.agent-msg-body`) is Markdown, folded to three lines (`.is-clamped`, no gradient mask) with
+  "Ver todo" / "Ver menos" (`.agent-msg-more`) below when it is longer. The same card shows what an
+  agent received (its own row in the transcript, `.msg-agent`) and what the lead sent (under the step
+  that made it, as a branch card is); the step row keeps the lens `→ <receiver> · <summary>`, and a
+  `ListAgents` row reads "Agentes disponibles (n)".
+- **The system row** (`.sys-msg`): what Claudio or its Supervisor wrote, outside the bubbles, in the
+  `.notice` rhythm: `padding: 6px 0`, a top hairline, `--fs-small`, one line of `ClaudioGlyph` in
+  `--info`, the label (`.sys-msg-label`, `--fw-strong` `--text-muted`: "Claudio · automático",
+  "Supervisor", "Cancelaste un comando", "Claudio canceló un comando"), the words without the English
+  prefix (`.sys-msg-words`, first line, ellipsis) and the time right in `--text-faint`. With more than
+  one line, and always for a hint, the line is a fold (`.sys-msg-fold`) holding "Lo que recibió el
+  agente" and the exact text, prefix included, in the body font (`.sys-msg-text`, `pre-wrap`). No
+  status colour: it informs. In the lead's transcript a message the person wrote to a subagent is a
+  `RelayRow` ("Tú → E2: <first line>", `.sys-msg-relay`), which never folds: the name is a button.
+- **The subagent composer** (`.agent-composer`): the footer of a subagent's drawer, outside
+  `.detail-scroll`, for a subagent only (a workflow agent stays read only). `--bg-1`, a top hairline,
+  padding 12 × 16. It holds the queued cards of that subagent's messages (`QueuedCards`, filtered by
+  `to.agentId`; the chat's own queue leaves them out), the chat's box (`ComposerBox`, with the same
+  send button and Enter / Shift+Enter, without the "+" menu and the status chips) and one note line
+  (`.agent-composer-note`, `--fs-small` `--text-faint`) under it. The note is the state: "Llega
+  directamente a este subagente; el agente principal no lo ve" while it runs, "Ha terminado: tu mensaje
+  lo reanudará" when it ended, and the box is disabled with "Lo paraste tú, así que no se puede
+  reanudar" or "El chat no está en marcha". A message the bridge could not carry stays as a lost card
+  that says "Claudio no ha podido hablar con este chat" and offers "Enviar a través del principal" (a
+  hint to the lead) and "Descartar". It never takes the energy border: the chat's composer may have it
+  on the same screen. On a phone the drawer fills the screen, the box input is 16 px and the card's buttons
+  are 44 px high; a lost card's buttons move under its words, which are shown in full.
+- **The person's hint**: the `.msg-user` bubble without its prefix, with `Tag tone="info"` "Pista"
+  in its head. A bubble's head is said to screen readers only; `.msg-head.is-shown` draws it when it
+  carries the tag, or the "Tú → E2" route (`.agent-msg-route`) of a message the person wrote straight
+  to a subagent, drawn in that subagent's transcript.
 
 ### Integrations: the code hosts' CLIs
 
@@ -2429,6 +2479,47 @@ the file being edited is its only moving part.
   never sits above live data.
 - Don't invent data. When the CLI doesn't report something, say so ("sin coste", "sin datos").
 
+### Truncation and scroll
+
+Nothing is wider than the pane it sits in. The owner's report of 2026-11-10 (a step card's risk tag
+running past the card, the steps pane scrolling sideways because of it, diff lines cut with no way to
+read them) is the case these rules exist for ([plans/agent-messages.md](plans/agent-messages.md),
+"Overflow across the app").
+
+1. **Fix the cause where it lives.** The fix goes in the shared primitive or the page's layout class
+   (`packages/ui`'s `Tag` and `.badge`, `DiffView`'s line area, a list's row class), not in a one-off
+   override on one screen.
+2. **Single-line text truncates.** A label, a path, a tag or a title shortens with an ellipsis inside
+   its container and carries its full text in `title` (`FullText`; `Tag` does it for its word). Every
+   flex or grid child that holds text has `min-width: 0`; a bare text node in a flex row cannot take
+   an ellipsis, so it gets its own box (`.ellipsis`).
+3. **A state's word stays whole beside a title.** `.badge` keeps its automatic minimum width, so in a
+   row with a long title the title gives way. A tag that is alone on its line may shrink to its card
+   (`min-width: 0` on that badge) and then ends in an ellipsis. A tag that would crowd a path out of a
+   narrow row moves to a line of its own (the risk tag in the steps list).
+4. **Code and diffs keep their lines.** They scroll sideways inside their own block, with a scrollbar
+   that shows on hover and focus. `.diff` outside a phone's wrap is one grid column
+   `minmax(max-content, 1fr)`: every row is as wide as the widest line, so tints, rails, numbers and
+   word marks stay on their line while it scrolls (in virtual rows, past 400, each row is as wide as
+   its own line and never narrower than the block), and what is not code (notes, gap rows, review
+   threads) stays at the block's width with `position: sticky; left: 0` and `100cqw`. A block that
+   scrolls is a stop of its own (`tabindex="0"`, `role="region"`, labelled "Changes to {path}"), so
+   the keyboard reaches the end of a long line. Side by side keeps each half in its column and cuts
+   the line there: one long line would otherwise widen both halves and push the "after" side away.
+   A phone wraps the code instead (`.diff-wrap`).
+5. **The page and the panes never scroll sideways.** A pane that scrolls vertically (`overflow-y:
+   auto`, which turns `overflow-x` to `auto` too) shows a horizontal scrollbar the moment a child is
+   wider than it; that scrollbar is the bug, not the fix.
+6. **Prose wraps.** Transcript bubbles, cards and dialogs break long unbroken tokens (paths, URLs,
+   ids, keys) with `overflow-wrap: anywhere`.
+7. **Fixed widths fit the longest copy.** A fixed column holds its longest value in either language
+   (the Chats list's time column holds "hace 59 min"); otherwise it is fluid.
+
+The guard is `e2e/specs/overflow.spec.mjs`, with the scan in `e2e/ui/overflow.mjs`: the screens of
+the report and those listed with it, with long data and the Spanish copy, at 1280 × 720,
+1906 × 1045 and 390 × 844 in both themes. A block wide on purpose (code, a diff, a table, a strip of
+tabs or segments) is left out; anything else that should scroll sideways is marked `data-scroll-x`.
+
 ---
 
 ## 7. Checklist for every UI change
@@ -2849,6 +2940,8 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - `.call-lines`: a Read's numbered code. The numbers come from a CSS counter, so copying leaves them
   out; the reference draws `CodeBlock`, which has no line numbers.
 - `.tool-hint-aside`: the muted mono path after a Grep pattern in the folded hint.
+- `.tool-hint.is-label`: a hint made of words, not a literal (`SendMessage`'s `→ receiver · summary`,
+  `ListAgents`' count), drawn in the UI font.
 - `.teammate-read`: after a teammate-read tool's hint, "from Ana · laptop · api", whose share went into
   the chat; never cut when the hint before it is.
 - `.call-diff.is-all`: the diff once "Show all" lifted its 360 px cap.

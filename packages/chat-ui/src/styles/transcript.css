@@ -619,12 +619,25 @@
   flex: none;
 }
 
-/* The risk of a call, after its hint: it keeps its size while the hint is the one that gives way */
+/*
+ * The risk of a call, after its hint. Narrow, both give way: the hint keeps a stub of what was called
+ * and the tag's word ends in an ellipsis (the overflow task's Tag puts the whole word in its title).
+ */
 .risk-tag {
   display: inline-flex;
-  flex: none;
+  flex: 0 1 auto;
+  min-width: 0;
   max-width: 100%;
   border-radius: var(--radius-xs);
+}
+
+.risk-tag .badge {
+  min-width: 0;
+}
+
+/* A lens that names agents or counts them is words, not a literal: Geist Mono is for literals only */
+.tool-hint.is-label {
+  font-family: inherit;
 }
 
 .tool-hint {
@@ -633,7 +646,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  min-width: 0;
+  min-width: 8ch;
   color: var(--text-muted);
 }
 
@@ -1483,4 +1496,308 @@
     min-height: 44px;
     color: var(--text-faint);
   }
+}
+
+/*
+ * A message one agent sent another (docs/plans/agent-messages.md, "Agent message card"): not a
+ * bubble, because no person wrote it. The violet rail is the one `.msg-sidechain` uses, the colour
+ * that marks agents. Nothing on it moves: it is a record, not something live.
+ */
+.agent-msg {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: var(--rail-w) solid var(--accent-2);
+  border-radius: var(--radius-lg);
+  background: var(--bg-2);
+}
+
+/* Under a step, as a branch card is */
+.msg-step .agent-msg {
+  margin-top: 10px;
+}
+
+.agent-msg-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  font-size: var(--fs-small);
+}
+
+.agent-msg-glyph,
+.agent-msg-arrow {
+  flex: none;
+  color: var(--text-faint);
+}
+
+/* A description can be a sentence: each name shortens inside the head rather than pushing the time out */
+.agent-msg-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  max-width: 40ch;
+  overflow: hidden;
+  color: var(--text);
+  font-weight: var(--fw-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.agent-msg-name.link-btn {
+  display: inline-block;
+  min-height: 24px;
+  padding: 3px 0;
+  color: var(--accent);
+}
+
+/* The ends that are a single word never give way; a subagent's description does, down to a stub */
+.agent-msg-name.is-short {
+  flex: none;
+}
+
+.agent-msg-name:not(.is-short) {
+  min-width: 6ch;
+}
+
+.agent-msg-head > .badge {
+  flex: none;
+}
+
+.agent-msg-not-sent {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  gap: 4px;
+  color: var(--bad);
+}
+
+.agent-msg-time {
+  flex: none;
+  margin-left: auto;
+  padding-left: 8px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+}
+
+.agent-msg-body {
+  min-width: 0;
+  font-size: var(--fs-body);
+  line-height: var(--lh-body);
+  overflow-wrap: anywhere;
+}
+
+/* The clamp counts lines of the body's own height: every block keeps it, the plain text drawn before
+   Markdown has loaded included */
+.agent-msg-body :is(.prose, p, li, h1, h2, h3, h4, blockquote) {
+  line-height: var(--lh-body);
+}
+
+/* An inline code chip is taller than its line: while clamped it keeps inside it, so no edge of a
+   fourth line's chip shows under the cut */
+.agent-msg-body.is-clamped :not(pre) > code {
+  padding-block: 0;
+}
+
+/* While clamped, no block margin takes a line off that grid, so the third line ends where the cut is */
+.agent-msg-body.is-clamped :is(p, ul, ol, li, pre, blockquote, h1, h2, h3, h4) {
+  margin-block: 0;
+}
+
+/* Three lines, cut clean: no gradient mask over the words; "Show all" under them says there is more */
+.agent-msg-body.is-clamped {
+  max-height: calc(var(--lh-body) * 3);
+  overflow: hidden;
+}
+
+.agent-msg-more {
+  display: inline-flex;
+  align-items: center;
+  align-self: flex-start;
+  min-height: 24px;
+  font-size: var(--fs-small);
+}
+
+.agent-msg-reason {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+/* "You → E2" over a bubble the person wrote straight to a subagent */
+.agent-msg-route {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+/* The head of a person's bubble is said to screen readers only, unless it carries a tag or a route */
+.msg:not(.msg-sidechain) > .msg-body > .msg-head.is-shown {
+  position: static;
+  width: auto;
+  height: auto;
+  overflow: visible;
+  clip: auto;
+}
+
+.msg:not(.msg-sidechain) > .msg-body > .msg-head.is-shown > .msg-role:not(.agent-msg-route) {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+.msg-user .msg-head.is-shown {
+  min-height: 0;
+}
+
+@media (max-width: 900px) {
+  .agent-msg {
+    padding: 10px 12px;
+  }
+
+  /* Narrow, the head wraps rather than cutting both names to a letter; the time stays right */
+  .agent-msg-head {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  /* A finger needs a target it can hit */
+  .fold.sys-msg-fold > .collapsible-trigger {
+    min-height: var(--touch);
+  }
+
+  /* The words take the line under the label rather than shrinking to a letter */
+  .sys-msg,
+  .fold.sys-msg-fold > .collapsible-trigger {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+
+  .sys-msg-words {
+    flex-basis: 100%;
+    order: 1;
+    padding-left: 22px;
+  }
+
+  /* A finger needs the room the eye does not: the target grows, the line does not */
+  .agent-msg-name.link-btn,
+  .agent-msg-more {
+    min-height: 44px;
+    margin: -12px 0;
+    padding: 12px 0;
+  }
+}
+
+/*
+ * What Claudio or its Supervisor wrote into the chat (docs/plans/agent-messages.md, "System row"):
+ * a line in the rhythm of `.notice`, outside the bubbles, with Claudio's mark and without the English
+ * prefix. It carries no status colour: it informs, so only its mark takes the neutral `--info`.
+ */
+.sys-msg {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 0;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.sys-msg-glyph {
+  flex: none;
+  color: var(--info);
+}
+
+.sys-msg-label {
+  flex: none;
+  max-width: 60%;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-weight: var(--fw-strong);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-msg-relay {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.sys-msg-relay .agent-msg-name {
+  color: var(--text-muted);
+}
+
+.sys-msg-relay .agent-msg-name.link-btn {
+  color: var(--accent);
+}
+
+.sys-msg-words {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sys-msg .agent-msg-time {
+  padding-left: 0;
+}
+
+/* With the exact text behind it, the line is the fold's trigger and keeps its shape */
+.fold.sys-msg-fold {
+  display: block;
+  padding: 0;
+  border: 0;
+  border-top: 1px solid var(--border);
+  border-radius: 0;
+  background: none;
+}
+
+.fold.sys-msg-fold > .collapsible-trigger {
+  gap: 8px;
+  min-width: 0;
+  padding: 6px 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+}
+
+.fold.sys-msg-fold > .collapsible-trigger:hover {
+  background: none;
+  color: var(--text);
+}
+
+.sys-msg-received {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0 8px 22px;
+}
+
+.sys-msg-received-label {
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+}
+
+/* Prose the agent read, in the body font: it is words, not a literal */
+.sys-msg-text {
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.msg-sys .msg-body,
+.msg-agent .msg-body {
+  gap: 0;
 }

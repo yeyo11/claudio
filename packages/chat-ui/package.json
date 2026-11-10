@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./components/AgentMessages": "./src/components/AgentMessages.tsx",
     "./components/Attachments": "./src/components/Attachments.tsx",
     "./components/ChatBadges": "./src/components/ChatBadges.tsx",
     "./components/ChatDelete": "./src/components/ChatDelete.tsx",
@@ -17,6 +18,7 @@
     "./components/TranscriptSearch": "./src/components/TranscriptSearch.tsx",
     "./lib/account-choice": "./src/lib/account-choice.ts",
     "./lib/agent": "./src/lib/agent.tsx",
+    "./lib/agent-messages": "./src/lib/agent-messages.ts",
     "./lib/chat-branches": "./src/lib/chat-branches.ts",
     "./lib/chat-live": "./src/lib/chat-live.ts",
     "./lib/chat-model": "./src/lib/chat-model.ts",
@@ -41,6 +43,7 @@
     "./composer/history": "./src/composer/history.ts",
     "./composer/queued": "./src/composer/queued.ts",
     "./composer/QueuedCards": "./src/composer/QueuedCards.tsx",
+    "./composer/SubagentComposer": "./src/composer/SubagentComposer.tsx",
     "./composer/ServersPanel": "./src/composer/ServersPanel.tsx",
     "./composer/stick-to-bottom": "./src/composer/stick-to-bottom.ts",
     "./locales": "./src/locales/index.ts",

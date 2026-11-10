@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-08T18:00:00Z
-updated_at: 2026-11-07T00:00:00Z
+updated_at: 2026-11-10T14:00:00Z
 tags:
     - chats
     - providers
@@ -118,6 +118,22 @@ pending into `undelivered` ("Claudio restarted before the agent read it").
   chat working on a queued message never reads idle and one whose message was dropped does not read
   busy for ever.
 
+## Messages to one subagent
+
+A message can also go straight to one subagent of the chat (`POST /chats/:id/subagents/:agentId/messages`),
+carried by the chat's `claudio-bridge` mod through the CLI's `$.session.send`, not written to the
+lead's stdin ([agent-messages.md](agent-messages.md)). It rides the same machinery with a `to`:
+
+- It is listed in the chat's `pending` with `to: { agentId }`, and its `delivery` events carry the
+  same `to`. The chat's own queue leaves those out; the subagent's view shows them.
+- Its states are kept as rows (`agent_messages`), not in the chat's record: `written` until the mod
+  takes it, `delivered` when `$.session.send` answers `isDelivered: true`, `undelivered` with
+  `not-read` (the CLI's sentence kept), `bridge-unavailable` (no poll for 15 s), `agent-stopped` or
+  `cancelled`. When the chat's process ends, what still waits is lost with the same sentences as the
+  lead's messages.
+- It does not hold the lead's status `busy`, and never starts or replaces a process: a chat with no
+  live process refuses it with 409.
+
 ## The page
 
 - A message the server answered `written` or `held` is a card over the composer
@@ -204,4 +220,4 @@ work still running at its ceiling.
 
 Related: [[providers.md]], [[reports/chat-audit/README.md]], [[reports/chat-audit/server.md]],
 [[reports/chat-audit/client.md]], [[design-system.md]], [[plans/regression-fixes-2026-10-29.md]],
-[[reports/regression-audit-2026-10-29.md]], [[resource-control.md]]
+[[reports/regression-audit-2026-10-29.md]], [[resource-control.md]], [[agent-messages.md]]

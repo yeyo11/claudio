@@ -16,6 +16,9 @@ const SCHEDULE_PROMPT_PREVIEW_MS = 5_000;
 /** `api`'s chat methods, plus the two URLs the chat package cannot build without knowing the base. */
 export const chatClient: ChatClient = {
   chat: api.chat,
+  hintChat: api.hintChat,
+  sendToSubagent: api.sendToSubagent,
+  withdrawSubagentMessage: api.withdrawSubagentMessage,
   chatPermissions: api.chatPermissions,
   chatTasks: api.chatTasks,
   answerPermission: api.answerPermission,

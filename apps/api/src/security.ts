@@ -332,6 +332,19 @@ const CHAT_FORBIDDEN_TERMINAL = new Set([
 ]);
 
 /**
+ * The `claudio-bridge` mod's routes (docs/agent-messages.md): only the chat's own token, from this
+ * machine, in every mode. A person's session, the owner's token and another chat's token are all
+ * refused, so a chat's prompt-injected model can at most read its own pending messages early: it can
+ * neither report a message as delivered for another chat nor read another chat's queue.
+ */
+const CHAT_OWN_BRIDGE = new Set([`GET ${API_PREFIX}/chats/:id/bridge/next`, `POST ${API_PREFIX}/chats/:id/bridge/:messageId`]);
+/**
+ * Writes to a chat's own subagents as the person: a chat's token may not target its own chat there,
+ * or the lead could put words in the person's mouth for its subagents.
+ */
+const CHAT_NOT_SELF = new Set([`POST ${API_PREFIX}/chats/:id/subagents/:agentId/messages`, `DELETE ${API_PREFIX}/chats/:id/subagents/:agentId/messages/:messageId`]);
+
+/**
  * Collaborators carries teammates' work, transcripts with their tool output included: a chat's token
  * must never pull one into its own context unasked, nor change who this install shares with. Every
  * route is here, reads included, and like the terminal's it is refused under `mode: none` too, where
@@ -936,6 +949,22 @@ export function registerSecurity(app: FastifyInstance, core: Core): Guard {
         reason: 'chat-token',
       });
       return reply;
+    }
+
+    // A headless Claudio does not serve them: the route's own 404 answers (headless.ts)
+    if (CHAT_OWN_BRIDGE.has(key) && core.profile !== 'headless') {
+      const id = (req.params as { id?: unknown } | undefined)?.id;
+      if (typeof id !== 'string' || req.actor !== chatActor(id) || !fromLocalMachineStrict(req, runtimeHosts)) {
+        void reply.status(403).send({ error: "only the chat's own bridge, on this machine, reads and reports its messages to subagents", code: 'bridge.own-chat-only' });
+        return reply;
+      }
+    }
+    if (CHAT_NOT_SELF.has(key) && core.profile !== 'headless') {
+      const id = (req.params as { id?: unknown } | undefined)?.id;
+      if (typeof id === 'string' && req.actor === chatActor(id)) {
+        void reply.status(403).send({ error: "a chat's token cannot write to its own subagents as the person: message them with SendMessage", code: 'chat-not-self' });
+        return reply;
+      }
     }
 
     // The class of the matched route, for a chat's token a guarded mode authenticated

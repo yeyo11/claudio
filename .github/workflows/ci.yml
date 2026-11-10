@@ -71,8 +71,9 @@ jobs:
     # minutes, of which `pnpm test` is 2.6 to 3.9 (main runs 37197153734 and 37459090109, 2026-10-06).
     # About 2.5x the slowest, rounded up to 5 minutes, so a slow runner does not fail a run that was
     # going to pass. A test that hangs fails on its own long before: every package's runner has a
-    # per-test timeout and forces its exit (CW-27)
-    timeout-minutes: 20
+    # per-test timeout and forces its exit (CW-27). By 2026-11-10 the job took 19 minutes (PR #106,
+    # run 42881962365) against that limit of 20, and lint joined it: 30 keeps the same margin rule
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
@@ -91,24 +92,16 @@ jobs:
       - name: No high-severity advisories in the dependency tree
         run: pnpm audit --audit-level=high
 
-      - name: OpenAPI schemas are up to date with the shared types
-        run: |
-          pnpm --filter @claudio/api openapi:schemas
-          git diff --exit-code -- apps/api/src/openapi/schemas.json
-
-      # The numbers docs/status.md states are counted from the tree, never typed by hand
-      - name: docs/status.md counts are up to date
-        run: node scripts/docs-status.mjs --check
-
+      - run: pnpm lint
       - run: pnpm typecheck
       - run: pnpm test
-      - run: pnpm build
 
-      # The e2e runner's own tests: the split without a browser, then the real runner over probe
-      # specs (limits, signals, shards, no survivors). They sit here rather than in a shard because
-      # this job has minutes to spare while the shards are the ones everybody waits for
-      - name: The e2e runner and its shards
-        run: node --test e2e/shards.test.mjs e2e/harness.test.mjs
+      # The OpenAPI drift, the docs/status.md counts (counted from the tree, never typed by hand),
+      # the build and the e2e runner's own tests (the split without a browser, then the real runner
+      # over probe specs). One script, the same the pre-push gate `ci-checks` runs, so a check CI
+      # adds here is one the push runs too
+      - name: OpenAPI drift, docs/status.md counts, build and the e2e runner's tests
+        run: pnpm ci:checks
 
   # The e2e suite, on 4 shards side by side, from e2e.yml.
   e2e:

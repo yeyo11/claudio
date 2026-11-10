@@ -161,9 +161,10 @@ export function CardContext({
   return (
     <div className="workitem-context">
       {project && (
-        <span className={`workitem-project ${phone ? 'is-phone' : ''}`.trim()} title={t('card.project')}>
+        <span className={`workitem-project ${phone ? 'is-phone' : ''}`.trim()} title={`${t('card.project')} · ${project}`}>
           {phone ? <Monogram name={project} size={20} project /> : <Folder size={13} strokeWidth={1.75} aria-hidden />}
-          {project}
+          {/* Its own box: a bare text node in a flex row cannot end in an ellipsis */}
+          <span className="ellipsis">{project}</span>
         </span>
       )}
       {epic && (

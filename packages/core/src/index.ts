@@ -288,6 +288,8 @@ export type { ChatRuntime, RunResult } from './chats.ts';
 export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, MemoryRefusal, RunSlotRefusal } from './chats.ts';
 export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, DEFAULT_ORIGINS } from './chat-service.ts';
+export { AgentMessageRefusal, AgentMessages, BRIDGE_UNAVAILABLE_MS, BRIDGE_WAIT_MAX_S, type AgentMessage } from './agent-messages.ts';
+export { BRIDGE_MOD_FILES, BRIDGE_MOD_NAME, BRIDGE_MOD_VERSION, bridgeModDir, writeBridgeMod } from './bridge-mod.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { ServerUpdateRefusal } from './updates/server-update.ts';
 export { DesktopUpdateRefusal, DesktopUpdates, type SystemctlRunner } from './updates/desktop-update.ts';
@@ -336,6 +338,9 @@ export { defaultProvidersSettings } from './providers/settings.ts';
 export { LessonStore } from './lessons/store.ts';
 export { resolveUserPath } from './providers/path.ts';
 export { idOfEndpoint } from './push.ts';
+/** How long a hint written straight to a subagent is waited for before the lead is asked to pass it on */
+const SUBAGENT_HINT_WAIT_MS = 25_000;
+
 export { Supervisor, supervisorModeOf, SupervisorConflictError, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
@@ -795,6 +800,8 @@ export class Core {
     });
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db, drivers);
+    // A headless Claudio serves no bridge routes (docs/plans/headless-image.md, D1): its chats load no mod that would poll them
+    if (this.profile === 'headless') this.runtime.subagentBridge = false;
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;
@@ -932,6 +939,17 @@ export class Core {
       hint: async (proposal, source) => {
         if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint, source);
         else await this.chats.hint(proposal.chatId, proposal.hint, { source });
+      },
+      messageAgent: async (chatId, agentId, words, source) => {
+        const receipt = await this.chats.messageAgent(chatId, agentId, words, { source });
+        // The mod answers within seconds; past the bridge's own 15 s without a poll the row is settled too
+        const deadline = Date.now() + SUBAGENT_HINT_WAIT_MS;
+        for (;;) {
+          const state = this.runtime.agentMessages.get(chatId, receipt.id)?.state;
+          if (state === 'delivered') return { delivered: true };
+          if (state === 'undelivered' || state === undefined || Date.now() >= deadline) return { delivered: false };
+          await new Promise<void>((resolve) => setTimeout(resolve, 250).unref());
+        }
       },
       cancel: async (proposal, toolUseId) => {
         await this.chats.cancelCommand(proposal.chatId, toolUseId, { reason: proposal.hint }, { source: 'supervisor' });
