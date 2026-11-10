@@ -1,14 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { asRecord, normalizeMessage, type DecisionMode, type LessonSignalKind, type PermissionDecision, type PermissionRequest, type TranscriptEntry } from '@claudio/shared';
-import { RESUME_PROMPT } from '../assistant-answer.ts';
-import { CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX } from '../chat-service.ts';
+import { asRecord, CANCEL_NOTICE_PREFIX, normalizeMessage, NUDGE_PREFIXES, PERSON_HINT_PREFIXES, type DecisionMode, type LessonSignalKind, type PermissionDecision, type PermissionRequest, type TranscriptEntry } from '@claudio/shared';
 import type { Db } from '../db.ts';
 import { cutToBytes, maskSecrets } from '../decisions/redact.ts';
-import { FLOW_RESTART_PREFIX } from '../flow.ts';
 import type { JsonlFold } from '../jsonl-cache.ts';
-import { CONTINUATION_PREFIX } from '../open-items.ts';
-import { ORCHESTRATION_HINT_PREFIX } from '../orchestrator.ts';
 import { AUTOMATIC_DENY_MESSAGES } from '../permissions.ts';
 import type { JsonLine } from '../transcript-index.ts';
 
@@ -21,14 +16,7 @@ import type { JsonLine } from '../transcript-index.ts';
 
 // ---------- Claudio's own words ----------
 
-/**
- * Messages Claudio wrote into a chat, recognised by the prefixes their writers export: the fold and
- * the writers cannot drift apart. Hints and cancels are the person's by proxy; nudges are nobody's.
- */
-// Functions, not constants: `SessionStore` imports this file and the writers import `SessionStore`, so
-// their exports are not yet bound while this module loads
-const hintPrefixes = (): readonly string[] => [CHAT_HINT_PREFIX, ORCHESTRATION_HINT_PREFIX];
-const nudgePrefixes = (): readonly string[] => [CONTINUATION_PREFIX, FLOW_RESTART_PREFIX, RESUME_PROMPT];
+// Claudio's own words (hints, cancels, nudges) are recognised by the prefixes @claudio/shared defines
 
 /** The CLI's two interrupt markers (l0 F4), written as a user line with a one-item text array */
 const INTERRUPT_MARKERS: readonly string[] = ['[Request interrupted by user for tool use]', '[Request interrupted by user]'];
@@ -229,8 +217,8 @@ export function addCorrectionEntry(state: CorrectionState, entry: TranscriptEntr
     state.interrupted = true;
     return;
   }
-  if (startsWithAny(text, nudgePrefixes())) return;
-  const hint = startsWithAny(text, hintPrefixes());
+  if (startsWithAny(text, NUDGE_PREFIXES)) return;
+  const hint = startsWithAny(text, PERSON_HINT_PREFIXES);
   const cancel = startsWithAny(text, [CANCEL_NOTICE_PREFIX]);
   const kind: PersonMessageKind = hint ? 'hint' : cancel ? 'cancelled' : 'plain';
   const body = hint ? text.slice(hint.length).trim() : text;

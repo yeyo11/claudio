@@ -78,6 +78,20 @@ The SDK documents `origin` as `SDKMessageOrigin` (`human`, `channel`, `peer`, `t
 `coordinator`), "provenance of a user-role message". **Not yet recorded:** how a message from the lead
 to a subagent lands in the subagent's file. Task `contract` records it before writing the parser.
 
+**Recorded on 2026-11-10** (CLI 2.1.319, haiku; redacted lines in
+`packages/core/test/fixtures/agent-messages/`: `subagent-coordinator-lead`, `subagent-coordinator-bridge`,
+`lead-peer-from-subagent`, `lead-handback`, `lead-task-notification`, `lead-sendmessage-to-subagent`):
+
+1. A lead → subagent `SendMessage` lands in the subagent's `agent-<id>.jsonl` as the same
+   `queued_command` attachment, with `origin: { kind: 'coordinator' }` and **no** `plugin`. The bridge
+   mod's message carries `plugin: 'claudio-bridge'`. So no plugin means the lead wrote it.
+2. Peer lines (a subagent's `SendMessage`, a hand-back) carry a top-level `isMeta: true`, which
+   `normalizeMessage` used to drop; it now keeps a line whose origin is `peer`.
+3. A final report can also reach the lead as `origin: { kind: 'task-notification', producer, runId }`
+   with an XML `<task-notification>` body; it is already drawn as a notice.
+4. The `SendMessage` tool result is JSON text: `{"success":true,"message":"Message queued for delivery
+   to <id> at its next tool round. …"}`.
+
 ## What the code does today
 
 Facts from 2026-11-10, against `main` 115865177.

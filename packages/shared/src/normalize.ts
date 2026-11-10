@@ -1,5 +1,5 @@
 import { addedDiff, unifiedOf } from './patch.ts';
-import type { ContentBlock, ToolResultDetail, TranscriptCompaction, TranscriptEntry } from './types.ts';
+import type { ContentBlock, EntryOrigin, ToolResultDetail, TranscriptCompaction, TranscriptEntry } from './types.ts';
 
 const MAX_TOOL_RESULT = 20_000;
 
@@ -205,7 +205,10 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
   if (o.type === 'system' && o.subtype === 'compact_boundary') return compactBoundary(o);
   if (o.type === 'attachment') return queuedCommand(o);
   if (o.type !== 'user' && o.type !== 'assistant') return null;
-  if (o.isMeta === true) return null;
+  const origin = readOrigin(o.origin);
+  // The CLI marks the lines it frames itself as meta, a peer's message among them; those are real
+  // conversation between agents, so a peer line is kept (recorded 2026-11-10, CLI 2.1.319)
+  if (o.isMeta === true && origin?.kind !== 'peer') return null;
   const message = o.message as Record<string, unknown> | undefined;
   if (!message) return null;
   const blocks = withDetail(toBlocks(message.content), o);
@@ -225,7 +228,47 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
           : null,
     blocks,
     ...(summary ? { compaction: { part: 'summary', trigger: null, preTokens: null, postTokens: null, durationMs: null } } : {}),
+    ...(origin ? { origin } : {}),
   };
+}
+
+/**
+ * The `origin` the CLI writes on a user-role line (the SDK's `SDKMessageOrigin`): who the line came
+ * from. A kind this build does not know is left out, never guessed, and `human` is the same as absent.
+ */
+export function readOrigin(raw: unknown): EntryOrigin | undefined {
+  if (!raw || typeof raw !== 'object') return undefined;
+  const r = raw as Record<string, unknown>;
+  const str = (v: unknown): string | undefined => (typeof v === 'string' && v ? v : undefined);
+  switch (r.kind) {
+    case 'peer': {
+      const from = str(r.from) ?? str(r.senderTaskId);
+      if (!from) return undefined;
+      const name = str(r.name);
+      const body = str(r.body);
+      const report = str(r.handbackReportText);
+      return {
+        kind: 'peer',
+        from,
+        ...(name ? { name } : {}),
+        ...(r.handback === true ? { handback: true } : {}),
+        ...(report ? { handbackReportText: report } : {}),
+        ...(body ? { body } : {}),
+      };
+    }
+    case 'coordinator': {
+      const plugin = str(r.plugin);
+      return plugin ? { kind: 'coordinator', plugin } : { kind: 'coordinator' };
+    }
+    case 'task-notification':
+      return { kind: 'task-notification' };
+    case 'channel': {
+      const server = str(r.server);
+      return server ? { kind: 'channel', server } : undefined;
+    }
+    default:
+      return undefined;
+  }
 }
 
 /** How the summary starts, whoever wrote it down: the CLI's fixed lead sentence */
@@ -297,9 +340,14 @@ function localCommand(o: Record<string, unknown>): TranscriptEntry | null {
  * is the id the page and the server know it by; a line written without one keeps its own.
  */
 function queuedCommand(o: Record<string, unknown>): TranscriptEntry | null {
-  if (o.isMeta === true) return null;
   const attachment = o.attachment as Record<string, unknown> | undefined;
-  if (!attachment || attachment.type !== 'queued_command' || attachment.commandMode !== 'prompt') return null;
+  if (!attachment || attachment.type !== 'queued_command') return null;
+  // A coordinator's message (the lead's `SendMessage` to a subagent, or a mod's `$.session.send`) is
+  // recorded here with `isMeta` on the attachment and no `commandMode`; it is read as the user entry
+  // it is, tagged with who sent it
+  const origin = readOrigin(attachment.origin);
+  const coordinator = origin?.kind === 'coordinator';
+  if (!coordinator && (o.isMeta === true || attachment.commandMode !== 'prompt')) return null;
   const blocks = toBlocks(attachment.prompt);
   if (blocks.length === 0) return null;
   const source = typeof attachment.source_uuid === 'string' && attachment.source_uuid ? attachment.source_uuid : null;
@@ -311,6 +359,7 @@ function queuedCommand(o: Record<string, unknown>): TranscriptEntry | null {
     isSidechain: o.isSidechain === true,
     parentToolUseId: null,
     blocks,
+    ...(coordinator ? { origin } : {}),
   };
 }
 

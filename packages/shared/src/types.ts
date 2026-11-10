@@ -613,6 +613,34 @@ export interface ApiChatPolicy {
  */
 export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown' | 'agent-unknown';
 
+/**
+ * Where a user-role line came from, as the CLI records it (the SDK's `SDKMessageOrigin`, plus the fields
+ * the CLI writes). Absent on an entry means the person typed it.
+ *
+ * Recorded with CLI 2.1.319 (packages/core/test/fixtures/agent-messages): a message the lead sends a
+ * subagent with `SendMessage` lands in the subagent's file as `coordinator` WITHOUT `plugin`; one a mod
+ * sends with `$.session.send` carries the mod's name, which for Claudio's bridge is `claudio-bridge`.
+ * So `coordinator` with no `plugin` is the lead's message, and with `plugin: 'claudio-bridge'` it is
+ * Claudio's (a person's or an automatic one, told apart by the prefix: system-messages.ts).
+ */
+export type EntryOrigin =
+  | { kind: 'human' }
+  | {
+      kind: 'peer';
+      /** The sending agent's id */
+      from: string;
+      name?: string;
+      /** The line is a subagent's final report handed back to the lead */
+      handback?: boolean;
+      /** For a hand-back: the report without the harness frame */
+      handbackReportText?: string;
+      /** The text as the sender wrote it, when the CLI recorded it apart from the frame */
+      body?: string;
+    }
+  | { kind: 'coordinator'; plugin?: string }
+  | { kind: 'task-notification' }
+  | { kind: 'channel'; server: string };
+
 export interface TranscriptEntry {
   uuid: string;
   role: 'user' | 'assistant';
@@ -624,6 +652,8 @@ export interface TranscriptEntry {
   blocks: ContentBlock[];
   /** Set on the CLI's compaction marker (`blocks` is empty) and on the summary it continued from; both have `role: 'user'` and are not the person's words */
   compaction?: TranscriptCompaction;
+  /** Who wrote a user-role line, when the CLI says; absent for what the person typed */
+  origin?: EntryOrigin;
 }
 
 /** How many transcript entries a window holds when the caller does not say. */
@@ -812,13 +842,14 @@ export type ChatMessageSource = 'person' | 'supervisor' | 'claudio';
  * queue before it read it (`DELETE /chats/:id/messages/:messageId`). `not-read`: the agent went on
  * without it: its queue no longer held it after an interrupt or a result, and it never read it back.
  */
-export type MessageUndeliveredReason = 'cancelled' | 'not-read';
+export type MessageUndeliveredReason = 'cancelled' | 'not-read' | 'bridge-unavailable' | 'agent-stopped';
 
 /**
  * What became of one message sent to a chat, by its id (docs/chat-delivery.md). `delivered`: the
  * agent took it, into the running turn or as a turn of its own, at `at`. `undelivered`: its process
  * went away first, the one that should have read it could not start, the agent went on without it
- * (`reason: 'not-read'`) or it was withdrawn (`reason: 'cancelled'`); `message` carries it, so the
+ * (`reason: 'not-read'`) or it was withdrawn (`reason: 'cancelled'`); for a message to one subagent also
+ * `bridge-unavailable` (the chat's bridge did not poll) and `agent-stopped`; `message` carries it, so the
  * page can hand it back. `carried`: a move or a limit replay sent it on, to `chatId` (this chat on a
  * replay), under the same id.
  */
@@ -833,6 +864,8 @@ export interface MessageDelivery {
   reason?: MessageUndeliveredReason;
   /** For `delivered`: when the agent took it, which for a message read mid-turn is later than when it was sent */
   at?: string;
+  /** Set when the message was written to one subagent and not to the lead */
+  to?: { agentId: string };
 }
 
 /** A file sent with a message, as the page shows it: no path on the server's disk. */
@@ -868,6 +901,31 @@ export interface ChatPendingMessage {
   source: ChatMessageSource;
   /** On a `written` message, while the turn waits on a foreground call the agent will not read it before */
   blockedBy?: ChatPendingBlocker;
+  /** Set when the message goes straight to one subagent; the chat's own queue leaves those out */
+  to?: { agentId: string };
+}
+
+/** `POST /chats/:id/subagents/:agentId/messages`: a person's words for one subagent. */
+export interface SubagentMessageRequest {
+  text: string;
+}
+
+/** The answer to it: the message's id and where it stands. */
+export interface SubagentMessageReceipt {
+  id: string;
+  state: ChatPendingMessage['state'];
+}
+
+/** `GET /chats/:id/bridge/next`: what the chat's bridge mod must deliver now, in order. */
+export interface BridgeNextResponse {
+  messages: { id: string; agentId: string; text: string }[];
+}
+
+/** `POST /chats/:id/bridge/:messageId`: what `$.session.send` answered. */
+export interface BridgeReport {
+  isDelivered: boolean;
+  /** The CLI's reason when it did not deliver */
+  reason?: string;
 }
 
 /** What a session reports about itself when it starts. */
@@ -1237,6 +1295,8 @@ export interface HealthSignal {
 export interface HealthSignalAgent {
   /** The id of the lead's `Agent`/`Task` call, which every line of the subagent's sidechain carries */
   parentToolUseId: string;
+  /** The CLI's id of the subagent, which a message to it needs (`SubagentMessageRequest`) */
+  agentId?: string;
   description?: string;
   subagentType?: string;
 }

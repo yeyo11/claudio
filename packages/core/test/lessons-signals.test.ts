@@ -1,12 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { PermissionRequest } from '@claudio/shared';
-import { RESUME_PROMPT } from '../src/assistant-answer.ts';
-import { CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX } from '../src/chat-service.ts';
+import { CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, CONTINUATION_PREFIX, ORCHESTRATION_HINT_PREFIX, RESUME_PROMPT, type PermissionRequest } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { PERMISSION_TIMEOUT_MESSAGE } from '../src/permissions.ts';
-import { CONTINUATION_PREFIX, continuationPrompt } from '../src/open-items.ts';
-import { ORCHESTRATION_HINT_PREFIX } from '../src/orchestrator.ts';
+import { continuationPrompt } from '../src/open-items.ts';
 import {
   CORRECTION_FOLD,
   SignalRecorder,

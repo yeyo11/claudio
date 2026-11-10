@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GuardEventStore } from './guards/events.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { CLAUDIO_LANGUAGES, DEFAULT_FLOW_MAX_PARALLEL, DOCUMENT_KINDS, errorMessage, FLOW_COMPACT_MIN_SHARE, FLOW_RUN_CAUSES, FLOW_RUN_STATUSES, FLOW_RUNS_PAGE, FLOW_RUNS_PAGE_MAX, FLOW_STAGE_OF_COLUMN, flowStepOf, isEffort, isRecord, MAX_CONTINUATIONS, MAX_FLOW_RESTARTS, WORK_ITEM_STATUSES, type ChatActivity, type ClaudioEvent, type ClaudioLanguage, type CommandRule, type DecisionPointId, type DocumentKind, type Effort, type FixStopKind, type FlowCheckVerdict, type FlowCriterionResult, type FlowMemoryProposal, type FlowPlateauMode, type FlowRun, type FlowRunAction, type FlowRunCause, type FlowRunDocument, type FlowRunOutcome, type FlowRunPage, type FlowRunQuery, type FlowRunQueuedBy, type FlowRunRef, type FlowRunState, type FlowRunStatus, type FlowStage, type FlowStartWaitingResult, type FlowStep, type FlowVerdict, type FlowWaiting, type FlowWaitingColumn, type LimitWait, type MemoryProposalTargetKind, type PermissionMode, type ProjectFlow, type ProjectSettings, type ProjectTeamMember, type ProviderId, type ProviderMove, type ToolPolicy, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemChange, type WorkItemRef, type WorkItemSource, type WorkItemStatus } from '@claudio/shared';
+import { FLOW_RESTART_PREFIX, CLAUDIO_LANGUAGES, DEFAULT_FLOW_MAX_PARALLEL, DOCUMENT_KINDS, errorMessage, FLOW_COMPACT_MIN_SHARE, FLOW_RUN_CAUSES, FLOW_RUN_STATUSES, FLOW_RUNS_PAGE, FLOW_RUNS_PAGE_MAX, FLOW_STAGE_OF_COLUMN, flowStepOf, isEffort, isRecord, MAX_CONTINUATIONS, MAX_FLOW_RESTARTS, WORK_ITEM_STATUSES, type ChatActivity, type ClaudioEvent, type ClaudioLanguage, type CommandRule, type DecisionPointId, type DocumentKind, type Effort, type FixStopKind, type FlowCheckVerdict, type FlowCriterionResult, type FlowMemoryProposal, type FlowPlateauMode, type FlowRun, type FlowRunAction, type FlowRunCause, type FlowRunDocument, type FlowRunOutcome, type FlowRunPage, type FlowRunQuery, type FlowRunQueuedBy, type FlowRunRef, type FlowRunState, type FlowRunStatus, type FlowStage, type FlowStartWaitingResult, type FlowStep, type FlowVerdict, type FlowWaiting, type FlowWaitingColumn, type LimitWait, type MemoryProposalTargetKind, type PermissionMode, type ProjectFlow, type ProjectSettings, type ProjectTeamMember, type ProviderId, type ProviderMove, type ToolPolicy, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemChange, type WorkItemRef, type WorkItemSource, type WorkItemStatus } from '@claudio/shared';
 import type { RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import type { Db } from './db.ts';
@@ -793,9 +793,6 @@ export function flowPrompt(
 
 /** Refining starts from an item that may say little: what it touches is found by reading, not guessed. */
 const EXPLORE = 'Before you write anything, read the documents and the code the item concerns, including the parts it does not name, so what you add fits what is there.';
-
-/** How the nudge to a run continued after a restart begins; it is Claudio's, not the person's */
-export const FLOW_RESTART_PREFIX = 'Claudio restarted while you were on this run.';
 
 /** What the run is told when the flow sends it back to its chat with work still owed. */
 export function flowContinuation(items: readonly string[], count: number): string {

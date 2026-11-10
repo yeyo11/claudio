@@ -1,7 +1,7 @@
 import { existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { ChatNotFoundError } from './chat-errors.ts';
-import { EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
+import { AUTO_CANCEL_NOTICE_PREFIX, AUTO_HINT_PREFIX, CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
 import { randomUUID } from 'node:crypto';
 import { TYPED_COMPACT } from './context-notes.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
@@ -33,17 +33,6 @@ import { emptyTokenUsage, localDay } from './usage.ts';
 import { usageReport, type ChatSpend, type DayRange } from './usage-report.ts';
 import { usageBreakdown, usageSeries } from './usage-series.ts';
 import { REVIEW_CHAT_ROLE } from './orchestration-timings.ts';
-
-/** How Claudio begins the messages it writes into a chat on a person's behalf; the lessons' signals recognise them by it */
-export const CHAT_HINT_PREFIX = 'A hint from the person following this chat:';
-export const CANCEL_NOTICE_PREFIX = 'A person cancelled the command';
-/**
- * How Claudio begins a hint nobody typed (the Supervisor's): the agent must not take it for the
- * person's word, and the lessons' signals, which read the person's corrections, do not count it.
- */
-export const AUTO_HINT_PREFIX = 'An automatic hint from Claudio, not from the person following this chat:';
-/** ...and the notice of a command it cancelled on its own */
-export const AUTO_CANCEL_NOTICE_PREFIX = 'Claudio cancelled the command on its own';
 
 /**
  * How long the CLI's list of its sessions is trusted between reads. Read from the CLI's own records

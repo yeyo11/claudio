@@ -8,7 +8,7 @@ import type { Db } from './db.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { runRef } from './event-sources.ts';
 import { defaultRotationSettings } from './providers/settings.ts';
-import { errorMessage } from '@claudio/shared';
+import { LIMIT_CONTINUE_TEXT, errorMessage } from '@claudio/shared';
 
 /*
  * What happens when Claude Code reaches its usage limit. The chat manager announces `limit-hit` once
@@ -45,9 +45,6 @@ const MAX_TIMER_MS = 2 ** 31 - 1;
 const HOUR_MS = 3_600_000;
 /** The reason a wait carries when it began on a sign-in failure: it ends when an account can take the turn, not at a reset */
 const AUTH_WAIT = 'sign-in expired';
-
-/** What a chat is told once its wait has ended and no turn of its own is left to replay */
-const CONTINUE_TEXT = "The provider's usage limit has reset. Continue the work you were doing where you left off.";
 
 export type WaitEnd = 'resumed' | 'failed' | 'cancelled';
 
@@ -484,7 +481,7 @@ export class ProviderRotation {
         replayed = await this.deps.runtime.replayLastTurn(run.id, account);
         // A restart forgot the turn that was cut off: the session resumes with a nudge instead
         if (!replayed) {
-          this.deps.runtime.send(run.id, CONTINUE_TEXT);
+          this.deps.runtime.send(run.id, LIMIT_CONTINUE_TEXT);
           replayed = true;
         }
       }
