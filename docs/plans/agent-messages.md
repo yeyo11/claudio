@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-10T11:30:00Z
-updated_at: 2026-11-10T11:30:00Z
+updated_at: 2026-11-10T18:30:00Z
 tags:
     - plan
     - chats
@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: messages between agents, a composer for subagents, and Claudio's own messages
 
-Status: **proposed** (2026-11-10). Built by the orchestration in [Tasks](#tasks), one pull request on
+Status: **built** (2026-11-10). Built by the orchestration in [Tasks](#tasks), one pull request on
 `feat/agent-messages`. This plan is the source of truth for that orchestration, together with
 CLAUDE.md and CONTRIBUTING.md. Where a task prompt and this plan disagree, the plan wins; where the
 plan is silent or wrong, ask the orchestrator (see [Communication](#communication)) instead of guessing.
@@ -532,7 +532,72 @@ The orchestrator is the Claude Code session named **`claudio-b18a5b`**, on this 
 
 ## Outcome
 
-To be written by `review`.
+Built on 2026-11-10 by the orchestration `bb5d8f10`, one branch per task, merged and reviewed in
+`review`. The orchestrator session was unreachable for the whole run, so each worker took the
+decisions below on its own; `review` checked them against this plan.
+
+### What was built
+
+- **Contract (D4, D6).** `TranscriptEntry.origin`, the coordinator and peer lines kept by
+  `normalizeMessage` (including the busy-subagent shape: a `user`, `isMeta` line with a coordinator
+  origin), and `packages/shared/src/system-messages.ts` with every prefix and `readSystemMessage`.
+  Real lines recorded with CLI 2.1.319 are under `packages/core/test/fixtures/agent-messages/`.
+- **Bridge (D1, D2, D8).** The `claudio-bridge` mod written under `<dataDir>/claude-plugins/` and
+  loaded with `--plugin-dir`; the `agent_messages` table with `written`, `taken`, `delivered` and
+  `undelivered` (`not-read`, `bridge-unavailable`, `agent-stopped`, `cancelled`); the four routes,
+  their access rules and security tests; the MCP tool `message_chat_subagent`. Proved end to end
+  with the installed CLI (haiku). Described in [[agent-messages]].
+- **Supervisor (D7).** A hint about a subagent with an agent id is written straight to it and falls
+  back once to `relayHint` through the lead when refused or undelivered; the same for a person's
+  Send from the health panel. Core waits up to 25 s for the delivery.
+- **Transcript (D5).** Agent message cards, system rows with Claudio's mark and the fold, the
+  "Pista" tag, the `SendMessage` and `ListAgents` lenses, and the lead's "Tú → E2" rows.
+- **Composer.** The `.agent-composer` footer of the subagent drawer with every state of the table.
+- **Overflow.** Fixed at the shared primitives (`Tag`, list rows, `DiffView`'s line area, the steps
+  pane), with `e2e/specs/overflow.spec.mjs` as the guard.
+- **e2e.** The fake CLI emulates the bridge mod and writes peer lines; `agent-messages.spec.mjs`
+  covers the cards, the rows, the hint tag and every state of the drawer's box.
+
+### Decisions taken during the build
+
+- `DELETE /chats/:id/subagents/:agentId/messages/:messageId` is a `person` route, not `work` (D8):
+  every DELETE but schedules is the person's (`route-access.test.ts`).
+- Delivered messages for the lead's relay rows come with the chat read (`ChatDetail.toAgents`), not
+  a route of their own; `ChatPendingMessage.reasonCode` tells `bridge-unavailable` apart without
+  comparing sentences; `ChatClient.hintChat` carries "Send through the lead".
+- `Dialog`'s focus trap counts `[contenteditable="true"]`, so the drawer's box is reachable by Tab.
+
+### Fixed in review
+
+- Nobody wrote D6's `SUPERVISOR_HINT_PREFIX`: the Supervisor's hints to a lead or a worker now use
+  it, so their rows say "Supervisor".
+- A message to a subagent of a run that loads no bridge (the assistant, a confined or policy-bound
+  API chat, `api: false`) is refused with a 409 at once instead of being lost after 15 s.
+- The drawer's transcript is told which subagent it shows and who its siblings are, so names read
+  "Tú → <description>" and siblings open their view.
+- The `SendMessage` and `ListAgents` lenses are words, drawn in the UI font (`.tool-hint.is-label`).
+- "Send through the lead" is offered only while the subagent can take words; Discard stays.
+- The drawer's footer is pinned to its foot.
+- The `agent-messages` spec asserts the `409 agent-stopped` code.
+
+### Left open
+
+- **Tool output keeps wrapping.** Rule 3 of the overflow section says code scrolls sideways in its
+  own block; tool bodies (`.code.call-lines`) still wrap, as an earlier plan decided. The owner
+  chooses: scroll, or record wrapping as the exception in `docs/design-system.md`.
+- **"Send through the lead" is a person's hint.** It sends an English relay sentence through
+  `hintChat`, so the lead's transcript shows it as the person's "Pista" bubble. A core relay with
+  its own prefix in `system-messages.ts` would read better.
+- **A Supervisor hint written straight to a subagent** uses D3's automatic prefix, so the
+  subagent's row says "Claudio · automático", not "Supervisor".
+- **The subagent drawer is not under `ui-check`'s invariants:** `e2e/ui/routes.mjs` has static
+  paths only, and the drawer needs a seeded chat. It was measured by hand in review.
+- `docs/agent-messages.md` must be registered with `kb_add_document` after the merge (pando writes
+  into the main checkout).
+- Debt seen and not touched: the Stop button and some drawer links under 44 px (I9),
+  `.run-scroll` and `.detail-scroll` without `scrollbar-gutter` (I6), the `Agent` lens in mono,
+  `.edit-step-intent` clamped without its full text, and step-bar paths cut at the end instead of
+  the middle.
 
 ## Related
 
