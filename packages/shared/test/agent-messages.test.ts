@@ -45,6 +45,16 @@ test("a bridge mod's message names the plugin", () => {
   assert.match(entryText(entry), /^Message from Claudio:/);
 });
 
+test("a bridge message to a subagent busy in a tool round is a meta user line, kept with its coordinator origin", () => {
+  const entry = normalizeMessage(line('subagent-coordinator-bridge-busy'));
+  assert.ok(entry);
+  assert.equal(entry.role, 'user');
+  assert.equal(entry.isSidechain, true);
+  assert.deepEqual(entry.origin, { kind: 'coordinator', plugin: 'claudio-bridge' });
+  assert.match(entryText(entry), /^The coordinator sent a message while you were working:\nA message from the person following this chat, written to you directly/);
+  assert.match(entryText(entry), /The codeword is PAPAYA-7\./);
+});
+
 test("a subagent's SendMessage to the lead keeps its peer origin although the CLI marks the line meta", () => {
   const entry = normalizeMessage(line('lead-peer-from-subagent'));
   assert.ok(entry);

@@ -16,6 +16,7 @@ import type {
   ChatState,
   ExportFormat,
   ForkChatRequest,
+  BridgeReport,
   HintRequest,
   NewChatRequest,
   PermissionDecision,
@@ -24,6 +25,7 @@ import type {
   RunEvent,
   RunWorkflowRequest,
   SwitchChatAccountRequest,
+  SubagentMessageRequest,
   SwitchChatAccountResponse,
   UsageBucket,
 } from '@claudio/shared';
@@ -376,6 +378,34 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
     const detail = await chats.agentTranscript(req.params.id, req.params.agentId, { after: count(req.query.after, 'after') });
     if (!detail) throw new NotFoundError('subagent not found');
     return detail;
+  });
+
+  // A person's words straight to one subagent, carried by the chat's `claudio-bridge` mod
+  // (docs/agent-messages.md). A chat's token may not write to its own subagents: the security gate refuses it
+  app.post<{ Params: { id: string; agentId: string }; Body: SubagentMessageRequest | undefined }>('/chats/:id/subagents/:agentId/messages', (req) =>
+    chats.messageAgent(req.params.id, req.params.agentId, typeof req.body?.text === 'string' ? req.body.text : '', { source: 'person' }),
+  );
+
+  app.delete<{ Params: { id: string; agentId: string; messageId: string } }>('/chats/:id/subagents/:agentId/messages/:messageId', (req) =>
+    chats.withdrawAgentMessage(req.params.id, req.params.agentId, req.params.messageId),
+  );
+
+  // The bridge's own two routes: only the chat's own token, from this machine (the security gate)
+  app.get<{ Params: { id: string }; Querystring: { wait?: string } }>('/chats/:id/bridge/next', (req, reply) => {
+    const wait = req.query.wait === undefined || req.query.wait === '' ? 0 : Number(req.query.wait);
+    if (!Number.isFinite(wait) || wait < 0) throw new Error('wait must be a number of seconds from 0');
+    // A poll whose caller went away takes nothing: what it would have taken waits for the next one
+    const gone = new AbortController();
+    reply.raw.once('close', () => gone.abort());
+    return chats.bridgeNext(req.params.id, wait, gone.signal);
+  });
+
+  app.post<{ Params: { id: string; messageId: string }; Body: BridgeReport | undefined }>('/chats/:id/bridge/:messageId', async (req, reply) => {
+    const body = req.body;
+    if (!body || typeof body.isDelivered !== 'boolean') throw new Error('isDelivered must be a boolean');
+    if (body.reason !== undefined && typeof body.reason !== 'string') throw new Error('reason must be a string');
+    chats.bridgeReport(req.params.id, req.params.messageId, { isDelivered: body.isDelivered, ...(body.reason !== undefined ? { reason: body.reason } : {}) });
+    return reply.status(204).send();
   });
 
   // The same for an agent a workflow launched, which the CLI files under the workflow's own id.

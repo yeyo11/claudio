@@ -34,7 +34,7 @@ const ROOT_TYPES = [
   // Reviewing the changes: the context of a diff, and the edits a transcript made step by step
   'DiffContext', 'EditStep',
   // Stepping in on a worker that is stuck
-  'Health', 'TaskLimits', 'HintRequest', 'CancelCommandRequest', 'CancelCommandResult',
+  'Health', 'TaskLimits', 'HintRequest', 'SubagentMessageRequest', 'SubagentMessageReceipt', 'BridgeNextResponse', 'BridgeReport', 'CancelCommandRequest', 'CancelCommandResult',
   // Orchestration v2 and the verification phase
   'VerificationSpec', 'VerificationState', 'ReviewGateDetail', 'AcceptReviewRequest', 'ReviewRoleInfo', 'AvailableAgent', 'VerifyOrchestrationRequest', 'RelaunchOrchestrationRequest', 'OrchestrationTemplate',
   'SaveOrchestrationTemplateRequest', 'UpdateOrchestrationTemplateRequest', 'LaunchOrchestrationTemplateRequest',

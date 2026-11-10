@@ -559,6 +559,16 @@ export const WRITE_TOOLS: readonly Tool[] = [
     },
   },
   {
+    name: 'message_chat_subagent',
+    description: "Writes straight to one subagent of another chat that has a live process, as the person would from the subagent's view: the subagent reads it, the chat's lead does not. The agentId is the subagent's id as the chat lists it. A stopped subagent cannot be written to; a finished one is resumed by the message.",
+    inputSchema: schema({ chatId, agentId: str("The subagent's agent id, as the chat's subagents list it", { minLength: 1, maxLength: 200 }), text: str('The message', { minLength: 1, maxLength: 100_000 }) }, ['chatId', 'agentId', 'text']),
+    routes: ['POST /chats/:id/subagents/:agentId/messages'],
+    run: async (args, api) => {
+      notSelf(api, need(args, 'chatId'), 'message the subagents of');
+      return identify(await api.send('POST', `/chats/${seg(need(args, 'chatId'))}/subagents/${seg(need(args, 'agentId'))}/messages`, { text: need(args, 'text') }));
+    },
+  },
+  {
     name: 'interrupt_chat',
     description: "Interrupts another chat's current turn and keeps its process, which then reads what waits for it.",
     inputSchema: schema({ chatId }, ['chatId']),

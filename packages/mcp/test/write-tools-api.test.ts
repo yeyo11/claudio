@@ -210,6 +210,8 @@ test("the chat tools: start in a project's folder, message, hint, interrupt, sto
   await s.core.runtime.waitForResult(chat);
   // A hint needs a turn under way; between turns the route says so
   await write('hint_chat', { chatId: chat, text: 'look at the totals first' }, false);
+  // This chat launched no subagent: the route refuses an id it does not know
+  assert.match((await write('message_chat_subagent', { chatId: chat, agentId: 'a0000000000000001', text: 'check the totals' }, false)).text, /failed: (404|409)/);
   await write('interrupt_chat', { chatId: chat }, false);
   await write('stop_chat', { chatId: chat });
   await write('resume_chat', { chatId: chat, prompt: 'carry on' });

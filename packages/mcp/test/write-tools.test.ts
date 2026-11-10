@@ -38,9 +38,9 @@ function stub(routes: Record<string, { status?: number; body: unknown }>, chatId
 const item = { id: 'item_one', key: 'AGN-7', title: 'Cart', status: 'todo', description: 'long text that is not echoed', history: [1, 2, 3] };
 
 test('the write tools are named and never pre-allowed', () => {
-  assert.equal(CLAUDIO_MCP_WRITE_TOOL_NAMES.length, 32);
+  assert.equal(CLAUDIO_MCP_WRITE_TOOL_NAMES.length, 33);
   assert.equal(CLAUDIO_MCP_OWNER_TOOL_NAMES.length, 12);
-  assert.equal(CLAUDIO_MCP_WRITE_TOOLS.length, 44);
+  assert.equal(CLAUDIO_MCP_WRITE_TOOLS.length, 45);
   for (const tool of CLAUDIO_MCP_WRITE_TOOLS) {
     assert.ok(isClaudioMcpWriteTool(tool));
     assert.ok(!CLAUDIO_MCP_READ_TOOLS.includes(tool));
@@ -93,6 +93,7 @@ test('each tool sends its routes, its body and the token, and nothing that widen
     'POST /chats': { status: 201, body: { id: 'chat-9', state: 'working' } },
     'POST /chats/chat-9/messages': { body: { id: 'chat-9', state: 'working', message: { id: 'm1', state: 'written' } } },
     'POST /chats/chat-9/hint': { body: { id: 'chat-9', state: 'working' } },
+    'POST /chats/chat-9/subagents/a8f3cf8a9e040b1d3/messages': { body: { id: 'msg-1', state: 'written' } },
     'POST /chats/chat-9/interrupt': { body: { id: 'chat-9', state: 'idle' } },
     'POST /chats/chat-9/stop': { body: { id: 'chat-9', state: 'idle' } },
     'POST /chats/chat-9/resume': { body: { id: 'chat-9', state: 'working' } },
@@ -134,6 +135,7 @@ test('each tool sends its routes, its body and the token, and nothing that widen
     ['start_chat', { prompt: 'go', projectId: 'p1', model: 'sonnet', name: 'Go', agent: 'brand:lead' }, 'POST', '/chats', { prompt: 'go', cwd: '/work/shop', model: 'sonnet', name: 'Go', agent: 'brand:lead' }],
     ['send_chat_message', { chatId: 'chat-9', text: 'and then?' }, 'POST', '/chats/chat-9/messages', { text: 'and then?' }],
     ['hint_chat', { chatId: 'chat-9', text: 'look at the logs' }, 'POST', '/chats/chat-9/hint', { text: 'look at the logs' }],
+    ['message_chat_subagent', { chatId: 'chat-9', agentId: 'a8f3cf8a9e040b1d3', text: 'check the totals' }, 'POST', '/chats/chat-9/subagents/a8f3cf8a9e040b1d3/messages', { text: 'check the totals' }],
     ['interrupt_chat', { chatId: 'chat-9' }, 'POST', '/chats/chat-9/interrupt', {}],
     ['stop_chat', { chatId: 'chat-9' }, 'POST', '/chats/chat-9/stop', {}],
     ['resume_chat', { chatId: 'chat-9', prompt: 'again' }, 'POST', '/chats/chat-9/resume', { prompt: 'again' }],
@@ -327,10 +329,11 @@ test('the chat lifecycle tools refuse to act on the chat they run in, before any
     ['interrupt_chat', { chatId: 'chat-9' }],
     ['send_chat_message', { chatId: 'chat-9', text: 'x' }],
     ['hint_chat', { chatId: 'chat-9', text: 'x' }],
+    ['message_chat_subagent', { chatId: 'chat-9', agentId: 'a1', text: 'x' }],
   ] as const) {
     const out = await s.call(name, args);
     assert.equal(out.isError, true, name);
-    assert.match(out.text, /cannot \w+ itself/);
+    assert.match(out.text, /cannot [\w ]+ itself/);
   }
   assert.equal(s.seen.length, 0);
 });

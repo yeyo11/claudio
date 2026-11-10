@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-09T18:00:00Z
+updated_at: 2026-11-10T14:00:00Z
 tags:
     - rest-api
     - api
@@ -612,6 +612,10 @@ dismiss.
 | POST | `/chats/:id/interrupt` | End the turn in progress and keep the process, which reads what waits for it; every foreground call of the turn (a subagent it waits on, a command) ends with it. `{ messageId? }` is "Send now": `409` once the agent has read that message, and nothing is interrupted. A message the agent's receipt no longer lists as queued is settled `undelivered` (`not-read`) |
 | DELETE | `/chats/:id/messages/:messageId` | Withdraw a message the agent has not read (`cancel_async_message`, or dropped here while it waits for the next process): the stream says `undelivered` with `reason: cancelled`. `409 taken` once the agent has taken it, `404` for an id the chat was never sent. Not open to a chat's token |
 | POST | `/chats/:id/hint` | `{ text }` — a nudge for a chat whose process is up, delivered as its next user message after any message sent before it; the signals of `health` carry a suggested text. The Supervisor's own hints are framed as automatic and listed with `source: supervisor` |
+| POST | `/chats/:id/subagents/:agentId/messages` | `{ text }` → `{ id, state }` — the person's words straight to one subagent, carried by the chat's `claudio-bridge` mod; the lead does not see them ([agent-messages](agent-messages.md)). Listed in `pending` with `to: { agentId }`; the stream's `delivery` events carry the same `to`. `404` unknown subagent, `409` chat not live, `409 agent-stopped`. A chat's token may not write to its own chat's subagents (`403 chat-not-self`) |
+| DELETE | `/chats/:id/subagents/:agentId/messages/:messageId` | Withdraw a message to a subagent the bridge has not taken (`undelivered`, `reason: cancelled`), or dismiss a lost one. `409 taken` once taken. Not open to a chat's token |
+| GET | `/chats/:id/bridge/next?wait=` | The bridge mod's long poll, `wait` ≤ 25 s: `{ messages: [{ id, agentId, text }] }`, marked taken. Only the chat's own token, from this machine (`403 bridge.own-chat-only`) |
+| POST | `/chats/:id/bridge/:messageId` | `{ isDelivered, reason? }` → `204`: what `$.session.send` answered. Ignored for a message not taken from this chat. Only the chat's own token, from this machine |
 | POST | `/chats/:id/commands/:toolUseId/cancel` | Kill one shell command's process tree without ending the turn: the worker gets a failed result for that call and carries on. Optional `{ reason }`; Linux only |
 | POST | `/chats/:id/commands/:toolUseId/background` | Send the foreground call the turn waits on (an `Agent`/`Task`, a command; `pending[].blockedBy`) to the background with `background_tasks`: it returns at once, the agent reads what waits, and the work goes on. `409 not-running` when the call is no foreground call of the turn under way |
 | GET | `/settings/supervisor` | **Deprecated**: the Supervisor is the `supervisor.intervene` decision point; read `GET /decisions/settings`. Answers `{ enabled, model, autoSend, maxCostUsd }` derived from it: `enabled` is the point's mode not being `off`, `autoSend` its mode being `active`, `model` and `maxCostUsd` the engine's `cli.model` and `cli.supervisorMaxCostUsd` |
