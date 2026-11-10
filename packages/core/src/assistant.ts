@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync } from 'node:sqlite';
-import { ASSISTANT_PROPOSAL_KINDS, ASSISTANT_PROPOSAL_KINDS_OF_RUN, ASSISTANT_RESOURCE_KINDS, ASSISTANT_RUN_KINDS, assistantResourcePath, DEFAULT_ASSISTANT_MODEL, EFFORT_LEVELS, errorMessage, EVAL_NAME_PATTERN, isEffort, recommendedEffort, type AcceptAssistantProposalRequest, type AssistantFinding, type AssistantProposal, type AssistantProposalAction, type AssistantProposalCount, type AssistantProposalKind, type AssistantProposalStatus, type AssistantResourceKind, type AssistantRun, type AssistantRunAction, type AssistantRunDetail, type AssistantRunKind, type AssistantRunStatus, type AssistantSource, type ChatActivity, type ClaudioEvent, type ConfigScopeKind, type Effort, type EvalCase, type EvalFile, type Localized, type PermissionMode, type ProjectSettings, type ProjectTeamMember, type ProjectTemplateId, type ProposedResource, type ProposedTeamMember, type ProviderId, type ProviderMove, type StartAssistantRunRequest, type ToolPolicy, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemPriority, type WorkItemRef, type WorkItemType } from '@claudio/shared';
+import { RESUME_PROMPT, ASSISTANT_PROPOSAL_KINDS, ASSISTANT_PROPOSAL_KINDS_OF_RUN, ASSISTANT_RESOURCE_KINDS, ASSISTANT_RUN_KINDS, assistantResourcePath, DEFAULT_ASSISTANT_MODEL, EFFORT_LEVELS, errorMessage, EVAL_NAME_PATTERN, isEffort, recommendedEffort, type AcceptAssistantProposalRequest, type AssistantFinding, type AssistantProposal, type AssistantProposalAction, type AssistantProposalCount, type AssistantProposalKind, type AssistantProposalStatus, type AssistantResourceKind, type AssistantRun, type AssistantRunAction, type AssistantRunDetail, type AssistantRunKind, type AssistantRunStatus, type AssistantSource, type ChatActivity, type ClaudioEvent, type ConfigScopeKind, type Effort, type EvalCase, type EvalFile, type Localized, type PermissionMode, type ProjectSettings, type ProjectTeamMember, type ProjectTemplateId, type ProposedResource, type ProposedTeamMember, type ProviderId, type ProviderMove, type StartAssistantRunRequest, type ToolPolicy, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemPriority, type WorkItemRef, type WorkItemType } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import { openWaitOf } from './rotation.ts';
 import {
@@ -12,7 +12,6 @@ import {
   parseAnswer,
   recommendedMemberEffort,
   RESOURCE_NAME,
-  RESUME_PROMPT,
   type AssistantAnswer,
   type AssistantBrief,
   type AssistantEvalBrief,

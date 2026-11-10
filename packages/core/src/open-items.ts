@@ -1,4 +1,4 @@
-import { MAX_CONTINUATIONS } from '@claudio/shared';
+import { CONTINUATION_PREFIX, MAX_CONTINUATIONS } from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo } from './cli-facts.ts';
 
 /**
@@ -146,9 +146,6 @@ export const OWES_WORK_ITEM = 'Your last message says work is still owed without
 export function openItems(input: OpenItemsInput): string[] {
   return [...structuralItems(input), ...phraseItems(input.finalText)];
 }
-
-/** How a continuation prompt begins: Claudio's nudge, not the person's words (the lessons' signals skip it) */
-export const CONTINUATION_PREFIX = 'Your turn ended, but the work is not finished';
 
 /**
  * What the run is told when it goes back to its chat: what is open, which continuation this is, and

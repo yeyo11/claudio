@@ -437,9 +437,6 @@ export function assistantPrompt(brief: AssistantBrief, model: string | null = nu
   return lines.join('\n');
 }
 
-/** Told to a run's chat continued after Claudio restarted in the middle of it. */
-export const RESUME_PROMPT = 'Claudio restarted while you were working on this. Carry on from where you were, still read-only, and end with the structured result.';
-
 function singular(kind: AssistantResourceKind): string {
   return kind === 'agents' ? 'agent' : kind === 'skills' ? 'skill' : kind === 'rules' ? 'rule' : 'command';
 }
