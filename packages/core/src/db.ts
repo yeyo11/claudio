@@ -3374,6 +3374,7 @@ function agentOfRow(text: string | null): { agent: HealthSignalAgent } | null {
     return {
       agent: {
         parentToolUseId: value.parentToolUseId,
+        ...(typeof value.agentId === 'string' ? { agentId: value.agentId } : {}),
         ...(typeof value.description === 'string' ? { description: value.description } : {}),
         ...(typeof value.subagentType === 'string' ? { subagentType: value.subagentType } : {}),
       },

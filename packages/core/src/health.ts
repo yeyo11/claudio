@@ -29,6 +29,8 @@ export interface ToolCall {
 
 /** What the lead's `Agent` call said of the subagent it launched. */
 export interface TraceAgent {
+  /** The CLI's id of the subagent, which a message straight to it needs; unknown until its branch started */
+  agentId?: string;
   description?: string;
   subagentType?: string;
 }
@@ -75,6 +77,7 @@ export function agentOf(trace: Pick<Trace, 'agents'>, call: Pick<ToolCall, 'pare
   const known = trace.agents?.get(parent);
   return {
     parentToolUseId: parent,
+    ...(known?.agentId ? { agentId: known.agentId } : {}),
     ...(known?.description ? { description: known.description } : {}),
     ...(known?.subagentType ? { subagentType: known.subagentType } : {}),
   };
