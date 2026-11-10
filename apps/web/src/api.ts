@@ -242,6 +242,8 @@ import type {
   StartAssistantRunRequest,
   SupervisorProposal,
   SystemInfo,
+  SubagentMessageReceipt,
+  SubagentMessageRequest,
   TaskHintRequest,
   EvalComparison,
   EvalEstimate,
@@ -725,6 +727,12 @@ export function createApi(base: string | (() => string)) {
     interruptChat: (id: string, req?: ChatInterruptRequest) => request<ChatSummary>(`/chats/${enc(id)}/interrupt`, { method: 'POST', ...(req ? { body: req } : {}) }),
     /** Withdraws a message the agent has not read yet; 409 once it has */
     cancelChatMessage: (id: string, messageId: string) => request<ChatSummary>(`/chats/${enc(id)}/messages/${enc(messageId)}`, { method: 'DELETE' }),
+    /** A person's words straight to one subagent; 409 when the chat is not running or the person stopped it */
+    sendToSubagent: (chatId: string, agentId: string, req: SubagentMessageRequest) =>
+      request<SubagentMessageReceipt>(`/chats/${enc(chatId)}/subagents/${enc(agentId)}/messages`, { method: 'POST', body: req }),
+    /** Withdraws a message to a subagent that is still waiting, or puts away a lost one; 409 once it was taken */
+    withdrawSubagentMessage: (chatId: string, agentId: string, messageId: string) =>
+      request<SubagentMessageReceipt>(`/chats/${enc(chatId)}/subagents/${enc(agentId)}/messages/${enc(messageId)}`, { method: 'DELETE' }),
     /** Sends the foreground call the turn waits on to the background, so the agent reads what waits */
     backgroundChatCall: (id: string, toolUseId: string) => request<ChatSummary>(`/chats/${enc(id)}/commands/${enc(toolUseId)}/background`, { method: 'POST' }),
     updateChat: (id: string, update: ChatSettingsUpdate) => request<ChatSummary>(`/chats/${enc(id)}`, { method: 'PATCH', body: update }),

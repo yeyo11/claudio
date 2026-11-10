@@ -1,12 +1,16 @@
-import type { ChatChildren, ContentBlock, EditStep, TranscriptEntry } from '@claudio/shared';
-import { ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, ShieldAlert, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import type { ChatChildren, ContentBlock, EditStep, SentToAgent, TranscriptEntry } from '@claudio/shared';
+import { ArrowRight, ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, ShieldAlert, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { useChatUi, useOptionalChatUi } from '../lib/context';
 import { teammateRead, type TeammateRead } from '../lib/teammate-reads';
 import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
-import { toolHint } from '../lib/tool-lens';
+import { toolHint, type ToolHint } from '../lib/tool-lens';
+import { listedAgents, readAgentEntry, sentMessageOf, systemFolds, systemLabelKey, systemWords, type AgentEntry } from '../lib/agent-messages';
+import { withRelays, type ListedRow } from '../lib/relay-rows';
+import { AgentDirectoryScope, AgentMessageCard, RelayRow, endName, endOf, SystemRow, useAgentDirectory, type AgentDirectory, type AgentEnd } from './AgentMessages';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
 import { holdsGuardBlock, readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
@@ -24,6 +28,7 @@ import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { Tag } from '@claudio/ui/components/ui';
 import { BrandMark, ICON_SM, toolIcon } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
@@ -235,6 +240,55 @@ function MessageMenu({ text, actions }: { text: string; actions: MessageActions 
   );
 }
 
+/** The entry with its text replaced by the person's own words: the prefix Claudio framed them in is not theirs. */
+function withWords(entry: TranscriptEntry, words: string): TranscriptEntry {
+  const rest = entry.blocks.filter((block) => block.type !== 'text');
+  return { ...entry, blocks: [{ type: 'text', text: words }, ...rest] };
+}
+
+/** "You → E2" over a message the person wrote straight to this subagent: the lead never saw it. */
+function PersonToAgentHead() {
+  const { t } = useTranslation('chat');
+  const directory = useAgentDirectory();
+  return (
+    <span className="msg-role agent-msg-route">
+      {t('agentMessage.you')}
+      <ArrowRight size={12} strokeWidth={2} className="agent-msg-arrow" aria-label={t('agentMessage.to')} />
+      <span className="agent-msg-name">{endName({ kind: 'self' }, directory, t)}</span>
+    </span>
+  );
+}
+
+/**
+ * A line no person typed into this transcript: a message from another agent, or one of Claudio's
+ * own. Each stands outside the bubbles, so it is never read as the person speaking.
+ */
+function AgentEntryView({ entry, read }: { entry: TranscriptEntry; read: Exclude<AgentEntry, { kind: 'hint' | 'person-to-agent' }> }) {
+  const { t } = useTranslation('chat');
+  const directory = useAgentDirectory();
+  // Where a line lands says who received it: the lead's own transcript, or a subagent's
+  const receiver: AgentEnd = entry.isSidechain || directory?.self ? { kind: 'self' } : { kind: 'lead' };
+  if (read.kind === 'system') {
+    const words = systemWords(read.message, read.text);
+    const labelKey = systemLabelKey(read.message);
+    return (
+      <div data-entry-id={entry.uuid} className="msg msg-sys">
+        <div className="msg-body">
+          <SystemRow label={t(labelKey)} words={words} at={entry.timestamp} received={systemFolds(read.message, read.text) ? read.text.trim() : null} />
+        </div>
+      </div>
+    );
+  }
+  const from: AgentEnd = read.kind === 'peer' ? endOf(read.from, directory, read.fallbackName) : read.kind === 'from-lead' ? { kind: 'lead' } : { kind: 'named', name: read.plugin };
+  return (
+    <div data-entry-id={entry.uuid} className="msg msg-agent">
+      <div className="msg-body">
+        <AgentMessageCard from={from} to={receiver} body={read.body} at={entry.timestamp} handback={read.kind === 'peer' && read.handback} />
+      </div>
+    </div>
+  );
+}
+
 export const EntryView = memo(function EntryView({
   entry,
   continued = false,
@@ -253,15 +307,20 @@ export const EntryView = memo(function EntryView({
 }) {
   const { t } = useTranslation('chat');
   const agentName = useAgentName();
-  const { blocks, notices } = useMemo(() => readEntry(entry), [entry]);
+  const agentEntry = useMemo(() => readAgentEntry(entry), [entry]);
+  const read = useMemo(() => readEntry(agentEntry?.kind === 'hint' || agentEntry?.kind === 'person-to-agent' ? withWords(entry, agentEntry.words) : entry), [entry, agentEntry]);
+  const { blocks, notices } = read;
   // Whatever way it got here, a compaction marker or its summary is never drawn as the person's message
   if (entry.compaction) {
     const summary = entry.compaction.part === 'summary';
     return <CompactionDivider boundary={summary ? null : entry} summary={summary ? entry : null} summaryBody={summary ? <SummaryText entry={entry} /> : null} />;
   }
+  if (agentEntry && agentEntry.kind !== 'hint' && agentEntry.kind !== 'person-to-agent') return <AgentEntryView entry={entry} read={agentEntry} />;
   const onlyToolResults = entry.role === 'user' && entry.blocks.every((b) => b.type === 'tool_result');
   const role = onlyToolResults ? 'tool' : entry.role;
-  const head = !onlyToolResults && !continued;
+  // A hint and a message written straight to a subagent always say so, even under another of the person's
+  const tagged = agentEntry?.kind === 'hint' || agentEntry?.kind === 'person-to-agent';
+  const head = !onlyToolResults && (!continued || tagged);
   // Nothing but notices: they stand on their own, without an avatar and without a name on them
   if (notices.length > 0 && blocks.length === 0) {
     return (
@@ -282,9 +341,14 @@ export const EntryView = memo(function EntryView({
       <div className="msg-body">
         <RowTime at={entry.timestamp} />
         {head && (
-          <header className="msg-head">
-            <span className="msg-role">{entry.role === 'user' ? t('transcript.user') : agentName}</span>
-            {entry.isSidechain && <span className="badge badge-info">{t('transcript.subagent')}</span>}
+          <header className={`msg-head ${tagged ? 'is-shown' : ''}`.trimEnd()}>
+            {agentEntry?.kind === 'person-to-agent' ? (
+              <PersonToAgentHead />
+            ) : (
+              <span className="msg-role">{entry.role === 'user' ? t('transcript.user') : agentName}</span>
+            )}
+            {agentEntry?.kind === 'hint' && <Tag tone="info">{t('hint.tag')}</Tag>}
+            {entry.isSidechain && !tagged && <span className="badge badge-info">{t('transcript.subagent')}</span>}
             {entry.model && <span className="muted small msg-model">{entry.model}</span>}
           </header>
         )}
@@ -319,6 +383,42 @@ export interface SubagentLink {
   open: (agentId: string) => void;
 }
 
+/** The row of a `SendMessage` says who it went to and what about; a `ListAgents`, how many it found. */
+function agentToolHint(call: StepCall, directory: AgentDirectory | null, t: TFunction<'chat'>): ToolHint | null {
+  if (call.name === 'SendMessage') {
+    const sent = sentMessageOf(call.input, call.result);
+    const to = endName(endOf(sent.to, directory), directory, t);
+    return sent.summary ? { text: `→ ${to}`, aside: `· ${sent.summary}` } : { text: `→ ${to}` };
+  }
+  if (call.name === 'ListAgents' || call.name === 'ListPeers') {
+    return { text: call.result && !call.result.isError ? t('agentMessage.listAgents', { count: listedAgents(call.result.content) }) : '' };
+  }
+  return null;
+}
+
+/** When the call that made it was written, for the card under the step. */
+const callTime = (row: Extract<TranscriptRow, { kind: 'step' }>, id: string): string | null =>
+  row.entries.find((entry) => entry.blocks.some((block) => block.type === 'tool_use' && block.id === id))?.timestamp ?? row.startedAt;
+
+/**
+ * The messages a step sent with `SendMessage`, each as the card the receiver sees too; the row in the
+ * step keeps its one-line lens.
+ */
+function SentMessages({ row }: { row: Extract<TranscriptRow, { kind: 'step' }> }) {
+  const directory = useAgentDirectory();
+  const calls = row.parts.flatMap((part) => (part.kind === 'call' && part.name === 'SendMessage' ? [part] : []));
+  if (calls.length === 0) return null;
+  const sender: AgentEnd = row.isSidechain || directory?.self ? { kind: 'self' } : { kind: 'lead' };
+  return (
+    <>
+      {calls.map((call) => {
+        const sent = sentMessageOf(call.input, call.result);
+        return <AgentMessageCard key={call.id} from={sender} to={endOf(sent.to, directory)} body={sent.body} at={callTime(row, call.id)} notSent={sent.sent === false ? { reason: sent.reason } : undefined} />;
+      })}
+    </>
+  );
+}
+
 /**
  * One tool call as one row: its name, what it was pointed at in mono, a rail coloured by how it
  * came back, and the input and result behind the fold. `settled` is a call that will not come back
@@ -331,7 +431,8 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
   const Icon = call.name ? toolIcon(call.name) : CircleAlert;
   const agentId = subagents && isDelegation(call.name) ? subagents.find(call.input) : null;
   const { cwd } = useRiskContext();
-  const hint = call.name ? toolHint(call.name, call.input, cwd, callHint) : { text: truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110) || t('transcript.empty') };
+  const directory = useAgentDirectory();
+  const hint = agentToolHint(call, directory, t) ?? (call.name ? toolHint(call.name, call.input, cwd, callHint) : { text: truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110) || t('transcript.empty') });
   // Scored from the input, so a call still waiting for its result already shows it
   const risk = useToolRisk(call.name, call.input);
   const read = teammateRead(call.name, call.input);
@@ -439,7 +540,7 @@ function EditChips({ parts, edits }: { parts: StepPart[]; edits: TranscriptEdits
  * on right now is open and carries the live rail; once it is done it folds away, unless the reader
  * opened or closed it themselves, or the guard blocked one of its calls.
  */
-const StepView = memo(function StepView({
+export const StepView = memo(function StepView({
   row,
   current,
   subagents,
@@ -502,6 +603,7 @@ const StepView = memo(function StepView({
         </Collapsible>
         {edits && <EditChips parts={row.parts} edits={edits} />}
         {branches?.map((branch) => <BranchCard key={branch.key} branch={branch} onOpen={onOpenBranch} />)}
+        <SentMessages row={row} />
       </div>
     </article>
   );
@@ -582,10 +684,10 @@ export function endsWithAssistant(entries: readonly TranscriptEntry[]): boolean 
  * purpose and never exact — it only has to be closer than "every row is 140px", which is what the
  * list reserved before and had to take back, in front of the reader, the moment a row was measured.
  */
-const sizeHint = (row: TranscriptRow): number | undefined => (row.kind === 'entry' ? streamedHeight.get(row.entry) : undefined);
+const sizeHint = (row: ListedRow): number | undefined => (row.kind === 'entry' ? streamedHeight.get(row.entry) : undefined);
 
-function estimateRow(row: TranscriptRow, width: number): number {
-  if (row.kind === 'step') return 40;
+function estimateRow(row: ListedRow, width: number): number {
+  if (row.kind === 'step' || row.kind === 'relay') return 40;
   if (row.kind === 'compaction') return row.boundary ? 36 : 40;
   const perLine = Math.max(20, Math.floor((width - 44) / 7.2));
   let lines = 0;
@@ -613,6 +715,8 @@ export function Transcript({
   messages,
   edits,
   compactions,
+  agents,
+  relays,
   readOnly = false,
 }: {
   entries: TranscriptEntry[];
@@ -640,6 +744,14 @@ export function Transcript({
    * whatever the caller passed. `subagents` is kept: there it opens a subagent copied with the chat
    */
   readOnly?: boolean;
+  /**
+   * Who the agents in it are, for the cards of the messages they send each other. Left out, the
+   * chat's own subagents (`branches`) name them and `subagents` opens them; a subagent's transcript
+   * passes itself as `self`
+   */
+  agents?: AgentDirectory;
+  /** What the person wrote straight to a subagent, which the lead's own lines never say: a row each, at the time it was taken */
+  relays?: SentToAgent[];
 }) {
   if (readOnly) {
     messages = undefined;
@@ -648,6 +760,7 @@ export function Transcript({
     branches = undefined;
   }
   const own = useMemo(() => rows ?? transcriptRows(entries), [rows, entries]);
+  const listed = useMemo(() => withRelays(own, relays), [own, relays]);
   const target = focus ? rowOf(own, focus.item) : undefined;
   const focused = useMemo(() => (target ? { item: target } : null), [target, focus]);
   const last = own.at(-1);
@@ -670,10 +783,21 @@ export function Transcript({
     held.current = byRow;
     return byRow;
   }, [own, children, alive]);
+  const subagentList = branches?.children.subagents;
+  const openSubagent = subagents?.open;
+  const directory = useMemo<AgentDirectory | null>(() => {
+    if (agents) return agents;
+    if (!subagentList && !openSubagent) return null;
+    const byId = new Map((subagentList ?? []).map((agent) => [agent.id, agent.description.trim() || agent.kind]));
+    return { name: (agentId) => byId.get(agentId) ?? null, open: openSubagent };
+  }, [agents, subagentList, openSubagent]);
   return (
-    <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} endRef={endRef} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
+    <AgentDirectoryScope value={directory}>
+    <VirtualList className="transcript" items={listed} itemKey={(row) => row.key} pinToBottom={pinToBottom} endRef={endRef} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
       {(row) =>
-        row.kind === 'compaction' ? (
+        row.kind === 'relay' ? (
+          <RelayRow agentId={row.agentId} words={row.text} at={row.at} />
+        ) : row.kind === 'compaction' ? (
           <CompactionDivider
             boundary={row.boundary}
             summary={row.summary}
@@ -697,5 +821,6 @@ export function Transcript({
         )
       }
     </VirtualList>
+    </AgentDirectoryScope>
   );
 }
