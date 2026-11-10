@@ -121,7 +121,19 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   `summary`). With `background: ` as the first word of the description the call answers at once
   (`status: "async_launched"`, `isAsync: true`; `is_backgrounded: true`), and the sidechain and the
   notification follow the next step of the turn, outliving it if they have to. A command in the
-  sidechain cannot hold a `;`.
+  sidechain cannot hold a `;`. Two more sidechain steps talk to the lead (docs/plans/agent-messages.md):
+  `send: <text>` is the subagent's `SendMessage` to the lead (the call and its JSON result on the
+  sidechain), and `report: <text>` hands its final report back (no call); both put the lead a `user` line
+  with a top-level `origin` `{ kind: "peer", from, senderTaskId, name, body }` (a report adds `handback:
+  true, handbackReportText`) and `isMeta: true`, its content the harness's `<agent-message from="…">`
+  frame, on the stream and in the session file, as CLI 2.1.319 records them. `end: stopped` (or `failed`)
+  ends the subagent there with that `task_notification` and no report; for a background agent, and a
+  stopped one takes no message from the bridge.
+- `message: <description or agent id> | <text>` — the lead's `SendMessage` to a subagent an earlier
+  `agent:` step opened (finished or not): the call (`input: { to, message, summary, type: "message", … }`),
+  a coordinator `queued_command` attachment with **no** `plugin` in the subagent's `agent-<id>.jsonl`, and
+  the recorded result (`{"success":true,"message":"Message queued for delivery to …"}`). A name nobody has
+  is a result that starts `Not sent:` with `is_error`. The subagent's file needs `"@transcript": true`.
 - `background: <command>` — a `Bash` call with `run_in_background: true` (`description: "Run <command>"`),
   answered at once (`tool_use_result: { stdout: "", stderr: "", interrupted: false, backgroundTaskId }`),
   then a `task_started` (`task_type: "local_bash"`, `is_backgrounded: true`). The command runs for
@@ -244,6 +256,20 @@ with a `control_response`:
 **stdin closing** ends a running turn (its command is killed, a `result` with `is_error: true` is
 emitted) and exits 0. SIGTERM, SIGINT and SIGHUP kill the running command's tree and exit 0.
 
+## The `claudio-bridge` mod
+
+Claudio loads a mod into every chat that has the API (`--plugin-dir <dataDir>/claude-plugins/claudio-bridge`,
+docs/agent-messages.md). The fake does what that mod does, from a loop of its own: when `--plugin-dir`
+names a directory whose `.claude-plugin/plugin.json` is `claudio-bridge`, and `CLAUDIO_API_URL`,
+`CLAUDIO_CHAT_ID` and `CLAUDIO_API_TOKEN` are set, it long-polls `GET /chats/:id/bridge/next?wait=20`
+with the chat's token, and for each message writes a coordinator `queued_command` attachment with
+`origin: { kind: "coordinator", plugin: "claudio-bridge" }` into the subagent's `agent-<id>.jsonl`
+(with `"@transcript": true`), then reports `POST /chats/:id/bridge/:messageId` with `{ isDelivered }`. An
+agent id it does not know, or a subagent a `stop` ended, is `isDelivered: false` with the CLI's reason; a
+finished subagent takes the message, as the real CLI resumes it. Two keys of the scripts file, read each
+time, steer it: `"@bridge": false` stops the polling (the page's `bridge-unavailable` after 15 s), and
+`"@bridge-refuse": "<reason>"` answers every send with `isDelivered: false` and that reason (`not-read`).
+
 ## The log
 
 With `CLAUDIO_FAKE_CLI_LOG` set, one JSON object per line, each with `at`, `pid` (the fake's) and
@@ -265,6 +291,10 @@ With `CLAUDIO_FAKE_CLI_LOG` set, one JSON object per line, each with `at`, `pid`
 | `mcp-ended` | `toolUseId`, `server`, `tool`, `isError` |
 | `agent` | `toolUseId`, `agentId`, `description`, `background` — an `agent:` step's subagent |
 | `agent-ended` | `toolUseId`, `agentId` |
+| `peer` | `agentId`, `text`, `handback` — a subagent's `send:` or `report:` reached the lead |
+| `send-message` | `to`, `text`, `found` — a `message:` step's `SendMessage` |
+| `bridge-started` | — the mod's loop is polling |
+| `bridge-send` | `agentId`, `text`, `isDelivered`, `reason?` — a message the mod took and what it answered |
 | `background` | `toolUseId`, `taskId`, `command`, `commandPid` — a `background:` step's command |
 | `background-ended` | `toolUseId`, `taskId`, `code`, `signal` |
 | `result` | `error`, `turns` |

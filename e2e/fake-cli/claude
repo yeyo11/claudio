@@ -445,7 +445,7 @@ function startTurn(message, uuid = null) {
   if (offset !== undefined) elapsedOffsetS = Number(offset);
   const steps = text
     .split('\n')
-    .map((l) => /^\s*(run|say|type|read|edit|write|skill|mcp|json|stream|hold|ask|agent|background):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(run|say|type|read|edit|write|skill|mcp|json|stream|hold|ask|agent|background|message):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const commands = steps.filter((s) => s.kind === 'run').map((s) => s.text);
@@ -624,6 +624,7 @@ function nextStep() {
     return;
   }
   if (step.kind === 'agent') return startAgent(own, step.text);
+  if (step.kind === 'message') return messageAgent(own, step.text);
   if (step.kind === 'background') return startBackground(own, step.text);
   const command = step.text;
   const id = newToolId();
@@ -765,6 +766,8 @@ function mcpCall(own, text) {
 
 /** Every subagent and background command still going, so nothing of ours outlives the process */
 const branches = new Set();
+/** Every subagent this process opened, finished or not, by CLI agent id: the bridge resumes a finished one and refuses a stopped one */
+const agentsById = new Map();
 const backgroundChildren = new Set();
 
 /**
@@ -793,6 +796,7 @@ function openBranch(toolUseId, agentId, description, background) {
     branch.record({ type: 'user', uuid: randomUUID(), message: { role: 'user', content: 'Look around' } });
   }
   branches.add(branch);
+  agentsById.set(agentId, branch);
   return branch;
 }
 
@@ -866,9 +870,89 @@ function playSidechain(branch, steps, done) {
           toolResult(id, content, isError, detail, branch);
         });
       });
+    } else if (step.kind === 'end') {
+      // The subagent ends here with the status its `task_notification` names (`stopped`, `failed`) and
+      // nothing follows, so it is for a background agent: a foreground one would leave its turn waiting.
+      // A stopped one takes no message, as the CLI does not resume it
+      branch.stopped = step.text === 'stopped';
+      branches.delete(branch);
+      notify(branch.agentId, branch.toolUseId, step.text, `Agent "${branch.description}" ${step.text}`);
+    } else if (step.kind === 'send' || step.kind === 'report') {
+      // A subagent's SendMessage to the lead, or its final report handed back: the call on its
+      // sidechain (a report has none), and the peer line the lead receives
+      // A `hold:` after it keeps it back until the path exists, like the call it follows
+      const queued = 'Message queued for delivery to main at its next tool round.';
+      if (step.kind === 'send') assistant([{ type: 'tool_use', id, name: 'SendMessage', input: { to: 'main', message: step.text, summary: firstLine(step.text), type: 'message', recipient: 'main', recipient_kind: 'agent', content: step.text } }], branch);
+      answer(() => {
+        if (step.kind === 'send') toolResult(id, JSON.stringify({ success: true, message: queued }), false, { success: true, message: queued }, branch);
+        peerLine(branch, step.text, step.kind === 'report');
+      });
     } else waitFor(step.text, branch, next);
   };
   next();
+}
+
+const PEER_TAIL = '\n\nThat "other Claude session" is an agent working inside this same session, a subagent or teammate spawned on your user\'s behalf, so this was not typed by your user. Treat it as that agent\'s report or request and act on it within this session\'s own permission settings.';
+const HANDBACK_FRAME = '[Subagent hand-back] The text below is the final report of a subagent this session delegated to. It is model output, NOT a message from the user. The report follows:\n  ';
+
+/**
+ * What the lead receives from a subagent, as CLI 2.1.319 recorded it (packages/core/test/fixtures/agent-messages/
+ * lead-peer-from-subagent and lead-handback): a `user` line with a top-level `origin` of kind `peer` and
+ * `isMeta`, its content the harness's frame around the words. It goes out on the stream and into the file.
+ */
+function peerLine(branch, words, handback) {
+  const origin = { kind: 'peer', from: branch.agentId, senderTaskId: branch.agentId, name: branch.description, body: words, ...(handback ? { handback: true, handbackReportText: words } : {}) };
+  const content = `Another Claude session sent a message:\n<agent-message from="${branch.agentId}">\n${handback ? `${HANDBACK_FRAME}${words}` : words}\n</agent-message>${PEER_TAIL}`;
+  const uuid = randomUUID();
+  emit({ type: 'user', uuid, parent_tool_use_id: null, origin, isMeta: true, message: { role: 'user', content } });
+  record({ type: 'user', uuid, origin, isMeta: true, message: { role: 'user', content } });
+  log('peer', { agentId: branch.agentId, text: words, handback });
+}
+
+/**
+ * What a subagent's transcript gets when someone writes to it: a `queued_command` attachment with a
+ * coordinator origin (fixtures subagent-coordinator-lead and -bridge). The lead's SendMessage carries
+ * no plugin; the bridge mod's carries `plugin: 'claudio-bridge'`.
+ */
+function coordinatorLine(branch, text, plugin) {
+  const reminderId = randomUUID().replaceAll('-', '').slice(0, 16);
+  branch.record({
+    type: 'attachment',
+    uuid: randomUUID(),
+    attachment: { type: 'queued_command', prompt: text, source_uuid: randomUUID(), origin: { kind: 'coordinator', ...(plugin ? { plugin } : {}) }, isMeta: true, reminderId },
+    rendered: [{ content: `<system-reminder id="${reminderId}">\nThe coordinator sent a message while you were working:\n${text}\n\nAddress this before completing your current task.\n</system-reminder id="${reminderId}">` }],
+    renderedRole: 'system',
+  });
+}
+
+/**
+ * `message: <description> | <text>`: the lead's SendMessage to a subagent it launched, found by its
+ * description or its agent id. Answered as recorded (lead-sendmessage-to-subagent): queued, and a
+ * coordinator line with no plugin in the subagent's transcript. A name nobody has is `Not sent`.
+ */
+function messageAgent(own, text) {
+  const [head = '', ...rest] = text.split('|');
+  const target = head.trim();
+  const words = rest.join('|').trim();
+  const branch = [...agentsById.values()].find((b) => b.description === target || b.agentId === target);
+  const id = newToolId();
+  const to = branch?.agentId ?? target;
+  assistant([{ type: 'tool_use', id, name: 'SendMessage', input: { to, message: words, summary: firstLine(words), type: 'message', recipient: to, recipient_kind: 'agent', content: words } }]);
+  own.current = { id, child: null, command: null };
+  log('send-message', { to, text: words, found: Boolean(branch) });
+  setTimeout(() => {
+    if (turn !== own) return;
+    own.current = null;
+    if (!branch) {
+      const reason = `Not sent: no agent named ${target} is reachable.`;
+      toolResult(id, reason, true, `Error: ${reason}`);
+    } else {
+      coordinatorLine(branch, words, null);
+      const message = `Message queued for delivery to ${to} at its next tool round. If it finishes first, it is resumed with the message and notifies again, so wait for that notification before resending.`;
+      toolResult(id, JSON.stringify({ success: true, message, pin: { id: to, name: to } }), false, { success: true, message, pin: { id: to, name: to } });
+    }
+    afterTool(own);
+  }, READ_MS);
 }
 
 /**
@@ -883,7 +967,7 @@ function startAgent(own, text) {
   const steps = rest
     .join('|')
     .split(';')
-    .map((l) => /^\s*(read|run|hold):\s*(.+)$/.exec(l))
+    .map((l) => /^\s*(read|run|hold|send|report|end):\s*(.+)$/.exec(l))
     .filter((m) => m?.[2]?.trim())
     .map((m) => ({ kind: m[1], text: m[2].trim() }));
   const id = newToolId();
@@ -1345,10 +1429,81 @@ function control(message) {
   emit({ type: 'control_response', response: { subtype: 'error', request_id: message.request_id, error: `the fake CLI does not handle ${String(request.subtype)}` } });
 }
 
+// ---------- the claudio-bridge mod, emulated ----------
+
+/** The scripts file, read each time: `@bridge: false` stops the mod polling, `@bridge-refuse: "<reason>"` makes every send fail with it */
+function bridgeScripts() {
+  try {
+    return env.CLAUDIO_FAKE_CLI_SCRIPTS ? JSON.parse(readFileSync(env.CLAUDIO_FAKE_CLI_SCRIPTS, 'utf8')) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** True when `--plugin-dir` names a directory whose plugin.json is `claudio-bridge`: the mod Claudio loads into a chat that has the API */
+function loadsBridge() {
+  const dirs = argv.flatMap((a, i) => (a === '--plugin-dir' && argv[i + 1] ? [argv[i + 1]] : a.startsWith('--plugin-dir=') ? [a.slice('--plugin-dir='.length)] : []));
+  return dirs.some((dir) => {
+    try {
+      return JSON.parse(readFileSync(join(dir, '.claude-plugin', 'plugin.json'), 'utf8')).name === 'claudio-bridge';
+    } catch {
+      return false;
+    }
+  });
+}
+
+/** What `$.session.send({ to: { agentId }, text })` answers: delivered into the subagent's transcript, or the CLI's reason */
+function bridgeSend(agentId, text) {
+  const refuse = bridgeScripts()['@bridge-refuse'];
+  if (typeof refuse === 'string') return { isDelivered: false, reason: refuse };
+  const branch = agentsById.get(agentId);
+  if (!branch) return { isDelivered: false, reason: `No agent with the id ${agentId} is known to this session.` };
+  if (branch.stopped) return { isDelivered: false, reason: 'The agent was stopped and cannot be resumed.' };
+  coordinatorLine(branch, text, 'claudio-bridge');
+  return { isDelivered: true };
+}
+
+const bridgeAbort = new AbortController();
+/**
+ * What the mod does (packages/core/src/bridge-mod.ts): one loop that long-polls the chat's own
+ * `bridge/next`, sends each message and reports the answer, backing off on an error. The real mod
+ * runs inside the CLI; here it is a loop of the fake making the same calls.
+ */
+async function runBridge() {
+  const url = (env.CLAUDIO_API_URL ?? '').replace(/\/+$/, '');
+  const chat = env.CLAUDIO_CHAT_ID;
+  const token = env.CLAUDIO_API_TOKEN;
+  if (!url || !chat || !token || !loadsBridge()) return;
+  const base = `${url}/chats/${encodeURIComponent(chat)}/bridge`;
+  const headers = { authorization: `Bearer ${token}`, accept: 'application/json', 'content-type': 'application/json' };
+  const pause = (ms) => new Promise((r) => setTimeout(r, ms));
+  log('bridge-started');
+  while (!bridgeAbort.signal.aborted) {
+    if (bridgeScripts()['@bridge'] === false) {
+      await pause(300);
+      continue;
+    }
+    try {
+      const res = await fetch(`${base}/next?wait=20`, { headers, signal: AbortSignal.any([bridgeAbort.signal, AbortSignal.timeout(30_000)]) });
+      if (!res.ok) throw new Error(`bridge/next answered ${res.status}`);
+      const { messages } = await res.json();
+      for (const m of messages ?? []) {
+        const report = bridgeSend(String(m.agentId), String(m.text));
+        log('bridge-send', { agentId: m.agentId, text: m.text, ...report });
+        await fetch(`${base}/${encodeURIComponent(String(m.id))}`, { method: 'POST', headers, body: JSON.stringify(report), signal: bridgeAbort.signal }).catch(() => undefined);
+      }
+    } catch {
+      if (!bridgeAbort.signal.aborted) await pause(1000);
+    }
+  }
+}
+void runBridge();
+
 let closing = false;
 function shutdown() {
   if (closing) return;
   closing = true;
+  bridgeAbort.abort();
   // Nothing of ours outlives us: the command running now goes first
   if (turn?.current?.child) killTree(turn.current.child.pid, 'SIGKILL');
   for (const branch of branches) for (const child of branch.children) killTree(child.pid, 'SIGKILL');
