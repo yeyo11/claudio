@@ -197,6 +197,9 @@ test('the mod is written under the data dir, rewritten when it differs, and load
   assert.match(source, /\$\.env\.get\('CLAUDIO_API_TOKEN'\)/);
   assert.match(source, /\$\.session\.send\(\{ to: \{ agentId/);
   assert.doesNotMatch(source, /console\.|\$\.ui\.|setTimeout|require\(|import /);
+  // Never a held poll: the CLI waits for a fetch in flight before it exits, and a re-run found the old process still up
+  assert.match(source, /const WAIT_S = 0\n/);
+  assert.match(source, /again\(IDLE_MS\)/);
   const spec = { id: 's', nativeId: null, created: false, forkFrom: null, name: 'n', cwd: '/w', permissionMode: 'default', permissionPrompts: 'none', policy: null, pluginDirs: [dir] } as unknown as SessionLaunch;
   const args = buildArgs(spec);
   assert.equal(args[args.indexOf('--plugin-dir') + 1], dir);

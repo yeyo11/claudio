@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-10T14:00:00Z
-updated_at: 2026-11-10T14:00:00Z
+updated_at: 2026-11-10T19:10:00Z
 tags:
     - chats
     - subagents
@@ -39,11 +39,15 @@ session (both break the one rule).
   `--restricted` and hold no token), nor a run with `api: false` (decisions, the Supervisor's
   questions, evals, one-shots). `ChatManager.loadsBridge` decides.
 - **What it does.** On `session.start` it reads the three variables with `$.env.get`; with one
-  missing it does nothing. Then one loop that never overlaps itself: long-poll
-  `GET /chats/:id/bridge/next?wait=20`, `$.session.send` each message in order, report each answer
+  missing it does nothing. Then one loop that never overlaps itself: poll
+  `GET /chats/:id/bridge/next?wait=0` once a second (at once again after a poll that found messages),
+  `$.session.send` each message in order, report each answer
   with `POST /chats/:id/bridge/:messageId` (`{ isDelivered, reason? }`). On a network error or a
   non-2xx it backs off 1 s, 2 s, 5 s, then every 10 s. It never logs the token or a text, registers
-  nothing else (no tool, command, pane or other hook), and its timers stop when the module unloads.
+  nothing else (no tool, command, pane or other hook), and its timers stop when the module unloads. It never long-polls: the CLI waits for a
+  `$.http.fetch` in flight before its process exits, and that call takes no abort signal, so a held
+  poll kept every run alive for up to its wait after its last turn (a re-run of an orchestration task
+  found the old process still up).
 - **Its name** is what the CLI records as `origin.plugin` on the line the subagent receives, so the
   page can tell a bridge message from the lead's `SendMessage` (which has no plugin).
 

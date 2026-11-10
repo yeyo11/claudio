@@ -5,18 +5,24 @@ import { dirname, join } from 'node:path';
  * The `claudio-bridge` mod (docs/agent-messages.md, D1 of docs/plans/agent-messages.md): the only way
  * Claude Code documents for a program to write to one subagent is a mod calling
  * `$.session.send({ to: { agentId }, text })`. Claudio writes this mod under its data dir and loads
- * it with `--plugin-dir` into every run that holds a chat token. The mod only carries: it long-polls
- * the chat's own `bridge/next`, sends each message, and reports what the CLI answered. Claudio keeps
- * the queue (`agent-messages.ts`).
+ * it with `--plugin-dir` into every run that holds a chat token. The mod only carries: it polls the
+ * chat's own `bridge/next`, sends each message, and reports what the CLI answered. Claudio keeps the
+ * queue (`agent-messages.ts`).
  *
  * The name is what the CLI records as `origin.plugin` on the line the subagent receives, so it is
  * part of the transcript contract and never changes.
  */
 export const BRIDGE_MOD_NAME = 'claudio-bridge';
 /** Bumped with any change of the files below, so a reader of `plugin.json` knows which one it has */
-export const BRIDGE_MOD_VERSION = '1.0.0';
-/** How long one poll asks the server to wait; one `$.http.fetch` may take 30 s, redirects and body included */
-export const BRIDGE_POLL_WAIT_S = 20;
+export const BRIDGE_MOD_VERSION = '1.1.0';
+/**
+ * How long one poll asks the server to hold it: never. The CLI waits for a mod's `$.http.fetch` in
+ * flight before its process exits, and `$.http.fetch` takes no abort signal, so a long poll held
+ * every run's exit for up to its wait, long enough for a re-run to find the old process still up.
+ */
+export const BRIDGE_POLL_WAIT_S = 0;
+/** The pause between two polls that found nothing: what a message waits at most before it is carried */
+export const BRIDGE_POLL_IDLE_MS = 1000;
 
 const PLUGIN_JSON = `${JSON.stringify(
   {
@@ -37,6 +43,7 @@ const HOOKS_JSON = `${JSON.stringify({ modules: ['./register.js'] }, null, 2)}\n
  */
 const REGISTER_JS = `// ${BRIDGE_MOD_NAME} ${BRIDGE_MOD_VERSION}, written by Claudio (docs/agent-messages.md). Do not edit: Claudio rewrites it.
 const WAIT_S = ${BRIDGE_POLL_WAIT_S}
+const IDLE_MS = ${BRIDGE_POLL_IDLE_MS}
 const BACKOFF_MS = [1000, 2000, 5000, 10000]
 let started = false
 
@@ -73,6 +80,10 @@ function carry($, url, chat, token) {
       return
     }
     failures = 0
+    if (messages.length === 0) {
+      again(IDLE_MS)
+      return
+    }
     for (const m of messages) {
       let sent
       try {

@@ -5,7 +5,7 @@ import type { BridgeNextResponse, BridgeReport, ChatMessageSource, ChatPendingMe
 /**
  * Messages written straight to one subagent of a chat (docs/agent-messages.md, D2 of
  * docs/plans/agent-messages.md). Claudio keeps the queue, as rows, so a reload of the page or of the
- * server still finds each one; the chat's `claudio-bridge` mod only carries them: it long-polls
+ * server still finds each one; the chat's `claudio-bridge` mod only carries them: it polls
  * `next`, hands each to `$.session.send`, and reports what the CLI answered.
  *
  * A row's state: `written` (in Claudio's queue), `taken` (handed to the mod, its answer not in yet),

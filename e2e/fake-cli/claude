@@ -1465,8 +1465,9 @@ function bridgeSend(agentId, text) {
 
 const bridgeAbort = new AbortController();
 /**
- * What the mod does (packages/core/src/bridge-mod.ts): one loop that long-polls the chat's own
- * `bridge/next`, sends each message and reports the answer, backing off on an error. The real mod
+ * What the mod does (packages/core/src/bridge-mod.ts): one loop that polls the chat's own
+ * `bridge/next` once a second (never held: the real CLI waits for a fetch in flight before it exits),
+ * sends each message and reports the answer, backing off on an error. The real mod
  * runs inside the CLI; here it is a loop of the fake making the same calls.
  */
 async function runBridge() {
@@ -1488,9 +1489,10 @@ async function runBridge() {
     const poll = new AbortController();
     const watch = setInterval(() => bridgeScripts()['@bridge'] === false && poll.abort(), 100);
     try {
-      const res = await fetch(`${base}/next?wait=20`, { headers, signal: AbortSignal.any([bridgeAbort.signal, poll.signal, AbortSignal.timeout(30_000)]) });
+      const res = await fetch(`${base}/next?wait=0`, { headers, signal: AbortSignal.any([bridgeAbort.signal, poll.signal, AbortSignal.timeout(30_000)]) });
       if (!res.ok) throw new Error(`bridge/next answered ${res.status}`);
       const { messages } = await res.json();
+      if (!messages?.length) await pause(1000);
       for (const m of messages ?? []) {
         const report = bridgeSend(String(m.agentId), String(m.text));
         log('bridge-send', { agentId: m.agentId, text: m.text, ...report });

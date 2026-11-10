@@ -261,7 +261,7 @@ emitted) and exits 0. SIGTERM, SIGINT and SIGHUP kill the running command's tree
 Claudio loads a mod into every chat that has the API (`--plugin-dir <dataDir>/claude-plugins/claudio-bridge`,
 docs/agent-messages.md). The fake does what that mod does, from a loop of its own: when `--plugin-dir`
 names a directory whose `.claude-plugin/plugin.json` is `claudio-bridge`, and `CLAUDIO_API_URL`,
-`CLAUDIO_CHAT_ID` and `CLAUDIO_API_TOKEN` are set, it long-polls `GET /chats/:id/bridge/next?wait=20`
+`CLAUDIO_CHAT_ID` and `CLAUDIO_API_TOKEN` are set, it polls `GET /chats/:id/bridge/next`
 with the chat's token, and for each message writes a coordinator `queued_command` attachment with
 `origin: { kind: "coordinator", plugin: "claudio-bridge" }` into the subagent's `agent-<id>.jsonl`
 (with `"@transcript": true`), then reports `POST /chats/:id/bridge/:messageId` with `{ isDelivered }`. An

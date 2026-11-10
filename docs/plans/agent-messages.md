@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-10T11:30:00Z
-updated_at: 2026-11-10T18:30:00Z
+updated_at: 2026-11-10T19:10:00Z
 tags:
     - plan
     - chats
@@ -163,8 +163,10 @@ Facts from 2026-11-10, against `main` 115865177.
 - **What the mod does.** Plain ES module, no Node APIs; only the mods API.
   1. On `session.start`, it reads `CLAUDIO_API_URL`, `CLAUDIO_CHAT_ID` and `CLAUDIO_API_TOKEN` with
      `$.env.get` (string literals). If one is missing, it does nothing.
-  2. Then it starts one loop, not overlapping itself. The loop long-polls
-     `GET /chats/:id/bridge/next?wait=20`; one `$.http.fetch` may take 30 s.
+  2. Then it starts one loop, not overlapping itself. The loop polls
+     `GET /chats/:id/bridge/next?wait=0` once a second. (It was a 20 s long poll until CI showed that
+     the CLI waits for a `$.http.fetch` in flight before it exits, and that call takes no abort
+     signal; see [Outcome](#outcome).)
   3. For each message in the answer, in order, it calls `$.session.send({ to: { agentId }, text })`.
   4. It reports each result with `POST /chats/:id/bridge/:messageId`, sending
      `{ isDelivered, reason? }`.
@@ -547,6 +549,11 @@ decisions below on its own; `review` checked them against this plan.
   `undelivered` (`not-read`, `bridge-unavailable`, `agent-stopped`, `cancelled`); the four routes,
   their access rules and security tests; the MCP tool `message_chat_subagent`. Proved end to end
   with the installed CLI (haiku). Described in [[agent-messages]].
+  - **Polling, not a long poll (fixed in PR #106).** CI's `orchestration-v2` spec found that a run
+    loading the mod kept its process up to 20 s after its last turn: the CLI waits for a
+    `$.http.fetch` in flight before it exits, and `$.http.fetch` takes no abort signal. A re-run of
+    the task was refused ("still has a process running"). The mod now polls with `wait=0` once a
+    second; a run exits as fast as one without it, and a message waits at most a second.
 - **Supervisor (D7).** A hint about a subagent with an agent id is written straight to it and falls
   back once to `relayHint` through the lead when refused or undelivered; the same for a person's
   Send from the health panel. Core waits up to 25 s for the delivery.
