@@ -1,4 +1,4 @@
-import type { ChatChildren, ContentBlock, EditStep, TranscriptEntry } from '@claudio/shared';
+import type { ChatChildren, ContentBlock, EditStep, SentToAgent, TranscriptEntry } from '@claudio/shared';
 import { ArrowRight, ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, ShieldAlert, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
@@ -9,7 +9,8 @@ import { teammateRead, type TeammateRead } from '../lib/teammate-reads';
 import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
 import { toolHint, type ToolHint } from '../lib/tool-lens';
 import { listedAgents, readAgentEntry, sentMessageOf, systemFolds, systemLabelKey, systemWords, type AgentEntry } from '../lib/agent-messages';
-import { AgentDirectoryScope, AgentMessageCard, endName, endOf, SystemRow, useAgentDirectory, type AgentDirectory, type AgentEnd } from './AgentMessages';
+import { withRelays, type ListedRow } from '../lib/relay-rows';
+import { AgentDirectoryScope, AgentMessageCard, RelayRow, endName, endOf, SystemRow, useAgentDirectory, type AgentDirectory, type AgentEnd } from './AgentMessages';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
 import { holdsGuardBlock, readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
@@ -683,10 +684,10 @@ export function endsWithAssistant(entries: readonly TranscriptEntry[]): boolean 
  * purpose and never exact — it only has to be closer than "every row is 140px", which is what the
  * list reserved before and had to take back, in front of the reader, the moment a row was measured.
  */
-const sizeHint = (row: TranscriptRow): number | undefined => (row.kind === 'entry' ? streamedHeight.get(row.entry) : undefined);
+const sizeHint = (row: ListedRow): number | undefined => (row.kind === 'entry' ? streamedHeight.get(row.entry) : undefined);
 
-function estimateRow(row: TranscriptRow, width: number): number {
-  if (row.kind === 'step') return 40;
+function estimateRow(row: ListedRow, width: number): number {
+  if (row.kind === 'step' || row.kind === 'relay') return 40;
   if (row.kind === 'compaction') return row.boundary ? 36 : 40;
   const perLine = Math.max(20, Math.floor((width - 44) / 7.2));
   let lines = 0;
@@ -715,6 +716,7 @@ export function Transcript({
   edits,
   compactions,
   agents,
+  relays,
   readOnly = false,
 }: {
   entries: TranscriptEntry[];
@@ -748,6 +750,8 @@ export function Transcript({
    * passes itself as `self`
    */
   agents?: AgentDirectory;
+  /** What the person wrote straight to a subagent, which the lead's own lines never say: a row each, at the time it was taken */
+  relays?: SentToAgent[];
 }) {
   if (readOnly) {
     messages = undefined;
@@ -756,6 +760,7 @@ export function Transcript({
     branches = undefined;
   }
   const own = useMemo(() => rows ?? transcriptRows(entries), [rows, entries]);
+  const listed = useMemo(() => withRelays(own, relays), [own, relays]);
   const target = focus ? rowOf(own, focus.item) : undefined;
   const focused = useMemo(() => (target ? { item: target } : null), [target, focus]);
   const last = own.at(-1);
@@ -788,9 +793,11 @@ export function Transcript({
   }, [agents, subagentList, openSubagent]);
   return (
     <AgentDirectoryScope value={directory}>
-    <VirtualList className="transcript" items={own} itemKey={(row) => row.key} pinToBottom={pinToBottom} endRef={endRef} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
+    <VirtualList className="transcript" items={listed} itemKey={(row) => row.key} pinToBottom={pinToBottom} endRef={endRef} onReachTop={onReachTop} focus={focused} estimate={estimateRow} sizeHint={sizeHint}>
       {(row) =>
-        row.kind === 'compaction' ? (
+        row.kind === 'relay' ? (
+          <RelayRow agentId={row.agentId} words={row.text} at={row.at} />
+        ) : row.kind === 'compaction' ? (
           <CompactionDivider
             boundary={row.boundary}
             summary={row.summary}

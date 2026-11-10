@@ -897,6 +897,8 @@ export interface ChatPendingMessage {
   state: 'written' | 'held' | 'undelivered';
   sentAt: string;
   reason?: string;
+  /** For a message to one subagent that is `undelivered`: why, as a code the page can act on */
+  reasonCode?: MessageUndeliveredReason;
   /** Who it comes from; `person` for a message stored before it was recorded */
   source: ChatMessageSource;
   /** On a `written` message, while the turn waits on a foreground call the agent will not read it before */
@@ -1712,6 +1714,18 @@ export interface ChatDetail {
   /** The chat's stream position when this page was read: open the stream from `seq` to miss nothing
    *  said after the read, or from `executionSeq` to see the whole live execution. Null without a live chat. */
   stream: { seq: number; executionSeq: number } | null;
+  /** What the person wrote straight to a subagent and the agent took: the lead's transcript has no line for it, so the page draws a row at `at` */
+  toAgents?: SentToAgent[];
+}
+
+/** A person's message to one subagent that was delivered (`ChatDetail.toAgents`). */
+export interface SentToAgent {
+  id: string;
+  agentId: string;
+  /** The words, without the framing the subagent was given */
+  text: string;
+  /** When the subagent took it */
+  at: string;
 }
 
 /**

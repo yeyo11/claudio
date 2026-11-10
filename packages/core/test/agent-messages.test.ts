@@ -119,6 +119,8 @@ test('bridge-unavailable: no poll for the window while a message waits; a poll h
     assert.equal(row?.reasonCode, 'bridge-unavailable');
     assert.equal(row?.reason, BRIDGE_UNAVAILABLE);
     assert.equal(deliveries.at(-1)?.delivery.reason, 'bridge-unavailable');
+    // The page offers "Send through the lead" for this one only, so the listing carries the code
+    assert.equal(messages.list('c1', true)[0]?.reasonCode, 'bridge-unavailable');
   } finally {
     messages.dispose();
     db.close();

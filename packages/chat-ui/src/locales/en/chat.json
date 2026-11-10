@@ -806,5 +806,16 @@
   },
   "hint": {
     "tag": "Hint"
+  },
+  "agentComposer": {
+    "placeholder": "Message {{agent}}…",
+    "note": "Goes straight to this subagent; the lead does not see it.",
+    "resumes": "It has finished: your message resumes it.",
+    "stopped": "You stopped it, so it cannot be resumed.",
+    "chatGone": "The chat is not running.",
+    "viaLead": "Send through the lead",
+    "discard": "Discard",
+    "bridgeDown": "Claudio could not reach this chat.",
+    "waiting": "Waiting for the subagent's next step"
   }
 }

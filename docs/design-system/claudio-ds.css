@@ -3059,3 +3059,8 @@ button.agent-msg-name { min-height: 24px; color: var(--accent); }
 .sys-msg-received-label { color: var(--fg-3); font-size: var(--fs-small); }
 .sys-msg-text { color: var(--fg-2); font-size: var(--fs-small); white-space: pre-wrap; overflow-wrap: anywhere; }
 /* ---------- end of Agent messages ---------- */
+
+/* ---------- The subagent composer: the footer of the detail drawer ---------- */
+.agent-composer { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 12px 16px; background: var(--bg-1); border-top: 1px solid var(--line); }
+.agent-composer-note { min-width: 0; color: var(--fg-3); font-size: var(--fs-small); overflow-wrap: anywhere; }
+/* ---------- end of The subagent composer ---------- */
