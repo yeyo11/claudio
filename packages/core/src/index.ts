@@ -288,6 +288,8 @@ export type { ChatRuntime, RunResult } from './chats.ts';
 export { AccountSwitchRefusal, ChatNotFoundError, ChatRefusal, MemoryRefusal, RunSlotRefusal } from './chats.ts';
 export { REVIEW_ROLES, type ReviewRole } from './review-roles.ts';
 export { ChatConflictError, DEFAULT_ORIGINS } from './chat-service.ts';
+export { AgentMessageRefusal, AgentMessages, BRIDGE_UNAVAILABLE_MS, BRIDGE_WAIT_MAX_S, type AgentMessage } from './agent-messages.ts';
+export { BRIDGE_MOD_FILES, BRIDGE_MOD_NAME, BRIDGE_MOD_VERSION, bridgeModDir, writeBridgeMod } from './bridge-mod.ts';
 export { summarizeOrchestration } from './orchestrator.ts';
 export { ServerUpdateRefusal } from './updates/server-update.ts';
 export { DesktopUpdateRefusal, DesktopUpdates, type SystemctlRunner } from './updates/desktop-update.ts';
@@ -795,6 +797,8 @@ export class Core {
     });
     this.uploads = new UploadStore(config.dataDir);
     this.runtime = new ChatManager(config, this.db, drivers);
+    // A headless Claudio serves no bridge routes (docs/plans/headless-image.md, D1): its chats load no mod that would poll them
+    if (this.profile === 'headless') this.runtime.subagentBridge = false;
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
     this.runtime.defaults = this.appSettings;

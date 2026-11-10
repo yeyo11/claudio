@@ -18997,6 +18997,86 @@
       "wide-scope"
     ]
   },
+  "SubagentMessageRequest": {
+    "type": "object",
+    "properties": {
+      "text": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "text"
+    ],
+    "description": "`POST /chats/:id/subagents/:agentId/messages`: a person's words for one subagent."
+  },
+  "SubagentMessageReceipt": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "written",
+          "held",
+          "undelivered"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "state"
+    ],
+    "description": "The answer to it: the message's id and where it stands."
+  },
+  "BridgeNextResponse": {
+    "type": "object",
+    "properties": {
+      "messages": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "id": {
+              "type": "string"
+            },
+            "agentId": {
+              "type": "string"
+            },
+            "text": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "id",
+            "agentId",
+            "text"
+          ]
+        }
+      }
+    },
+    "required": [
+      "messages"
+    ],
+    "description": "`GET /chats/:id/bridge/next`: what the chat's bridge mod must deliver now, in order."
+  },
+  "BridgeReport": {
+    "type": "object",
+    "properties": {
+      "isDelivered": {
+        "type": "boolean"
+      },
+      "reason": {
+        "type": "string",
+        "description": "The CLI's reason when it did not deliver"
+      }
+    },
+    "required": [
+      "isDelivered"
+    ],
+    "description": "`POST /chats/:id/bridge/:messageId`: what `$.session.send` answered."
+  },
   "CancelCommandRequest": {
     "type": "object",
     "properties": {
