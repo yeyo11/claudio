@@ -3,7 +3,7 @@
 // fake that stopped answering. Needs no build, no browser and no server.
 import assert from 'node:assert/strict';
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -827,4 +827,136 @@ test('edit:, write: and skill: emit the Edit, Write and Skill shapes and touch t
   assert.equal(toolResultOf(failed).is_error, true);
   await c.next((e) => e.type === 'result');
   await c.done();
+});
+
+/** Where the fake writes the session and its subagents' transcripts, for a chat run in `dir` */
+const sessionDir = (config, dir) => join(config, 'projects', dir.replace(/[^a-zA-Z0-9]/g, '-'));
+const jsonl = (file) => readFileSync(file, 'utf8').trim().split('\n').map((l) => JSON.parse(l));
+
+test('send:, report: and message: write the peer lines, the SendMessage calls and the coordinator line as recorded', async () => {
+  const config = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-config-'));
+  const c = chat({ CLAUDIO_FAKE_CLI_READ_MS: '50', CLAUDIO_FAKE_CLI_TRANSCRIPT: '1', CLAUDE_CONFIG_DIR: config });
+  try {
+    c.say('agent: background: Helper | send: ping from the subagent; report: 7 launches\nmessage: Helper | hello from the lead\nmessage: Nobody | lost');
+    const agentId = (await c.next(system('task_started'))).task_id;
+    // The turn and the subagent run side by side, so what they emit interleaves: wait for both, then look
+    const done = () => c.events.some((e) => e.type === 'result') && c.events.some((e) => e.origin?.handback === true);
+    for (let i = 0; i < 100 && !done(); i++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(done(), 'the turn ended and the report reached the lead');
+    const results = c.events.filter((e) => toolResultOf(e) !== undefined && e.parent_tool_use_id === null).map((e) => toolResultOf(e));
+    // The lead's SendMessage: the call, then the recorded result
+    const call = c.events.find((e) => toolUse(e) && e.message.content[0].name === 'SendMessage' && e.parent_tool_use_id === null);
+    assert.deepEqual([call?.message.content[0].input.to, call?.message.content[0].input.message], [agentId, 'hello from the lead']);
+    const queued = results.find((r) => !r.is_error && String(r.content).startsWith('{"success":true'));
+    assert.match(JSON.parse(String(queued?.content)).message, /^Message queued for delivery to a/);
+    // A name nobody has is not sent
+    assert.match(String(results.find((r) => r.is_error)?.content), /^Not sent:/);
+    // A subagent's SendMessage and its report reach the lead as peer lines
+    const peer = c.events.find((e) => e.type === 'user' && e.origin?.kind === 'peer' && !e.origin.handback);
+    assert.deepEqual([peer?.origin.from, peer?.origin.name, peer?.origin.body, peer?.isMeta], [agentId, 'Helper', 'ping from the subagent', true]);
+    assert.match(peer?.message.content, /^Another Claude session sent a message:\n<agent-message from="a/);
+    const report = c.events.find((e) => e.type === 'user' && e.origin?.handback === true);
+    assert.equal(report?.origin.handbackReportText, '7 launches');
+
+    const session = sessionDir(config, c.dir);
+    const lead = jsonl(join(session, 'fake-session.jsonl'));
+    assert.equal(lead.filter((l) => l.type === 'user' && l.origin?.kind === 'peer').length, 2);
+    const agent = jsonl(join(session, 'fake-session', 'subagents', `agent-${agentId}.jsonl`));
+    const coordinator = agent.find((l) => l.attachment?.origin?.kind === 'coordinator');
+    assert.equal(coordinator?.attachment.type, 'queued_command');
+    assert.equal(coordinator?.attachment.prompt, 'hello from the lead');
+    assert.equal('plugin' in (coordinator?.attachment.origin ?? {}), false, 'the lead writes no plugin');
+    assert.ok(agent.some((l) => l.type === 'assistant' && l.message.content[0]?.name === 'SendMessage'), "the subagent's own SendMessage is on its sidechain");
+  } finally {
+    // A failed assertion must not leave the fake running: the test runner would wait for it
+    await c.done();
+    rmSync(config, { recursive: true, force: true });
+  }
+});
+
+/** A server that plays the chat's `bridge` routes: it hands out `messages` once and keeps what is reported */
+async function bridgeServer(messages) {
+  const { createServer } = await import('node:http');
+  const reports = [];
+  const polls = [];
+  const server = createServer((req, res) => {
+    if (req.method === 'GET' && req.url?.startsWith('/chats/chat-1/bridge/next')) {
+      polls.push(req.headers.authorization);
+      res.setHeader('content-type', 'application/json');
+      // The long poll: what waits goes out once; later polls are held for a moment, as the route holds them
+      const out = messages.splice(0);
+      if (out.length > 0) return res.end(JSON.stringify({ messages: out }));
+      return void setTimeout(() => res.end(JSON.stringify({ messages: [] })), 300);
+    }
+    let body = '';
+    req.on('data', (d) => (body += d));
+    req.on('end', () => {
+      reports.push({ url: req.url, body: JSON.parse(body || '{}') });
+      res.statusCode = 204;
+      res.end();
+    });
+  });
+  await new Promise((r) => server.listen(0, '127.0.0.1', r));
+  return { url: `http://127.0.0.1:${server.address().port}`, reports, polls, close: () => new Promise((r) => server.close(r)) };
+}
+
+test('with the claudio-bridge mod loaded, the fake polls bridge/next, writes the coordinator line and reports', async () => {
+  const config = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-config-'));
+  const mod = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-mod-'));
+  mkdirSync(join(mod, '.claude-plugin'), { recursive: true });
+  writeFileSync(join(mod, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'claudio-bridge', version: '1.0.0' }));
+  const outbox = [];
+  const bridge = await bridgeServer(outbox);
+  const c = chat(
+    { CLAUDIO_FAKE_CLI_READ_MS: '50', CLAUDIO_FAKE_CLI_TRANSCRIPT: '1', CLAUDE_CONFIG_DIR: config, CLAUDIO_API_URL: bridge.url, CLAUDIO_CHAT_ID: 'chat-1', CLAUDIO_API_TOKEN: 'agc_test' },
+    { args: ['--plugin-dir', mod] },
+  );
+  c.say('agent: background: Helper | hold: go\nhold: done');
+  const agentId = (await c.next(system('task_started'))).task_id;
+  const until = async (condition, label) => {
+    for (let i = 0; i < 100 && !condition(); i++) await new Promise((r) => setTimeout(r, 50));
+    assert.ok(condition(), `timed out waiting for ${label}`);
+  };
+  await until(() => bridge.polls.length > 0, 'the first poll');
+  assert.equal(bridge.polls[0], 'Bearer agc_test');
+  // A known agent takes it; an unknown one is refused with the CLI's reason
+  outbox.push({ id: 'm1', agentId, text: 'A message from the person: hi' }, { id: 'm2', agentId: 'aunknown', text: 'lost' });
+  await until(() => bridge.reports.length === 2, 'both reports');
+  assert.deepEqual(bridge.reports[0], { url: '/chats/chat-1/bridge/m1', body: { isDelivered: true } });
+  assert.equal(bridge.reports[1]?.url, '/chats/chat-1/bridge/m2');
+  assert.equal(bridge.reports[1]?.body.isDelivered, false);
+  assert.match(bridge.reports[1]?.body.reason ?? '', /aunknown/);
+  const agent = jsonl(join(sessionDir(config, c.dir), 'fake-session', 'subagents', `agent-${agentId}.jsonl`));
+  const line = agent.find((l) => l.attachment?.origin?.plugin === 'claudio-bridge');
+  assert.deepEqual([line?.attachment.type, line?.attachment.prompt, line?.attachment.origin], ['queued_command', 'A message from the person: hi', { kind: 'coordinator', plugin: 'claudio-bridge' }]);
+  assert.ok(c.log().some((l) => l.event === 'bridge-send' && l.agentId === agentId && l.isDelivered === true));
+  await c.done();
+  await bridge.close();
+  rmSync(config, { recursive: true, force: true });
+  rmSync(mod, { recursive: true, force: true });
+});
+
+test('end: stopped ends a background subagent with that notification, and the bridge refuses it', async () => {
+  const config = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-config-'));
+  const mod = mkdtempSync(join(tmpdir(), 'claudio-fake-cli-mod-'));
+  mkdirSync(join(mod, '.claude-plugin'), { recursive: true });
+  writeFileSync(join(mod, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'claudio-bridge' }));
+  const outbox = [];
+  const bridge = await bridgeServer(outbox);
+  const c = chat(
+    { CLAUDIO_FAKE_CLI_READ_MS: '50', CLAUDE_CONFIG_DIR: config, CLAUDIO_API_URL: bridge.url, CLAUDIO_CHAT_ID: 'chat-1', CLAUDIO_API_TOKEN: 'agc_test' },
+    { args: ['--plugin-dir', mod] },
+  );
+  c.say('agent: background: Helper | end: stopped\nhold: done');
+  const agentId = (await c.next(system('task_started'))).task_id;
+  const ended = await c.next(system('task_notification'));
+  assert.deepEqual([ended.task_id, ended.status], [agentId, 'stopped']);
+  outbox.push({ id: 'm1', agentId, text: 'too late' });
+  for (let i = 0; i < 100 && bridge.reports.length === 0; i++) await new Promise((r) => setTimeout(r, 50));
+  assert.equal(bridge.reports[0]?.body.isDelivered, false);
+  assert.match(bridge.reports[0]?.body.reason ?? '', /stopped/);
+  await c.done();
+  await bridge.close();
+  rmSync(config, { recursive: true, force: true });
+  rmSync(mod, { recursive: true, force: true });
 });
