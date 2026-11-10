@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/yeyo11/claudio/compare/v0.15.0...v0.16.0) (2026-11-10)
+
+
+### Features
+
+* **chats:** messages between agents, a composer for subagents, system rows and overflow fixes ([#106](https://github.com/yeyo11/claudio/issues/106)) ([e8acba4](https://github.com/yeyo11/claudio/commit/e8acba48d1f0cd99d07b86258416455e639a0add))
+
 ## [0.15.0](https://github.com/yeyo11/claudio/compare/v0.14.2...v0.15.0) (2026-11-09)
 
 
