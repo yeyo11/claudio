@@ -551,7 +551,8 @@ a.list-row:hover {
 }
 
 .crow-list {
-  --crow-cols: 18px minmax(0, 1fr) 140px 96px 120px 88px 72px;
+  /* The last column holds "hace 59 min", the longest relative time in either language */
+  --crow-cols: 18px minmax(0, 1fr) 140px 96px 120px 88px 88px;
   --crow-pad-x: 18px;
   container: crow-list / inline-size;
   gap: 0;

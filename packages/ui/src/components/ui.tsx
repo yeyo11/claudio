@@ -114,7 +114,10 @@ export function Tag({ children, tone = 'muted', icon }: { children: ReactNode; t
   return (
     <span className={`badge badge-${tone}`}>
       {Icon && <Icon size={12} strokeWidth={2} aria-hidden />}
-      <span className="badge-text">{children}</span>
+      {/* The full word for when a narrow column ends it in an ellipsis */}
+      <span className="badge-text" title={typeof children === 'string' ? children : undefined}>
+        {children}
+      </span>
     </span>
   );
 }

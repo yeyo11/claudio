@@ -22,8 +22,10 @@
   white-space: nowrap;
   color: var(--tone);
   /* A badge is a word or two; should one ever be longer than its column it ends in an ellipsis
-     rather than running out of the card */
+     rather than running out of the card. `min-width: 0` lets it shrink as a flex item (its
+     automatic minimum is its whole text), and the text box below takes the ellipsis */
   max-width: 100%;
+  min-width: 0;
 }
 
 .badge-text {
@@ -34,6 +36,7 @@
 
 .badge > svg,
 .badge > .spinner {
+  flex: none;
   color: var(--tone);
 }
 

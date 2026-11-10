@@ -143,8 +143,11 @@
 
 .changes-review .edit-step-risk {
   display: inline-flex;
-  flex: none;
+  /* Shrinks before the path does: in a narrow row its tag ends in an ellipsis inside the card,
+     and the file's name keeps the room */
+  flex: 0 100 auto;
   align-self: flex-start;
+  min-width: 0;
   max-width: 100%;
   border-radius: var(--radius-xs);
 }

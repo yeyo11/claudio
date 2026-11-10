@@ -89,7 +89,7 @@ for (const [lang, more, readOnly] of [
     const grid = wrap(<MemberGrid team={team(members)} memberHref={(agent) => `?member=${agent}`} onAdd={() => undefined} />);
     const cards = grid.split('<article').slice(1);
     assert.equal(cards.length, 3);
-    assert.match(cards[0] ?? '', new RegExp(`badge badge-muted[^>]*><span class="badge-text">${readOnly}<`));
+    assert.match(cards[0] ?? '', new RegExp(`badge badge-muted[^>]*><span class="badge-text"[^>]*>${readOnly}<`));
     assert.doesNotMatch(cards[1] ?? '', new RegExp(readOnly));
     assert.doesNotMatch(cards[2] ?? '', new RegExp(readOnly));
     const cells = wrap(<MemberCells team={team(members)} memberHref={(agent) => `?member=${agent}`} />);
