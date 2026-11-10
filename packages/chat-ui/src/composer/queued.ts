@@ -12,7 +12,7 @@
  * too, drawn as a notice: it is not the person's to hurry, only to withdraw.
  */
 import { useCallback, useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import type { Chat, ChatMessageReceipt, ChatMessageSource, ChatPendingAttachment, ChatPendingBlocker, ChatPendingMessage, MessageDelivery, TranscriptEntry } from '@claudio/shared';
+import type { Chat, ChatMessageReceipt, ChatMessageSource, ChatPendingAttachment, ChatPendingBlocker, ChatPendingMessage, MessageDelivery, MessageUndeliveredReason, TranscriptEntry } from '@claudio/shared';
 import { isStreamed, type ChatStreamStore } from '../lib/chat-stream';
 import { scopedKey } from '@claudio/ui/lib/server-scope';
 
@@ -29,6 +29,8 @@ export interface QueuedMessage {
   source: ChatMessageSource;
   /** The foreground call the turn is inside of, which the agent reads nothing before; as of the last read */
   blockedBy?: ChatPendingBlocker;
+  /** For a lost message to a subagent: why, which decides what its card offers */
+  reasonCode?: MessageUndeliveredReason;
 }
 
 export interface QueuedCard extends QueuedMessage {
@@ -178,7 +180,9 @@ export function useQueuedMessages(chat: Chat | undefined, items: TranscriptEntry
   const own = dismissed[chatId];
   const ids = useMemo(() => own ?? readDismissed(chatId), [own, chatId]);
   const heard = useSyncExternalStore(stream.subscribeDeliveries, stream.deliveryVersion);
-  const pending = chat?.pending;
+  // A message written to a subagent is that subagent's card, not this chat's
+  const listed = chat?.pending;
+  const pending = useMemo(() => (listed ? ownQueue(listed) : undefined), [listed]);
 
   const add = useCallback(
     (receipt: ChatMessageReceipt, text: string, attachments: ChatPendingAttachment[]) => {
@@ -237,3 +241,24 @@ export function useQueuedMessages(chat: Chat | undefined, items: TranscriptEntry
 
   return { queued, add, drop, pending: isPending, dated };
 }
+
+/**
+ * The cards of the messages written straight to one subagent: what the chat lists as pending with
+ * `to.agentId` (the chat's own queue leaves those out, see `lib/chat-model`). The server keeps them
+ * in its own table, so there is nothing to reconcile: a message the subagent took stops being listed.
+ */
+export function subagentQueue(pending: readonly ChatPendingMessage[] | undefined, agentId: string): QueuedMessage[] {
+  return (pending ?? [])
+    .filter((message) => message.to?.agentId === agentId)
+    .map((message) => ({
+      id: message.id,
+      text: message.text,
+      attachments: message.attachments,
+      state: message.state === 'undelivered' ? 'lost' : 'waiting',
+      source: message.source,
+      ...(message.reasonCode ? { reasonCode: message.reasonCode } : {}),
+    }));
+}
+
+/** What the chat's own queue shows: everything not written to a subagent */
+export const ownQueue = <T extends { to?: unknown }>(pending: readonly T[] | undefined): T[] => (pending ?? []).filter((message) => !message.to);

@@ -7,7 +7,7 @@ import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { errorMessage, type AccountSwitchReason, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
+import { errorMessage, type AccountSwitchReason, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type SentToAgent, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, goIdle, idleTimeoutMs, NOT_READ, recordEntry } from './chat-fold.ts';
@@ -765,6 +765,14 @@ export class ChatManager extends EventEmitter {
     // A message to one subagent is listed with the chat's own: the page tells them apart by `to`
     const toAgents = this.agentMessages.list(id, this.chats.peek(id)?.alive === true);
     return toAgents.length ? { ...summary, pending: [...(summary.pending ?? []), ...toAgents] } : summary;
+  }
+
+  /** The person's messages to subagents that were delivered, oldest first: what the lead's transcript is drawn with a row for */
+  sentToAgents(id: string): SentToAgent[] {
+    return this.agentMessages
+      .history(id)
+      .filter((m) => m.source === 'person' && m.state === 'delivered')
+      .map((m) => ({ id: m.id, agentId: m.agentId, text: m.words, at: m.deliveredAt ?? m.sentAt }));
   }
 
   /**

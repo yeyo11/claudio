@@ -43,6 +43,7 @@
     "./composer/history": "./src/composer/history.ts",
     "./composer/queued": "./src/composer/queued.ts",
     "./composer/QueuedCards": "./src/composer/QueuedCards.tsx",
+    "./composer/SubagentComposer": "./src/composer/SubagentComposer.tsx",
     "./composer/ServersPanel": "./src/composer/ServersPanel.tsx",
     "./composer/stick-to-bottom": "./src/composer/stick-to-bottom.ts",
     "./locales": "./src/locales/index.ts",

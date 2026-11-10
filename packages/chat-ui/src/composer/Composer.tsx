@@ -566,7 +566,7 @@ export type ComposerLayout = 'chat' | 'start';
  * one, the editor, the stop and send buttons, and the line of chips and keys under it. The `start`
  * layout is New chat's: see `StartComposer`.
  */
-function ComposerBox({
+export function ComposerBox({
   editor,
   layout = 'chat',
   files,

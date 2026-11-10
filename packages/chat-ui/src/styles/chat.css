@@ -2217,6 +2217,62 @@ a.attachment-chip:hover {
   color: var(--warn);
 }
 
+/*
+ * The subagent drawer's footer (docs/design-system.md "The subagent composer"): the chat's box with
+ * its queued cards over it and one note line under it. It never takes the energy border, because the
+ * chat's own composer may already have it on the same screen.
+ */
+.dialog-foot:has(> .agent-composer) {
+  display: block;
+  padding: 0;
+  background: var(--bg-1);
+}
+
+/* Nothing to say yet (the agent has not been read): no empty strip with a border */
+.dialog-foot:not(:has(*)) {
+  display: none;
+}
+
+.agent-composer {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  padding: 12px 16px;
+}
+
+.agent-composer .composer-wrap,
+.agent-composer .chat-queued {
+  max-width: none;
+  align-self: stretch;
+}
+
+.agent-composer .composer-wrap {
+  gap: 6px;
+  padding: 0;
+}
+
+/* The note takes the line the chat's status chips have, with the keys on its right */
+.agent-composer .composer-foot {
+  justify-content: space-between;
+  /* The phone sheet puts the chat's chips over its box; the note stays under it */
+  order: 0;
+}
+
+.agent-composer-note {
+  min-width: 0;
+  color: var(--text-faint);
+  font-size: var(--fs-small);
+  overflow-wrap: anywhere;
+}
+
+/* Under 44 px a thumb misses the card's two small buttons on a phone */
+@media (pointer: coarse) {
+  .agent-composer .chat-queued-actions .btn {
+    min-height: 44px;
+  }
+}
+
 /* ---------- Context control (docs/plans/context-control.md) ----------
    The inspector's context actions, the breakdown panel, the compact confirmation and the session
    notes. Nothing here moves: a figure that changes on a refetch is not animated. */
