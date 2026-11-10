@@ -2450,7 +2450,8 @@ read them) is the case these rules exist for ([plans/agent-messages.md](plans/ag
 4. **Code and diffs keep their lines.** They scroll sideways inside their own block, with a scrollbar
    that shows on hover and focus. `.diff` outside a phone's wrap is one grid column
    `minmax(max-content, 1fr)`: every row is as wide as the widest line, so tints, rails, numbers and
-   word marks stay on their line while it scrolls, and what is not code (notes, gap rows, review
+   word marks stay on their line while it scrolls (in virtual rows, past 400, each row is as wide as
+   its own line and never narrower than the block), and what is not code (notes, gap rows, review
    threads) stays at the block's width with `position: sticky; left: 0` and `100cqw`. A block that
    scrolls is a stop of its own (`tabindex="0"`, `role="region"`, labelled "Changes to {path}"), so
    the keyboard reaches the end of a long line. Side by side keeps each half in its column and cuts

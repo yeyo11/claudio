@@ -37,6 +37,11 @@
   scrollbar-color: var(--border-strong) transparent;
 }
 
+/* Inside: the block often sits in a card that clips, which would cut an outer ring to one edge */
+.diff:not(.diff-wrap, .diff-split):focus-visible {
+  outline-offset: -2px;
+}
+
 .diff:not(.diff-wrap, .diff-split) > :is(.diff-note, .diff-unexplained, .diff-gap) {
   position: sticky;
   left: 0;

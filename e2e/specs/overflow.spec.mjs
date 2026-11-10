@@ -101,6 +101,13 @@ export default async ({ page, api, check, dirs }) => {
         `return [...d.querySelectorAll('.diff-row')].every((row)=>{const rail=row.querySelector('.diff-line-rail');if(!rail)return true;const a=row.getBoundingClientRect(),b=rail.getBoundingClientRect();return b.top>=a.top-0.5&&b.bottom<=a.bottom+0.5})`,
     );
     check(aligned, 'every rail stays on its row while the diff scrolls');
+    // The block is a stop of its own, and there the arrows move along the line, not to another step
+    await page.eval(`document.querySelector('.edit-step-diff').scrollLeft=0;return true`);
+    await page.focus('.edit-step-diff');
+    await page.press('ArrowRight');
+    await page.sleep(300);
+    const keyed = await page.eval(`return {left:document.querySelector('.edit-step-diff').scrollLeft,step:new URLSearchParams(location.search).get('step')}`);
+    check(keyed.left > 0 && keyed.step === 'ovf-write', `→ on the focused diff scrolls it and stays on the step (${JSON.stringify(keyed)})`);
 
     // Side by side cuts each half at its column: one long line never pushes the "after" side away
     await page.viewport(1906, 1045);
