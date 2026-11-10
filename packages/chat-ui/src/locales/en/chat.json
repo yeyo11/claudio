@@ -815,6 +815,7 @@
     "chatGone": "The chat is not running.",
     "viaLead": "Send through the lead",
     "discard": "Discard",
-    "bridgeDown": "Claudio could not reach this chat."
+    "bridgeDown": "Claudio could not reach this chat.",
+    "waiting": "Waiting for the subagent's next step"
   }
 }

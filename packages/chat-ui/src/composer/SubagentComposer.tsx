@@ -110,6 +110,7 @@ export function SubagentComposer({
     send.mutate(words);
   };
   const empty = !text.trim();
+  const busy = viaLead.isPending || drop.isPending;
   const sendName = send.isPending ? t('runView.sending') : t('runView.send');
 
   return (
@@ -117,26 +118,35 @@ export function SubagentComposer({
       <QueuedCards
         queued={queued}
         agent={name}
-        footWords={{ waiting: t('agentComposer.note'), lost: t('agentComposer.bridgeDown') }}
+        // The note under the box already says where a message goes, so the card says what it waits for
+        footWords={{ waiting: t('agentComposer.waiting'), lost: t('agentComposer.bridgeDown') }}
         onWithdraw={(message) => {
+          if (busy) return;
           drop.mutate(message);
           // Back in the box at once, after whatever is half-typed
           const held = editor.current?.getText() ?? '';
           editor.current?.setText(held.trim() ? `${held.replace(/\s+$/, '')}\n\n${message.text}` : message.text);
           editor.current?.focus();
         }}
-        onDismiss={(message) => drop.mutate(message)}
+        onDismiss={(message) => {
+          if (!busy) drop.mutate(message);
+        }}
         onRestore={(message) => {
+          if (busy) return;
           drop.mutate(message);
           const held = editor.current?.getText() ?? '';
           editor.current?.setText(held.trim() ? `${held.replace(/\s+$/, '')}\n\n${message.text}` : message.text);
           editor.current?.focus();
         }}
-        onViaLead={(message) => viaLead.mutate(message)}
-        sending={viaLead.isPending}
+        onViaLead={(message) => {
+          // Pressed twice, the lead would get the relay twice
+          if (!busy) viaLead.mutate(message);
+        }}
+        sending={busy}
       />
       <ComposerBox
         editor={editor}
+        hideKeys={!enabled}
         slash={slash}
         formClass=""
         formLabel={t('agentComposer.placeholder', { agent: name })}

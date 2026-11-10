@@ -80,10 +80,10 @@ export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw
                 </Tooltip>
               ) : message.state === 'lost' && onViaLead && message.reasonCode === 'bridge-unavailable' ? (
                 <span className="chat-queued-actions">
-                  <button type="button" className="btn btn-small" onClick={() => onViaLead(message)}>
+                  <button type="button" className="btn btn-small" disabled={sending} onClick={() => onViaLead(message)}>
                     {t('agentComposer.viaLead')}
                   </button>
-                  <button type="button" className="btn btn-small" onClick={() => onDismiss(message)}>
+                  <button type="button" className="btn btn-small" disabled={sending} onClick={() => onDismiss(message)}>
                     {t('agentComposer.discard')}
                   </button>
                 </span>

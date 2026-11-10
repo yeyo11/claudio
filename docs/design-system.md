@@ -1021,8 +1021,8 @@ messages" section of `claudio-ds.css`; the components are `AgentMessageCard`, `S
   reanudar" or "El chat no está en marcha". A message the bridge could not carry stays as a lost card
   that says "Claudio no ha podido hablar con este chat" and offers "Enviar a través del principal" (a
   hint to the lead) and "Descartar". It never takes the energy border: the chat's composer may have it
-  on the same screen. On a phone the drawer is a sheet, the box input is 16 px and the card's buttons
-  are 44 px high.
+  on the same screen. On a phone the drawer fills the screen, the box input is 16 px and the card's buttons
+  are 44 px high; a lost card's buttons move under its words, which are shown in full.
 - **The person's hint**: the `.msg-user` bubble without its prefix, with `Tag tone="info"` "Pista"
   in its head. A bubble's head is said to screen readers only; `.msg-head.is-shown` draws it when it
   carries the tag, or the "Tú → E2" route (`.agent-msg-route`) of a message the person wrote straight

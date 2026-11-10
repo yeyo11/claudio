@@ -815,6 +815,7 @@
     "chatGone": "El chat no está en marcha.",
     "viaLead": "Enviar a través del principal",
     "discard": "Descartar",
-    "bridgeDown": "Claudio no ha podido hablar con este chat."
+    "bridgeDown": "Claudio no ha podido hablar con este chat.",
+    "waiting": "Espera al siguiente paso del subagente"
   }
 }

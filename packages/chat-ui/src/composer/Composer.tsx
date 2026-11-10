@@ -582,9 +582,12 @@ export function ComposerBox({
   error,
   note,
   busy = false,
+  hideKeys = false,
 }: {
   editor: RefObject<RichEditorHandle | null>;
   layout?: ComposerLayout;
+  /** The box cannot send now (a disabled subagent's): the keys that send would be a hint that does not apply */
+  hideKeys?: boolean;
   /** Left out where nothing can be attached: no tray, no drop zone, no pasted files */
   files?: AttachmentsState;
   slash: SlashMenuState;
@@ -678,7 +681,7 @@ export function ComposerBox({
         <>
           <div className="composer-foot">
             {status}
-            {hint}
+            {!hideKeys && hint}
           </div>
           {error}
         </>

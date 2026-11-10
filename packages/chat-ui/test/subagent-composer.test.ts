@@ -29,7 +29,7 @@ test('every state of the box has its note, in both languages', () => {
   const en = read('en');
   const es = read('es');
   assert.deepEqual(Object.keys(en).sort(), Object.keys(es).sort());
-  for (const key of ['placeholder', 'note', 'resumes', 'stopped', 'chatGone', 'viaLead', 'discard', 'bridgeDown']) assert.ok(en[key] && es[key], key);
+  for (const key of ['placeholder', 'note', 'resumes', 'stopped', 'chatGone', 'viaLead', 'discard', 'bridgeDown', 'waiting']) assert.ok(en[key] && es[key], key);
   assert.equal(es.viaLead, 'Enviar a través del principal');
 });
 

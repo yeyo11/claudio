@@ -2157,6 +2157,22 @@ a.attachment-chip:hover {
   flex: 1;
 }
 
+/* A row with buttons of its own: on a narrow card they move under the words instead of eating them */
+.chat-queued-item:has(> .chat-queued-actions) {
+  flex-wrap: wrap;
+}
+
+.chat-queued-item:has(> .chat-queued-actions) > .chat-queued-text {
+  flex: 1 1 12rem;
+}
+
+/* What a person has to decide on is read in full, not cut to two lines */
+.chat-queued-item.is-lost:has(> .chat-queued-actions) > .chat-queued-text {
+  display: block;
+  -webkit-line-clamp: unset;
+  line-clamp: unset;
+}
+
 .chat-queued-item > .icon-btn {
   flex: none;
   margin-top: -2px;
@@ -2229,7 +2245,7 @@ a.attachment-chip:hover {
 }
 
 /* Nothing to say yet (the agent has not been read): no empty strip with a border */
-.dialog-foot:not(:has(*)) {
+.dialog-drawer > .dialog-foot:not(:has(*)) {
   display: none;
 }
 
@@ -2267,7 +2283,7 @@ a.attachment-chip:hover {
 }
 
 /* Under 44 px a thumb misses the card's two small buttons on a phone */
-@media (pointer: coarse) {
+@media (pointer: coarse), (max-width: 767px) {
   .agent-composer .chat-queued-actions .btn {
     min-height: 44px;
   }
