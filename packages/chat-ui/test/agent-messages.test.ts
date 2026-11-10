@@ -53,6 +53,16 @@ test("a subagent's SendMessage to the lead reads as a peer message, without the 
   });
 });
 
+test("a busy lead's queued peer message reads as the peer's, body without the tag", () => {
+  assert.deepEqual(readAgentEntry(entryOf('lead-peer-queued-busy')), {
+    kind: 'peer',
+    from: 'a0000000000000002',
+    fallbackName: 'general-purpose',
+    body: 'ping while the lead was busy',
+    handback: false,
+  });
+});
+
 test('a hand-back is a peer message whose body is the report, not the frame', () => {
   const read = readAgentEntry(entryOf('lead-handback'));
   assert.equal(read?.kind, 'peer');

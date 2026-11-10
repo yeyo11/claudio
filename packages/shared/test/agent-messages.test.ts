@@ -63,6 +63,17 @@ test("a subagent's SendMessage to the lead keeps its peer origin although the CL
   assert.match(entryText(entry), /^Another Claude session sent a message:\n<agent-message from="a0000000000000001">\nping from subagent/);
 });
 
+test('a subagent message that reached a busy lead (a queued prompt) keeps its peer origin', () => {
+  // Recorded with CLI 2.1.319: the lead was inside a 30 s Bash call when the subagent's SendMessage
+  // arrived, so the CLI wrote it as a queued_command attachment, without its frame
+  const entry = normalizeMessage(line('lead-peer-queued-busy'));
+  assert.ok(entry);
+  assert.equal(entry.role, 'user');
+  assert.equal(entry.uuid, '022d632f-aab9-4fe5-b015-13e27071ea8e');
+  assert.deepEqual(entry.origin, { kind: 'peer', from: 'a0000000000000002', name: 'general-purpose', body: 'ping while the lead was busy' });
+  assert.match(entryText(entry), /^<agent-message from="a0000000000000002">/);
+});
+
 test('a final report handed back is a peer entry with handback and the report text', () => {
   const entry = normalizeMessage(line('lead-handback'));
   assert.ok(entry);

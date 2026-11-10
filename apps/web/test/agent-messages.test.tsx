@@ -84,6 +84,14 @@ test("a subagent's message to the lead is a card, sender → Principal, without 
   assert.match(html, /ping from subagent/);
 });
 
+test('a message that reached a busy lead is a card too, never a bubble with the raw tag', () => {
+  const html = render(<EntryView entry={only('lead-peer-queued-busy')} />);
+  assert.match(html, /class="agent-msg"/);
+  assert.doesNotMatch(html, /msg-user/);
+  assert.doesNotMatch(html, /agent-message/);
+  assert.match(html, /ping while the lead was busy/);
+});
+
 test('a hand-back says "Informe final" and shows the report', () => {
   const html = render(<EntryView entry={only('lead-handback')} />);
   assert.match(html, /Informe final/);
