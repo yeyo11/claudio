@@ -2626,6 +2626,7 @@ a.cont-from:hover { color: var(--fg); }
 .call-head:hover { background: var(--bg-3); }
 .call-head .tool-name { font-weight: var(--fw-strong); color: var(--fg); flex: none; }
 .call-head .tool-hint { color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.call-head .tool-hint.is-label { font-family: inherit; }
 .call-row.is-error .tool-name, .call-row.is-error .call-outcome { color: var(--bad); }
 .call-outcome { flex: none; font-size: var(--fs-small); }
 .call-body { display: flex; flex-direction: column; gap: 10px; padding: 4px 6px 10px 8px; }

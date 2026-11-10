@@ -206,7 +206,7 @@ test('the mod is written under the data dir, rewritten when it differs, and load
 
 // ChatService.messageAgent over a stub of the runtime with the real store
 
-function service(opts: { live?: boolean; subagent?: { agentId: string | null; status: 'running' | 'completed' | 'stopped' } | null; files?: Array<{ id: string; status: string }> } = {}) {
+function service(opts: { live?: boolean; bridged?: boolean; subagent?: { agentId: string | null; status: 'running' | 'completed' | 'stopped' } | null; files?: Array<{ id: string; status: string }> } = {}) {
   const { db, messages } = store();
   const record = { id: 'c1', name: 'chat', prompt: 'hi', executions: [], pid: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
   const deps = {
@@ -214,6 +214,7 @@ function service(opts: { live?: boolean; subagent?: { agentId: string | null; st
     runtime: {
       get: (id: string) => (id === 'c1' ? record : null),
       live: () => opts.live ?? true,
+      bridged: () => (opts.live ?? true) && (opts.bridged ?? true),
       subagentOf: () => (opts.subagent === undefined ? { agentId: 'a1', status: 'running' } : opts.subagent),
       agentMessages: messages,
     },
@@ -243,6 +244,9 @@ test('messageAgent refuses: no live process (409), unknown subagent (404), stopp
   const status = async (p: Promise<unknown>) => p.then(() => '200', (err: { statusCode?: number; reason?: string }) => `${err.statusCode ?? 400}${err.reason ? ` ${err.reason}` : ''}`);
   let s = service({ live: false });
   assert.equal(await status(s.chats.messageAgent('c1', 'a1', 'x')), '409');
+  s.close();
+  s = service({ bridged: false });
+  assert.equal(await status(s.chats.messageAgent('c1', 'a1', 'x')), '409', 'a run without the bridge mod refuses up front');
   s.close();
   s = service({ subagent: null });
   assert.equal(await status(s.chats.messageAgent('c1', 'nope', 'x')), '404');

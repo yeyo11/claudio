@@ -2240,6 +2240,9 @@ a.attachment-chip:hover {
  */
 .dialog-foot:has(> .agent-composer) {
   display: block;
+  /* Pinned to the drawer's foot: a short transcript must not leave the box floating mid-drawer and
+     moving down with every message that lands */
+  margin-top: auto;
   padding: 0;
   background: var(--bg-1);
 }

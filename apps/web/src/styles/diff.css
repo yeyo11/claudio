@@ -14,6 +14,40 @@
   font-variant-ligatures: none;
 }
 
+/*
+ * Code keeps its lines (docs/design-system.md, "Truncation and scroll"). Outside a phone's wrap the
+ * diff scrolls sideways inside its own block, never the pane around it: one column as wide as the
+ * widest row and never narrower than the block, so every row, its tint and its rail run the same
+ * width and the numbers, rails and marks stay on their line while it scrolls. The scrollbar shows
+ * on hover and focus; what is not code (notes, the gap rows, threads) stays put at the block's width.
+ * Side by side keeps each half in its column and cuts the line there: one long line would otherwise
+ * widen both halves and push the "after" side out of view.
+ */
+.diff:not(.diff-wrap, .diff-split) {
+  display: grid;
+  grid-template-columns: minmax(max-content, 1fr);
+  container-type: inline-size;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-color: transparent transparent;
+}
+
+.diff:not(.diff-wrap, .diff-split):hover,
+.diff:not(.diff-wrap, .diff-split):focus-within {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+/* Inside: the block often sits in a card that clips, which would cut an outer ring to one edge */
+.diff:not(.diff-wrap, .diff-split):focus-visible {
+  outline-offset: -2px;
+}
+
+.diff:not(.diff-wrap, .diff-split) > :is(.diff-note, .diff-unexplained, .diff-gap) {
+  position: sticky;
+  left: 0;
+  max-width: 100cqw;
+}
+
 .diff-row {
   position: relative;
   display: grid;
@@ -40,7 +74,6 @@
 .diff-code {
   padding-left: 18px;
   white-space: pre;
-  overflow: hidden;
 }
 
 .diff-sign {
@@ -233,6 +266,7 @@
 
 .diff-split .diff-code {
   padding-left: 2px;
+  overflow: hidden;
 }
 
 .diff-split-seam {

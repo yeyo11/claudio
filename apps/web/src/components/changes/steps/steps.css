@@ -143,10 +143,17 @@
 
 .changes-review .edit-step-risk {
   display: inline-flex;
+  /* Never wider than its card: a long factor ends in an ellipsis inside it */
   flex: none;
   align-self: flex-start;
+  min-width: 0;
   max-width: 100%;
   border-radius: var(--radius-xs);
+}
+
+/* Alone on its line, the tag may be narrower than its word: it shrinks to the card and ends in an ellipsis */
+.changes-review .edit-step-risk .badge {
+  min-width: 0;
 }
 
 .changes-review .edit-step-time {
@@ -258,6 +265,12 @@
   font-weight: var(--fw-regular);
   line-height: 1.55;
   color: var(--fg);
+}
+
+/* What Claude wrote is prose: a path or a token in it breaks rather than widening the step past the screen */
+.changes-review .edit-step-heading > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 
 .changes-review .edit-step-spark {

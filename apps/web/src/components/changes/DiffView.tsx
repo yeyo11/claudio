@@ -126,6 +126,10 @@ export function DiffView({
   }, [diff, mode, open, hunks, trimEdges]);
   const host = useRef<HTMLDivElement>(null);
   const cls = ['diff', MODE_CLASS[mode], wrap ? 'diff-wrap' : '', className ?? ''].filter(Boolean).join(' ');
+  // Unified and Reading keep their lines and scroll sideways in the block (diff.css): a scroller is
+  // a stop of its own, so the keyboard can move along a long line, and a region names what it holds.
+  // Split keeps each half to its column: one long line would otherwise push the other half away.
+  const scrolls = !wrap && mode !== 'split';
 
   const virtual = rows.length > VIRTUAL_OVER;
   const currentIndex = currentBlock === null ? -1 : rows.findIndex((r) => r.type !== 'gap' && r.blockStart && r.block === currentBlock);
@@ -164,7 +168,7 @@ export function DiffView({
   };
 
   return (
-    <div className={cls} ref={host} data-mode={mode}>
+    <div className={cls} ref={host} data-mode={mode} {...(scrolls ? { tabIndex: 0, role: 'region', 'aria-label': path ? t('diff.region', { path }) : t('diff.regionPlain') } : {})}>
       {unexplained && (
         <div className="diff-unexplained">
           <span>{t('diff.unexplained', { agent })}</span>
@@ -191,7 +195,7 @@ export function DiffView({
         </div>
       )}
       {virtual ? (
-        <VirtualRows rows={rows} draw={draw} scrollRef={scrollRef} wrap={wrap} measured={wrap || !!layer} currentIndex={currentIndex} />
+        <VirtualRows rows={rows} draw={draw} scrollRef={scrollRef} wrap={wrap} wide={scrolls} measured={wrap || !!layer} currentIndex={currentIndex} />
       ) : (
         rows.map((row) => <Fragment key={row.key}>{draw(row)}</Fragment>)
       )}
@@ -205,6 +209,7 @@ function VirtualRows({
   draw,
   scrollRef,
   wrap,
+  wide,
   measured,
   currentIndex,
 }: {
@@ -212,6 +217,8 @@ function VirtualRows({
   draw: (row: DiffRow | SplitRow) => ReactNode;
   scrollRef?: RefObject<HTMLElement | null>;
   wrap: boolean;
+  /** The block scrolls sideways: a row is as wide as its line */
+  wide: boolean;
   /** A row's height depends on its content: wrapped text, or cards under a line */
   measured: boolean;
   currentIndex: number;
@@ -253,7 +260,9 @@ function VirtualRows({
           data-index={item.index}
           // Only a wrapped row, or one with cards under it, has a height of its own; the others are what rowHeight says
           ref={measured ? virtualizer.measureElement : undefined}
-          style={{ position: 'absolute', top: 0, left: 0, right: 0, display: 'flow-root', transform: `translateY(${item.start - margin}px)` }}
+          // As wide as its line and never narrower than the block: a long line widens the diff's own
+          // sideways scroll instead of being cut at the edge
+          style={{ position: 'absolute', top: 0, left: 0, width: wide ? 'max-content' : '100%', minWidth: '100%', display: 'flow-root', transform: `translateY(${item.start - margin}px)` }}
         >
           {draw(rows[item.index]!)}
         </div>

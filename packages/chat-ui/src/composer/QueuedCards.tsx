@@ -78,11 +78,14 @@ export function QueuedCards({ queued, agent, onSendNow, onBackground, onWithdraw
                     <X {...ICON_SM} />
                   </button>
                 </Tooltip>
-              ) : message.state === 'lost' && onViaLead && message.reasonCode === 'bridge-unavailable' ? (
+              ) : message.state === 'lost' && message.reasonCode === 'bridge-unavailable' ? (
+                // Only a message to a subagent is lost this way; the lead is offered while it can still pass it on
                 <span className="chat-queued-actions">
-                  <button type="button" className="btn btn-small" disabled={sending} onClick={() => onViaLead(message)}>
-                    {t('agentComposer.viaLead')}
-                  </button>
+                  {onViaLead && (
+                    <button type="button" className="btn btn-small" disabled={sending} onClick={() => onViaLead(message)}>
+                      {t('agentComposer.viaLead')}
+                    </button>
+                  )}
                   <button type="button" className="btn btn-small" disabled={sending} onClick={() => onDismiss(message)}>
                     {t('agentComposer.discard')}
                   </button>

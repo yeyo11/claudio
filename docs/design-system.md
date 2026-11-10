@@ -2479,6 +2479,47 @@ the file being edited is its only moving part.
   never sits above live data.
 - Don't invent data. When the CLI doesn't report something, say so ("sin coste", "sin datos").
 
+### Truncation and scroll
+
+Nothing is wider than the pane it sits in. The owner's report of 2026-11-10 (a step card's risk tag
+running past the card, the steps pane scrolling sideways because of it, diff lines cut with no way to
+read them) is the case these rules exist for ([plans/agent-messages.md](plans/agent-messages.md),
+"Overflow across the app").
+
+1. **Fix the cause where it lives.** The fix goes in the shared primitive or the page's layout class
+   (`packages/ui`'s `Tag` and `.badge`, `DiffView`'s line area, a list's row class), not in a one-off
+   override on one screen.
+2. **Single-line text truncates.** A label, a path, a tag or a title shortens with an ellipsis inside
+   its container and carries its full text in `title` (`FullText`; `Tag` does it for its word). Every
+   flex or grid child that holds text has `min-width: 0`; a bare text node in a flex row cannot take
+   an ellipsis, so it gets its own box (`.ellipsis`).
+3. **A state's word stays whole beside a title.** `.badge` keeps its automatic minimum width, so in a
+   row with a long title the title gives way. A tag that is alone on its line may shrink to its card
+   (`min-width: 0` on that badge) and then ends in an ellipsis. A tag that would crowd a path out of a
+   narrow row moves to a line of its own (the risk tag in the steps list).
+4. **Code and diffs keep their lines.** They scroll sideways inside their own block, with a scrollbar
+   that shows on hover and focus. `.diff` outside a phone's wrap is one grid column
+   `minmax(max-content, 1fr)`: every row is as wide as the widest line, so tints, rails, numbers and
+   word marks stay on their line while it scrolls (in virtual rows, past 400, each row is as wide as
+   its own line and never narrower than the block), and what is not code (notes, gap rows, review
+   threads) stays at the block's width with `position: sticky; left: 0` and `100cqw`. A block that
+   scrolls is a stop of its own (`tabindex="0"`, `role="region"`, labelled "Changes to {path}"), so
+   the keyboard reaches the end of a long line. Side by side keeps each half in its column and cuts
+   the line there: one long line would otherwise widen both halves and push the "after" side away.
+   A phone wraps the code instead (`.diff-wrap`).
+5. **The page and the panes never scroll sideways.** A pane that scrolls vertically (`overflow-y:
+   auto`, which turns `overflow-x` to `auto` too) shows a horizontal scrollbar the moment a child is
+   wider than it; that scrollbar is the bug, not the fix.
+6. **Prose wraps.** Transcript bubbles, cards and dialogs break long unbroken tokens (paths, URLs,
+   ids, keys) with `overflow-wrap: anywhere`.
+7. **Fixed widths fit the longest copy.** A fixed column holds its longest value in either language
+   (the Chats list's time column holds "hace 59 min"); otherwise it is fluid.
+
+The guard is `e2e/specs/overflow.spec.mjs`, with the scan in `e2e/ui/overflow.mjs`: the screens of
+the report and those listed with it, with long data and the Spanish copy, at 1280 × 720,
+1906 × 1045 and 390 × 844 in both themes. A block wide on purpose (code, a diff, a table, a strip of
+tabs or segments) is left out; anything else that should scroll sideways is marked `data-scroll-x`.
+
 ---
 
 ## 7. Checklist for every UI change
@@ -2899,6 +2940,8 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - `.call-lines`: a Read's numbered code. The numbers come from a CSS counter, so copying leaves them
   out; the reference draws `CodeBlock`, which has no line numbers.
 - `.tool-hint-aside`: the muted mono path after a Grep pattern in the folded hint.
+- `.tool-hint.is-label`: a hint made of words, not a literal (`SendMessage`'s `→ receiver · summary`,
+  `ListAgents`' count), drawn in the UI font.
 - `.teammate-read`: after a teammate-read tool's hint, "from Ana · laptop · api", whose share went into
   the chat; never cut when the hint before it is.
 - `.call-diff.is-all`: the diff once "Show all" lifted its 360 px cap.

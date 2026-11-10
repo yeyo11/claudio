@@ -18,6 +18,7 @@ import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { Dialog } from '@claudio/ui/components/Dialog';
 import { ScrollJump } from '@claudio/ui/components/ScrollJump';
 import { RichText, Transcript } from '@claudio/chat-ui/components/Transcript';
+import type { AgentDirectory } from '@claudio/chat-ui/components/AgentMessages';
 import { BranchStatus, StateBadge } from '@claudio/chat-ui/components/ChatBadges';
 import { ErrorBox, Loading, Tag } from '@claudio/ui/components/ui';
 
@@ -216,6 +217,19 @@ function AgentBody({ target }: { target: AgentTarget }) {
   const hidden = data && !showAll ? Math.max(0, data.entries.length - RENDERED_ENTRIES) : 0;
   // Held across the tick above: a new array every second would fold the whole transcript again
   const shown = useMemo(() => (data ? (hidden > 0 ? data.entries.slice(hidden) : data.entries) : []), [data, hidden]);
+  // Who the messages in this view are from and to: this agent by its own name, its siblings as links to their views
+  const siblings = chat?.children?.subagents;
+  const selfId = data?.agentId;
+  const selfName = data ? data.description || data.subagentType || target.agentId : '';
+  const directory = useMemo<AgentDirectory | undefined>(() => {
+    if (target.kind !== 'subagent' || !selfId) return undefined;
+    const byId = new Map((siblings ?? []).map((sub) => [sub.id, sub.description.trim() || sub.kind]));
+    return {
+      self: { id: selfId, name: selfName },
+      name: (agentId) => byId.get(agentId) ?? null,
+      open: (agentId) => open({ kind: 'subagent', chatId: target.chatId, agentId }),
+    };
+  }, [target.kind, target.chatId, selfId, selfName, siblings, open]);
 
   if (isLoading) return <Loading />;
   if (error || !data) return <ErrorBox error={error} title={t('detail.agentFailed')} />;
@@ -353,7 +367,7 @@ function AgentBody({ target }: { target: AgentTarget }) {
                 {t('detail.showEarlier', { count: hidden })}
               </button>
             )}
-            <Transcript entries={shown} />
+            <Transcript entries={shown} {...(directory ? { agents: directory } : {})} />
           </div>
         )}
       </section>
@@ -481,7 +495,8 @@ function AgentTitle({ target }: { target: AgentTarget }) {
  */
 export default function DetailPanel({ target, onClose }: { target: DetailRef; onClose: () => void }) {
   // Only a server that can carry a message to one subagent gets the box
-  const writable = Boolean(useOptionalChatUi()?.client.sendToSubagent);
+  const chatClient = useOptionalChatUi()?.client;
+  const writable = Boolean(chatClient?.sendToSubagent && chatClient.withdrawSubagentMessage);
   if (target.kind === 'chat') {
     return (
       <Dialog title={<ChatTitle chatId={target.chatId} />} onClose={onClose} variant="drawer" width={760}>

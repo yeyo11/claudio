@@ -22,7 +22,8 @@
   white-space: nowrap;
   color: var(--tone);
   /* A badge is a word or two; should one ever be longer than its column it ends in an ellipsis
-     rather than running out of the card */
+     rather than running out of the card. It keeps its automatic minimum width on purpose: beside a
+     long title in a row, the title gives way and the state's word stays whole */
   max-width: 100%;
 }
 
@@ -34,6 +35,7 @@
 
 .badge > svg,
 .badge > .spinner {
+  flex: none;
   color: var(--tone);
 }
 

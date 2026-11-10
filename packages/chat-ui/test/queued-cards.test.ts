@@ -231,6 +231,11 @@ test('a message the bridge could not carry offers the lead and Discard, and says
   assert.doesNotMatch(html, /Put it back in the box/);
 });
 
+test('without the lead to offer (the subagent stopped, the chat gone), a lost message still offers Discard', () => {
+  const html = draw([card('m1', { state: 'lost', reasonCode: 'bridge-unavailable' })], { footWords: { lost: 'Claudio could not reach this chat.' } });
+  assert.deepEqual(buttonsOf(html), ['Discard']);
+});
+
 test('any other lost reason keeps the chat card: put it back in the box', () => {
   const html = draw([card('m1', { state: 'lost', reasonCode: 'not-read' })], { onViaLead: () => {} });
   assert.deepEqual(buttonsOf(html), []);

@@ -182,7 +182,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     box = await page.eval(COMPOSER);
     check(!box.enabled && box.note === 'You stopped it, so it cannot be resumed.', `a stopped subagent's box is off, with the reason (${JSON.stringify(box)})`);
     const refused = await api.post(`/chats/${chatId}/subagents/${stoppedId}/messages`, { text: 'hello?' });
-    check(refused.status === 409 && /stopped/i.test(JSON.stringify(refused.body)), `the route refuses a stopped subagent with a 409 (${refused.status} ${JSON.stringify(refused.body)})`);
+    check(refused.status === 409 && refused.body?.code === 'agent-stopped', `the route refuses a stopped subagent with a 409 agent-stopped (${refused.status} ${JSON.stringify(refused.body)})`);
     await page.key('Escape');
     await page.waitFor(`return document.querySelector('[role=dialog]') === null`, { label: 'the drawer to close' });
 

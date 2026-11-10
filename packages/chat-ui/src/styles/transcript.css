@@ -635,6 +635,11 @@
   min-width: 0;
 }
 
+/* A lens that names agents or counts them is words, not a literal: Geist Mono is for literals only */
+.tool-hint.is-label {
+  font-family: inherit;
+}
+
 .tool-hint {
   font-family: var(--mono);
   font-size: var(--fs-small);

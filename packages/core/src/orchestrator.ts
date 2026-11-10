@@ -35,7 +35,7 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@claudio/shared';
-import { AUTO_HINT_PREFIX, NOTE_PREFIX, ORCHESTRATION_HINT_PREFIX, EFFORT_LEVELS, errorMessage, isEffort, MODEL_RE, NotFoundError, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
+import { NOTE_PREFIX, SUPERVISOR_HINT_PREFIX, ORCHESTRATION_HINT_PREFIX, EFFORT_LEVELS, errorMessage, isEffort, MODEL_RE, NotFoundError, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -3760,7 +3760,7 @@ ${quoted}
     const words = text?.trim();
     if (!words) throw new Error('text is required');
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
-    const prefix = source === 'person' ? ORCHESTRATION_HINT_PREFIX : AUTO_HINT_PREFIX;
+    const prefix = source === 'person' ? ORCHESTRATION_HINT_PREFIX : SUPERVISOR_HINT_PREFIX;
     this.runs.send(task.runId, `${prefix}\n\n${words}`, [], undefined, { source, words });
     return orch;
   }
