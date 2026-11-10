@@ -794,6 +794,15 @@ export class ChatManager extends EventEmitter {
   }
 
   /**
+   * Whether the chat's process loads the `claudio-bridge` mod: a run without it (the assistant, a
+   * confined or policy-bound API chat, `api: false`) would only lose the message after 15 s
+   */
+  bridged(id: string): boolean {
+    const chat = this.chats.peek(id);
+    return chat?.alive === true && this.loadsBridge(chat);
+  }
+
+  /**
    * The tokens and cost of the chat's last turn alone (see `LiveChat.lastTurn`). Read when that
    * turn's `result` event arrives: the event is pushed after the figures are set.
    */

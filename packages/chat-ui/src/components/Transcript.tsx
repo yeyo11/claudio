@@ -388,10 +388,10 @@ function agentToolHint(call: StepCall, directory: AgentDirectory | null, t: TFun
   if (call.name === 'SendMessage') {
     const sent = sentMessageOf(call.input, call.result);
     const to = endName(endOf(sent.to, directory), directory, t);
-    return sent.summary ? { text: `→ ${to}`, aside: `· ${sent.summary}` } : { text: `→ ${to}` };
+    return sent.summary ? { text: `→ ${to}`, aside: `· ${sent.summary}`, label: true } : { text: `→ ${to}`, label: true };
   }
   if (call.name === 'ListAgents' || call.name === 'ListPeers') {
-    return { text: call.result && !call.result.isError ? t('agentMessage.listAgents', { count: listedAgents(call.result.content) }) : '' };
+    return { text: call.result && !call.result.isError ? t('agentMessage.listAgents', { count: listedAgents(call.result.content) }) : '', label: true };
   }
   return null;
 }
@@ -447,7 +447,7 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
           <>
             {running ? <Spinner className="fold-icon" /> : <Icon {...ICON_SM} className="fold-icon" />}
             <span className="tool-name">{call.name !== null ? toolKindLabel(call.name) : (call.result?.isError ? t('transcript.toolError') : t('transcript.toolResult'))}</span>
-            <span className="tool-hint">
+            <span className={hint.label ? 'tool-hint is-label' : 'tool-hint'}>
               {hint.items !== undefined ? t('transcript.call.items', { count: hint.items }) : hint.text}
               {hint.aside && <span className="tool-hint-aside"> {hint.aside}</span>}
             </span>

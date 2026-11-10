@@ -2940,6 +2940,8 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - `.call-lines`: a Read's numbered code. The numbers come from a CSS counter, so copying leaves them
   out; the reference draws `CodeBlock`, which has no line numbers.
 - `.tool-hint-aside`: the muted mono path after a Grep pattern in the folded hint.
+- `.tool-hint.is-label`: a hint made of words, not a literal (`SendMessage`'s `→ receiver · summary`,
+  `ListAgents`' count), drawn in the UI font.
 - `.teammate-read`: after a teammate-read tool's hint, "from Ana · laptop · api", whose share went into
   the chat; never cut when the hint before it is.
 - `.call-diff.is-all`: the diff once "Show all" lifted its 360 px cap.

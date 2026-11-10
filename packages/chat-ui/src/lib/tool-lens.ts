@@ -62,6 +62,8 @@ export interface ToolHint {
   text: string;
   aside?: string;
   items?: number;
+  /** Words for the person (a name, a count), not a literal the machine reads: drawn in the UI font */
+  label?: boolean;
 }
 
 /**

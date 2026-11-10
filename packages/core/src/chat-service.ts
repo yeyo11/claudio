@@ -2,7 +2,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { ChatNotFoundError } from './chat-errors.ts';
 import { AgentMessageRefusal, BRIDGE_WAIT_MAX_S } from './agent-messages.ts';
-import { AGENT_MESSAGE_AUTO_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, AUTO_CANCEL_NOTICE_PREFIX, AUTO_HINT_PREFIX, NotFoundError, type BridgeNextResponse, type BridgeReport, type SubagentMessageReceipt, CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
+import { AGENT_MESSAGE_AUTO_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, AUTO_CANCEL_NOTICE_PREFIX, AUTO_HINT_PREFIX, SUPERVISOR_HINT_PREFIX, NotFoundError, type BridgeNextResponse, type BridgeReport, type SubagentMessageReceipt, CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
 import { randomUUID } from 'node:crypto';
 import { TYPED_COMPACT } from './context-notes.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
@@ -1134,7 +1134,8 @@ export class ChatService {
     if (!words) throw new Error('text is required');
     if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
     const source = opts.source ?? 'person';
-    const prefix = source === 'person' ? CHAT_HINT_PREFIX : AUTO_HINT_PREFIX;
+    // The Supervisor's own prefix lets the page say "Supervisor" rather than "Claudio" (D6)
+    const prefix = source === 'person' ? CHAT_HINT_PREFIX : source === 'supervisor' ? SUPERVISOR_HINT_PREFIX : AUTO_HINT_PREFIX;
     await this.inOrder(id, () => {
       // Read when its turn in the order comes: a process that ended meanwhile is not started again for a nudge
       if (this.deps.runtime.get(id)?.pid == null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
@@ -1192,6 +1193,7 @@ export class ChatService {
     const source = opts.source ?? 'person';
     return this.inOrder(id, async () => {
       if (!this.deps.runtime.live(id)) throw new ChatConflictError('The chat has no live process to carry a message to its subagent.', null);
+      if (!this.deps.runtime.bridged(id)) throw new ChatConflictError("This chat's run cannot carry a message to one of its subagents.", null);
       const target = await this.agentTarget(id, agentId);
       if (!target) throw new NotFoundError('this chat has no subagent with that id');
       if (target.status === 'stopped') throw new AgentMessageRefusal('You stopped this subagent, and a stopped subagent cannot be resumed.', 409, 'agent-stopped');

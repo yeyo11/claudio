@@ -76,7 +76,8 @@ export function SubagentComposer({
 
   const send = useMutation({
     mutationFn: (words: string) => {
-      if (!client.sendToSubagent) throw new Error('This server cannot write to a subagent');
+      // Unreachable for a person: the drawer offers the box only to a client that has both methods
+      if (!client.sendToSubagent) throw new Error('the chat client cannot write to a subagent');
       return client.sendToSubagent(chatId, agentId, { text: words });
     },
     onSuccess: (_receipt, words) => {
@@ -95,14 +96,15 @@ export function SubagentComposer({
   // A 409 is a message the subagent took meanwhile: the refresh that follows shows it gone
   const drop = useMutation({
     mutationFn: (message: QueuedMessage) => {
-      if (!client.withdrawSubagentMessage) throw new Error('This server cannot write to a subagent');
+      if (!client.withdrawSubagentMessage) throw new Error('the chat client cannot withdraw a message to a subagent');
       return client.withdrawSubagentMessage(chatId, agentId, message.id);
     },
     onSettled: settled,
   });
   const viaLead = useMutation({
     mutationFn: async (message: QueuedMessage) => {
-      if (!client.hintChat || !client.withdrawSubagentMessage) throw new Error('This server cannot hint a chat');
+      // Offered only when the client has `hintChat` (above)
+      if (!client.hintChat || !client.withdrawSubagentMessage) throw new Error('the chat client cannot hint a chat');
       await client.hintChat(chatId, { text: relayWords(name, message.text) });
       // Put away once the lead has it: the card must not offer to send it again
       await client.withdrawSubagentMessage(chatId, agentId, message.id);
@@ -146,8 +148,9 @@ export function SubagentComposer({
           editor.current?.setText(held.trim() ? `${held.replace(/\s+$/, '')}\n\n${message.text}` : message.text);
           editor.current?.focus();
         }}
-        // Pressed twice, the lead would get the relay twice
-        onViaLead={(message) => void once(viaLead.mutate, message)}
+        // Pressed twice, the lead would get the relay twice. Only while the subagent can still take
+        // words: a stopped one cannot be resumed by the lead either, and a chat gone has no lead to ask
+        {...(enabled && client.hintChat ? { onViaLead: (message: QueuedMessage) => void once(viaLead.mutate, message) } : {})}
         sending={busy}
       />
       <ComposerBox
