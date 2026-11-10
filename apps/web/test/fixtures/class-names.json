@@ -1585,6 +1585,7 @@
   "is-selecting",
   "is-sentence",
   "is-sheet",
+  "is-short",
   "is-shown",
   "is-skeleton",
   "is-skipped",
@@ -5384,6 +5385,7 @@
   "is-selecting",
   "is-sentence",
   "is-sheet",
+  "is-short",
   "is-shown",
   "is-skeleton",
   "is-sm",
@@ -7654,7 +7656,8 @@
   "worktree-removed",
   "worktree-row",
   "worktree-tags",
-  "x"
+  "x",
+  "you"
  ],
  "stylesheets": [
   "tokens.css",

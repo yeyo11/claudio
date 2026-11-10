@@ -70,14 +70,14 @@ export function EndName({ end }: { end: AgentEnd }) {
   if (open && end.kind === 'agent') {
     return (
       <Tooltip content={t('agentMessage.open', { agent: name })}>
-        <button type="button" className="link-btn agent-msg-name" onClick={() => open(end.id)}>
+        <button type="button" className="link-btn agent-msg-name" aria-label={t('agentMessage.open', { agent: name })} onClick={() => open(end.id)}>
           {name}
         </button>
       </Tooltip>
     );
   }
   return (
-    <span className="agent-msg-name" title={name}>
+    <span className={`agent-msg-name ${end.kind === 'lead' || end.kind === 'you' ? 'is-short' : ''}`.trimEnd()} title={name}>
       {name}
     </span>
   );

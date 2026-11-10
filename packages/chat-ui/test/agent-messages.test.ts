@@ -91,6 +91,18 @@ test("the person's message to a subagent is their bubble; Claudio's automatic on
   assert.equal(readAgentEntry(coordinator(`${AGENT_MESSAGE_AUTO_PREFIX}\n\nThe chat is about to end.`))?.kind, 'system');
 });
 
+test('a coordinator message to a busy subagent is read without the frame the CLI puts around it', () => {
+  // The busy form `bridge` recorded on 2026-11-10: a meta user line, the frame inside its text
+  const framed = (said: string) => `The coordinator sent a message while you were working:\n${said}\n\nAddress this before completing your current task.`;
+  const coordinator = (text: string, plugin?: string): TranscriptEntry => typed(text, { isSidechain: true, origin: plugin ? { kind: 'coordinator', plugin } : { kind: 'coordinator' } });
+  assert.deepEqual(readAgentEntry(coordinator(framed(`${AGENT_MESSAGE_PERSON_PREFIX}\n\nCheck the lockfile first.`), 'claudio-bridge')), { kind: 'person-to-agent', words: 'Check the lockfile first.' });
+  const auto = readAgentEntry(coordinator(framed(`${SUPERVISOR_HINT_PREFIX}\n\nYou are looping.`), 'claudio-bridge'));
+  assert.ok(auto?.kind === 'system');
+  assert.equal(systemLabelKey(auto.message), 'system.supervisor');
+  assert.equal(systemWords(auto.message, auto.text), 'You are looping.');
+  assert.deepEqual(readAgentEntry(coordinator(framed('hello from lead'))), { kind: 'from-lead', body: 'hello from lead' });
+});
+
 test("another mod's message names its plugin", () => {
   assert.deepEqual(readAgentEntry(typed('ping', { origin: { kind: 'coordinator', plugin: 'other-mod' } })), { kind: 'from-plugin', plugin: 'other-mod', body: 'ping' });
 });

@@ -15,6 +15,16 @@ const PEER_FRAME = /^\s*Another Claude session sent a message:\s*/;
 const AGENT_MESSAGE = /<agent-message\b[^>]*>\n?([\s\S]*?)\n?<\/agent-message>/;
 /** The hand-back frame ends with this sentence; the report follows, every line indented by the harness */
 const HANDBACK_START = /The report follows:\n/;
+/**
+ * The frame the CLI puts around a coordinator message that reaches a subagent busy in a tool round:
+ * then it is a meta `user` line, not the `queued_command` attachment, and its text carries the frame
+ * (recorded by `bridge` on 2026-11-10, CLI 2.1.319). The attachment's `prompt` has none.
+ */
+const COORDINATOR_HEAD = /^\s*The coordinator sent a message while you were working:\n/;
+const COORDINATOR_TAIL = /\n+Address this before completing your current task\.\s*$/;
+
+/** A coordinator message's own text, whichever of the two forms the CLI wrote it in. */
+const coordinatorText = (text: string): string => (COORDINATOR_HEAD.test(text) ? text.replace(COORDINATOR_HEAD, '').replace(COORDINATOR_TAIL, '') : text);
 
 export type AgentEntry =
   /** A message from another agent: a subagent's `SendMessage`, or its final report handed back */
@@ -60,15 +70,17 @@ export function readAgentEntry(entry: TranscriptEntry): AgentEntry | null {
   if (origin?.kind === 'peer') {
     return { kind: 'peer', from: origin.from, fallbackName: origin.name ?? null, body: peerBody(text, origin), handback: origin.handback === true };
   }
-  const system = readSystemMessage(text);
   if (origin?.kind === 'coordinator') {
+    const said = coordinatorText(text);
+    const system = readSystemMessage(said);
     if (system?.kind === 'agent-message-person') return { kind: 'person-to-agent', words: system.words };
-    if (system) return { kind: 'system', message: system, text };
-    if (!origin.plugin) return { kind: 'from-lead', body: text.trim() };
+    if (system) return { kind: 'system', message: system, text: said };
+    if (!origin.plugin) return { kind: 'from-lead', body: said.trim() };
     // Claudio's bridge carries only framed texts; one without a known prefix is still Claudio's own
-    if (origin.plugin === BRIDGE_PLUGIN) return { kind: 'system', message: null, text };
-    return { kind: 'from-plugin', plugin: origin.plugin, body: text.trim() };
+    if (origin.plugin === BRIDGE_PLUGIN) return { kind: 'system', message: null, text: said };
+    return { kind: 'from-plugin', plugin: origin.plugin, body: said.trim() };
   }
+  const system = readSystemMessage(text);
   if (!system) return null;
   if (system.kind === 'hint' || system.kind === 'orchestration-hint') return { kind: 'hint', words: system.words };
   // Written to a subagent but read back elsewhere (a copy, an old record): still the person's words
