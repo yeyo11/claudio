@@ -207,8 +207,11 @@ export function normalizeMessage(raw: unknown): TranscriptEntry | null {
   if (o.type !== 'user' && o.type !== 'assistant') return null;
   const origin = readOrigin(o.origin);
   // The CLI marks the lines it frames itself as meta, a peer's message among them; those are real
-  // conversation between agents, so a peer line is kept (recorded 2026-11-10, CLI 2.1.319)
-  if (o.isMeta === true && origin?.kind !== 'peer') return null;
+  // conversation between agents, so a peer line is kept (recorded 2026-11-10, CLI 2.1.319). So is a
+  // coordinator's: a message `$.session.send` delivers to a subagent busy in a tool round lands as a
+  // meta `user` line framed "The coordinator sent a message while you were working", not as the
+  // queued attachment it is while the subagent waits (recorded the same day, `-bridge-busy` fixture)
+  if (o.isMeta === true && origin?.kind !== 'peer' && origin?.kind !== 'coordinator') return null;
   const message = o.message as Record<string, unknown> | undefined;
   if (!message) return null;
   const blocks = withDetail(toBlocks(message.content), o);

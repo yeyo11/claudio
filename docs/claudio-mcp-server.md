@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-01T12:00:00Z
-updated_at: 2026-11-09T18:00:00Z
+updated_at: 2026-11-10T14:00:00Z
 tags:
     - mcp
     - assistant
@@ -166,6 +166,7 @@ defaults.
 | `launch_orchestration_template` | `POST /orchestrations/templates/:templateId/launch` with `objective`, `name`, `model`, `effort` and `cwd` from `projectId`. The call names none of the template's permissions, so the permission prompt reads the template (`GET /orchestrations/templates/:templateId`) and shows its stored permission mode, permission prompts, allowed tools, guards and checks (parallel groups and review included) beside the call (parallel groups as `a + b`, a review on its own line; a template that stores none of these says it keeps the app's defaults, and a client that cannot read the template leaves the prompt as it was) |
 | `start_chat` | `POST /chats` with only `prompt`, `cwd` (the project's path, from `GET /projects`), `model`, `name` and `agent` (a name from `list_agents`, never a definition): the chat starts as `claude --agent`, and the agent cannot widen it ([plans/start-chat-agent.md](plans/start-chat-agent.md)) |
 | `send_chat_message`, `hint_chat` | `POST /chats/:id/messages` with `{ text }` and `POST /chats/:id/hint` with `{ text }` |
+| `message_chat_subagent` | `POST /chats/:id/subagents/:agentId/messages` with `{ text }`: straight to one subagent of another chat, which the lead does not see ([agent-messages](agent-messages.md)); refused for the chat it runs in, like the other chat tools |
 | `interrupt_chat`, `stop_chat` | `POST /chats/:id/interrupt` and `/stop` |
 | `resume_chat`, `fork_chat` | `POST /chats/:id/resume` and `/fork` with only `{ prompt }` |
 | `accept_assistant_proposal`, `discard_assistant_proposal` | `POST /assistant/proposals/:id/accept` and `/discard` |

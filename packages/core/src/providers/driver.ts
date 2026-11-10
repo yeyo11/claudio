@@ -148,6 +148,11 @@ export interface SessionLaunch {
   agentsFile?: string;
   /** The settings file that registers the guard's hooks; the driver passes it and asks for the hook events */
   guard?: { settingsPath: string };
+  /**
+   * Plugin directories loaded for this process alone (`--plugin-dir`): Claudio's `claudio-bridge` mod,
+   * for a run that holds a chat token (docs/agent-messages.md)
+   */
+  pluginDirs?: string[];
   /** Claudio's policy for this run; the driver applies the settings part, the judge the host part */
   policy: ToolPolicy | null;
   /** The Claude account this process runs on; absent leaves the environment as the CLI's own login */
