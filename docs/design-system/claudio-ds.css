@@ -3030,3 +3030,32 @@ a.cont-from:hover { color: var(--fg); }
 .server-hub { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 10px 0; border-top: 1px solid var(--border); }
 .server-submit { min-width: 96px; }
 /* ---------- end of Servers ---------- */
+
+/* ---------- Agent messages (plans/agent-messages.md, "Design") ----------
+   A message between agents is a card with the agents' violet rail, never a bubble; what Claudio wrote
+   is a system row in the .notice rhythm with Claudio's mark. Nothing here moves. */
+.agent-msg { display: flex; flex-direction: column; gap: 6px; min-width: 0; padding: 10px 14px; border: 1px solid var(--line); border-left: 2px solid var(--accent-2); border-radius: var(--r-lg); background: var(--bg-2); }
+.agent-msg-head { display: flex; align-items: center; gap: 6px; min-width: 0; font-size: var(--fs-small); }
+.agent-msg-glyph, .agent-msg-arrow { flex: none; color: var(--fg-3); }
+.agent-msg-name { flex: 0 1 auto; min-width: 6ch; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-strong); }
+.agent-msg-not-sent { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--bad); }
+.agent-msg-time { flex: none; margin-left: auto; color: var(--fg-3); font-variant-numeric: tabular-nums; }
+.agent-msg-name.is-short { flex: none; min-width: 0; }
+button.agent-msg-name { min-height: 24px; color: var(--accent); }
+.agent-msg-body { min-width: 0; font-size: var(--fs-body); line-height: var(--lh-body); overflow-wrap: anywhere; }
+.agent-msg-body.is-clamped { max-height: calc(var(--lh-body) * 3); overflow: hidden; }
+.agent-msg-body :is(.prose, p, li, h1, h2, h3, h4, blockquote) { line-height: var(--lh-body); }
+.agent-msg-body.is-clamped :is(p, ul, ol, li, pre, blockquote, h1, h2, h3, h4) { margin-block: 0; }
+.agent-msg-body.is-clamped :not(pre) > code { padding-block: 0; }
+.agent-msg-more { align-self: flex-start; font-size: var(--fs-small); }
+.agent-msg-reason { margin: 0; color: var(--fg-2); font-size: var(--fs-small); }
+.agent-msg-route { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.sys-msg { display: flex; align-items: center; gap: 8px; min-width: 0; padding: 6px 0; border-top: 1px solid var(--line); color: var(--fg-2); font-size: var(--fs-small); }
+.sys-msg-glyph { flex: none; color: var(--info); }
+.sys-msg-label { flex: none; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-strong); }
+.sys-msg-relay { display: inline-flex; align-items: center; gap: 6px; min-width: 0; }
+.sys-msg-words { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sys-msg-received { display: flex; flex-direction: column; gap: 4px; padding: 2px 0 8px 22px; }
+.sys-msg-received-label { color: var(--fg-3); font-size: var(--fs-small); }
+.sys-msg-text { color: var(--fg-2); font-size: var(--fs-small); white-space: pre-wrap; overflow-wrap: anywhere; }
+/* ---------- end of Agent messages ---------- */

@@ -784,5 +784,27 @@
   },
   "readOnlyBar": {
     "from": "Read only · from {{name}}"
+  },
+  "agentMessage": {
+    "lead": "Lead",
+    "you": "You",
+    "to": "to",
+    "open": "Open {{agent}}",
+    "report": "Final report",
+    "more": "Show all",
+    "less": "Show less",
+    "notSent": "Not delivered",
+    "listAgents": "Available agents ({{count}})"
+  },
+  "system": {
+    "auto": "Claudio · automatic",
+    "supervisor": "Supervisor",
+    "received": "What the agent received",
+    "cancel": "You cancelled a command",
+    "autoCancel": "Claudio cancelled a command",
+    "relay": "You → {{agent}}"
+  },
+  "hint": {
+    "tag": "Hint"
   }
 }
