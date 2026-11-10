@@ -267,7 +267,7 @@ with the chat's token, and for each message writes a coordinator `queued_command
 (with `"@transcript": true`), then reports `POST /chats/:id/bridge/:messageId` with `{ isDelivered }`. An
 agent id it does not know, or a subagent a `stop` ended, is `isDelivered: false` with the CLI's reason; a
 finished subagent takes the message, as the real CLI resumes it. Two keys of the scripts file, read each
-time, steer it: `"@bridge": false` stops the polling (the page's `bridge-unavailable` after 15 s), and
+time, steer it: `"@bridge": false` stops the polling, giving up a poll held open within 100 ms (the page's `bridge-unavailable` follows 15 s later), and
 `"@bridge-refuse": "<reason>"` answers every send with `isDelivered: false` and that reason (`not-read`).
 
 ## The log

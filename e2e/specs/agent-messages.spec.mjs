@@ -63,7 +63,7 @@ const COMPOSER = `
     note: box?.querySelector('.agent-composer-note')?.textContent.trim() ?? '',
     enabled: !!input && input.getAttribute('contenteditable') !== 'false',
     queued: [...(box?.querySelectorAll('.chat-queued-item') ?? [])].map((li) => ({ text: li.querySelector('.chat-queued-text')?.textContent ?? '', lost: li.classList.contains('is-lost') })),
-    actions: [...(box?.querySelectorAll('.chat-queued-foot .btn') ?? [])].map((b) => b.textContent.trim()),
+    actions: [...(box?.querySelectorAll('.chat-queued-actions .btn') ?? [])].map((b) => b.textContent.trim()),
   }`;
 
 export default async ({ page, api, check, dirs, fakeCli: fake }) => {
@@ -207,7 +207,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.click('.transcript .chat-launch-open', undefined, 800);
     await drawer();
     const down = await page.waitFor(
-      `const box = document.querySelector('[role=dialog] .agent-composer'); const item = box?.querySelector('.chat-queued-item.is-lost'); return !!item && box.querySelectorAll('.chat-queued-foot .btn').length === 2`,
+      `const box = document.querySelector('[role=dialog] .agent-composer'); const item = box?.querySelector('.chat-queued-item.is-lost'); return !!item && item.querySelectorAll('.chat-queued-actions .btn').length === 2`,
       { label: 'the card of a message the bridge never took', timeout: 70_000 },
     );
     check(Boolean(down), 'the lost message turns into a card with two actions');
@@ -218,7 +218,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(lead?.reasonCode === 'bridge-unavailable', `undelivered as bridge-unavailable (${JSON.stringify(lead)})`);
     await page.shot('agent-messages-bridge-down');
     const before = logOf(fake.log).filter((e) => e.event === 'stdin').length;
-    await page.click('[role=dialog] .agent-composer .chat-queued-foot .btn', 'Send through the lead', 400);
+    await page.click('[role=dialog] .agent-composer .chat-queued-actions .btn', 'Send through the lead', 400);
     await until(() => logOf(fake.log).filter((e) => e.event === 'stdin').slice(before).some((e) => e.text.includes('Relay this to your background agent') && e.text.includes(LOST)), 'the lead to receive the relay hint');
     await page.waitFor(`return document.querySelector('[role=dialog] .agent-composer .chat-queued-item') === null`, { label: 'the card to go once the lead has it' });
     writeScripts();

@@ -1483,8 +1483,12 @@ async function runBridge() {
       await pause(300);
       continue;
     }
+    // A poll held open when the scripts file turns the bridge off is given up at once, as a mod that
+    // went away would give it up: otherwise the message a spec writes next would wake it and be taken
+    const poll = new AbortController();
+    const watch = setInterval(() => bridgeScripts()['@bridge'] === false && poll.abort(), 100);
     try {
-      const res = await fetch(`${base}/next?wait=20`, { headers, signal: AbortSignal.any([bridgeAbort.signal, AbortSignal.timeout(30_000)]) });
+      const res = await fetch(`${base}/next?wait=20`, { headers, signal: AbortSignal.any([bridgeAbort.signal, poll.signal, AbortSignal.timeout(30_000)]) });
       if (!res.ok) throw new Error(`bridge/next answered ${res.status}`);
       const { messages } = await res.json();
       for (const m of messages ?? []) {
@@ -1493,7 +1497,9 @@ async function runBridge() {
         await fetch(`${base}/${encodeURIComponent(String(m.id))}`, { method: 'POST', headers, body: JSON.stringify(report), signal: bridgeAbort.signal }).catch(() => undefined);
       }
     } catch {
-      if (!bridgeAbort.signal.aborted) await pause(1000);
+      if (!bridgeAbort.signal.aborted && !poll.signal.aborted) await pause(1000);
+    } finally {
+      clearInterval(watch);
     }
   }
 }
