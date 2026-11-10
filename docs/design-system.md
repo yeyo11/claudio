@@ -2451,8 +2451,11 @@ read them) is the case these rules exist for ([plans/agent-messages.md](plans/ag
    that shows on hover and focus. `.diff` outside a phone's wrap is one grid column
    `minmax(max-content, 1fr)`: every row is as wide as the widest line, so tints, rails, numbers and
    word marks stay on their line while it scrolls, and what is not code (notes, gap rows, review
-   threads) stays at the block's width with `position: sticky; left: 0` and `100cqw`. A phone wraps
-   the code instead (`.diff-wrap`).
+   threads) stays at the block's width with `position: sticky; left: 0` and `100cqw`. A block that
+   scrolls is a stop of its own (`tabindex="0"`, `role="region"`, labelled "Changes to {path}"), so
+   the keyboard reaches the end of a long line. Side by side keeps each half in its column and cuts
+   the line there: one long line would otherwise widen both halves and push the "after" side away.
+   A phone wraps the code instead (`.diff-wrap`).
 5. **The page and the panes never scroll sideways.** A pane that scrolls vertically (`overflow-y:
    auto`, which turns `overflow-x` to `auto` too) shows a horizontal scrollbar the moment a child is
    wider than it; that scrollbar is the bug, not the fix.

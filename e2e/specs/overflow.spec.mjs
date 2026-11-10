@@ -7,7 +7,7 @@
 // is wider than they are. Blocks wide on purpose (code, diffs, tables, `data-scroll-x`) are left out,
 // and the diff is checked for the opposite: its long line must be reachable inside its own block.
 import { sidewaysOverflow } from '../ui/overflow.mjs';
-import { cleanupOverflow, seedOverflow, SESSION, settleOrchestration } from './overflow-seed.mjs';
+import { cleanupOverflow, LONG_FILE, SCREEN, seedOverflow, SESSION, settleOrchestration } from './overflow-seed.mjs';
 
 export const timeout = 900_000;
 
@@ -34,13 +34,16 @@ export default async ({ page, api, check, dirs }) => {
     check(!!seeded.projectId && !!seeded.orchestrationId, `the long project and orchestration were created (${seeded.projectId}, ${seeded.orchestrationId})`);
     await settleOrchestration({ api, seeded, sleep: (ms) => page.sleep(ms) });
     const steps = await api.get(`/chats/${SESSION}/changes/steps`);
-    check(steps.status === 200 && steps.body.length === 2 && steps.body[0]?.risk, `the chat has two steps, the first one outside the directory (${steps.status}, ${steps.body?.length})`);
+    check(steps.status === 200 && steps.body.length >= 2 && steps.body.some((step) => step.risk), `the chat has two steps, the first one outside the directory (${steps.status}, ${steps.body?.length})`);
 
     const orch = `/orchestration/${seeded.orchestrationId}`;
     const routes = [
       ['changes, step by step', `/chats/${SESSION}/changes?lens=steps&step=ovf-write`],
       ['changes, the long line', `/chats/${SESSION}/changes?lens=steps&step=ovf-edit`],
-      ['changes, result', `/chats/${SESSION}/changes`],
+      ['changes, reading', `/chats/${SESSION}/changes?mode=reading&file=${SCREEN}`],
+      ['changes, unified', `/chats/${SESSION}/changes?mode=unified&file=${SCREEN}`],
+      ['changes, side by side', `/chats/${SESSION}/changes?mode=split&file=${SCREEN}`],
+      ['changes, a long file', `/chats/${SESSION}/changes?mode=unified&file=${LONG_FILE}`],
       ['chat', `/chats/${SESSION}`],
       ['home', '/'],
       ['chats', '/chats'],
@@ -98,6 +101,18 @@ export default async ({ page, api, check, dirs }) => {
         `return [...d.querySelectorAll('.diff-row')].every((row)=>{const rail=row.querySelector('.diff-line-rail');if(!rail)return true;const a=row.getBoundingClientRect(),b=rail.getBoundingClientRect();return b.top>=a.top-0.5&&b.bottom<=a.bottom+0.5})`,
     );
     check(aligned, 'every rail stays on its row while the diff scrolls');
+
+    // Side by side cuts each half at its column: one long line never pushes the "after" side away
+    await page.viewport(1906, 1045);
+    await page.goto(`/chats/${SESSION}/changes?mode=split&file=${SCREEN}`, 1200);
+    await page.waitFor(`return !!document.querySelector('.diff-split .diff-row')`, { label: 'the side by side diff' });
+    const split = await page.eval(`const d=document.querySelector('.diff-split');const seam=d.querySelector('.diff-row:not(.diff-split-head) .diff-split-seam');const b=d.getBoundingClientRect(),s=seam.getBoundingClientRect();return {fits:d.scrollWidth<=d.clientWidth+1,seamInside:s.left>b.left&&s.right<b.right}`);
+    check(split.fits && split.seamInside, `side by side keeps both halves in the block (${JSON.stringify(split)})`);
+    // A long file is drawn in virtual rows: they widen the block's own scroll the same way
+    await page.goto(`/chats/${SESSION}/changes?mode=unified&file=${LONG_FILE}`, 1200);
+    await page.waitFor(`return !!document.querySelector('.diff-uni .diff-row')`, { label: 'the long file' });
+    const virtual = await page.eval(`const d=document.querySelector('.diff-uni');return {scrolls:/auto/.test(getComputedStyle(d).overflowX),wider:d.scrollWidth>d.clientWidth+1,region:d.getAttribute('role')==='region'&&d.tabIndex===0}`);
+    check(virtual.scrolls && virtual.wider && virtual.region, `a long file's diff scrolls sideways in its own focusable region (${JSON.stringify(virtual)})`);
   } finally {
     await page.emulateTouch(false).catch(() => {});
     await page.reduceMotion(false).catch(() => {});

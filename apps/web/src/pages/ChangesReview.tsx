@@ -28,6 +28,7 @@ import { StepScrubber, StepsLens } from '../components/changes/steps/StepsLens';
 import { currentStep } from '../components/changes/steps/steps-model';
 import '../components/changes/changes.css';
 import { Menu, MoreActions, Tooltip, type MenuEntry } from '@claudio/ui/components/controls';
+import { FullText } from '@claudio/ui/components/FullText';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { Empty, ErrorBox, Segmented, Skeleton, usePageTitle } from '@claudio/ui/components/ui';
@@ -585,7 +586,7 @@ function ReviewHeader({
           {back}
           <div className="changes-head-text">
             <h1 className="changes-title">{t('title')}</h1>
-            {metaParts.length > 0 && <span className="changes-meta">{meta}</span>}
+            {metaParts.length > 0 && <FullText className="changes-meta">{meta}</FullText>}
           </div>
           {!noWorktree && summary && !stepsLens && (
             <MoreActions
@@ -624,7 +625,7 @@ function ReviewHeader({
           )}
           <div className="changes-title-row">
             <h1 className="changes-title">{t('title')}</h1>
-            {metaParts.length > 0 && <span className={`changes-meta${stepsLens ? ' is-sentence' : ''}`}>{meta}</span>}
+            {metaParts.length > 0 && <FullText className={`changes-meta${stepsLens ? ' is-sentence' : ''}`}>{meta}</FullText>}
             {summary && !stepsLens && <Counts additions={totals.additions} deletions={totals.deletions} />}
             {live}
           </div>

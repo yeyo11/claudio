@@ -74,10 +74,14 @@
 }
 
 .changes-review .changes-meta {
+  /* A long branch name ends in an ellipsis before the lens switch, never under it */
+  min-width: 0;
+  overflow: hidden;
   font-variant-numeric: tabular-nums;
   font-size: var(--fs-small);
   color: var(--fg-3);
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .changes-review .changes-counts {
@@ -939,7 +943,7 @@
 }
 
 /* A thread under a line stays at the block's width while the code beside it scrolls sideways */
-.diff:not(.diff-wrap) > .rt {
+.diff:not(.diff-wrap, .diff-split) > .rt {
   position: sticky;
   left: var(--rt-indent);
   max-width: calc(100cqw - var(--rt-indent) - 16px);

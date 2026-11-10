@@ -20,8 +20,10 @@
  * widest row and never narrower than the block, so every row, its tint and its rail run the same
  * width and the numbers, rails and marks stay on their line while it scrolls. The scrollbar shows
  * on hover and focus; what is not code (notes, the gap rows, threads) stays put at the block's width.
+ * Side by side keeps each half in its column and cuts the line there: one long line would otherwise
+ * widen both halves and push the "after" side out of view.
  */
-.diff:not(.diff-wrap) {
+.diff:not(.diff-wrap, .diff-split) {
   display: grid;
   grid-template-columns: minmax(max-content, 1fr);
   container-type: inline-size;
@@ -30,12 +32,12 @@
   scrollbar-color: transparent transparent;
 }
 
-.diff:not(.diff-wrap):hover,
-.diff:not(.diff-wrap):focus-within {
+.diff:not(.diff-wrap, .diff-split):hover,
+.diff:not(.diff-wrap, .diff-split):focus-within {
   scrollbar-color: var(--border-strong) transparent;
 }
 
-.diff:not(.diff-wrap) > :is(.diff-note, .diff-unexplained, .diff-gap) {
+.diff:not(.diff-wrap, .diff-split) > :is(.diff-note, .diff-unexplained, .diff-gap) {
   position: sticky;
   left: 0;
   max-width: 100cqw;
@@ -259,6 +261,7 @@
 
 .diff-split .diff-code {
   padding-left: 2px;
+  overflow: hidden;
 }
 
 .diff-split-seam {
