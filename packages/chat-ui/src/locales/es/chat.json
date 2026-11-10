@@ -784,5 +784,27 @@
   },
   "readOnlyBar": {
     "from": "Solo lectura · de {{name}}"
+  },
+  "agentMessage": {
+    "lead": "Principal",
+    "you": "Tú",
+    "to": "a",
+    "open": "Abrir {{agent}}",
+    "report": "Informe final",
+    "more": "Ver todo",
+    "less": "Ver menos",
+    "notSent": "No entregado",
+    "listAgents": "Agentes disponibles ({{count}})"
+  },
+  "system": {
+    "auto": "Claudio · automático",
+    "supervisor": "Supervisor",
+    "received": "Lo que recibió el agente",
+    "cancel": "Cancelaste un comando",
+    "autoCancel": "Claudio canceló un comando",
+    "relay": "Tú → {{agent}}"
+  },
+  "hint": {
+    "tag": "Pista"
   }
 }
