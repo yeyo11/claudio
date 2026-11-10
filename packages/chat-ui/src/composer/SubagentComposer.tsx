@@ -86,13 +86,19 @@ export function SubagentComposer({
       refresh();
     },
   });
+  // `isPending` shows a render later: two clicks in the same tick would both get through it
+  const inFlight = useRef(false);
+  const settled = () => {
+    inFlight.current = false;
+    refresh();
+  };
   // A 409 is a message the subagent took meanwhile: the refresh that follows shows it gone
   const drop = useMutation({
     mutationFn: (message: QueuedMessage) => {
       if (!client.withdrawSubagentMessage) throw new Error('This server cannot write to a subagent');
       return client.withdrawSubagentMessage(chatId, agentId, message.id);
     },
-    onSettled: refresh,
+    onSettled: settled,
   });
   const viaLead = useMutation({
     mutationFn: async (message: QueuedMessage) => {
@@ -101,7 +107,7 @@ export function SubagentComposer({
       // Put away once the lead has it: the card must not offer to send it again
       await client.withdrawSubagentMessage(chatId, agentId, message.id);
     },
-    onSettled: refresh,
+    onSettled: settled,
   });
 
   const submit = () => {
@@ -111,6 +117,12 @@ export function SubagentComposer({
   };
   const empty = !text.trim();
   const busy = viaLead.isPending || drop.isPending;
+  const once = (run: (message: QueuedMessage) => void, message: QueuedMessage): boolean => {
+    if (busy || inFlight.current) return false;
+    inFlight.current = true;
+    run(message);
+    return true;
+  };
   const sendName = send.isPending ? t('runView.sending') : t('runView.send');
 
   return (
@@ -121,27 +133,21 @@ export function SubagentComposer({
         // The note under the box already says where a message goes, so the card says what it waits for
         footWords={{ waiting: t('agentComposer.waiting'), lost: t('agentComposer.bridgeDown') }}
         onWithdraw={(message) => {
-          if (busy) return;
-          drop.mutate(message);
+          if (!once(drop.mutate, message)) return;
           // Back in the box at once, after whatever is half-typed
           const held = editor.current?.getText() ?? '';
           editor.current?.setText(held.trim() ? `${held.replace(/\s+$/, '')}\n\n${message.text}` : message.text);
           editor.current?.focus();
         }}
-        onDismiss={(message) => {
-          if (!busy) drop.mutate(message);
-        }}
+        onDismiss={(message) => void once(drop.mutate, message)}
         onRestore={(message) => {
-          if (busy) return;
-          drop.mutate(message);
+          if (!once(drop.mutate, message)) return;
           const held = editor.current?.getText() ?? '';
           editor.current?.setText(held.trim() ? `${held.replace(/\s+$/, '')}\n\n${message.text}` : message.text);
           editor.current?.focus();
         }}
-        onViaLead={(message) => {
-          // Pressed twice, the lead would get the relay twice
-          if (!busy) viaLead.mutate(message);
-        }}
+        // Pressed twice, the lead would get the relay twice
+        onViaLead={(message) => void once(viaLead.mutate, message)}
         sending={busy}
       />
       <ComposerBox
