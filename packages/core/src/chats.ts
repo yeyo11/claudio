@@ -855,7 +855,7 @@ export class ChatManager extends EventEmitter {
     for (const call of calls.values()) {
       if (!call.parentToolUseId || agents.has(call.parentToolUseId)) continue;
       const sub = chat.branches.subagents.get(call.parentToolUseId);
-      agents.set(call.parentToolUseId, sub ? { description: sub.description, subagentType: sub.subagentType } : {});
+      agents.set(call.parentToolUseId, sub ? { ...(sub.agentId ? { agentId: sub.agentId } : {}), description: sub.description, subagentType: sub.subagentType } : {});
     }
     return {
       executionStartedAt: live.startedAt,

@@ -101,6 +101,12 @@ export interface SupervisorDeps {
    */
   hint: (proposal: SupervisorProposal, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<void>;
   /**
+   * Writes straight to one subagent (the claudio-bridge mod) and resolves with whether it was
+   * delivered, waiting for the answer for a bounded time. Rejects when the message is refused up
+   * front (chat not live, subagent stopped or unknown). Absent, a hint about a subagent goes to the lead.
+   */
+  messageAgent?: (chatId: string, agentId: string, words: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<{ delivered: boolean }>;
+  /**
    * Cancels the command `toolUseId` of the proposal's chat with its hint as the reason: the failed
    * result reaches the agent blocked in it, which a message would not until the call returned.
    * Rejects when the cancel is refused (the command ended, its process cannot be told apart).
@@ -234,13 +240,17 @@ export function hintFrom(text: string): string {
   return cut(lines.join('\n'), HINT_MAX_CHARS);
 }
 
+/** How a relayed hint begins: a stored hint that starts so was already written for the lead */
+const RELAY_START = 'Your background agent `';
+
 /**
- * The hint as the lead reads it, for a signal about one of its subagents: nothing documented writes
- * to one subagent, so the lead is asked to pass it on with its own tools, or to stop the agent (C3).
+ * The hint as the lead reads it, for a signal about one of its subagents: the lead is asked to pass it on
+ * with its own tools, or to stop the agent (C3). It is the fallback when a direct write to the
+ * subagent is refused or undelivered (D7).
  */
 export function relayHint(agent: HealthSignalAgent, hint: string): string {
   const name = agentName(agent).replace(/`/g, "'");
-  return `Your background agent \`${name}\` is stuck. Relay this to it with SendMessage, or stop it if it cannot get past it: ${hint}`;
+  return `${RELAY_START}${name}\` is stuck. Relay this to it with SendMessage, or stop it if it cannot get past it: ${hint}`;
 }
 
 /** Whether a proposal already answers this occurrence: its own kind, or the other signal about the same command */
@@ -348,8 +358,9 @@ export class Supervisor {
         signal: signal.kind,
         occurrence: occurrenceOf(signal),
         ...(agent ? { agent } : {}),
-        // Addressed to whoever reads it: the lead, for a subagent's call, is asked to pass it on
-        hint: agent ? relayHint(agent, hint) : hint,
+        // A subagent that can be addressed gets the raw hint written to it (D7); without its agent id the
+        // lead is asked to pass it on, which is also the fallback when the direct write fails
+        hint: agent && !(agent.agentId && this.deps.messageAgent) ? relayHint(agent, hint) : hint,
         costUsd,
         at: new Date().toISOString(),
         status: 'proposed',
@@ -455,9 +466,26 @@ export class Supervisor {
    */
   async send(id: string, owner: ProposalOwner, source: 'person' | 'supervisor' = 'person'): Promise<SupervisorProposal> {
     const proposal = this.owned(id, owner);
-    await this.deps.hint(proposal, source);
+    await this.deliver(proposal, source);
     if (!this.deps.db.settleProposal(id, 'sent')) throw new SupervisorConflictError('the proposal was settled in the meantime');
     return { ...proposal, status: 'sent' };
+  }
+
+  /**
+   * Straight to the subagent when the proposal is about one that can be addressed; once, and only
+   * once, through the lead (`relayHint`) when that is refused or comes back undelivered. A hint about
+   * the lead itself, or a proposal made before the agent id was known, goes the old way.
+   */
+  private async deliver(proposal: SupervisorProposal, source: Extract<ChatMessageSource, 'person' | 'supervisor'>): Promise<void> {
+    const agent = proposal.agent;
+    const direct = this.deps.messageAgent;
+    if (!agent || !agent.agentId || !direct || proposal.hint.startsWith(RELAY_START)) return this.deps.hint(proposal, source);
+    try {
+      if ((await direct(proposal.chatId, agent.agentId, proposal.hint, source)).delivered) return;
+    } catch {
+      // Refused up front: the lead can still pass it on, or fail the same way and leave the proposal for a person
+    }
+    return this.deps.hint({ ...proposal, hint: relayHint(agent, proposal.hint) }, source);
   }
 
   dismiss(id: string, owner: ProposalOwner): SupervisorProposal {

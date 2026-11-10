@@ -338,6 +338,9 @@ export { defaultProvidersSettings } from './providers/settings.ts';
 export { LessonStore } from './lessons/store.ts';
 export { resolveUserPath } from './providers/path.ts';
 export { idOfEndpoint } from './push.ts';
+/** How long a hint written straight to a subagent is waited for before the lead is asked to pass it on */
+const SUBAGENT_HINT_WAIT_MS = 25_000;
+
 export { Supervisor, supervisorModeOf, SupervisorConflictError, type SupervisorAnswer, type SupervisorQuestion } from './supervisor.ts';
 
 // Read from the package rather than written into this file: the release tooling then only edits
@@ -936,6 +939,17 @@ export class Core {
       hint: async (proposal, source) => {
         if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint, source);
         else await this.chats.hint(proposal.chatId, proposal.hint, { source });
+      },
+      messageAgent: async (chatId, agentId, words, source) => {
+        const receipt = await this.chats.messageAgent(chatId, agentId, words, { source });
+        // The mod answers within seconds; past the bridge's own 15 s without a poll the row is settled too
+        const deadline = Date.now() + SUBAGENT_HINT_WAIT_MS;
+        for (;;) {
+          const state = this.runtime.agentMessages.get(chatId, receipt.id)?.state;
+          if (state === 'delivered') return { delivered: true };
+          if (state === 'undelivered' || state === undefined || Date.now() >= deadline) return { delivered: false };
+          await new Promise<void>((resolve) => setTimeout(resolve, 250).unref());
+        }
       },
       cancel: async (proposal, toolUseId) => {
         await this.chats.cancelCommand(proposal.chatId, toolUseId, { reason: proposal.hint }, { source: 'supervisor' });

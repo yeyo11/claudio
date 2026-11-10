@@ -56,6 +56,8 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
   const charged: Array<[string, number]> = [];
   const cancelled: Array<{ proposal: SupervisorProposal; toolUseId: string }> = [];
   const cancel = { refuse: false };
+  /** What a write straight to a subagent comes to: the bridge delivered it, lost it, or the chat refused it up front */
+  const direct = { mode: 'delivered' as 'delivered' | 'undelivered' | 'refused', sent: [] as Array<{ chatId: string; agentId: string; words: string; source: string }> };
   const clock = { now: Date.parse('2026-10-30T10:00:00Z') };
   const stepsAsked: Array<HealthSignal['agent']> = [];
   let steps: TranscriptEntry[] = [];
@@ -84,6 +86,10 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
       hints.push(p);
       return Promise.resolve();
     },
+    messageAgent: (chatId, agentId, words, source) => {
+      direct.sent.push({ chatId, agentId, words, source });
+      return direct.mode === 'refused' ? Promise.reject(new Error('You stopped this subagent')) : Promise.resolve({ delivered: direct.mode === 'delivered' });
+    },
     emit: (e) => events.push(e),
     charge: (id, usd) => charged.push([id, usd]),
   });
@@ -92,7 +98,7 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
     await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, ...cli } });
     await settings.setPointMode('supervisor.intervene', mode);
   };
-  return { config, db, settings, supervisor, asked, events, hints, charged, spend, enable, cancelled, cancel, clock, stepsAsked, setSteps: (s: TranscriptEntry[]) => (steps = s) };
+  return { config, db, settings, supervisor, direct, asked, events, hints, charged, spend, enable, cancelled, cancel, clock, stepsAsked, setSteps: (s: TranscriptEntry[]) => (steps = s) };
 }
 
 test('the deprecated body maps onto the point\'s mode, and the view is derived from the point and the engine', async () => {
@@ -675,6 +681,60 @@ test("a signal about a subagent's call reads that agent's steps and asks the lea
   // What the lead was sent, and what the store reads back
   assert.equal(h.hints[0]?.hint, proposal.hint);
   assert.deepEqual(h.db.proposal(proposal.id)?.agent, agent);
+});
+
+// ---------- a hint straight to the stuck subagent (agent-messages D7) ----------
+
+const addressable = { parentToolUseId: 'toolu_agent', agentId: 'a1b2c3', description: 'Audit the CLI bundle', subagentType: 'Explore' };
+const aboutSubagent: HealthSignal = { ...hungCall('s1'), detail: 'grep -r x /usr/lib/node_modules', agent: addressable };
+
+test('a hint about a subagent with an agent id is written to it as it is, and the lead is not asked', async () => {
+  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  await h.enable('active');
+  h.cancel.refuse = true;
+  const proposal = await h.supervisor.wake(chatOf('c1'), null, [aboutSubagent]);
+  assert.ok(proposal);
+  assert.equal(proposal.hint, 'Run the grep on src/ only.', 'stored as the subagent reads it, not as the lead does');
+  assert.deepEqual(proposal.agent, addressable);
+  assert.equal(proposal.status, 'sent');
+  assert.deepEqual(h.direct.sent, [{ chatId: 'c1', agentId: 'a1b2c3', words: 'Run the grep on src/ only.', source: 'supervisor' }]);
+  assert.equal(h.hints.length, 0);
+});
+
+test('refused up front, the hint falls back once to the lead as a relay', async () => {
+  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  await h.enable('active');
+  h.cancel.refuse = true;
+  h.direct.mode = 'refused';
+  const proposal = await h.supervisor.wake(chatOf('c1'), null, [aboutSubagent]);
+  assert.equal(h.direct.sent.length, 1, 'tried once');
+  assert.equal(h.hints.length, 1, 'relayed once');
+  assert.equal(h.hints[0]?.hint, relayHint(addressable, 'Run the grep on src/ only.'));
+  assert.equal(proposal?.status, 'sent');
+});
+
+test('undelivered, a person\'s hint from the health panel falls back once to the lead too', async () => {
+  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  await h.enable('shadow');
+  h.direct.mode = 'undelivered';
+  const proposal = await h.supervisor.wake(chatOf('c1'), null, [aboutSubagent]);
+  assert.equal(proposal?.status, 'proposed');
+  assert.equal(h.direct.sent.length, 0, 'Shadow writes nothing');
+  const sent = await h.supervisor.send(proposal?.id ?? '', { chatId: 'c1' });
+  assert.equal(sent.status, 'sent');
+  assert.deepEqual(h.direct.sent.map((m) => m.source), ['person']);
+  assert.equal(h.hints.length, 1);
+  assert.equal(h.hints[0]?.hint, relayHint(addressable, 'Run the grep on src/ only.'));
+});
+
+test('a proposal stored as a relay for the lead is not written to the subagent', async () => {
+  const h = harness();
+  await h.enable('shadow');
+  const row: SupervisorProposal = { id: 'old-relay', chatId: 'c1', signal: 'hung-command', agent: addressable, hint: relayHint(addressable, 'x'), costUsd: 0, at: '2026-10-30T10:00:00.000Z', status: 'proposed' };
+  assert.ok(h.db.saveProposal(row));
+  await h.supervisor.send('old-relay', { chatId: 'c1' });
+  assert.equal(h.direct.sent.length, 0);
+  assert.equal(h.hints[0]?.hint, row.hint);
 });
 
 test('lastSteps reads the lead alone by default, and one subagent when asked', () => {
