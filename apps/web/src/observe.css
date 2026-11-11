@@ -243,6 +243,10 @@
 .msg-step .msg-body:has(> .edit-chips) > :not(.tool-step, .edit-chips, .msg-time),
 .msg-step .msg-body:has(> .edit-chips) > .tool-step[data-state='open'] {
   flex-basis: 100%;
+  /* A row item's minimum is its min-content width, and a branch card's is its whole line of facts:
+     overflow: hidden does not lower it. A subagent's card under a step that also edited files ran
+     past the column (968 px in 725, owner's report 2026-11-11) */
+  min-width: 0;
 }
 .msg-step .msg-body > .tool-step[data-state='closed'] + .edit-chips {
   margin-top: 0;

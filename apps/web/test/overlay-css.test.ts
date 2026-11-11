@@ -68,3 +68,9 @@ test('the copy button of a code block is not taller than a one-line block on a t
   const touch = /@media \(hover: none\) \{([\s\S]*?)\n\}/.exec(transcript)?.[1] ?? '';
   assert.match(touch, /\.code-block:not\(\.has-header\)\s*\{[^}]*min-height:\s*calc\(var\(--touch\) \+ 10px\)/);
 });
+
+test('a full-width item in a step that edited files may shrink to the column (a subagent card ran past it)', () => {
+  const block = rule(read('apps/web/src/observe.css'), ".msg-step .msg-body:has(> .edit-chips) > .tool-step[data-state='open']");
+  has(block, /flex-basis:\s*100%/, 'it takes a row of its own');
+  has(block, /min-width:\s*0/, 'its min-content width (a branch card\'s line of facts) must not widen the row');
+});
