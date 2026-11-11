@@ -37,5 +37,5 @@ test('the Stop button and the drawer links are 44 px targets on a phone', () => 
   const block = chat.slice(start, chat.indexOf('\n}\n', start));
   assert.match(block, /max-width: 767px/);
   assert.match(block, /\.composer \.composer-stop \{[^}]*height: var\(--touch\)/);
-  assert.match(block, /\.detail-scroll \.link-btn \{[^}]*min-height: var\(--touch\)/);
+  assert.match(block, /\.detail-scroll \.link-btn,\s*\.detail-scroll dd > a \{[^}]*min-height: var\(--touch\)/);
 });

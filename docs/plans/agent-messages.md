@@ -607,8 +607,9 @@ decisions below on its own; `review` checked them against this plan.
 - ~~**A Supervisor hint written straight to a subagent** uses D3's automatic prefix.~~ **Done
   (2026-11-11).** `AGENT_MESSAGE_SUPERVISOR_PREFIX` frames it, read as `agent-message-auto` with
   source `supervisor`, so the subagent's row says "Supervisor". D3's two prefixes keep their wording.
-- **The subagent drawer is not under `ui-check`'s invariants:** `e2e/ui/routes.mjs` has static
-  paths only, and the drawer needs a seeded chat. It was measured by hand in review.
+- ~~**The subagent drawer is not under `ui-check`'s invariants.**~~ **Done (2026-11-11).**
+  `ui-invariants.spec.mjs` seeds the `agent-session` fixture's subagent under its session and
+  measures `/chats/<session>?detail=subagent:<session>:<agent>` at every width and theme.
 - `docs/agent-messages.md` must be registered with `kb_add_document` after the merge (pando writes
   into the main checkout).
 - Debt seen and not touched, paid on 2026-11-11 in `fix/chat-ui-debt`: the Stop button and the

@@ -2298,14 +2298,19 @@ a.attachment-chip:hover {
     min-height: var(--touch);
   }
 
-  .detail-scroll .link-btn {
-    min-height: var(--touch);
-  }
-
-  .detail-scroll .link-btn {
+  .detail-scroll .link-btn,
+  .detail-scroll dd > a {
     display: inline-flex;
     align-items: center;
+    min-height: var(--touch);
   }
+}
+
+/* A link among a panel's facts (the subagent's chat) is a 24 px target on a desktop (WCAG 2.5.8, I9) */
+.detail-scroll dd > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
 }
 
 /* Under 44 px a thumb misses the card's two small buttons on a phone */

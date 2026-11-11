@@ -587,8 +587,17 @@
 }
 
 .fold > .collapsible-trigger {
+  /* A 24 px target on a desktop (WCAG 2.5.8, I9); a phone's is below */
+  min-height: 24px;
   color: var(--text-muted);
   font-size: var(--fs-small);
+}
+
+/* On a phone a fold opens under a thumb: a step's "1 tool" line was 24 px tall */
+@media (max-width: 767px) {
+  .fold > .collapsible-trigger {
+    min-height: var(--touch);
+  }
 }
 
 .fold-thinking {

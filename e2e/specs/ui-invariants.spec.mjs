@@ -4,15 +4,20 @@
 // a word with no break in it, and a project with a long name, so a row that lacks `min-width: 0` or
 // a literal that lacks `overflow-wrap` shows up as an overflow here instead of on someone's phone.
 // Findings are gathered and reported together, so one run says everything that is wrong.
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { pageInvariants, readLayoutShift, settle, startLayoutShift } from '../ui/invariants.mjs';
 import { LOCAL_NAME, ROUTES, THEMES, WIDTHS } from '../ui/routes.mjs';
 
 export const timeout = 900_000;
 
 const SESSION = 'e2e-ui-invariants-0000-000000000000';
+// The subagent of packages/core/test/fixtures/agent-session, seeded under the session so its drawer
+// (the transcript, the composer's foot) is measured like a page
+const AGENT = 'a1b2c3d4e5f60718';
+const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), '../../packages/core/test/fixtures');
 const PROJECT = '-work-ui-invariants';
 const UNBROKEN = 'sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJ';
 const PROMPT = `Review the migration of packages/frontend/src/screens/settings/decisions/DecisionsScreen.tsx and check ${UNBROKEN} is never logged`;
@@ -23,6 +28,7 @@ function transcript() {
   return [
     { ...base, uuid: 'uinv-1', timestamp: at(0), type: 'user', message: { role: 'user', content: PROMPT } },
     { ...base, uuid: 'uinv-2', timestamp: at(1), type: 'assistant', message: { role: 'assistant', model: 'claude-sonnet-5', content: [{ type: 'text', text: `Checked /Users/someone/workspace/claudio/packages/frontend/src/screens/settings/decisions/DecisionsScreen.tsx: ${UNBROKEN} appears nowhere.` }] } },
+    { ...base, uuid: 'uinv-3', timestamp: at(2), type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_explore01', content: 'ok' }] }, toolUseResult: { agentId: AGENT } },
   ]
     .map((line) => JSON.stringify(line))
     .join('\n');
@@ -32,6 +38,7 @@ export default async ({ page, api, check, dirs }) => {
   const dir = join(dirs.configDir, 'projects', PROJECT);
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${SESSION}.jsonl`), transcript());
+  cpSync(join(FIXTURES, 'agent-session'), join(dir, SESSION), { recursive: true });
   const workspace = join(tmpdir(), `claudio-ui-invariants-${process.pid}`);
   mkdirSync(workspace, { recursive: true });
   const imported = await api.post('/projects/import', { path: workspace, name: 'A project whose name is long enough to need its ellipsis everywhere', template: 'software' });
@@ -57,7 +64,7 @@ export default async ({ page, api, check, dirs }) => {
         await page.viewport(width, 900);
         // Below 768 the page is read the way a phone uses it: with a finger
         await page.emulateTouch(width < 768);
-        for (const route of [...ROUTES.map((r) => r.path), `/chats/${SESSION}`]) {
+        for (const route of [...ROUTES.map((r) => r.path), `/chats/${SESSION}`, `/chats/${SESSION}?detail=subagent:${SESSION}:${AGENT}`]) {
           await page.goto(route, 900);
           await settle(page);
           for (const found of await pageInvariants(page, { width })) problems.push(`[${theme} ${width}px ${route}] ${found}`);
