@@ -940,6 +940,10 @@ export class Core {
         if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint, source);
         else await this.chats.hint(proposal.chatId, proposal.hint, { source });
       },
+      relay: async (proposal, target, words, source) => {
+        if (proposal.orchestrationId && proposal.taskId) this.orchestrator.relayTask(proposal.orchestrationId, proposal.taskId, target, words, source);
+        else await this.chats.relay(proposal.chatId, target, words, { source });
+      },
       messageAgent: async (chatId, agentId, words, source) => {
         const receipt = await this.chats.messageAgent(chatId, agentId, words, { source });
         // The mod answers within seconds; past the bridge's own 15 s without a poll the row is settled too

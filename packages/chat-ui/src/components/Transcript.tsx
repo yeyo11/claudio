@@ -8,9 +8,9 @@ import { useChatUi, useOptionalChatUi } from '../lib/context';
 import { teammateRead, type TeammateRead } from '../lib/teammate-reads';
 import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
 import { toolHint, type ToolHint } from '../lib/tool-lens';
-import { listedAgents, readAgentEntry, sentMessageOf, systemFolds, systemLabelKey, systemWords, type AgentEntry } from '../lib/agent-messages';
+import { isLeadRelay, listedAgents, readAgentEntry, sentMessageOf, systemFolds, systemLabelKey, systemWords, type AgentEntry } from '../lib/agent-messages';
 import { withRelays, type ListedRow } from '../lib/relay-rows';
-import { AgentDirectoryScope, AgentMessageCard, RelayRow, endName, endOf, SystemRow, useAgentDirectory, type AgentDirectory, type AgentEnd } from './AgentMessages';
+import { AgentDirectoryScope, AgentMessageCard, LeadRelayRow, RelayRow, endName, endOf, SystemRow, useAgentDirectory, type AgentDirectory, type AgentEnd } from './AgentMessages';
 import { toolKindLabel } from '../lib/wire-words';
 import { editChips } from '../lib/edit-chips';
 import { holdsGuardBlock, readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
@@ -268,6 +268,15 @@ function AgentEntryView({ entry, read }: { entry: TranscriptEntry; read: Exclude
   const directory = useAgentDirectory();
   // Where a line lands says who received it: the lead's own transcript, or a subagent's
   const receiver: AgentEnd = entry.isSidechain || directory?.self ? { kind: 'self' } : { kind: 'lead' };
+  if (read.kind === 'system' && isLeadRelay(read.message)) {
+    return (
+      <div data-entry-id={entry.uuid} className="msg msg-sys">
+        <div className="msg-body">
+          <LeadRelayRow message={read.message} text={read.text} at={entry.timestamp} />
+        </div>
+      </div>
+    );
+  }
   if (read.kind === 'system') {
     const words = systemWords(read.message, read.text);
     const labelKey = systemLabelKey(read.message);

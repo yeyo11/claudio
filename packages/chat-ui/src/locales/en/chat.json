@@ -802,7 +802,10 @@
     "received": "What the agent received",
     "cancel": "You cancelled a command",
     "autoCancel": "Claudio cancelled a command",
-    "relay": "You → {{agent}}"
+    "relay": "You → {{agent}}",
+    "relayViaLead": "You → {{agent}} · through the lead",
+    "supervisorViaLead": "Supervisor → {{agent}} · through the lead",
+    "viaLead": "· through the lead"
   },
   "hint": {
     "tag": "Hint"

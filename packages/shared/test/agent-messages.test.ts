@@ -4,6 +4,7 @@ import { test } from 'node:test';
 import {
   AGENT_MESSAGE_AUTO_PREFIX,
   AGENT_MESSAGE_PERSON_PREFIX,
+  AGENT_MESSAGE_SUPERVISOR_PREFIX,
   AUTO_CANCEL_NOTICE_PREFIX,
   AUTO_HINT_PREFIX,
   CANCEL_NOTICE_PREFIX,
@@ -14,8 +15,14 @@ import {
   LIMIT_CONTINUE_TEXT,
   NOTE_PREFIX,
   normalizeMessage,
+  NUDGE_PREFIXES,
   ORCHESTRATION_HINT_PREFIX,
   readSystemMessage,
+  RELAY_PERSON_HEAD,
+  RELAY_PERSON_TAIL,
+  RELAY_SUPERVISOR_HEAD,
+  RELAY_SUPERVISOR_TAIL,
+  relayToSubagent,
   RESUME_PROMPT,
   SUPERVISOR_HINT_PREFIX,
 } from '../src/index.ts';
@@ -121,8 +128,37 @@ test('every prefix Claudio writes is read, with the words that follow', () => {
     [RESUME_PROMPT, 'assistant-resume', 'claudio', ''],
     [`${AGENT_MESSAGE_PERSON_PREFIX}\n\ncheck the log`, 'agent-message-person', 'person', 'check the log'],
     [`${AGENT_MESSAGE_AUTO_PREFIX}\n\nstop`, 'agent-message-auto', 'claudio', 'stop'],
+    [`${AGENT_MESSAGE_SUPERVISOR_PREFIX}\n\nrun the grep on src/ only`, 'agent-message-auto', 'supervisor', 'run the grep on src/ only'],
   ];
   for (const [text, kind, source, words] of cases) assert.deepEqual(readSystemMessage(text), { kind, source, words }, kind);
+});
+
+test("the Supervisor's message to a subagent keeps its own prefix, apart from Claudio's automatic one", () => {
+  assert.notEqual(AGENT_MESSAGE_SUPERVISOR_PREFIX, AGENT_MESSAGE_AUTO_PREFIX);
+  assert.equal(readSystemMessage(`${AGENT_MESSAGE_AUTO_PREFIX}\n\nx`)?.source, 'claudio', 'recorded automatic messages still read as Claudio');
+  assert.equal(readSystemMessage(`${AGENT_MESSAGE_SUPERVISOR_PREFIX}\n\nx`)?.source, 'supervisor');
+});
+
+test('a relay through the lead names the subagent and its agent id, and reads back with the words', () => {
+  const person = relayToSubagent('person', { name: 'Audit the bundle', agentId: 'a1b2' }, '  try the other port\nthen report  ');
+  assert.equal(person, `${RELAY_PERSON_HEAD}\`Audit the bundle\` (agent id \`a1b2\`)${RELAY_PERSON_TAIL}\n\ntry the other port\nthen report`);
+  assert.deepEqual(readSystemMessage(person), { kind: 'relay-person', source: 'person', words: 'try the other port\nthen report', agent: { name: 'Audit the bundle', agentId: 'a1b2' } });
+  const supervisor = relayToSubagent('supervisor', { name: 'Explore' }, 'Run the grep on src/ only.');
+  assert.ok(supervisor.startsWith(RELAY_SUPERVISOR_HEAD));
+  assert.ok(supervisor.includes(RELAY_SUPERVISOR_TAIL));
+  assert.deepEqual(readSystemMessage(supervisor), { kind: 'relay-supervisor', source: 'supervisor', words: 'Run the grep on src/ only.', agent: { name: 'Explore' } });
+});
+
+test("a relay's name cannot end its code span, and a head without its tail is not a relay", () => {
+  const text = relayToSubagent('person', { name: 'a `b` c' }, 'x');
+  assert.deepEqual(readSystemMessage(text)?.agent, { name: "a 'b' c" });
+  assert.equal(readSystemMessage(`${RELAY_PERSON_HEAD}\`x\` and something else\n\nwords`), null);
+});
+
+test('the lessons skip a relay: the lead only passes it on, it is not the person correcting it', () => {
+  const text = relayToSubagent('person', { name: 'n' }, 'x');
+  assert.ok(NUDGE_PREFIXES.some((prefix) => text.startsWith(prefix)));
+  assert.ok(NUDGE_PREFIXES.some((prefix) => relayToSubagent('supervisor', { name: 'n' }, 'x').startsWith(prefix)));
 });
 
 test("a person's own words and an agent's are not system messages", () => {

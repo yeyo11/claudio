@@ -910,9 +910,14 @@ export interface ChatPendingMessage {
 /** `POST /chats/:id/subagents/:agentId/messages`: a person's words for one subagent. */
 export interface SubagentMessageRequest {
   text: string;
+  /**
+   * `lead`: the words go to the chat's lead, framed as a message it must pass on to this subagent with
+   * `SendMessage`, for when the chat's bridge cannot carry them straight. The lead then sees them.
+   */
+  via?: 'lead';
 }
 
-/** The answer to it: the message's id and where it stands. */
+/** The answer to it: the message's id and where it stands; through the lead, the id of the lead's message. */
 export interface SubagentMessageReceipt {
   id: string;
   state: ChatPendingMessage['state'];

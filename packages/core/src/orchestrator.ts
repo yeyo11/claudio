@@ -35,7 +35,7 @@ import type {
   VerifyOrchestrationRequest,
   WorkflowDefinition,
 } from '@claudio/shared';
-import { NOTE_PREFIX, SUPERVISOR_HINT_PREFIX, ORCHESTRATION_HINT_PREFIX, EFFORT_LEVELS, errorMessage, isEffort, MODEL_RE, NotFoundError, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
+import { NOTE_PREFIX, relayToSubagent, type RelayTarget, SUPERVISOR_HINT_PREFIX, ORCHESTRATION_HINT_PREFIX, EFFORT_LEVELS, errorMessage, isEffort, MODEL_RE, NotFoundError, PERMISSION_MODES, specOfOrchestration, type Effort, type FixStopKind } from '@claudio/shared';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import type { WorkflowRun } from './cli-facts.ts';
 import type { Db } from './db.ts';
@@ -3762,6 +3762,20 @@ ${quoted}
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
     const prefix = source === 'person' ? ORCHESTRATION_HINT_PREFIX : SUPERVISOR_HINT_PREFIX;
     this.runs.send(task.runId, `${prefix}\n\n${words}`, [], undefined, { source, words });
+    return orch;
+  }
+
+  /**
+   * The Supervisor's hint for a stuck subagent of a running worker, handed to the worker to pass on
+   * with `SendMessage` when it could not be written to the subagent straight (D7). Framed by
+   * `relayToSubagent`, so the page draws it as a system row rather than as a hint.
+   */
+  relayTask(id: string, taskId: string, target: RelayTarget, text: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'> = 'supervisor'): Orchestration {
+    const { orch, task } = this.decidable(id, taskId, ['running'], (t) => `task ${t.id} is ${t.status}: only a running worker can pass a message on to its subagent`);
+    const words = text?.trim();
+    if (!words) throw new Error('text is required');
+    if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
+    this.runs.send(task.runId, relayToSubagent(source, target, words), [], undefined, { source, words });
     return orch;
   }
 

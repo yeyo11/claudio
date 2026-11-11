@@ -779,11 +779,11 @@ export class ChatManager extends EventEmitter {
    * One subagent of a live chat, by the CLI's agent id or by the tool call that launched it: what a
    * message to it needs (its agent id) and whether it can still take one
    */
-  subagentOf(chatId: string, id: string): { agentId: string | null; status: 'running' | 'waiting' | 'completed' | 'failed' | 'stopped' } | null {
+  subagentOf(chatId: string, id: string): { agentId: string | null; status: 'running' | 'waiting' | 'completed' | 'failed' | 'stopped'; description: string } | null {
     const chat = this.chats.peek(chatId);
     if (!chat) return null;
     for (const sub of chat.branches.subagents.values()) {
-      if (sub.agentId === id || sub.toolUseId === id) return { agentId: sub.agentId ?? null, status: sub.status };
+      if (sub.agentId === id || sub.toolUseId === id) return { agentId: sub.agentId ?? null, status: sub.status, description: sub.description };
     }
     return null;
   }

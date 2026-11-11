@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-11-10T14:00:00Z
+updated_at: 2026-11-11T12:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -268,12 +268,18 @@ CLI; D5 and C3 of [the regression fixes](plans/regression-fixes-2026-10-29.md) s
 - **A hint about a subagent goes straight to it.** With an `agentId`, the proposal keeps the raw hint
   and sending it (Active on its own, or a person's Send from the health panel) calls
   `ChatService.messageAgent` with `source: 'supervisor'` (`'person'` for the panel), which writes it
-  through the `claudio-bridge` mod ([agent messages](agent-messages.md)). Core waits up to 25 s for
-  the row to turn `delivered`. When the write is refused (chat not live, subagent stopped or unknown)
-  or the row ends `undelivered` (`bridge-unavailable`, `agent-stopped`, `not-read`, or no answer in
-  time), it falls back **once** to the old relay: the lead gets "Your background agent `<description>`
-  is stuck. Relay this to it with SendMessage, or stop it…". A signal with no `agentId` yet, and a
-  proposal stored before this change as that relay text, go to the lead as before.
+  through the `claudio-bridge` mod ([agent messages](agent-messages.md)), framed with
+  `AGENT_MESSAGE_SUPERVISOR_PREFIX` so the subagent's row says "Supervisor" (a person's Send is
+  framed as theirs). Core waits up to 25 s for the row to turn `delivered`. When the write is refused
+  (chat not live, subagent stopped or unknown) or the row ends `undelivered` (`bridge-unavailable`,
+  `agent-stopped`, `not-read`, or no answer in time), it falls back **once** to a relay through the
+  lead (`ChatService.relay`, `Orchestrator.relayTask` for a worker): the lead reads the hint framed by
+  `relayToSubagent` ("An automatic message from Claudio's Supervisor for your subagent `<description>`
+  (agent id `…`), which looks stuck; pass it on verbatim with SendMessage, or stop it…"), and its
+  transcript draws a system row "Supervisor → <subagent> · through the lead" (a person's Send: "You →
+  …"). A signal with no `agentId` yet keeps the raw hint and goes the same relay way; a proposal stored
+  before as the old sentence ("Your background agent `<description>` is stuck…") goes to the lead as
+  it was written.
 - **Active cancels a hung command.** A hint is a message the agent reads only once the call it is
   blocked in returns. For `hung-command` and `repeat-stall` with a running call, Active cancels the
   command (`ChatService.cancelCommand`) with the hint as the reason: the failed result reaches the

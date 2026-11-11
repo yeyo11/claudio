@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { AUTO_CANCEL_NOTICE_PREFIX, AUTO_HINT_PREFIX, CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, LIMIT_CONTINUE_TEXT, normalizeMessage, SUPERVISOR_HINT_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, type TranscriptEntry } from '@claudio/shared';
+import { AUTO_CANCEL_NOTICE_PREFIX, AUTO_HINT_PREFIX, CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, LIMIT_CONTINUE_TEXT, normalizeMessage, SUPERVISOR_HINT_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, AGENT_MESSAGE_SUPERVISOR_PREFIX, relayToSubagent, type TranscriptEntry } from '@claudio/shared';
 import * as React from 'react';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -145,6 +145,33 @@ test('each of Claudio\'s texts is a system row with its label, and a hint folds 
   assert.doesNotMatch(hint, /Supervisor, not from the person/, 'the line drops the prefix');
   assert.match(hint, /class="sys-msg-words"[^>]*>The subagent is looping\.</, 'the line does not');
   assert.doesNotMatch(render(<EntryView entry={typed(LIMIT_CONTINUE_TEXT)} />), /sys-msg-fold/, 'one line folds nothing');
+});
+
+test('the Supervisor\'s message written straight to a subagent is a system row labelled Supervisor', () => {
+  const entry = typed(`${AGENT_MESSAGE_SUPERVISOR_PREFIX}\n\nRun the grep on src/ only.`, { isSidechain: true, origin: { kind: 'coordinator', plugin: 'claudio-bridge' } });
+  const html = render(<EntryView entry={entry} />, SUBAGENT);
+  assert.match(html, /class="sys-msg-label"[^>]*>Supervisor</);
+  assert.doesNotMatch(html, /Claudio · automático/);
+  assert.match(html, /class="sys-msg-words"[^>]*>Run the grep on src\/ only\.</);
+});
+
+test('a message the lead passes on for the person is a system row, Tú → the subagent · vía principal, folding the exact text', () => {
+  const said = relayToSubagent('person', { name: 'Ping-pong subagent task', agentId: 'a0000000000000001' }, 'Try the other port.\nThen report.');
+  const html = render(<EntryView entry={typed(said)} />);
+  assert.match(html, /sys-msg-fold/);
+  assert.doesNotMatch(html, /msg-user|Pista/, "not the person's hint");
+  assert.match(text(html), /Tú .*Ping-pong subagent task.*· vía principal/);
+  assert.match(html, /class="sys-msg-words"[^>]*>Try the other port\.</, 'the line is the first line of the words');
+  assert.doesNotMatch(html, /<button[^>]*agent-msg-name/, 'a fold\'s line holds no second button');
+  assert.match(text(render(<EntryView entry={typed(said)} />, LEAD, 'en')), /You .*Ping-pong subagent task.*· through the lead/);
+});
+
+test("the Supervisor's relay through the lead is labelled Supervisor, and an unknown subagent keeps the line's name", () => {
+  const said = relayToSubagent('supervisor', { name: 'Audit the bundle' }, 'Run the grep on src/ only.');
+  const html = render(<EntryView entry={typed(said)} />);
+  assert.match(html, /sys-msg-fold/);
+  assert.match(text(html), /Supervisor .*Audit the bundle.*· vía principal/);
+  assert.doesNotMatch(html, /msg-user/);
 });
 
 test("a person's hint is their bubble with the Pista tag and without the prefix", () => {

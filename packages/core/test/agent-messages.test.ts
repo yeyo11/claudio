@@ -3,7 +3,7 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import { AGENT_MESSAGE_AUTO_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, type MessageDelivery } from '@claudio/shared';
+import { AGENT_MESSAGE_AUTO_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, AGENT_MESSAGE_SUPERVISOR_PREFIX, readSystemMessage, relayToSubagent, type MessageDelivery } from '@claudio/shared';
 import { AgentMessageRefusal, AgentMessages, BRIDGE_UNAVAILABLE } from '../src/agent-messages.ts';
 import { BRIDGE_MOD_FILES, BRIDGE_MOD_NAME, bridgeModDir, writeBridgeMod } from '../src/bridge-mod.ts';
 import { ChatService, type ChatServiceDeps } from '../src/chat-service.ts';
@@ -209,22 +209,28 @@ test('the mod is written under the data dir, rewritten when it differs, and load
 
 // ChatService.messageAgent over a stub of the runtime with the real store
 
-function service(opts: { live?: boolean; bridged?: boolean; subagent?: { agentId: string | null; status: 'running' | 'completed' | 'stopped' } | null; files?: Array<{ id: string; status: string }> } = {}) {
+function service(opts: { live?: boolean; bridged?: boolean; pid?: number | null; subagent?: { agentId: string | null; status: 'running' | 'completed' | 'stopped'; description?: string } | null; files?: Array<{ id: string; status: string; description?: string }> } = {}) {
   const { db, messages } = store();
-  const record = { id: 'c1', name: 'chat', prompt: 'hi', executions: [], pid: 1, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+  const record = { id: 'c1', name: 'chat', prompt: 'hi', executions: [], pid: opts.pid === undefined ? 1 : opts.pid, createdAt: '2026-01-01T00:00:00.000Z', updatedAt: '2026-01-01T00:00:00.000Z' };
+  /** What the lead was sent: the text it reads, and what the message records */
+  const sent: Array<{ text: string; from: unknown }> = [];
   const deps = {
     config: tempConfig(),
     runtime: {
       get: (id: string) => (id === 'c1' ? record : null),
       live: () => opts.live ?? true,
       bridged: () => (opts.live ?? true) && (opts.bridged ?? true),
-      subagentOf: () => (opts.subagent === undefined ? { agentId: 'a1', status: 'running' } : opts.subagent),
+      subagentOf: () => (opts.subagent === undefined ? { agentId: 'a1', status: 'running', description: 'Audit the bundle' } : opts.subagent),
       agentMessages: messages,
+      sendMessage: (_id: string, text: string, _attachments: string[], _messageId: undefined, _purpose: undefined, from: unknown) => {
+        sent.push({ text, from });
+        return { id: `m${sent.length}`, taken: 'written' };
+      },
     },
   } as unknown as ChatServiceDeps;
   const chats = new ChatService(deps);
   (chats as unknown as { subagents: () => Promise<Array<{ id: string; status: string }>> }).subagents = async () => opts.files ?? [];
-  return { chats, messages, close: () => (messages.dispose(), db.close()) };
+  return { chats, messages, sent, close: () => (messages.dispose(), db.close()) };
 }
 
 test('messageAgent frames the words for the subagent by who wrote them, and keeps them apart', async () => {
@@ -235,9 +241,11 @@ test('messageAgent frames the words for the subagent by who wrote them, and keep
     const row = messages.get('c1', receipt.id);
     assert.equal(row?.words, 'look at the totals');
     assert.equal(row?.text, `${AGENT_MESSAGE_PERSON_PREFIX}\n\nlook at the totals`);
-    const auto = await chats.messageAgent('c1', 'a1', 'you look stuck', { source: 'supervisor' });
-    assert.equal(messages.get('c1', auto.id)?.text, `${AGENT_MESSAGE_AUTO_PREFIX}\n\nyou look stuck`);
-    assert.equal(messages.get('c1', auto.id)?.source, 'supervisor');
+    const supervisor = await chats.messageAgent('c1', 'a1', 'you look stuck', { source: 'supervisor' });
+    assert.equal(messages.get('c1', supervisor.id)?.text, `${AGENT_MESSAGE_SUPERVISOR_PREFIX}\n\nyou look stuck`, 'the Supervisor signs its own');
+    assert.equal(messages.get('c1', supervisor.id)?.source, 'supervisor');
+    const auto = await chats.messageAgent('c1', 'a1', 'the chat is about to end', { source: 'claudio' });
+    assert.equal(messages.get('c1', auto.id)?.text, `${AGENT_MESSAGE_AUTO_PREFIX}\n\nthe chat is about to end`);
   } finally {
     close();
   }
@@ -271,6 +279,50 @@ test('messageAgent refuses: no live process (409), unknown subagent (404), stopp
   s = service({ subagent: null, files: [{ id: 'a9', status: 'completed' }] });
   const receipt = await s.chats.messageAgent('c1', 'a9', 'carry on');
   assert.equal(s.messages.get('c1', receipt.id)?.agentId, 'a9');
+  s.close();
+});
+
+test("a relay through the lead hands the lead the person's words framed for the subagent, recorded with the bare words", async () => {
+  const { chats, sent, messages, close } = service({ bridged: false });
+  try {
+    const receipt = await chats.relayToAgent('c1', 'a1', '  try the other port  ');
+    assert.deepEqual(receipt, { id: 'm1', state: 'written' });
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0]?.text, relayToSubagent('person', { name: 'Audit the bundle', agentId: 'a1' }, 'try the other port'));
+    assert.deepEqual(sent[0]?.from, { source: 'person', words: 'try the other port' });
+    assert.equal(readSystemMessage(sent[0]?.text ?? '')?.kind, 'relay-person');
+    assert.equal(messages.history('c1').length, 0, "nothing waits in the bridge's queue");
+  } finally {
+    close();
+  }
+});
+
+test("the Supervisor's relay is its own, and a subagent known only from its files is named by its description", async () => {
+  const { chats, sent, close } = service({ subagent: null, files: [{ id: 'a9', status: 'completed', description: 'Read the logs' }] });
+  try {
+    await chats.relay('c1', { name: 'Read the logs', agentId: 'a9' }, 'stop retrying', { source: 'supervisor' });
+    assert.equal(readSystemMessage(sent[0]?.text ?? '')?.kind, 'relay-supervisor');
+    await chats.relayToAgent('c1', 'a9', 'carry on');
+    assert.deepEqual(readSystemMessage(sent[1]?.text ?? '')?.agent, { name: 'Read the logs', agentId: 'a9' });
+  } finally {
+    close();
+  }
+});
+
+test('a relay is refused without a live process, for an unknown or stopped subagent, and for empty words', async () => {
+  const status = async (p: Promise<unknown>) => p.then(() => '200', (err: { statusCode?: number; reason?: string }) => `${err.statusCode ?? 400}${err.reason ? ` ${err.reason}` : ''}`);
+  let s = service({ pid: null });
+  assert.equal(await status(s.chats.relayToAgent('c1', 'a1', 'x')), '409');
+  s.close();
+  s = service({ subagent: null });
+  assert.equal(await status(s.chats.relayToAgent('c1', 'nope', 'x')), '404');
+  s.close();
+  s = service({ subagent: { agentId: 'a1', status: 'stopped' } });
+  assert.equal(await status(s.chats.relayToAgent('c1', 'a1', 'x')), '409 agent-stopped');
+  s.close();
+  s = service();
+  assert.equal(await status(s.chats.relayToAgent('c1', 'a1', '  ')), '400');
+  assert.equal(s.sent.length, 0);
   s.close();
 });
 

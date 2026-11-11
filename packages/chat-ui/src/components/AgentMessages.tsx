@@ -1,6 +1,7 @@
 import { ArrowRight, Bot, CircleX } from 'lucide-react';
 import { createContext, lazy, memo, Suspense, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
+import type { SystemMessage } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
@@ -198,6 +199,39 @@ export function SystemRow({ label, words, at, received, labelText }: { label: Re
         <div className="sys-msg-text">{received}</div>
       </div>
     </Collapsible>
+  );
+}
+
+/**
+ * A message for one subagent the lead was asked to pass on, because the bridge could not carry it
+ * straight: "You → E2 · through the lead", or the Supervisor's. The lead did read it, so the fold holds
+ * the exact text. The name is plain text here: a fold's line is a button, and one cannot hold another.
+ */
+export function LeadRelayRow({ message, text, at }: { message: SystemMessage; text: string; at: string | null }) {
+  const { t } = useTranslation('chat');
+  const directory = useAgentDirectory();
+  const fallback = message.agent?.name || null;
+  const end: AgentEnd = message.agent?.agentId ? { kind: 'agent', id: message.agent.agentId, fallback } : { kind: 'named', name: fallback ?? upperFirst(t('transcript.subagent')) };
+  const agent = endName(end, directory, t);
+  const bySupervisor = message.kind === 'relay-supervisor';
+  const first = message.words.split('\n').find((line) => line.trim())?.trim() ?? '';
+  return (
+    <SystemRow
+      labelText={t(bySupervisor ? 'system.supervisorViaLead' : 'system.relayViaLead', { agent })}
+      label={
+        <span className="sys-msg-relay">
+          {bySupervisor ? t('system.supervisor') : t('agentMessage.you')}
+          <ArrowRight size={12} strokeWidth={2} className="agent-msg-arrow" aria-label={t('agentMessage.to')} />
+          <span className="agent-msg-name" title={agent}>
+            {agent}
+          </span>
+          {t('system.viaLead')}
+        </span>
+      }
+      words={first}
+      at={at}
+      received={text.trim()}
+    />
   );
 }
 
