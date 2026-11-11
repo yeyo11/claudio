@@ -6,6 +6,9 @@
 // or replace content move rows on purpose and do not belong here: I4 is about a control that makes
 // its neighbours jump (a button whose label changes width, a message that appears without room).
 
+/** The long name the spec gives this Claudio, so the selector and its sheet carry one everywhere */
+export const LOCAL_NAME = 'A name for this Claudio long enough to need its ellipsis';
+
 export const ROUTES = [
   {
     path: '/',
@@ -37,8 +40,16 @@ export const ROUTES = [
   { path: '/usage' },
   { path: '/schedules' },
   { path: '/collaborators' },
-  // Off by default: the page is the Empty with its switch here, which is the state to keep from shifting
-  { path: '/servers' },
+  // Servers are on in the spec, with a long name of this Claudio's own (ui-invariants.spec.mjs): the
+  // name's Save keeps its place while it shows and hides, so typing must move nothing (a 0.003 shift
+  // at 320 before it did)
+  {
+    path: '/servers',
+    interactions: [
+      async (page) => page.fill('[data-testid="server-local-name"]', 'Another name for this Claudio'),
+      async (page) => page.fill('[data-testid="server-local-name"]', LOCAL_NAME),
+    ],
+  },
   // General on a desktop, the eight groups on a phone
   { path: '/settings' },
   { path: '/settings/claude-code' },

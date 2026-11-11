@@ -8,7 +8,7 @@ import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pageInvariants, readLayoutShift, settle, startLayoutShift } from '../ui/invariants.mjs';
-import { ROUTES, THEMES, WIDTHS } from '../ui/routes.mjs';
+import { LOCAL_NAME, ROUTES, THEMES, WIDTHS } from '../ui/routes.mjs';
 
 export const timeout = 900_000;
 
@@ -40,6 +40,11 @@ export default async ({ page, api, check, dirs }) => {
   // The board offers Select only with a task on it, and the /tasks interactions (routes.mjs) press it
   const task = await api.post(`/projects/${projectId}/work-items`, { title: 'A task whose title is long enough to wrap on a narrow card' });
   check(task.status === 201, `a task was created for the board (${task.status})`);
+
+  // Servers on, with a long name for this Claudio: the selector is in every top bar and its name has
+  // to hold I3 with a Tooltip; /servers shows its cards instead of the switch
+  const servers = await api.put('/servers/settings', { enabled: true, localName: LOCAL_NAME });
+  check(servers.status === 200, `Servers were turned on (${servers.status})`);
 
   const problems = [];
   try {
@@ -75,6 +80,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.emulateTouch(false).catch(() => {});
     await page.reduceMotion(false);
     await page.eval(`localStorage.removeItem('claudio-theme'); return true`).catch(() => {});
+    await api.put('/servers/settings', { enabled: false, localName: null }).catch(() => {});
     if (projectId) await api.del(`/projects/${projectId}`).catch(() => {});
     rmSync(dir, { recursive: true, force: true });
     rmSync(workspace, { recursive: true, force: true });
