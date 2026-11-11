@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.16.1](https://github.com/yeyo11/claudio/compare/v0.16.0...v0.16.1) (2026-11-11)
+
+
+### Bug fixes
+
+* **changes:** diff text holds 4.5:1 (no faded removed lines, underlined phrase marks, unfaded line numbers) ([#113](https://github.com/yeyo11/claudio/issues/113)) ([72576d3](https://github.com/yeyo11/claudio/commit/72576d3196187ae5d44dc6736a149a3b7d522990))
+* everything left open after 0.16.0 (relay and Supervisor labels, scrolling tool output, UI debt, Servers polish) ([#111](https://github.com/yeyo11/claudio/issues/111)) ([1588f2b](https://github.com/yeyo11/claudio/commit/1588f2b815d229528a96352b33d343005aa1124a))
+* **servers:** say when a remote runs a newer Claudio, rename this server, and clean the e2e gate ([#110](https://github.com/yeyo11/claudio/issues/110)) ([81b1e28](https://github.com/yeyo11/claudio/commit/81b1e2820f1f15cc74a021193b459f1fb2269b31))
+* **transcript:** a subagent's message to a busy lead is drawn as an agent message ([#108](https://github.com/yeyo11/claudio/issues/108)) ([352886b](https://github.com/yeyo11/claudio/commit/352886bce48e93b8b4eca4cf9a5a7b07edf6e026))
+
+
+### Build and packaging
+
+* **deps-dev:** bump electron ([#101](https://github.com/yeyo11/claudio/issues/101)) ([dc55357](https://github.com/yeyo11/claudio/commit/dc55357ad46f0134ff75aa474f0766e47a08750d))
+* **deps-dev:** bump vite ([#102](https://github.com/yeyo11/claudio/issues/102)) ([dafad7f](https://github.com/yeyo11/claudio/commit/dafad7f15304d9496537b4a49089fb30f4e6878d))
+* **deps:** bump the production-dependencies group across 1 directory with 12 updates ([#112](https://github.com/yeyo11/claudio/issues/112)) ([146cc02](https://github.com/yeyo11/claudio/commit/146cc02bd00250958ac61c90d61b3a5bb9327e84))
+
 ## [0.16.0](https://github.com/yeyo11/claudio/compare/v0.15.0...v0.16.0) (2026-11-10)
 
 
