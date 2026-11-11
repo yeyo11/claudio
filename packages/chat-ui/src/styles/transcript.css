@@ -1780,6 +1780,22 @@
   color: var(--accent);
 }
 
+/* On a phone the label takes the line, not 60 % of it, and a relay's "· through the lead" wraps under
+   the name rather than squeezing it to nothing ("Supervisor → · through tl" at 320). After the base
+   rules, which it overrides */
+@media (max-width: 767px) {
+  .sys-msg-label {
+    flex: 1 1 auto;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .sys-msg-relay {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
+}
+
 .sys-msg-words {
   flex: 1 1 auto;
   min-width: 0;
