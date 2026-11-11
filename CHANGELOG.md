@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.16.2](https://github.com/yeyo11/claudio/compare/v0.16.1...v0.16.2) (2026-11-11)
+
+
+### Bug fixes
+
+* **chat-ui:** Claude Code's markers in an agent message become a note, not raw tags ([#114](https://github.com/yeyo11/claudio/issues/114)) ([efcf9c1](https://github.com/yeyo11/claudio/commit/efcf9c1af3d2df806814d531b822ef503ad43c53))
+* **web:** transcript rows stay visible and inside the column ([#116](https://github.com/yeyo11/claudio/issues/116)) ([db2793f](https://github.com/yeyo11/claudio/commit/db2793fc9617ba945c6851558fb86e74cc0ee4d6))
+
 ## [0.16.1](https://github.com/yeyo11/claudio/compare/v0.16.0...v0.16.1) (2026-11-11)
 
 
