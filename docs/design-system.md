@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-11T13:30:00Z
+updated_at: 2026-11-11T15:00:00Z
 tags:
     - design-system
     - web
@@ -2264,7 +2264,8 @@ Every loop respects the motion setting:
 - **`[data-motion='subtle']`:** transitions only. No loops, no energy, no ping, no shimmer, and the
   braille glyph holds still.
 - **`[data-motion='off']`** and **`prefers-reduced-motion`:** nothing animates.
-- **Background tab:** paused (`data-hidden`).
+- **Background tab:** no loop (`data-hidden`): each animation gets one pass at most, never a pause,
+  so an entrance that starts invisible still ends visible.
 
 `e2e/specs/motion.spec.mjs` checks this.
 
