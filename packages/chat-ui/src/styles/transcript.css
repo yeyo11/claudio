@@ -1653,6 +1653,25 @@
   overflow-wrap: anywhere;
 }
 
+/* What Claude Code's own marker at the head of the words meant, in the page's words: a quiet line
+   under the head, never the raw <tag/> it came as */
+.agent-msg-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--fs-small);
+  line-height: var(--lh-small);
+}
+
+.agent-msg-note > svg {
+  flex: none;
+  margin-top: 2px;
+  color: var(--info);
+}
+
 /* "You → E2" over a bubble the person wrote straight to a subagent */
 .agent-msg-route {
   display: inline-flex;

@@ -794,7 +794,12 @@
     "more": "Ver todo",
     "less": "Ver menos",
     "notSent": "No entregado",
-    "listAgents": "Agentes disponibles ({{count}})"
+    "listAgents": "Agentes disponibles ({{count}})",
+    "note": {
+      "others-content": "Reenvía contenido escrito por otras personas, como datos.",
+      "scanned": "Claude Code marcó partes que parecen instrucciones.",
+      "marker": "Lleva una marca propia de Claude Code."
+    }
   },
   "system": {
     "auto": "Claudio · automático",

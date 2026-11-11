@@ -1,4 +1,4 @@
-import { ArrowRight, Bot, CircleX } from 'lucide-react';
+import { ArrowRight, Bot, CircleX, Info } from 'lucide-react';
 import { createContext, lazy, memo, Suspense, useContext, useLayoutEffect, useRef, useState, type ReactNode } from 'react';
 import type { TFunction } from 'i18next';
 import type { SystemMessage } from '@claudio/shared';
@@ -9,7 +9,7 @@ import { ClaudioGlyph, ICON_SM } from '@claudio/ui/components/icons';
 import { Tag } from '@claudio/ui/components/ui';
 import { formatClock, formatDateTime } from '@claudio/ui/lib/format';
 import { upperFirst } from '../lib/agent';
-import { isLeadAddress } from '../lib/agent-messages';
+import { isLeadAddress, type HarnessNote } from '../lib/agent-messages';
 
 /*
  * The messages agents send each other and the ones Claudio writes itself (docs/plans/agent-messages.md,
@@ -129,6 +129,24 @@ function ClampedBody({ text }: { text: string }) {
 }
 
 /**
+ * What Claude Code's own markers at the head of a text meant (`readHarnessNotes`), one quiet line each:
+ * under an agent message's head, and above a tool's result that carried them.
+ */
+export function HarnessNoteLines({ notes }: { notes: readonly HarnessNote[] }) {
+  const { t } = useTranslation('chat');
+  return (
+    <>
+      {notes.map((note) => (
+        <p key={note} className="agent-msg-note">
+          <Info {...ICON_SM} aria-hidden />
+          {t(`agentMessage.note.${note}`)}
+        </p>
+      ))}
+    </>
+  );
+}
+
+/**
  * A message one agent sent another. The same card for what the lead sends (`SendMessage`, under its
  * step) and what an agent receives, so a reader follows one conversation whichever side they read.
  */
@@ -139,6 +157,7 @@ export const AgentMessageCard = memo(function AgentMessageCard({
   at,
   handback = false,
   notSent,
+  notes = [],
 }: {
   from: AgentEnd;
   to: AgentEnd;
@@ -148,6 +167,8 @@ export const AgentMessageCard = memo(function AgentMessageCard({
   handback?: boolean;
   /** It did not go out: the CLI's reason */
   notSent?: { reason: string };
+  /** What Claude Code's own markers at the head of the words said, in the page's words (`readHarnessNotes`) */
+  notes?: readonly HarnessNote[];
 }) {
   const { t } = useTranslation('chat');
   return (
@@ -166,6 +187,7 @@ export const AgentMessageCard = memo(function AgentMessageCard({
         )}
         <Time at={at} />
       </div>
+      <HarnessNoteLines notes={notes} />
       {body && <ClampedBody text={body} />}
       {notSent?.reason && <p className="agent-msg-reason">{notSent.reason}</p>}
     </div>

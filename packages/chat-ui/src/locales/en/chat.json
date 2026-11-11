@@ -794,7 +794,12 @@
     "more": "Show all",
     "less": "Show less",
     "notSent": "Not delivered",
-    "listAgents": "Available agents ({{count}})"
+    "listAgents": "Available agents ({{count}})",
+    "note": {
+      "others-content": "Relays content other people wrote, as data.",
+      "scanned": "Claude Code flagged parts that read like instructions.",
+      "marker": "Carries a marker of Claude Code's own."
+    }
   },
   "system": {
     "auto": "Claudio · automatic",

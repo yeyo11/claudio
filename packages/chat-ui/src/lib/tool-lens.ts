@@ -1,4 +1,5 @@
 import type { ToolResultDetail } from '@claudio/shared';
+import { readHarnessNotes } from './agent-messages';
 
 /*
  * How an opened tool call reads (docs/plans/tool-rows-and-live-branches.md §3.2): the lens each tool
@@ -303,7 +304,8 @@ export function patchCounts(patch: string): { additions: number; deletions: numb
 export function agentReport(text: string): string {
   const cut = text.search(/^\s*agentId: /m);
   const body = cut >= 0 ? text.slice(0, cut) : text;
-  return body.replace(/<usage>[\s\S]*?<\/usage>/g, '').trim();
+  // The subagent's report is prose: the harness's markers at its head become the body's note instead
+  return readHarnessNotes(body.replace(/<usage>[\s\S]*?<\/usage>/g, '')).body;
 }
 
 /** Whether the agent was sent to run on its own: what its detail says, else what the call asked. */

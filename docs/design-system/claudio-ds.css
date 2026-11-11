@@ -3047,6 +3047,9 @@ a.cont-from:hover { color: var(--fg); }
 .agent-msg-glyph, .agent-msg-arrow { flex: none; color: var(--fg-3); }
 .agent-msg-name { flex: 0 1 auto; min-width: 6ch; max-width: 40ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--fw-strong); }
 .agent-msg-not-sent { display: inline-flex; align-items: center; gap: 4px; flex: none; color: var(--bad); }
+/* A note for a marker Claude Code put at the head of the words (<artifact-content-authored-by-others/>, [harness: …]) */
+.agent-msg-note { display: flex; align-items: flex-start; gap: 6px; min-width: 0; margin: 0; color: var(--fg-2); font-size: var(--fs-small); }
+.agent-msg-note > svg { flex: none; margin-top: 2px; color: var(--info); }
 .agent-msg-time { flex: none; margin-left: auto; color: var(--fg-3); font-variant-numeric: tabular-nums; }
 .agent-msg-name.is-short { flex: none; min-width: 0; }
 button.agent-msg-name { min-height: 24px; color: var(--accent); }
