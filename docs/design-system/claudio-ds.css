@@ -52,8 +52,8 @@
   /* The smallest target a finger gets on a phone */
   --touch: 44px;
   /* diff: solo lo que cambió lleva color; la sintaxis es tenue y nunca usa verde, rojo ni cian */
-  --diff-add: var(--ok);  --diff-add-bg: rgba(74, 222, 154, 0.055); --diff-add-word: rgba(74, 222, 154, 0.2);
-  --diff-del: var(--bad); --diff-del-bg: rgba(248, 123, 127, 0.06); --diff-del-word: rgba(248, 123, 127, 0.24);
+  --diff-add: var(--ok);  --diff-add-bg: rgba(74, 222, 154, 0.055);
+  --diff-del: var(--bad); --diff-del-bg: rgba(248, 123, 127, 0.06);
   --sx-kw: #b7a4d9; --sx-str: #d4bd8f; --sx-num: #93b4db; --sx-type: #e4e4e7; --sx-fn: #f4f7ff; --sx-com: var(--fg-3);
   /* terminal: la paleta de lo que imprime un programa; nunca un color de estado ni del chrome */
   --term-bg: var(--bg-1); --term-fg: var(--fg); --term-cursor: var(--fg); --term-selection: rgba(147, 180, 219, 0.28);
@@ -118,8 +118,8 @@
   --idle: #6d28d9;  --idle-soft: rgba(109, 40, 217, 0.09);
   /* Cyan reads 1.3:1 on white: on light the spark takes the brand blue */
   --logo-spark: #246bfd;
-  --diff-add-bg: rgba(21, 128, 61, 0.06); --diff-add-word: rgba(21, 128, 61, 0.16);
-  --diff-del-bg: rgba(185, 28, 28, 0.05); --diff-del-word: rgba(185, 28, 28, 0.15);
+  --diff-add-bg: rgba(21, 128, 61, 0.06);
+  --diff-del-bg: rgba(185, 28, 28, 0.05);
   --sx-kw: #6a4a9e; --sx-str: #7c5a22; --sx-num: #2d5a93; --sx-type: #0b1020; --sx-fn: #0b1020;
   /* terminal: la paleta de lo que imprime un programa; nunca un color de estado ni del chrome */
   --term-bg: var(--bg-1); --term-fg: var(--fg); --term-cursor: var(--fg); --term-selection: rgba(45, 90, 147, 0.2);
@@ -1327,7 +1327,7 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .dv-row.del .dv-num { color: var(--diff-del); }
 .dv-row.del .dv-code { background: var(--diff-del-bg); }
 /* A removed line's text is not faded: faded, its syntax fell under 4.5:1 on the tint */
-.dv .wd { border-radius: 3px; padding: 1px 0; }
+.dv .wd { padding: 1px 0; }
 /* A changed phrase is underlined in its status colour, never filled: a fill took its syntax under 4.5:1 */
 .dv-row.add .wd, .dv-row.mod .wd, .dv-cell.add .wd { box-shadow: inset 0 -2px 0 var(--diff-add); }
 .dv-row.del .wd, .dv-cell.del .wd { box-shadow: inset 0 -2px 0 var(--diff-del); }
