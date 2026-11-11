@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
-import webpush from 'web-push';
+import * as webpush from 'web-push';
 import type { ClaudioEvent, PushPayload, TunnelState } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
