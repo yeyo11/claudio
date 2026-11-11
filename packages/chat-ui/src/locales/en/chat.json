@@ -794,7 +794,12 @@
     "more": "Show all",
     "less": "Show less",
     "notSent": "Not delivered",
-    "listAgents": "Available agents ({{count}})"
+    "listAgents": "Available agents ({{count}})",
+    "note": {
+      "others-content": "Includes content other people wrote: Claude Code passed it on as data, not as instructions.",
+      "scanned": "Claude Code flagged parts of this report that read like instructions.",
+      "marker": "Claude Code added a marker of its own to this message."
+    }
   },
   "system": {
     "auto": "Claudio · automatic",

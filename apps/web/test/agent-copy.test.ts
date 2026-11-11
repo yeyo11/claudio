@@ -22,6 +22,9 @@ const CLAUDE_ONLY: readonly string[] = [
   'home:settings.memory',
   // The list of agents Claudio looks for
   'home:activity.noAgentHint',
+  // What Claude Code's own markers in an agent message mean (<artifact-content-authored-by-others/>,
+  // [harness: …]): only its harness writes them, so the note names it
+  'chat:agentMessage.note',
 ];
 
 /**

@@ -794,7 +794,12 @@
     "more": "Ver todo",
     "less": "Ver menos",
     "notSent": "No entregado",
-    "listAgents": "Agentes disponibles ({{count}})"
+    "listAgents": "Agentes disponibles ({{count}})",
+    "note": {
+      "others-content": "Incluye contenido escrito por otras personas: Claude Code lo pasó como datos, no como instrucciones.",
+      "scanned": "Claude Code marcó partes de este informe que parecen instrucciones.",
+      "marker": "Claude Code añadió una marca propia a este mensaje."
+    }
   },
   "system": {
     "auto": "Claudio · automático",

@@ -292,7 +292,7 @@ function AgentEntryView({ entry, read }: { entry: TranscriptEntry; read: Exclude
   return (
     <div data-entry-id={entry.uuid} className="msg msg-agent">
       <div className="msg-body">
-        <AgentMessageCard from={from} to={receiver} body={read.body} at={entry.timestamp} handback={read.kind === 'peer' && read.handback} />
+        <AgentMessageCard from={from} to={receiver} body={read.body} at={entry.timestamp} handback={read.kind === 'peer' && read.handback} notes={read.notes} />
       </div>
     </div>
   );
