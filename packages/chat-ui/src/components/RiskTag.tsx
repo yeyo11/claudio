@@ -10,7 +10,8 @@ import { riskReason, riskTagOf, type Translate } from '../lib/tool-risk-tag';
 /** The risk words are looked up by a key built from the factor, which the typed `t` cannot follow. */
 function useRiskWords(): { t: Translate; tag: (key: `risk.factor.${string}`) => string } {
   const { t } = useTranslation('chat');
-  const words: Translate = (key, options) => String(t(key as 'risk.reason', options));
+  // i18next 27 types no longer take `undefined` for the options: an empty object means none
+  const words: Translate = (key, options) => String(t(key as 'risk.reason', options ?? {}));
   return { t: words, tag: (key) => words(key) };
 }
 

@@ -12,7 +12,8 @@ export type T = (key: string, options?: Record<string, unknown>) => string;
 /** The chat namespace's `t` for keys built here from a state's name, which the typed keys cannot see. */
 export function useLooseT(): T {
   const { t } = useTranslation('chat');
-  return (key, options) => String(t(key as 'composerMenu.title', options));
+  // i18next 27 types no longer take `undefined` for the options: an empty object means none
+  return (key, options) => String(t(key as 'composerMenu.title', options ?? {}));
 }
 
 /** Why an account cannot be chosen, in words; undefined when it can, or when it is the chat's own. */

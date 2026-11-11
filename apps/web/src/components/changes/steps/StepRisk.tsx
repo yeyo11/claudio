@@ -8,7 +8,8 @@ import { Tag } from '@claudio/ui/components/ui';
 /** The risk strings are `steps.risk.*` here; the keys the shared helper asks for are looked up under it. */
 export function useRiskWords(): Translate {
   const { t } = useTranslation('changes');
-  return (key, options) => String(t(`steps.${key}` as 'steps.label', options));
+  // i18next 27 types no longer take `undefined` for the options: an empty object means none
+  return (key, options) => String(t(`steps.${key}` as 'steps.label', options ?? {}));
 }
 
 /**
