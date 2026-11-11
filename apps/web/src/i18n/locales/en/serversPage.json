@@ -29,6 +29,7 @@
   },
   "row": {
     "version": "Version {{version}}",
+    "newer": "Newer than this Claudio ({{local}})",
     "latency": "{{ms}} ms",
     "address": "Reached at",
     "lastUsed": "Used {{when}}",
@@ -224,7 +225,12 @@
       "back": "Back to this server",
       "servers": "All servers"
     },
-    "fallbackName": "This server"
+    "fallbackName": "This server",
+    "behind": {
+      "text": "{{name}} runs Claudio {{remote}} and this Claudio runs {{local}}: what {{name}} added since does not show here until you update this Claudio.",
+      "action": "Update this Claudio",
+      "dismiss": "Dismiss"
+    }
   },
   "errors": {
     "servers": {
@@ -249,5 +255,13 @@
       "too-many": "Too many tries. Wait a moment, then try again.",
       "auth-required": "The other Claudio asks for no sign-in, so it cannot be paired. Turn on a token there first."
     }
+  },
+  "localName": {
+    "title": "This server",
+    "label": "Name",
+    "hint": "How this Claudio names itself in its server selector.",
+    "save": "Save name",
+    "saved": "Name saved",
+    "failed": "Could not save the name"
   }
 }

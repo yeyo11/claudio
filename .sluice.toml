@@ -66,7 +66,13 @@ key_inputs = ["node --version", "pnpm --version"]
 # Two shards, each a server and a headless Chrome: the queue keeps them from running beside other
 # heavy jobs, which is what froze the host when every agent ran four of its own
 # (docs/decisions/e2e-through-sluice.md).
-cmd = "pnpm run e2e:gate"
+# `exec env -u` drops the variables that mark a process as an agent's (CLAUDIO_CHAT_ID,
+# CLAUDIO_AGENT_RUN) and a chat's API credentials before anything starts, and `exec` leaves no
+# marked process in the job: the terminal guard of the sandboxed server walks a client's ancestry
+# for those marks, and an agent's verify otherwise failed every terminal spec. It changes nothing
+# for the person's own terminal, which is another server. A daemon that inherited the marks when an
+# agent started it still carries them above the job (reported to Sluice), so start it clean.
+cmd = "exec env -u CLAUDIO_CHAT_ID -u CLAUDIO_AGENT_RUN -u CLAUDIO_API_URL -u CLAUDIO_API_TOKEN pnpm run e2e:gate"
 weight = "auto"
 timeout = "45m"
 key_inputs = ["node --version", "pnpm --version"]

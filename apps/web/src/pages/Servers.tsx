@@ -16,6 +16,7 @@ import { useHubOnlyHidden, useServerScope } from '../lib/server-scope';
 import { sortServers } from '../lib/servers-model';
 import { AddServerDialog } from './servers/AddDialog';
 import { ConnectCard, HubsCard } from './servers/Connect';
+import { LocalNameCard } from './servers/LocalName';
 import { EditServerDialog } from './servers/EditDialog';
 import { PairAgainDialog } from './servers/PairAgainDialog';
 import { ServerRow, type RowActions } from './servers/ServerRow';
@@ -218,6 +219,7 @@ export function ServersView({
         )}
       </section>
 
+      <LocalNameCard />
       <ConnectCard />
       <HubsCard />
 

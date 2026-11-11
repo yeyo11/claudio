@@ -141,6 +141,16 @@ test('the menu pins This server, lists the three used last and ends with the way
   assert.deepEqual(calls, ['switch:c', 'go:/servers']);
 });
 
+test('the name this Claudio gave itself takes the place of This server, in the menu as on the button', () => {
+  const entries = selectorEntries([server('a', 'Alpha')], t, actions(), 'local', 'Portátil');
+  const local = group(entries).items[0];
+  assert.equal(local?.text, 'Portátil');
+  const label = renderToStaticMarkup(<>{local?.label}</>);
+  assert.match(label, /Portátil/);
+  assert.doesNotMatch(label, /This server/);
+  assert.match(renderToStaticMarkup(<>{group(selectorEntries([], t, actions(), 'local', null)).items[0]?.label}</>), /This server/, 'no name is the default');
+});
+
 test('with no server yet the menu offers to add one, straight into the dialog', () => {
   const { switchTo, go, calls } = actions();
   const entries = selectorEntries([], t, { switchTo, go });

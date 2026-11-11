@@ -8,7 +8,7 @@ import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { activeServerId, LOCAL_SERVER_ID } from '@claudio/ui/lib/server-scope';
-import { useServers, useServersFeatureOn } from '../lib/api/servers';
+import { useLocalServerName, useServers, useServersFeatureOn } from '../lib/api/servers';
 import { useServerScope } from '../lib/server-scope';
 import { RECENT_SERVERS, recentServers } from '../lib/servers-model';
 import { ServerMark, ServerStatusWord } from './ServerMark';
@@ -28,8 +28,9 @@ import { ServerMark, ServerStatusWord } from './ServerMark';
 export function ServerSelector() {
   const on = useServersFeatureOn();
   const servers = useServers({ enabled: on });
+  const localName = useLocalServerName();
   if (!on) return null;
-  return <SelectorView servers={servers.data ?? []} current={activeServerId()} />;
+  return <SelectorView servers={servers.data ?? []} current={activeServerId()} localName={localName} />;
 }
 
 /** What the menu does besides drawing itself; the component fills them from the router and the scope */
@@ -45,7 +46,15 @@ export interface SelectorActions {
  * servers after it, the one in use chosen, then the way to the page. With no server yet the way is
  * "Add a server", straight into the add dialog.
  */
-export function selectorEntries(servers: readonly ClaudioServer[], t: TFunction<'shell'>, actions: SelectorActions, current: string = LOCAL_SERVER_ID): MenuEntry[] {
+export function selectorEntries(
+  servers: readonly ClaudioServer[],
+  t: TFunction<'shell'>,
+  actions: SelectorActions,
+  current: string = LOCAL_SERVER_ID,
+  localName: string | null = null,
+): MenuEntry[] {
+  // The name this Claudio gave itself on its Servers page, else "This server"
+  const local = localName ?? t('servers.local');
   // The server in use is listed even when three others were used after it (a reading of the hub's
   // list from before this visit), so the chosen one is always in the menu
   const recent = recentServers(servers);
@@ -65,11 +74,11 @@ export function selectorEntries(servers: readonly ClaudioServer[], t: TFunction<
       items: [
         {
           id: LOCAL_SERVER_ID,
-          text: t('servers.local'),
+          text: local,
           label: (
             <span className="server-item">
               <Server {...ICON_SM} className="server-local-icon" aria-hidden />
-              {t('servers.local')}
+              {local}
             </span>
           ),
         },
@@ -94,7 +103,7 @@ export function selectorEntries(servers: readonly ClaudioServer[], t: TFunction<
 }
 
 /** The selector for a list of servers and the scope the page is in; a test draws it without the queries */
-export function SelectorView({ servers, current = LOCAL_SERVER_ID }: { servers: readonly ClaudioServer[]; current?: string }) {
+export function SelectorView({ servers, current = LOCAL_SERVER_ID, localName = null }: { servers: readonly ClaudioServer[]; current?: string; localName?: string | null }) {
   const { t } = useTranslation('shell');
   const navigate = useNavigate();
   const toast = useToast();
@@ -109,10 +118,11 @@ export function SelectorView({ servers, current = LOCAL_SERVER_ID }: { servers: 
       go: current === LOCAL_SERVER_ID ? navigate : (path) => window.location.assign(path),
     },
     current,
+    localName,
   );
   const remote = current === LOCAL_SERVER_ID ? null : (servers.find((server) => server.id === current) ?? null);
   // A remote the hub's list has not answered for yet is still not "This server": the button names nobody until it has
-  const name = remote ? remote.name : current === LOCAL_SERVER_ID ? t('servers.local') : '';
+  const name = remote ? remote.name : current === LOCAL_SERVER_ID ? (localName ?? t('servers.local')) : '';
 
   return (
     <>

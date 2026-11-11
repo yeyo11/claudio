@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { errorMessage, isRecord, type ServerAddress, type ServersSettings } from '@claudio/shared';
+import { errorMessage, isRecord, MAX_LOCAL_SERVER_NAME, type ServerAddress, type ServersSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import type { SecretVault } from '../secret-vault.ts';
 import { parseAddresses } from './addresses.ts';
@@ -77,6 +77,7 @@ export class ServerRegistry {
   private readonly settingsFile: string;
   private servers: StoredServer[];
   private enabled: boolean;
+  private localName: string | null;
   private unreadable: string | null = null;
   private writing: Promise<void> = Promise.resolve();
 
@@ -87,11 +88,13 @@ export class ServerRegistry {
     this.file = join(dataDir, SERVERS_FILE);
     this.settingsFile = join(dataDir, SERVERS_SETTINGS_FILE);
     this.servers = this.readServers();
-    this.enabled = this.readEnabled();
+    const saved = this.readSettings();
+    this.enabled = saved.enabled;
+    this.localName = saved.localName;
   }
 
   get settings(): ServersSettings {
-    return { enabled: this.enabled };
+    return { enabled: this.enabled, localName: this.localName };
   }
 
   list(): StoredServer[] {
@@ -109,9 +112,21 @@ export class ServerRegistry {
   }
 
   setEnabled(enabled: boolean): Promise<void> {
+    return this.saveSettings({ enabled, localName: this.localName });
+  }
+
+  /** The name this Claudio shows for itself; null goes back to "This server" */
+  setLocalName(localName: string | null): Promise<void> {
+    return this.saveSettings({ enabled: this.enabled, localName });
+  }
+
+  private saveSettings(next: { enabled: boolean; localName: string | null }): Promise<void> {
     return this.queue(async () => {
-      await writeAtomic(this.settingsFile, `${JSON.stringify({ enabled }, null, 2)}\n`);
-      this.enabled = enabled;
+      // `localName` is left out while unset, so a file written before it existed reads the same
+      const body = next.localName === null ? { enabled: next.enabled } : next;
+      await writeAtomic(this.settingsFile, `${JSON.stringify(body, null, 2)}\n`);
+      this.enabled = next.enabled;
+      this.localName = next.localName;
     });
   }
 
@@ -191,13 +206,15 @@ export class ServerRegistry {
     return parsed.servers.map(storedServer).filter((each): each is StoredServer => each !== null);
   }
 
-  private readEnabled(): boolean {
-    if (!existsSync(this.settingsFile)) return false;
+  private readSettings(): { enabled: boolean; localName: string | null } {
+    if (!existsSync(this.settingsFile)) return { enabled: false, localName: null };
     try {
       const parsed: unknown = JSON.parse(readFileSync(this.settingsFile, 'utf8'));
-      return isRecord(parsed) && parsed.enabled === true;
+      if (!isRecord(parsed)) return { enabled: false, localName: null };
+      const name = typeof parsed.localName === 'string' ? parsed.localName.trim() : '';
+      return { enabled: parsed.enabled === true, localName: name ? name.slice(0, MAX_LOCAL_SERVER_NAME) : null };
     } catch {
-      return false;
+      return { enabled: false, localName: null };
     }
   }
 }

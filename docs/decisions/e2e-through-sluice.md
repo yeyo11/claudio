@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-24T16:00:00Z
-updated_at: 2026-10-27T23:00:00Z
+updated_at: 2026-11-10T23:45:00Z
 tags:
     - decision
     - e2e
@@ -74,6 +74,16 @@ Every pull request still runs the whole suite on GitHub.
 
 - GitHub decides: no pull request merges without the four e2e shards of `e2e.yml`.
 - The live specs (`E2E_LIVE=1`) still need a logged-in CLI and a person.
+
+## Agent marks in the gate (2026-11-10)
+
+An agent's `verify` of the whole suite failed the four terminal specs and `motion`, which pass in CI.
+The terminal guard of the sandboxed server walks a client's process ancestry for an agent's mark
+(`CLAUDIO_CHAT_ID`, `CLAUDIO_AGENT_RUN`, `packages/core/src/terminals/peer.ts`). The gate's job inherited
+the agent's environment, and so did the Sluice daemon an agent had started. The `e2e` gate now begins
+with `exec env -u …` for those marks and the chat's API credentials, so no process of the job carries
+them. The daemon above the job still does until it is started from a clean environment; that is
+reported to Sluice. The person's own terminal is another server and its guard is unchanged.
 
 ## Related
 

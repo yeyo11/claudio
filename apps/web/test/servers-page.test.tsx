@@ -47,6 +47,8 @@ import { changesOf, EditServerForm, editStateOf } from '../src/pages/servers/Edi
 import { emptyPairing, FingerprintConfirm, mayPair, pairingOf, seenCertificateOf } from '../src/pages/servers/pairing';
 import { TestResultView } from '../src/pages/servers/TestDialog';
 import { localizedError } from '../src/pages/servers/words';
+import { ServerFacts } from '../src/pages/servers/ServerRow';
+import { LocalNameForm } from '../src/pages/servers/LocalName';
 
 // The Servers page (docs/plans/claudio-servers.md §12.1): every state of the list, the dialogs' bodies
 // drawn from data, D13's certificate comparison, and the remote that is offline. The Dialog shells
@@ -598,4 +600,32 @@ test('a status reads the same on the page and in the shell: one component, a wor
   assert.match(page, /class="collab-tone server-status tone-bad" data-status="offline"><svg/);
   assert.ok(text(wrap(<ServerStatusWord status={null} unchecked />)).includes('Not checked'));
   assert.equal(wrap(<ServerStatusWord status={null} />).replace(/<div class="toasts"[^>]*><\/div>/, ''), '');
+});
+
+test('a server on a newer Claudio than this one says so beside its version, in a word and its warn tone', async () => {
+  await i18n.changeLanguage('en');
+  const newer = text(wrap(<ServerFacts server={server({ health: { status: 'connected', address: null, version: '0.16.0', apiVersion: 1, latencyMs: 12, checkedAt: ago(1000) } })} build="0.15.0" />));
+  assert.match(newer, /Version 0\.16\.0 Newer than this Claudio \(0\.15\.0\)/);
+  assert.doesNotMatch(wrap(<ServerFacts server={server()} build="0.15.0" />), /server-row-newer/, 'the same version says nothing');
+  assert.doesNotMatch(wrap(<ServerFacts server={server()} build="0.16.0" />), /server-row-newer/, 'an older remote is not news here');
+  assert.doesNotMatch(wrap(<ServerFacts server={server()} build="" />), /server-row-newer/, 'an unbuilt page knows no version');
+  assert.match(wrap(<ServerFacts server={server({ health: { status: 'connected', address: null, version: '0.16.0', apiVersion: 1, latencyMs: 12, checkedAt: ago(1000) } })} build="0.15.0" />), /class="text-warn server-row-newer"/);
+  await i18n.changeLanguage('es');
+  assert.match(text(wrap(<ServerFacts server={server({ health: { status: 'connected', address: null, version: '0.16.0', apiVersion: 1, latencyMs: 12, checkedAt: ago(1000) } })} build="0.15.0" />)), /Más reciente que este Claudio \(0\.15\.0\)/);
+  await i18n.changeLanguage('en');
+});
+
+test("this Claudio's name: the saved one in the field, This server as the placeholder, Save idle until it changes", async () => {
+  await i18n.changeLanguage('en');
+  const named = wrap(<LocalNameForm saved="Portátil" pending={false} onSave={() => {}} />);
+  assert.match(named, /value="Portátil"/);
+  assert.match(named, /placeholder="This server"/);
+  assert.match(named, /maxLength="60"/);
+  assert.match(named, /<button type="submit" class="btn" disabled="">Save name<\/button>/, 'nothing to save yet');
+  const unnamed = wrap(<LocalNameForm saved={null} pending={false} onSave={() => {}} />);
+  assert.match(unnamed, /value=""/);
+  assert.match(text(unnamed), /How this Claudio names itself in its server selector\./);
+  await i18n.changeLanguage('es');
+  assert.match(text(wrap(<LocalNameForm saved={null} pending={false} onSave={() => {}} />)), /Nombre .*Guardar nombre/);
+  await i18n.changeLanguage('en');
 });

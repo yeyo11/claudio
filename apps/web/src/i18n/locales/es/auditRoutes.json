@@ -291,7 +291,7 @@
   "PUT /providers/settings": "Cambiar los ajustes de los proveedores",
   "PUT /security/auth": "Cambiar el modo de autenticación o el modo de solo lectura",
   "PUT /servers/:id/api/*": "Reemplazar en un servidor a través de la pasarela",
-  "PUT /servers/settings": "Activar o desactivar Servidores",
+  "PUT /servers/settings": "Activar o desactivar Servidores, o cambiar el nombre de este servidor",
   "PUT /settings/app": "Cambiar los ajustes de ejecución",
   "PUT /settings/guards": "Cambiar los ajustes de las guardas",
   "PUT /settings/supervisor": "Cambiar los ajustes del supervisor (obsoleto)",

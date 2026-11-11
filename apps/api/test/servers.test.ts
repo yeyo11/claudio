@@ -284,7 +284,7 @@ test('the gateway path stays under /api/ however it is decoded, and the hub toke
 
 test('Servers are off by default: an empty list, no adding, the gateway is 404, and meta says it can be a hub', async (t) => {
   const h = await hub(t, { enabled: false });
-  assert.deepEqual((await h.app.inject({ url: '/api/servers/settings', ...bearer(h.token) })).json(), { enabled: false });
+  assert.deepEqual((await h.app.inject({ url: '/api/servers/settings', ...bearer(h.token) })).json(), { enabled: false, localName: null });
   assert.deepEqual((await h.app.inject({ url: '/api/servers', ...bearer(h.token) })).json(), []);
   const add = await h.app.inject({ method: 'POST', url: '/api/servers', ...authed(h.token, { name: 'x', addresses: [{ url: 'https://192.168.0.2', kind: 'lan' }], pairing: { kind: 'code', code: 'ABCDEFGH' } }) });
   assert.equal(add.statusCode, 409);
@@ -295,6 +295,20 @@ test('Servers are off by default: an empty list, no adding, the gateway is 404, 
   assert.ok(meta.capabilities.includes('lan-tls'));
   const settings = await h.app.inject({ method: 'PUT', url: '/api/servers/settings', ...authed(h.token, { enabled: 'yes' }) });
   assert.equal(settings.statusCode, 400);
+});
+
+test("this Claudio's own name: set, trimmed, kept apart from the switch, and cleared back to This server", async (t) => {
+  const h = await hub(t, { enabled: false });
+  const put = (body: unknown) => h.app.inject({ method: 'PUT', url: '/api/servers/settings', ...authed(h.token, body) });
+  const named = await put({ localName: '  Portátil  ' });
+  assert.equal(named.statusCode, 200);
+  assert.deepEqual(named.json(), { enabled: false, localName: 'Portátil' }, 'the switch is untouched by a rename');
+  assert.deepEqual((await put({ enabled: true })).json(), { enabled: true, localName: 'Portátil' }, 'and the name by the switch');
+  assert.deepEqual((await put({ localName: '' })).json(), { enabled: true, localName: null }, 'empty is the default again');
+  assert.equal((await put({ localName: 'x'.repeat(61) })).statusCode, 400);
+  assert.equal((await put({ localName: 7 })).statusCode, 400);
+  assert.equal((await put({})).statusCode, 400, 'something to change');
+  assert.equal((await put({ name: 'x' })).statusCode, 400, 'no other key');
 });
 
 test('pairing by code pins the identity seen in the TLS handshake, and keeps the token in the vault only', async (t) => {

@@ -20562,6 +20562,13 @@
     "properties": {
       "enabled": {
         "type": "boolean"
+      },
+      "localName": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The name this Claudio goes by in its own server selector and on its Servers page, in place of \"This server\"; null (or absent) keeps that default. At most `MAX_LOCAL_SERVER_NAME` characters"
       }
     },
     "required": [

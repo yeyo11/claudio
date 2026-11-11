@@ -4,6 +4,7 @@ import { hostname } from 'node:os';
 import {
   API_VERSION,
   isRecord,
+  MAX_LOCAL_SERVER_NAME,
   type ClaudioServer,
   type PairServerAgainResult,
   type RemoveServerResult,
@@ -213,16 +214,28 @@ export class Servers {
   }
 
   /**
-   * `{ enabled }` and nothing else. Off keeps the list and the tokens (D8) and closes every connection
-   * to a remote at once, the gateway's streams and sockets included: no credential is used until it is
-   * on again.
+   * `{ enabled?, localName? }`, at least one. Off keeps the list and the tokens (D8) and closes every
+   * connection to a remote at once, the gateway's streams and sockets included: no credential is used
+   * until it is on again. `localName` is what this Claudio calls itself in its own selector; an empty
+   * one or null goes back to "This server". It is this install's label only: no hub sees it.
    */
   async updateSettings(body: unknown): Promise<ServersSettings> {
-    if (!isRecord(body)) throw badRequest('servers.settings-invalid', 'the body is { enabled: boolean }');
-    onlyKeys(body, ['enabled']);
-    if (typeof body.enabled !== 'boolean') throw badRequest('servers.settings-invalid', 'enabled must be true or false');
-    await this.registry.setEnabled(body.enabled);
-    if (!body.enabled) await this.disconnectAll();
+    if (!isRecord(body)) throw badRequest('servers.settings-invalid', 'the body is { enabled?: boolean, localName?: string | null }');
+    onlyKeys(body, ['enabled', 'localName']);
+    if (body.enabled === undefined && body.localName === undefined) throw badRequest('servers.settings-invalid', 'send enabled, localName or both');
+    if (body.enabled !== undefined && typeof body.enabled !== 'boolean') throw badRequest('servers.settings-invalid', 'enabled must be true or false');
+    if (body.localName !== undefined && body.localName !== null && typeof body.localName !== 'string') throw badRequest('servers.settings-invalid', 'localName must be a string or null');
+    if (typeof body.localName === 'string' && body.localName.trim().length > MAX_LOCAL_SERVER_NAME) {
+      throw badRequest('servers.settings-invalid', `localName is at most ${String(MAX_LOCAL_SERVER_NAME)} characters`);
+    }
+    if (body.localName !== undefined) {
+      const name = typeof body.localName === 'string' ? body.localName.trim() : '';
+      await this.registry.setLocalName(name || null);
+    }
+    if (typeof body.enabled === 'boolean') {
+      await this.registry.setEnabled(body.enabled);
+      if (!body.enabled) await this.disconnectAll();
+    }
     return this.registry.settings;
   }
 

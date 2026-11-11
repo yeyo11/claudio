@@ -7,6 +7,8 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { formatNumber, timeAgo } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { useRemoteUpdate } from '../../lib/api/servers';
+import { BUILD_VERSION } from '../../lib/reload';
+import { isNewerVersion } from '../../lib/server-meta';
 import { canUpdateServer, needsPairingAgain, shownAddress } from '../../lib/servers-model';
 import { ServerMark, ServerStatusWord } from '../../components/ServerMark';
 import { codeWords } from './words';
@@ -20,8 +22,12 @@ export interface RowActions {
   onUpdate: (server: ClaudioServer, release: ClaudioReleaseInfo) => void;
 }
 
-/** What a row says about a server besides its name: version, latency, the address in use, last use. Mono only for the address. */
-export function ServerFacts({ server }: { server: ClaudioServer }) {
+/**
+ * What a row says about a server besides its name: version, latency, the address in use, last use.
+ * Mono only for the address. A server on a newer Claudio than this one says so beside its version:
+ * its pages here are drawn by this Claudio's older build, so some of what it has does not show.
+ */
+export function ServerFacts({ server, build = BUILD_VERSION }: { server: ClaudioServer; build?: string }) {
   const { t } = useTranslation('serversPage');
   const health = server.health;
   const why = health && health.status !== 'connected' ? codeWords('reason', health.reason?.code) : null;
@@ -29,6 +35,7 @@ export function ServerFacts({ server }: { server: ClaudioServer }) {
     <>
       <span className="small muted server-row-facts">
         {health?.version && <span>{t('row.version', { version: health.version })}</span>}
+        {health?.version && build && isNewerVersion(health.version, build) && <span className="text-warn server-row-newer">{t('row.newer', { local: build })}</span>}
         {health?.latencyMs != null && <span className="tnum">{t('row.latency', { ms: formatNumber(health.latencyMs) })}</span>}
         <span>{server.lastUsedAt ? t('row.lastUsed', { when: timeAgo(server.lastUsedAt) }) : t('row.neverUsed')}</span>
       </span>

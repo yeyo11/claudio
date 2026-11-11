@@ -291,7 +291,7 @@
   "PUT /providers/settings": "Change the provider settings",
   "PUT /security/auth": "Change the auth mode or read-only",
   "PUT /servers/:id/api/*": "Replace on a server through the gateway",
-  "PUT /servers/settings": "Turn Servers on or off",
+  "PUT /servers/settings": "Turn Servers on or off, or rename this server",
   "PUT /settings/app": "Change runtime settings",
   "PUT /settings/guards": "Change the guard settings",
   "PUT /settings/supervisor": "Change the supervisor settings (deprecated)",

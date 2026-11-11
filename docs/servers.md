@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T18:00:00Z
-updated_at: 2026-11-09T18:00:00Z
+updated_at: 2026-11-10T23:45:00Z
 tags:
     - servers
     - remote-access
@@ -211,6 +211,31 @@ the web's remote gate shows "needs an update" and renders nothing else. Bump `AP
 change that breaks an older web talking through a gateway, and `API_VERSION_MIN` when old routes are
 dropped.
 
+### A remote on a newer Claudio
+
+Inside the range, a hub can still be on an older release than the remote. The routes fit, but the
+pages are always the hub's own build, so what the remote's release added to the UI does not show.
+On 2026-11-10 a hub on 0.15.0 drove a remote on 0.16.0, and the subagent composer, the system rows and
+the agent message cards were missing. The reload banner made it worse: the feed of a remote scope is
+the remote's, so its `stream.hello` carried 0.16.0 against the page's 0.15.0, and a reload brought back
+the same hub build and the same banner. Two rules hold now:
+
+- **The reload offer reads only this server's hello.** `noticeServerVersion`
+  (`apps/web/src/lib/reload.ts`) ignores it in a remote scope: nothing a reload brings can change
+  what the hub serves.
+- **The skew is said where it shows.**
+  - In a remote scope, `ServerSkewBanner` (`apps/web/src/components/ServerSkew.tsx`) takes the reload
+    banner's place when the remote's `/meta` version is newer than the page's build: "<name> runs
+    Claudio X and this Claudio runs Y". It has one action, **Update this Claudio**, a plain link to the
+    hub's Settings → General → Updates outside the scope, and it can be dismissed per server and
+    version for the tab.
+  - On `/servers`, a row whose version is newer than this Claudio's adds "Newer than this Claudio (Y)"
+    in the warn tone beside its version.
+
+An older remote is not part of this: when its range does not fit it is the gate's **needs-update**,
+and when it fits it shows what the hub's newer UI asks for. The comparison is `isNewerVersion`
+(`apps/web/src/lib/server-meta.ts`), by numbers.
+
 ## The web client
 
 - **Scope is the address.** `/s/<id>/…` is a remote, anything else is local. It is fixed when the
@@ -280,6 +305,12 @@ Every Servers surface is hub-only and drawn only while the switch is on; the des
   Picking a server runs `switchTo`, a full page load that ends with `POST /servers/:id/use`; a
   refusal (a server removed meanwhile, the switch just turned off) is a toast and the page stays. On
   a phone the same list opens as a sheet.
+- **This server's name.** The `/servers` page has a **This server** card with a **Name** field
+  (`LocalNameCard`, `pages/servers/LocalName.tsx`). What is saved there (`localName` of
+  `PUT /servers/settings`, at most 60 characters, kept in `servers-settings.json`) takes the place of
+  "This server" on the selector's button and in its menu; an empty name goes back to it. It is this
+  install's own label: a hub that pairs with it still names it as its person chose, and the status
+  bar's **Back to this server** keeps its words. Asked for by the owner on 2026-11-10.
 - **The sidebar** has **Servers** before Projects, and the phone's More list has it too.
 - **In a remote scope** the status bar's first item is the server's monogram, name and status word
   (the hub's last reading, polled slowly because it probes only the server in use), with **Back to

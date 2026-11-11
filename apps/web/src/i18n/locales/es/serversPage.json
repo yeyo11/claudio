@@ -29,6 +29,7 @@
   },
   "row": {
     "version": "Versión {{version}}",
+    "newer": "Más reciente que este Claudio ({{local}})",
     "latency": "{{ms}} ms",
     "address": "Conectado en",
     "lastUsed": "Usado {{when}}",
@@ -224,7 +225,12 @@
       "back": "Volver a este servidor",
       "servers": "Todos los servidores"
     },
-    "fallbackName": "Este servidor"
+    "fallbackName": "Este servidor",
+    "behind": {
+      "text": "{{name}} usa Claudio {{remote}} y este Claudio, la {{local}}: lo que {{name}} ha añadido desde entonces no se ve aquí hasta que actualices este Claudio.",
+      "action": "Actualizar este Claudio",
+      "dismiss": "Descartar"
+    }
   },
   "errors": {
     "servers": {
@@ -249,5 +255,13 @@
       "too-many": "Demasiados intentos. Espera un momento y vuelve a intentarlo.",
       "auth-required": "El otro Claudio no pide iniciar sesión, así que no se puede emparejar. Activa antes un token allí."
     }
+  },
+  "localName": {
+    "title": "Este servidor",
+    "label": "Nombre",
+    "hint": "Cómo se llama este Claudio en su selector de servidores.",
+    "save": "Guardar nombre",
+    "saved": "Nombre guardado",
+    "failed": "No se ha podido guardar el nombre"
   }
 }

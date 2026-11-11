@@ -5506,7 +5506,14 @@ export interface ClaudioServer {
 }
 export interface ServersSettings {
   enabled: boolean;
+  /**
+   * The name this Claudio goes by in its own server selector and on its Servers page, in place of
+   * "This server"; null (or absent) keeps that default. At most `MAX_LOCAL_SERVER_NAME` characters
+   */
+  localName?: string | null;
 }
+/** The longest name this Claudio can give itself, the same bound as a paired server's */
+export const MAX_LOCAL_SERVER_NAME = 60;
 /**
  * How a hub pairs. With an owner token, the hub first reads the certificate the address shows
  * without sending anything (D13): `expectedFingerprint` is the one the person read off the remote's
