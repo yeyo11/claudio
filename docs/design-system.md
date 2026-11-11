@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-11T05:30:00Z
+updated_at: 2026-11-11T07:00:00Z
 tags:
     - design-system
     - web
@@ -2380,7 +2380,8 @@ of `claudio-ds.css`.
    them, the pill sits on a dashed seam between the lines they were between.
 3. **One line, one rail.** A 3 px rail in `--diff-add` or `--diff-del` marks a changed line, and its
    number takes the same colour. A whole row is tinted, very lightly (`--diff-*-bg`), only in Unified
-   and Side by side.
+   and Side by side. A removed line's text is never faded on top of its tint: faded to 0.78, its syntax fell
+   under 4.5:1 in the light theme (2026-11-11).
 4. **Every change carries its why.** Where there is a transcript, the file header shows the intent
    of the latest step that touched the file, and each step shows the sentence Claude wrote just
    before the edit. One click reaches that place in the conversation.

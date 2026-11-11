@@ -106,9 +106,9 @@
   background: var(--diff-del-bg);
 }
 
-.diff-row.is-del .diff-code > span {
-  opacity: 0.78;
-}
+/* A removed line is told by its tint, its rail and its marks, never by fading its text: faded to 0.78
+   no syntax colour of the light theme held 4.5:1 on the tint (the keywords measured 3.6, comments
+   3.1), nor the dark theme's comments (4.0). Unfaded, the lowest is 4.6 */
 
 /* One mark per changed phrase, spanning its syntax runs */
 .diff-word {

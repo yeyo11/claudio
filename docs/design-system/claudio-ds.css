@@ -1326,7 +1326,7 @@ button.wi-mrow.sel { background: var(--sel-bg); }
 .dv-row.add .dv-num, .dv-row.mod .dv-num { color: var(--diff-add); opacity: 1; }
 .dv-row.del .dv-num { color: var(--diff-del); opacity: 1; }
 .dv-row.del .dv-code { background: var(--diff-del-bg); }
-.dv-row.del .dv-code > span { opacity: 0.78; }
+/* A removed line's text is not faded: faded, its syntax fell under 4.5:1 on the tint */
 .dv .wd { border-radius: 3px; padding: 1px 0; }
 .dv-row.add .wd, .dv-row.mod .wd, .dv-cell.add .wd { background: var(--diff-add-word); box-shadow: 0 0 0 1px var(--diff-add-word); }
 .dv-row.del .wd, .dv-cell.del .wd { background: var(--diff-del-word); box-shadow: 0 0 0 1px var(--diff-del-word); }
