@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { API_VERSION, API_VERSION_MIN } from '@claudio/shared';
-import { compatibility } from '../src/lib/server-meta.ts';
+import { compatibility, isNewerVersion } from '../src/lib/server-meta.ts';
 
 const range = (min: number, current: number) => ({ apiVersion: { min, current } });
 
@@ -33,4 +33,21 @@ test('without a version given, this web is judged at the shared API version', ()
   assert.equal(compatibility(range(API_VERSION_MIN, API_VERSION)), 'ok');
   assert.equal(compatibility(range(API_VERSION + 1, API_VERSION + 1)), 'web-too-old');
   assert.equal(compatibility(range(API_VERSION - 1, API_VERSION - 1)), 'server-too-old');
+});
+
+test('a release is newer by its numbers, not by its text', () => {
+  assert.equal(isNewerVersion('0.16.0', '0.15.0'), true);
+  assert.equal(isNewerVersion('0.10.0', '0.9.9'), true, 'compared as numbers, not as strings');
+  assert.equal(isNewerVersion('1.0.0', '0.99.0'), true);
+  assert.equal(isNewerVersion('0.15.0', '0.16.0'), false);
+  assert.equal(isNewerVersion('0.16.0', '0.16.0'), false);
+  assert.equal(isNewerVersion('v0.16.1', '0.16.0'), true);
+  assert.equal(isNewerVersion('0.16.0-rc.1', '0.15.9'), true);
+});
+
+test('a version that does not read as one is never newer', () => {
+  assert.equal(isNewerVersion(null, '0.15.0'), false);
+  assert.equal(isNewerVersion('0.16.0', ''), false);
+  assert.equal(isNewerVersion('dev', '0.15.0'), false);
+  assert.equal(isNewerVersion('0.16', '0.15.0'), false);
 });

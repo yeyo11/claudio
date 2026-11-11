@@ -38,7 +38,9 @@ const hub = <T>(path: string, init: Parameters<typeof requestAt>[2] = {}) => req
 
 export const serversApi = {
   settings: (o: ReadOptions = {}) => hub<ServersSettings>('/servers/settings', o),
-  setEnabled: (enabled: boolean) => hub<ServersSettings>('/servers/settings', { method: 'PUT', body: { enabled } satisfies ServersSettings }),
+  setEnabled: (enabled: boolean) => hub<ServersSettings>('/servers/settings', { method: 'PUT', body: { enabled } }),
+  /** What this Claudio calls itself in its own selector; null goes back to "This server" */
+  setLocalName: (localName: string | null) => hub<ServersSettings>('/servers/settings', { method: 'PUT', body: { localName } }),
   list: (o: ReadOptions = {}) => hub<ClaudioServer[]>('/servers', o),
   add: (body: AddServerRequest) => hub<ClaudioServer>('/servers', { method: 'POST', body }),
   update: (id: string, body: UpdateServerRequest) => hub<ClaudioServer>(`/servers/${enc(id)}`, { method: 'PATCH', body }),
@@ -79,6 +81,11 @@ export const serversKeys = {
  */
 export function useServersSettings(enabled = true) {
   return useQuery({ queryKey: serversKeys.settings, queryFn: ({ signal }) => serversApi.settings({ signal }), retry: false, staleTime: 60_000, enabled });
+}
+
+/** The name the hub gave itself (`localName`), or null while it has none or has not answered: callers fall back to "This server" */
+export function useLocalServerName(): string | null {
+  return useServersSettings().data?.localName ?? null;
 }
 
 /** The switch, once the hub has answered: false while it is unknown, off, or this page is a remote's */

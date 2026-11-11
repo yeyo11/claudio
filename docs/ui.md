@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-09T18:00:00Z
+updated_at: 2026-11-11T00:30:00Z
 tags:
     - ui
     - web
@@ -52,7 +52,7 @@ Shift design system ([design-system.md](design-system.md)); this page says what 
   chat's, an orchestration's and a work item's own page hide it, and so does the project wizard,
   since they have a back button and a footer of their own.
 - **Server selector** (top bar, before the project selector, only while Servers is on, also inside
-  another server's pages, where it names that server and keeps the hub's list): **This server**, the three servers used last with a monogram and a
+  another server's pages, where it names that server and keeps the hub's list): **This server** (or the name this Claudio gave itself on its Servers page), the three servers used last with a monogram and a
   status word, and **All servers** → `/servers` (or **Add a server** when there is none yet). Picking
   one reloads the page on that server, on the same page when the other server has what the page
   names, otherwise on that kind's list or Home ([servers.md](servers.md#the-web-client)). A phone

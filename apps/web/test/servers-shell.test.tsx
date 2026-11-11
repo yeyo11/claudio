@@ -129,7 +129,7 @@ test('the menu pins This server, lists the three used last and ends with the way
   const listed = group(entries);
   assert.deepEqual(listed.items.map((item) => item.id), ['local', 'b', 'c', 'd'], 'This server first, then the three most recent; Alpha is only on the page');
   assert.equal(listed.radio?.value, 'local', 'the hub is the one chosen');
-  const words = listed.items.map((item) => renderToStaticMarkup(<>{item.label}{item.meta}</>));
+  const words = listed.items.map((item) => renderToStaticMarkup(<TooltipProvider><>{item.label}{item.meta}</></TooltipProvider>));
   assert.match(words[0] ?? '', /This server/);
   assert.match(words[1] ?? '', /Beta[\s\S]*tone-ok[\s\S]*Connected/);
   assert.match(words[2] ?? '', /Gamma[\s\S]*tone-bad[\s\S]*Offline/);
@@ -139,6 +139,16 @@ test('the menu pins This server, lists the three used last and ends with the way
   listed.radio?.onChange('c');
   items(entries)[0]?.onSelect?.();
   assert.deepEqual(calls, ['switch:c', 'go:/servers']);
+});
+
+test('the name this Claudio gave itself takes the place of This server, in the menu as on the button', () => {
+  const entries = selectorEntries([server('a', 'Alpha')], t, actions(), 'local', 'Portátil');
+  const local = group(entries).items[0];
+  assert.equal(local?.text, 'Portátil');
+  const label = renderToStaticMarkup(<TooltipProvider><>{local?.label}</></TooltipProvider>);
+  assert.match(label, /Portátil/);
+  assert.doesNotMatch(label, /This server/);
+  assert.match(renderToStaticMarkup(<TooltipProvider><>{group(selectorEntries([], t, actions(), 'local', null)).items[0]?.label}</></TooltipProvider>), /This server/, 'no name is the default');
 });
 
 test('with no server yet the menu offers to add one, straight into the dialog', () => {
@@ -153,7 +163,7 @@ test('with no server yet the menu offers to add one, straight into the dialog', 
 test('the same menu speaks Spanish', async () => {
   await i18n.changeLanguage('es');
   const entries = selectorEntries([server('a', 'Estudio')], i18n.getFixedT('es', 'shell'), actions());
-  assert.match(renderToStaticMarkup(<>{group(entries).items[0]?.label}</>), /Este servidor/);
+  assert.match(renderToStaticMarkup(<TooltipProvider><>{group(entries).items[0]?.label}</></TooltipProvider>), /Este servidor/);
   assert.equal(items(entries)[0]?.label, 'Todos los servidores');
 });
 

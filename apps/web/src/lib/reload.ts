@@ -4,6 +4,7 @@
 // being current, so all this module does is raise an offer the shell shows as a banner, and carry
 // out the reload once the person presses it.
 import { useSyncExternalStore } from 'react';
+import { activeServerId, isRemoteServerId } from '@claudio/ui/lib/server-scope';
 import { reachability, useUnreachable, type Reachability } from './reachability';
 
 // Replaced by Vite's `define` with the root package.json's version (vite.config.ts). Under the unit
@@ -123,7 +124,15 @@ export class ReloadOffers {
 
 const offers = new ReloadOffers(BUILD_VERSION);
 
-export const noticeServerVersion = (server: unknown): void => offers.serverVersion(server);
+/**
+ * The version a `stream.hello` carries. Inside another server's pages the feed is that remote's,
+ * through the gateway, while the page itself is still the hub's own build: a remote on another
+ * version says nothing a reload could fix, and offering one kept the banner up for good (the hub
+ * reloaded into the same build). That skew is `ServerSkewBanner`'s to tell, so it is not an offer.
+ */
+export const noticeServerVersion = (server: unknown, remote: boolean = isRemoteServerId(activeServerId()), target: ReloadOffers = offers): void => {
+  if (!remote) target.serverVersion(server);
+};
 /**
  * A chunk would not load. With the network down it fails exactly as a deployed-away one does, so
  * before taking it for a new version the server is asked whether it answers: if it does not, the

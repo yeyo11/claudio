@@ -20,6 +20,25 @@ export function compatibility(meta: Pick<ServerMeta, 'apiVersion'> | null | unde
   return 'ok';
 }
 
+/**
+ * Whether release `a` is newer than `b`, both `major.minor.patch` (a pre-release or build suffix is
+ * ignored). False when either does not read as a version, so a server too old to say stays quiet.
+ */
+export function isNewerVersion(a: string | null | undefined, b: string | null | undefined): boolean {
+  const parse = (v: string | null | undefined): number[] | null => {
+    const m = typeof v === 'string' ? /^v?(\d+)\.(\d+)\.(\d+)/.exec(v.trim()) : null;
+    return m ? [Number(m[1]), Number(m[2]), Number(m[3])] : null;
+  };
+  const x = parse(a);
+  const y = parse(b);
+  if (!x || !y) return false;
+  for (let i = 0; i < 3; i++) {
+    const d = (x[i] ?? 0) - (y[i] ?? 0);
+    if (d !== 0) return d > 0;
+  }
+  return false;
+}
+
 /** `GET /meta` of the server this page is scoped to, through the gateway when it is a remote */
 export const readMeta = (signal?: AbortSignal): Promise<ServerMeta> =>
   requestAt<ServerMeta>(activeBase(), '/meta', { timeoutMs: 10_000, ...(signal ? { signal } : {}) });

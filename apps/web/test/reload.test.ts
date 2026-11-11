@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import { BUILD_VERSION, isChunkLoadError, ReloadOffers, reloadApp, serverVersionChange, type WorkerContainer } from '../src/lib/reload.ts';
+import { BUILD_VERSION, isChunkLoadError, noticeServerVersion, ReloadOffers, reloadApp, serverVersionChange, type WorkerContainer } from '../src/lib/reload.ts';
 
 test('a server running another version is an update, whichever way the numbers moved', () => {
   assert.equal(serverVersionChange('0.17.1', '0.18.0'), '0.18.0');
@@ -249,4 +249,14 @@ test('a failed update or registration lookup still reloads', async () => {
   unregistered.registered = false;
   await reloadApp({ container: unregistered, reload: () => void reloads++ });
   assert.equal(reloads, 2);
+});
+
+test("inside another server's pages its hello is not this page's version: no reload is offered", () => {
+  // A hub on 0.15.0 driving a remote on 0.16.0 reloaded into the same 0.15.0 build and showed the
+  // banner again, for good: the skew is ServerSkewBanner's to tell
+  const offers = new ReloadOffers('0.15.0');
+  noticeServerVersion('0.16.0', true, offers);
+  assert.equal(offers.current(), null);
+  noticeServerVersion('0.16.0', false, offers);
+  assert.deepEqual(offers.current(), { reason: 'updated', version: '0.16.0' });
 });

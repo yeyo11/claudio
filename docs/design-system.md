@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-10T13:00:00Z
+updated_at: 2026-11-11T01:00:00Z
 tags:
     - design-system
     - web
@@ -2982,6 +2982,18 @@ Variants the app drew where the reference had no class, mirrored in §19 of
 - A remote that is offline is `Unreachable` in its in-page form (`remote` prop): the server's name and
   address, Retry (which stays on the screen and says it is trying) and the way back. Never the hub's
   modal.
+- **This server's name** (2026-11-10, `LocalNameCard`) is the last card: one row, `.server-local-name`
+  and `.server-local-row`, with the **Name** label, an input of `62ch` for 60 characters and **Save
+  name** beside it, visible only once the field differs from what is saved (`.server-local-save.is-idle`
+  keeps its place, `inert`, so typing never moves the hint), then one hint that says an empty name is
+  "This server" again; focus goes back to the field after a save. The selector's name and its menu
+  items end in an ellipsis, with the whole name in a `Tooltip` on the name (never `title` inside a
+  button).
+- **A remote on a newer Claudio** says so in the warn tone and a word: `.server-row-newer` ("Newer than
+  this Claudio (X)") beside a row's version, and, inside that remote, `ServerSkewBanner`, the reload
+  banner's classes with `alert-warn` and one link, **Update this Claudio**. It is never shown with the
+  version offer of the reload banner, which ignores a remote's hello. `.reload-banner` wraps, so a long
+  sentence takes its own line on a phone with the actions under it.
 - The LAN card says the listener is HTTPS with a self-signed certificate and shows its fingerprint in
   mono, in groups of four, with a copy button.
 - On a phone the row's actions are one "⋯" `Sheet`, the dialogs' tabs, move buttons and colour tiles

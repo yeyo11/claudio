@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-11-09T12:00:00Z
+updated_at: 2026-11-10T23:45:00Z
 tags:
     - updates
     - docker
@@ -256,6 +256,10 @@ each Home widget. Skew protection (D6) has four parts:
   names and regular files whose real path stays inside that folder qualify. After a `.deb` upgrade the
   previous build was the base payload and no longer exists, so there the clean 404 and the offer to
   reload are what remain.
+- **A remote's version is not this page's.** In another server's pages the feed comes from that
+  remote through the gateway, so its `stream.hello` is not compared with the page's build: a reload
+  would bring back the hub's same build. A remote on a newer release is told by its own notice
+  ([servers.md](servers.md#a-remote-on-a-newer-claudio)).
 - **The page recognises the failure.** `CHUNK_ERROR` (`apps/web/src/lib/reload.ts`) knows "is not a
   valid JavaScript MIME type", and "Load failed" counts only when the same message mentions `import`
   or `/assets/`, because WebKit uses it for any failed fetch. A bare "Load failed" from an

@@ -9,7 +9,7 @@ import { ensureLanCertificate } from '../src/lan-tls.ts';
 import { SecretVault } from '../src/secret-vault.ts';
 import { isLoopbackName, parseAddress, parseAddresses, refusedIp } from '../src/servers/addresses.ts';
 import { ServersError } from '../src/servers/errors.ts';
-import { SERVERS_FILE, SERVERS_VAULT_TOOL, ServerRegistry, type StoredServer } from '../src/servers/registry.ts';
+import { SERVERS_FILE, SERVERS_SETTINGS_FILE, SERVERS_VAULT_TOOL, ServerRegistry, type StoredServer } from '../src/servers/registry.ts';
 import { apiCompatibility } from '../src/servers/service.ts';
 import { accepts, caMayVouchFor, dial, peek, type Lookup, type PeerSeen, type Trust } from '../src/servers/transport.ts';
 
@@ -204,7 +204,7 @@ test('the list is settings-shaped JSON with no token in it; the token is in the 
   const dataDir = scratch(t);
   const vault = new SecretVault({ dataDir });
   const registry = new ServerRegistry(dataDir, vault);
-  assert.deepEqual(registry.settings, { enabled: false }, 'off by default');
+  assert.deepEqual(registry.settings, { enabled: false, localName: null }, 'off by default, with no name of its own');
   await registry.put(SERVER, 'the-server-token');
   const onDisk = readFileSync(join(dataDir, SERVERS_FILE), 'utf8');
   assert.equal(onDisk.includes('the-server-token'), false);
@@ -219,7 +219,12 @@ test('the list is settings-shaped JSON with no token in it; the token is in the 
   assert.equal(again.tokenOf(SERVER.id), 'the-server-token');
 
   await again.setEnabled(true);
-  assert.deepEqual(new ServerRegistry(dataDir, vault).settings, { enabled: true });
+  assert.deepEqual(new ServerRegistry(dataDir, vault).settings, { enabled: true, localName: null });
+  // The name is kept beside the switch, and a file without it reads as before
+  await again.setLocalName('Portátil');
+  assert.deepEqual(new ServerRegistry(dataDir, vault).settings, { enabled: true, localName: 'Portátil' });
+  await again.setLocalName(null);
+  assert.deepEqual(JSON.parse(readFileSync(join(dataDir, SERVERS_SETTINGS_FILE), 'utf8')), { enabled: true });
   await again.remove(SERVER.id);
   assert.equal(again.get(SERVER.id), null);
   assert.equal(new SecretVault({ dataDir }).get(SERVERS_VAULT_TOOL)[SERVER.id], undefined, 'the token goes with it');

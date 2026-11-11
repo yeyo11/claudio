@@ -31,6 +31,7 @@ import { BrandMark, ICON, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from '@claudio/ui/components/motion';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
+import { ServerSkewBanner } from './components/ServerSkew';
 import { Fab } from './components/shell/Fab';
 import { useOwnPhoneHeader, usePhoneHeaderMark } from './components/shell/PhoneHeader';
 import { LiveSection, useLive } from './components/shell/live';
@@ -440,6 +441,7 @@ function Shell() {
         <TopBar pathname={pathname} search={search} projectsLabel={projects.label} currentLabel={current?.label} live={live} startEntries={startEntries} onNewChat={newChat} />
 
         <ReloadBanner />
+        <ServerSkewBanner />
 
         <main id="main" ref={mainRef} tabIndex={-1} className="main">
           {/* Keyed by pathname only (Settings by its root): tab and scope switches must not replay the transition */}
