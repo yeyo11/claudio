@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-11T05:30:00Z
+updated_at: 2026-11-11T07:00:00Z
 tags:
     - design-system
     - web
@@ -2373,14 +2373,17 @@ of `claudio-ds.css`.
 **Four rules**
 
 1. **Only what changed carries colour.** Syntax is muted (`--sx-*`) and never uses green, red or
-   cyan. Context lines are dimmed in Reading. The changed words of a line are one mark
-   (`--diff-*-word`) that spans their syntax runs, not a mark per token.
+   cyan. Context lines are dimmed in Reading. The changed words of a line are one mark that spans
+   their syntax runs, not a mark per token: a 2 px line under them in `--diff-add` or `--diff-del`,
+   never a fill behind the text, which took the syntax on it under 4.5:1 (2026-11-11). Line numbers
+   are `--fg-3` unfaded, for the same reason.
 2. **What was removed folds away.** In Reading the file reads as it is now. A pill on the rail of
    the first new line of a block (`−2`) opens the removed lines in place; when nothing replaced
    them, the pill sits on a dashed seam between the lines they were between.
 3. **One line, one rail.** A 3 px rail in `--diff-add` or `--diff-del` marks a changed line, and its
    number takes the same colour. A whole row is tinted, very lightly (`--diff-*-bg`), only in Unified
-   and Side by side.
+   and Side by side. A removed line's text is never faded on top of its tint: faded to 0.78, its syntax fell
+   under 4.5:1 in the light theme (2026-11-11).
 4. **Every change carries its why.** Where there is a transcript, the file header shows the intent
    of the latest step that touched the file, and each step shows the sentence Claude wrote just
    before the edit. One click reaches that place in the conversation.
@@ -2426,7 +2429,6 @@ px rows instead of scrolling sideways.
 |---|---|
 | `--diff-add`, `--diff-del` | rails, line numbers, signs, pills (they are `--ok` and `--bad`) |
 | `--diff-add-bg`, `--diff-del-bg` | row tints in Unified and Side by side; removed lines opened in Reading |
-| `--diff-add-word`, `--diff-del-word` | the mark on changed words |
 | `--sx-kw`, `--sx-str`, `--sx-num`, `--sx-type`, `--sx-fn`, `--sx-com` | muted syntax, for code inside the comparator and the editor (`CodeEditor`, whose keys, punctuation and headings are the greys of `.code-ed .tk-*`) |
 
 **States.** No worktree: Result is disabled with its reason and the screen opens on Step by step.

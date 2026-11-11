@@ -58,8 +58,8 @@
 .diff-num {
   padding-right: 16px;
   text-align: right;
+  /* --fg-3 as it is: faded to 0.65 a context row's number measured 2.65 in the light theme */
   color: var(--fg-3);
-  opacity: 0.65;
   /* Kept in the code's mono: the gutter of a literal, lined up with its rows, and the line a
      `file.ts:12` reference names */
   font-size: var(--fs-small);
@@ -94,39 +94,37 @@
 .diff-row.is-add .diff-num,
 .diff-row.is-mod .diff-num {
   color: var(--diff-add);
-  opacity: 1;
 }
 
 .diff-row.is-del .diff-num {
   color: var(--diff-del);
-  opacity: 1;
 }
 
 .diff-row.is-del .diff-code {
   background: var(--diff-del-bg);
 }
 
-.diff-row.is-del .diff-code > span {
-  opacity: 0.78;
-}
+/* A removed line is told by its tint, its rail and its marks, never by fading its text: faded to 0.78
+   no syntax colour of the light theme held 4.5:1 on the tint (the keywords measured 3.6, comments
+   3.1), nor the dark theme's comments (4.0). Unfaded, the lowest is 4.6 */
 
-/* One mark per changed phrase, spanning its syntax runs */
+/* One mark per changed phrase, spanning its syntax runs: a 2 px line under it in the status colour,
+   never a fill behind the text. A fill on top of the row's tint took the syntax under 4.5:1 (a
+   comment measured 3.8 on a removed mark, 3.6 on an added one in the dark theme), and no lighter
+   fill held the light theme's comments */
 .diff-word {
-  border-radius: var(--diff-mark-radius);
   padding: 1px 0;
 }
 
 .diff-row.is-add .diff-word,
 .diff-row.is-mod .diff-word,
 .diff-cell.is-add .diff-word {
-  background: var(--diff-add-word);
-  box-shadow: 0 0 0 1px var(--diff-add-word);
+  box-shadow: inset 0 -2px 0 var(--diff-add);
 }
 
 .diff-row.is-del .diff-word,
 .diff-cell.is-del .diff-word {
-  background: var(--diff-del-word);
-  box-shadow: 0 0 0 1px var(--diff-del-word);
+  box-shadow: inset 0 -2px 0 var(--diff-del);
 }
 
 /* Reading: the file as it is now; context is dimmed so what is new stands out on its own */

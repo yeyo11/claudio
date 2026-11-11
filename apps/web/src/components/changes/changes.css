@@ -842,7 +842,15 @@
     font-size: var(--fs-body);
   }
 
+  /* The switch keeps its width and the hint wraps beside it: shrunk by the hint, "Reading" and
+     "Unified" were cut at 320 */
+  .changes-review .changes-phone-modes .segmented {
+    flex: none;
+  }
+
   .changes-review .changes-phone-hint {
+    flex: 1 1 0;
+    min-width: 0;
     margin-left: auto;
     font-size: var(--fs-small);
     color: var(--fg-3);

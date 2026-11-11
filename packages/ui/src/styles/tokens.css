@@ -80,8 +80,6 @@
   --diff-del: var(--bad);
   --diff-add-bg: rgba(74, 222, 154, 0.055);
   --diff-del-bg: rgba(248, 123, 127, 0.06);
-  --diff-add-word: rgba(74, 222, 154, 0.2);
-  --diff-del-word: rgba(248, 123, 127, 0.24);
   --diff-rail-w: 3px;
   --diff-rail-radius: 2px;
   --diff-mark-radius: 3px;
@@ -319,8 +317,6 @@
   --live-soft: rgba(11, 102, 128, 0.1);
   --diff-add-bg: rgba(21, 128, 61, 0.06);
   --diff-del-bg: rgba(185, 28, 28, 0.05);
-  --diff-add-word: rgba(21, 128, 61, 0.16);
-  --diff-del-word: rgba(185, 28, 28, 0.15);
   --sx-kw: #6a4a9e;
   --sx-str: #7c5a22;
   --sx-num: #2d5a93;
@@ -403,8 +399,6 @@
     --live-soft: rgba(11, 102, 128, 0.1);
     --diff-add-bg: rgba(21, 128, 61, 0.06);
     --diff-del-bg: rgba(185, 28, 28, 0.05);
-    --diff-add-word: rgba(21, 128, 61, 0.16);
-    --diff-del-word: rgba(185, 28, 28, 0.15);
     --sx-kw: #6a4a9e;
     --sx-str: #7c5a22;
     --sx-num: #2d5a93;
