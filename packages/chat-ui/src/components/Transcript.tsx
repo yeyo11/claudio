@@ -8,7 +8,7 @@ import { useChatUi, useOptionalChatUi } from '../lib/context';
 import { teammateRead, type TeammateRead } from '../lib/teammate-reads';
 import { upperFirst, useAgentName, useRiskContext } from '../lib/agent';
 import { toolHint, type ToolHint } from '../lib/tool-lens';
-import { isLeadRelay, listedAgents, readAgentEntry, sentMessageOf, systemFolds, systemLabelKey, systemWords, type AgentEntry } from '../lib/agent-messages';
+import { isLeadRelay, listedAgents, readAgentEntry, readHarnessNotes, sentMessageOf, systemFolds, systemLabelKey, systemWords, type AgentEntry } from '../lib/agent-messages';
 import { withRelays, type ListedRow } from '../lib/relay-rows';
 import { AgentDirectoryScope, AgentMessageCard, LeadRelayRow, RelayRow, endName, endOf, SystemRow, useAgentDirectory, type AgentDirectory, type AgentEnd } from './AgentMessages';
 import { toolKindLabel } from '../lib/wire-words';
@@ -441,7 +441,7 @@ function CallRow({ call, settled, subagents }: { call: StepCall; settled: boolea
   const agentId = subagents && isDelegation(call.name) ? subagents.find(call.input) : null;
   const { cwd } = useRiskContext();
   const directory = useAgentDirectory();
-  const hint = agentToolHint(call, directory, t) ?? (call.name ? toolHint(call.name, call.input, cwd, callHint) : { text: truncate((call.result?.content ?? '').replace(/\s+/g, ' '), 110) || t('transcript.empty') });
+  const hint = agentToolHint(call, directory, t) ?? (call.name ? toolHint(call.name, call.input, cwd, callHint) : { text: truncate(readHarnessNotes(call.result?.content ?? '').body.replace(/\s+/g, ' '), 110) || t('transcript.empty') });
   // Scored from the input, so a call still waiting for its result already shows it
   const risk = useToolRisk(call.name, call.input);
   const read = teammateRead(call.name, call.input);

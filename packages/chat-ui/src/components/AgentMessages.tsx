@@ -129,6 +129,24 @@ function ClampedBody({ text }: { text: string }) {
 }
 
 /**
+ * What Claude Code's own markers at the head of a text meant (`readHarnessNotes`), one quiet line each:
+ * under an agent message's head, and above a tool's result that carried them.
+ */
+export function HarnessNoteLines({ notes }: { notes: readonly HarnessNote[] }) {
+  const { t } = useTranslation('chat');
+  return (
+    <>
+      {notes.map((note) => (
+        <p key={note} className="agent-msg-note">
+          <Info {...ICON_SM} aria-hidden />
+          {t(`agentMessage.note.${note}`)}
+        </p>
+      ))}
+    </>
+  );
+}
+
+/**
  * A message one agent sent another. The same card for what the lead sends (`SendMessage`, under its
  * step) and what an agent receives, so a reader follows one conversation whichever side they read.
  */
@@ -169,12 +187,7 @@ export const AgentMessageCard = memo(function AgentMessageCard({
         )}
         <Time at={at} />
       </div>
-      {notes.map((note) => (
-        <p key={note} className="agent-msg-note">
-          <Info {...ICON_SM} aria-hidden />
-          {t(`agentMessage.note.${note}`)}
-        </p>
-      ))}
+      <HarnessNoteLines notes={notes} />
       {body && <ClampedBody text={body} />}
       {notSent?.reason && <p className="agent-msg-reason">{notSent.reason}</p>}
     </div>

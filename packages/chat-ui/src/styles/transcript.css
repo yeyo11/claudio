@@ -1663,6 +1663,7 @@
   margin: 0;
   color: var(--text-muted);
   font-size: var(--fs-small);
+  line-height: var(--lh-small);
 }
 
 .agent-msg-note > svg {

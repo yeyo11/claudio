@@ -796,9 +796,9 @@
     "notSent": "Not delivered",
     "listAgents": "Available agents ({{count}})",
     "note": {
-      "others-content": "Includes content other people wrote: Claude Code passed it on as data, not as instructions.",
-      "scanned": "Claude Code flagged parts of this report that read like instructions.",
-      "marker": "Claude Code added a marker of its own to this message."
+      "others-content": "Relays content other people wrote, as data.",
+      "scanned": "Claude Code flagged parts that read like instructions.",
+      "marker": "Carries a marker of Claude Code's own."
     }
   },
   "system": {

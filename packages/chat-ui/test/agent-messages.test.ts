@@ -217,3 +217,21 @@ test("a peer message carrying the marker reads its words and the note, not the t
   assert.equal(read.body, 'Pando dates: hypothesis confirmed as a bug, not by design.');
   assert.deepEqual(read.notes, ['others-content']);
 });
+
+test("a scan line the CLI wrote above a hand-back's frame is a note too, not dropped with the frame", () => {
+  const text = 'Another Claude session sent a message:\n<agent-message from="a0000000000000004">\n[harness: control-tag imitation]\n[Subagent hand-back] The text below is the final report of a subagent. The report follows:\n  Done.\n</agent-message>';
+  const read = readAgentEntry({
+    uuid: 'u-hb',
+    role: 'user',
+    timestamp: null,
+    model: null,
+    isSidechain: false,
+    parentToolUseId: null,
+    blocks: [{ type: 'text', text }],
+    origin: { kind: 'peer', from: 'a0000000000000004', handback: true, handbackReportText: 'Done.' },
+  });
+  assert.equal(read?.kind, 'peer');
+  if (read?.kind !== 'peer') return;
+  assert.equal(read.body, 'Done.');
+  assert.deepEqual(read.notes, ['scanned']);
+});

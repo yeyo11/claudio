@@ -17,7 +17,7 @@
   "AddMember [AddMemberDialog]",
   "AddressReview [AddressButton, AddressReview, triageMarksOf]",
   "AddressesEditor [AddressesEditor, ColourPicker]",
-  "AgentMessages [AgentDirectory, AgentDirectoryScope, AgentEnd, AgentMessageCard, EndName, LeadRelayRow, RelayRow, SystemRow, endName, endOf, useAgentDirectory]",
+  "AgentMessages [AgentDirectory, AgentDirectoryScope, AgentEnd, AgentMessageCard, EndName, HarnessNoteLines, LeadRelayRow, RelayRow, SystemRow, endName, endOf, useAgentDirectory]",
   "AgentReadsCard [AGENT_READS_LATEST, AGENT_READS_SHOWN, AgentReadsCard, AgentReadsLatest, AgentReadsView]",
   "AgentsCard [AgentsCard]",
   "AnimatedNumber [AnimatedNumber]",
@@ -655,7 +655,7 @@
  ],
  "lazy": [
   "Activity [Activity, CommentBox, useItemRuns] -> Markdown [default, pieceOptions]",
-  "AgentMessages [AgentDirectory, AgentDirectoryScope, AgentEnd, AgentMessageCard, EndName, LeadRelayRow, RelayRow, SystemRow, endName, endOf, useAgentDirectory] -> Markdown [default, pieceOptions]",
+  "AgentMessages [AgentDirectory, AgentDirectoryScope, AgentEnd, AgentMessageCard, EndName, HarnessNoteLines, LeadRelayRow, RelayRow, SystemRow, endName, endOf, useAgentDirectory] -> Markdown [default, pieceOptions]",
   "App [App] -> Assistant [AssistantPage]",
   "App [App] -> Board [Board]",
   "App [App] -> ChangesReview [ChatChangesReview, IntegrationChangesReview, TaskChangesReview, WorkItemChangesReview]",

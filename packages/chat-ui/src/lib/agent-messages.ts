@@ -69,6 +69,16 @@ export function readHarnessNotes(text: string): { body: string; notes: HarnessNo
   return { body: lines.slice(i).join('\n').trim(), notes: [...new Set(notes)] };
 }
 
+/**
+ * Markers the CLI wrote before a hand-back's frame ("Notes above this frame…"): the report itself comes
+ * from `handbackReportText` or after the frame, so they would be dropped unread otherwise.
+ */
+function notesAboveFrame(text: string): HarnessNote[] {
+  const inner = AGENT_MESSAGE.exec(text)?.[1] ?? text.replace(PEER_FRAME, '');
+  const frame = inner.indexOf('[Subagent hand-back]');
+  return frame > 0 ? readHarnessNotes(inner.slice(0, frame)).notes : [];
+}
+
 export type AgentEntry =
   /** A message from another agent: a subagent's `SendMessage`, or its final report handed back */
   | { kind: 'peer'; from: string; fallbackName: string | null; body: string; handback: boolean; notes: HarnessNote[] }
@@ -112,7 +122,8 @@ export function readAgentEntry(entry: TranscriptEntry): AgentEntry | null {
   const text = entryText(entry);
   if (origin?.kind === 'peer') {
     const read = readHarnessNotes(peerBody(text, origin));
-    return { kind: 'peer', from: origin.from, fallbackName: origin.name ?? null, body: read.body, notes: read.notes, handback: origin.handback === true };
+    const notes = [...new Set([...(origin.handback ? notesAboveFrame(text) : []), ...read.notes])];
+    return { kind: 'peer', from: origin.from, fallbackName: origin.name ?? null, body: read.body, notes, handback: origin.handback === true };
   }
   if (origin?.kind === 'coordinator') {
     const said = coordinatorText(text);

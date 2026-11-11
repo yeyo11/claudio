@@ -33,6 +33,8 @@ import {
   type TreeNode,
 } from '../lib/tool-lens';
 import { RichText } from './Transcript';
+import { HarnessNoteLines } from './AgentMessages';
+import { readHarnessNotes } from '../lib/agent-messages';
 
 /*
  * The body of an opened tool call, read as what happened (docs/plans/tool-rows-and-live-branches.md
@@ -539,8 +541,11 @@ export function ToolBody({ call, running }: { call: StepCall; running: boolean }
   const [raw, setRaw] = useState(false);
   const failed = call.result?.isError === true;
   const Lens = LENS_VIEWS[lensOf(call.name)];
+  // A result that carried the harness's markers says so in the page's words; the output stays verbatim
+  const notes = useMemo(() => (call.result ? readHarnessNotes(call.result.content).notes : []), [call.result]);
   return (
     <div className="call-body">
+      {!raw && <HarnessNoteLines notes={notes} />}
       {raw ? (
         <RawBody call={call} />
       ) : failed && call.result ? (

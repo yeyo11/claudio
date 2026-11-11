@@ -236,8 +236,8 @@ test("Claude Code's provenance marker is a note on the card, never the raw tag (
   const es = render(<EntryView entry={entry} />);
   assert.match(es, /class="agent-msg"/);
   assert.match(es, /class="agent-msg-note"/);
-  assert.match(text(es), /Incluye contenido escrito por otras personas/);
+  assert.match(text(es), /Reenvía contenido escrito por otras personas, como datos\./);
   assert.match(text(es), /Pando dates: hypothesis confirmed as a bug\./);
   assert.doesNotMatch(es, /artifact-content-authored-by-others|not instructions/);
-  assert.match(text(render(<EntryView entry={entry} />, LEAD, 'en')), /Includes content other people wrote/);
+  assert.match(text(render(<EntryView entry={entry} />, LEAD, 'en')), /Relays content other people wrote, as data\./);
 });
