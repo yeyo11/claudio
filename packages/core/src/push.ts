@@ -3,9 +3,8 @@ import { chmodSync, existsSync, readFileSync } from 'node:fs';
 import { Agent } from 'node:https';
 import { isIP } from 'node:net';
 import { join } from 'node:path';
-// `web-push` is CommonJS and builds its exports object from bound methods, which Node's lexer
-// cannot read as named exports: the default import is the whole module, and the only one that works.
-import webpush from 'web-push';
+// `web-push` 4 is an ES module with named exports and no default one
+import * as webpush from 'web-push';
 import { DEFAULT_LEVEL, errorMessage, interrupts, KINDS, LEVELS, notificationsFor, TEST_PUSH_KEY_PREFIX, toolRisk, type ClaudioEvent, type NotificationDraft, type NotificationKind, type NotificationLevel, type PushKeyInfo, type PushPayload, type PushSendResult, type PushSubscriptionSummary, type RegisterPushSubscriptionRequest, type ToolRiskContext } from '@claudio/shared';
 import { writeAtomic } from './config/files.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
