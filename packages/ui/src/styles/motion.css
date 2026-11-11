@@ -160,11 +160,17 @@
   display: none;
 }
 
-/* Nobody is looking: a background tab does not get to run a single frame. */
+/*
+ * Nobody is looking: a background tab runs no loop. Each animation gets one pass at most instead of
+ * being paused: a paused entrance (fade-in, fade-rise, pop-in all start at opacity 0) stood still on
+ * its first frame, so a row that arrived while the tab counted as hidden kept its room in the
+ * transcript and showed nothing in it (owner's report 2026-11-11). A loop ends its pass and stops; it
+ * carries on from where its clock is once the tab is looked at again.
+ */
 :root[data-hidden='true'] *,
 :root[data-hidden='true'] *::before,
 :root[data-hidden='true'] *::after {
-  animation-play-state: paused !important;
+  animation-iteration-count: 1 !important;
 }
 
 /* ---- What the redesign's live surfaces move with ---- */
