@@ -2373,8 +2373,10 @@ of `claudio-ds.css`.
 **Four rules**
 
 1. **Only what changed carries colour.** Syntax is muted (`--sx-*`) and never uses green, red or
-   cyan. Context lines are dimmed in Reading. The changed words of a line are one mark
-   (`--diff-*-word`) that spans their syntax runs, not a mark per token.
+   cyan. Context lines are dimmed in Reading. The changed words of a line are one mark that spans
+   their syntax runs, not a mark per token: a 2 px line under them in `--diff-add` or `--diff-del`,
+   never a fill behind the text, which took the syntax on it under 4.5:1 (2026-11-11). Line numbers
+   are `--fg-3` unfaded, for the same reason.
 2. **What was removed folds away.** In Reading the file reads as it is now. A pill on the rail of
    the first new line of a block (`−2`) opens the removed lines in place; when nothing replaced
    them, the pill sits on a dashed seam between the lines they were between.
@@ -2427,7 +2429,7 @@ px rows instead of scrolling sideways.
 |---|---|
 | `--diff-add`, `--diff-del` | rails, line numbers, signs, pills (they are `--ok` and `--bad`) |
 | `--diff-add-bg`, `--diff-del-bg` | row tints in Unified and Side by side; removed lines opened in Reading |
-| `--diff-add-word`, `--diff-del-word` | the mark on changed words |
+| `--diff-add-word`, `--diff-del-word` | unused since 2026-11-11: the comparator marks a changed phrase with an underline in `--diff-add`/`--diff-del` |
 | `--sx-kw`, `--sx-str`, `--sx-num`, `--sx-type`, `--sx-fn`, `--sx-com` | muted syntax, for code inside the comparator and the editor (`CodeEditor`, whose keys, punctuation and headings are the greys of `.code-ed .tk-*`) |
 
 **States.** No worktree: Result is disabled with its reason and the screen opens on Step by step.

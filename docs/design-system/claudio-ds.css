@@ -1317,19 +1317,20 @@ button.wi-mrow.sel { background: var(--sel-bg); }
    de 3 px, sin inundar filas enteras de rojo y verde. Filas de 20 px: los números cuadran. */
 .dv { font-family: var(--mono); font-size: var(--fs-small); line-height: var(--lh-small); color: var(--fg); background: var(--bg); --dv-num: 54px; }
 .dv-row { position: relative; display: grid; grid-template-columns: var(--dv-num) 3px minmax(0, 1fr); min-height: 20px; }
-.dv-num { padding-right: 16px; text-align: right; color: var(--fg-3); opacity: 0.65; font-size: var(--fs-small); font-variant-numeric: tabular-nums; user-select: none; }
+.dv-num { padding-right: 16px; text-align: right; color: var(--fg-3); font-size: var(--fs-small); font-variant-numeric: tabular-nums; user-select: none; }
 .dv-rail { border-radius: 2px; }
 .dv-code { padding-left: 18px; white-space: pre; overflow: hidden; }
 .dv-sign { color: var(--fg-3); user-select: none; text-align: center; }
 .dv-row.add .dv-rail, .dv-row.mod .dv-rail { background: var(--diff-add); }
 .dv-row.del .dv-rail { background: var(--diff-del); }
-.dv-row.add .dv-num, .dv-row.mod .dv-num { color: var(--diff-add); opacity: 1; }
-.dv-row.del .dv-num { color: var(--diff-del); opacity: 1; }
+.dv-row.add .dv-num, .dv-row.mod .dv-num { color: var(--diff-add); }
+.dv-row.del .dv-num { color: var(--diff-del); }
 .dv-row.del .dv-code { background: var(--diff-del-bg); }
 /* A removed line's text is not faded: faded, its syntax fell under 4.5:1 on the tint */
 .dv .wd { border-radius: 3px; padding: 1px 0; }
-.dv-row.add .wd, .dv-row.mod .wd, .dv-cell.add .wd { background: var(--diff-add-word); box-shadow: 0 0 0 1px var(--diff-add-word); }
-.dv-row.del .wd, .dv-cell.del .wd { background: var(--diff-del-word); box-shadow: 0 0 0 1px var(--diff-del-word); }
+/* A changed phrase is underlined in its status colour, never filled: a fill took its syntax under 4.5:1 */
+.dv-row.add .wd, .dv-row.mod .wd, .dv-cell.add .wd { box-shadow: inset 0 -2px 0 var(--diff-add); }
+.dv-row.del .wd, .dv-cell.del .wd { box-shadow: inset 0 -2px 0 var(--diff-del); }
 /* Lectura: se lee el archivo como queda; el contexto se atenúa para que lo nuevo destaque solo */
 .dv-read .dv-row.ctx .dv-code { opacity: 0.58; }
 /* Unificado: tinte de fila muy bajo, y el signo en su columna */
