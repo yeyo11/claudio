@@ -382,9 +382,13 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   // A person's words straight to one subagent, carried by the chat's `claudio-bridge` mod
   // (docs/agent-messages.md). A chat's token may not write to its own subagents: the security gate refuses it
-  app.post<{ Params: { id: string; agentId: string }; Body: SubagentMessageRequest | undefined }>('/chats/:id/subagents/:agentId/messages', (req) =>
-    chats.messageAgent(req.params.id, req.params.agentId, typeof req.body?.text === 'string' ? req.body.text : '', { source: 'person' }),
-  );
+  // `via: 'lead'` hands them to the lead to pass on instead, when the bridge cannot carry them
+  app.post<{ Params: { id: string; agentId: string }; Body: SubagentMessageRequest | undefined }>('/chats/:id/subagents/:agentId/messages', (req) => {
+    const text = typeof req.body?.text === 'string' ? req.body.text : '';
+    const via: unknown = req.body?.via;
+    if (via !== undefined && via !== 'lead') throw Object.assign(new Error("via must be 'lead' when given"), { statusCode: 400 });
+    return via === 'lead' ? chats.relayToAgent(req.params.id, req.params.agentId, text, { source: 'person' }) : chats.messageAgent(req.params.id, req.params.agentId, text, { source: 'person' });
+  });
 
   app.delete<{ Params: { id: string; agentId: string; messageId: string } }>('/chats/:id/subagents/:agentId/messages/:messageId', (req) =>
     chats.withdrawAgentMessage(req.params.id, req.params.agentId, req.params.messageId),

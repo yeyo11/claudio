@@ -489,8 +489,16 @@
   font-variant-ligatures: none;
   overflow: auto;
   max-height: 420px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  /* Code keeps its lines and scrolls inside its own block, never the pane (design system, overflow) */
+  white-space: pre;
+  overflow-wrap: normal;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.code:hover,
+.code:focus-visible {
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .code-block > .code {
@@ -579,8 +587,20 @@
 }
 
 .fold > .collapsible-trigger {
+  /* A 24 px target on a desktop (WCAG 2.5.8, I9); a phone's is below */
+  min-height: 24px;
   color: var(--text-muted);
   font-size: var(--fs-small);
+}
+
+/* On a phone a fold opens under a thumb: a step's "1 tool" line was 24 px tall. The target is 44 px
+   but the row keeps its 24: the negative margins give the extra back to the line above and below, as
+   .composer-server-link does, so a transcript of steps does not grow by a seventh on a phone */
+@media (max-width: 767px) {
+  .fold > .collapsible-trigger {
+    min-height: var(--touch);
+    margin-block: calc((24px - var(--touch)) / 2);
+  }
 }
 
 .fold-thinking {
@@ -840,7 +860,8 @@
   overflow-wrap: anywhere;
 }
 
-/* What a command printed: the terminal's words, no syntax, wrapped so nothing scrolls sideways */
+/* What a command printed: the terminal's words, no syntax. Lines are kept and the block scrolls
+   sideways on hover, so the page and the pane never do */
 .call-term,
 .call-stderr,
 .call-stderr-neutral {
@@ -851,10 +872,21 @@
   background: var(--bg-sunken);
   font: var(--fw-regular) var(--fs-small)/var(--lh-body) var(--mono);
   color: var(--text-muted);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  white-space: pre;
+  overflow-wrap: normal;
   max-height: 420px;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.call-term:hover,
+.call-stderr:hover,
+.call-stderr-neutral:hover,
+.call-term:focus-visible,
+.call-stderr:focus-visible,
+.call-stderr-neutral:focus-visible {
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .call-stderr {
@@ -866,7 +898,10 @@
 /* A read file: the stylesheet numbers the lines from where the read started, so a copy leaves them out */
 .call-lines > span {
   display: grid;
-  grid-template-columns: var(--ln-w) minmax(0, 1fr);
+  /* The text column is as wide as its line, so the numbers stay on the left while the block scrolls */
+  grid-template-columns: var(--ln-w) max-content;
+  min-width: 100%;
+  width: max-content;
   column-gap: 14px;
   counter-increment: call-ln;
 }
@@ -1304,15 +1339,6 @@
   gap: 6px;
 }
 
-/* On a phone a code block that scrolls sideways swallows the swipe meant for the conversation */
-@media (max-width: 900px) {
-  .run-scroll pre.code,
-  .run-scroll .code-block.has-header > .code {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
-}
-
 /*
  * What has just arrived, and only that. A windowed transcript mounts a row again every time it
  * scrolls back into view, so the row cannot say it is new by being mounted: the page marks the ones
@@ -1731,14 +1757,44 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
 }
 
+/* The subagent's name gives way, never "· through the lead": cut after it, the row read like a direct
+   message ("You → Survey the build sc" at 320) */
 .sys-msg-relay .agent-msg-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-muted);
+}
+
+.sys-msg-relay > svg,
+.sys-msg-via {
+  flex: none;
 }
 
 .sys-msg-relay .agent-msg-name.link-btn {
   color: var(--accent);
+}
+
+/* On a phone the label takes the line, not 60 % of it, and a relay's "· through the lead" wraps under
+   the name rather than squeezing it to nothing ("Supervisor → · through tl" at 320). After the base
+   rules, which it overrides */
+@media (max-width: 767px) {
+  .sys-msg-label {
+    /* From 0, not its text's width: a label wider than the line wrapped under the icon */
+    flex: 1 1 0;
+    max-width: 100%;
+    min-width: 0;
+  }
+
+  .sys-msg-relay {
+    flex-wrap: wrap;
+    row-gap: 2px;
+  }
 }
 
 .sys-msg-words {

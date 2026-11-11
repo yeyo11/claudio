@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-10T11:30:00Z
-updated_at: 2026-11-10T19:10:00Z
+updated_at: 2026-11-11T12:30:00Z
 tags:
     - plan
     - chats
@@ -353,6 +353,9 @@ The new classes are listed below. Each one goes into `docs/design-system.md` and
   | `auto-cancel` | "Claudio canceló un comando" |
   | `cancel` | "Cancelaste un comando" |
   | D5's relay record | "Tú → <subagent>" |
+  | `agent-message-auto` from the Supervisor (`AGENT_MESSAGE_SUPERVISOR_PREFIX`) | "Supervisor" |
+  | `relay-person`, a message the lead passes on (folds) | "Tú → <subagent> · vía principal" |
+  | `relay-supervisor`, the Supervisor's fallback through the lead (folds) | "Supervisor → <subagent> · vía principal" |
 
 - **Colour.** The row carries no status colour: it is information, and `--info` is the neutral
   notice tone.
@@ -412,6 +415,9 @@ The `es` follows `apps/web/src/i18n/GLOSSARY.md`. Add these terms to the glossar
 | `system.cancel` | You cancelled a command | Cancelaste un comando |
 | `system.autoCancel` | Claudio cancelled a command | Claudio canceló un comando |
 | `system.relay` | You → {{agent}} | Tú → {{agent}} |
+| `system.relayViaLead` | You → {{agent}} · through the lead | Tú → {{agent}} · vía principal |
+| `system.supervisorViaLead` | Supervisor → {{agent}} · through the lead | Supervisor → {{agent}} · vía principal |
+| `system.viaLead` | · through the lead | · vía principal |
 | `hint.tag` | Hint | Pista |
 | `agentComposer.placeholder` | Message {{agent}}… | Escribir a {{agent}}… |
 | `agentComposer.note` | Goes straight to this subagent; the lead does not see it. | Llega directamente a este subagente; el agente principal no lo ve. |
@@ -589,22 +595,27 @@ decisions below on its own; `review` checked them against this plan.
 
 ### Left open
 
-- **Tool output keeps wrapping.** Rule 3 of the overflow section says code scrolls sideways in its
-  own block; tool bodies (`.code.call-lines`) still wrap, as an earlier plan decided. The owner
-  chooses: scroll, or record wrapping as the exception in `docs/design-system.md`.
-- **"Send through the lead" is a person's hint.** It sends an English relay sentence through
-  `hintChat`, so the lead's transcript shows it as the person's "Pista" bubble. A core relay with
-  its own prefix in `system-messages.ts` would read better.
-- **A Supervisor hint written straight to a subagent** uses D3's automatic prefix, so the
-  subagent's row says "Claudio · automático", not "Supervisor".
-- **The subagent drawer is not under `ui-check`'s invariants:** `e2e/ui/routes.mjs` has static
-  paths only, and the drawer needs a seeded chat. It was measured by hand in review.
+- **Tool output keeps wrapping.** Resolved on 2026-11-11 (branch `fix/chat-ui-debt`): the owner
+  chose scrolling; tool bodies keep their lines, no exception, recorded in `docs/design-system.md`.
+- ~~**"Send through the lead" is a person's hint.**~~ **Done (2026-11-11, `fix/agent-message-labels`).**
+  The owner chose a core relay. `POST /chats/:id/subagents/:agentId/messages` takes `via: 'lead'`;
+  core frames the words with `relayToSubagent` (`RELAY_PERSON_HEAD`, kind `relay-person`) and sends
+  them through the chat's `inOrder`, recorded as the person's. The lead's transcript draws a system
+  row "Tú → <subagent> · vía principal" whose fold holds the exact text. The Supervisor's fallback
+  relay has its own head (`relay-supervisor`) and row "Supervisor → <subagent> · vía principal", for
+  chats and workers alike. Described in [[agent-messages]].
+- ~~**A Supervisor hint written straight to a subagent** uses D3's automatic prefix.~~ **Done
+  (2026-11-11).** `AGENT_MESSAGE_SUPERVISOR_PREFIX` frames it, read as `agent-message-auto` with
+  source `supervisor`, so the subagent's row says "Supervisor". D3's two prefixes keep their wording.
+- ~~**The subagent drawer is not under `ui-check`'s invariants.**~~ **Done (2026-11-11).**
+  `ui-invariants.spec.mjs` seeds the `agent-session` fixture's subagent under its session and
+  measures `/chats/<session>?detail=subagent:<session>:<agent>` at every width and theme.
 - `docs/agent-messages.md` must be registered with `kb_add_document` after the merge (pando writes
   into the main checkout).
-- Debt seen and not touched: the Stop button and some drawer links under 44 px (I9),
-  `.run-scroll` and `.detail-scroll` without `scrollbar-gutter` (I6), the `Agent` lens in mono,
-  `.edit-step-intent` clamped without its full text, and step-bar paths cut at the end instead of
-  the middle.
+- Debt seen and not touched, paid on 2026-11-11 in `fix/chat-ui-debt`: the Stop button and the
+  drawer links under 44 px on a phone (I9), `scrollbar-gutter` on `.run-scroll` and `.detail-scroll`
+  (I6), the `Agent` lens description in the UI font, `.edit-step-intent` with its full text as
+  `title`, and step-bar paths cut in the middle (`PathLabel`).
 
 ## Related
 

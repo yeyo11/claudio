@@ -73,9 +73,19 @@ function Capped({ text, children }: { text: string; children: (shown: string) =>
   );
 }
 
-function Term({ text, className = 'call-term' }: { text: string; className?: string }) {
+function Term({ text, className = 'call-term', label }: { text: string; className?: string; label?: string }) {
   const { t } = useTranslation('chat');
-  return <Capped text={text}>{(shown) => <pre className={className}>{shown || t('transcript.empty')}</pre>}</Capped>;
+  // It scrolls sideways (its lines are kept whole), so it takes focus and a name, as a code block
+  // does: a keyboard reaches what is past the edge, and axe's scrollable-region-focusable holds
+  return (
+    <Capped text={text}>
+      {(shown) => (
+        <pre className={className} role="group" aria-label={label ?? t('transcript.call.output')} tabIndex={0}>
+          {shown || t('transcript.empty')}
+        </pre>
+      )}
+    </Capped>
+  );
 }
 
 /** The error a failed call came back with, as the row always showed it. */
@@ -297,7 +307,7 @@ function BashLens({ call }: { call: StepCall }) {
             </Zone>
             {detail?.stderr && (
               <Zone label={failed ? t('transcript.call.errors') : t('transcript.call.stderr')}>
-                <Term text={detail.stderr} className={failed ? 'call-stderr' : 'call-stderr-neutral'} />
+                <Term text={detail.stderr} className={failed ? 'call-stderr' : 'call-stderr-neutral'} label={failed ? t('transcript.call.errors') : t('transcript.call.stderr')} />
               </Zone>
             )}
           </>

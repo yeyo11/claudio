@@ -97,8 +97,11 @@ export function toolHint(name: string | null, input: unknown, cwd: string | null
       return { text: hostOf(str(o.url)) };
     case 'websearch':
       return { text: oneLine(str(o.query)) };
-    case 'agent':
-      return { text: oneLine(str(o.description)) || fallback(input) };
+    case 'agent': {
+      // The description is a sentence the model wrote, prose for the UI font; the fallback is a literal
+      const description = oneLine(str(o.description));
+      return description ? { text: description, label: true } : { text: fallback(input) };
+    }
     case 'todo': {
       const items = checklistOf(name, input);
       const subject = oneLine(str(o.subject) || str(o.content));

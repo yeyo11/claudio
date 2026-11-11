@@ -88,6 +88,11 @@ export function readAgentEntry(entry: TranscriptEntry): AgentEntry | null {
   return { kind: 'system', message: system, text };
 }
 
+/** Whether a system message is one the lead was asked to pass on to a subagent: it gets its own row, "You → E2 · through the lead". */
+export function isLeadRelay(message: SystemMessage | null): message is SystemMessage & { kind: 'relay-person' | 'relay-supervisor' } {
+  return message?.kind === 'relay-person' || message?.kind === 'relay-supervisor';
+}
+
 /** The label key of a system row, under `chat:`; the relay row has its own (`system.relay`). */
 export function systemLabelKey(message: SystemMessage | null): 'system.auto' | 'system.supervisor' | 'system.cancel' | 'system.autoCancel' {
   if (!message) return 'system.auto';

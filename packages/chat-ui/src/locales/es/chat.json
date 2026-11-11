@@ -802,7 +802,10 @@
     "received": "Lo que recibió el agente",
     "cancel": "Cancelaste un comando",
     "autoCancel": "Claudio canceló un comando",
-    "relay": "Tú → {{agent}}"
+    "relay": "Tú → {{agent}}",
+    "relayViaLead": "Tú → {{agent}} · vía principal",
+    "supervisorViaLead": "Supervisor → {{agent}} · vía principal",
+    "viaLead": "· vía principal"
   },
   "hint": {
     "tag": "Pista"

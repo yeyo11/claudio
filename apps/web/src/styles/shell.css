@@ -599,6 +599,15 @@
   white-space: nowrap;
 }
 
+/* In the phone's sheet a tooltip cannot open on touch: a long name takes two lines there instead */
+.sheet .server-item-name {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .server-local-icon {
   flex: none;
   color: var(--fg-2);
@@ -619,6 +628,17 @@
 
 .statusbar-server {
   max-width: 280px;
+}
+
+/* The name gives way, the mark and the status word keep theirs: a long name ran its status word into
+   "Back to this server" beside it (the item was 317 px in its 280) */
+.statusbar-server > .ellipsis {
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.statusbar-server > :not(.ellipsis) {
+  flex: none;
 }
 
 .topbar-actions {

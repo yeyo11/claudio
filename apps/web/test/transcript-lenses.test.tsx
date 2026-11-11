@@ -56,8 +56,8 @@ test('a Bash body shows its command as shell code, its stdout as a terminal and 
   const html = render(<ToolBody call={call('Bash', { command: 'node -v', description: 'Check node', timeout: 120000 }, 'v22.21.1', { kind: 'command', stderr: 'no matches found', cwdReset: null, interrupted: true, backgroundTaskId: null })} running={false} />);
   assert.deepEqual(labels(html), ['Call', 'Result', 'Standard error']);
   assert.match(html, /data-lang="bash"[^>]*>node -v</);
-  assert.match(html, /<pre class="call-term">v22.21.1<\/pre>/);
-  assert.match(html, /<pre class="call-stderr-neutral">no matches found<\/pre>/);
+  assert.match(html, /<pre class="call-term"[^>]*>v22.21.1<\/pre>/);
+  assert.match(html, /<pre class="call-stderr-neutral"[^>]*>no matches found<\/pre>/);
   assert.doesNotMatch(html, /class="call-stderr"/);
   assert.match(html, /interrupted/);
   assert.match(html, /timeout 2m</);
@@ -75,15 +75,18 @@ test('the CLI cwd notice is a note under the output: no stderr zone, nothing sho
   const content = '/tmp\nShell cwd was reset to /work/project';
   const html = render(<ToolBody call={call('Bash', { command: 'cd /tmp && pwd' }, content, { kind: 'command', stderr: '', cwdReset: '/work/project', interrupted: false, backgroundTaskId: null })} running={false} />);
   assert.deepEqual(labels(html), ['Call', 'Result']);
-  assert.match(html, /<pre class="call-term">\/tmp<\/pre>/);
+  assert.match(html, /<pre class="call-term"[^>]*>\/tmp<\/pre>/);
   assert.match(html, /class="call-meta call-note"[^>]*>.*The shell went back to .*\/work\/project/);
   assert.doesNotMatch(html, /Shell cwd was reset/);
 });
 
 test('stderr of a call that did not fail is neutral and not repeated in the output', () => {
   const html = render(<ToolBody call={call('Bash', { command: 'make' }, 'out\nwarn: x', { kind: 'command', stderr: 'warn: x', cwdReset: null, interrupted: false, backgroundTaskId: null })} running={false} />);
-  assert.match(html, /<pre class="call-term">out<\/pre>/);
-  assert.match(html, /<pre class="call-stderr-neutral">warn: x<\/pre>/);
+  assert.match(html, /<pre class="call-term"[^>]*>out<\/pre>/);
+  assert.match(html, /<pre class="call-stderr-neutral"[^>]*>warn: x<\/pre>/);
+  // It scrolls sideways, so it takes focus and the name of its zone (axe's scrollable-region-focusable)
+  assert.match(html, /<pre class="call-term" role="group" aria-label="Result" tabindex="0">out<\/pre>/);
+  assert.match(html, /<pre class="call-stderr-neutral" role="group" aria-label="Standard error" tabindex="0">/);
 });
 
 test('a Read body is the file as code from its start line, without the CLI line prefixes', () => {

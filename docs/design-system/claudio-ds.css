@@ -3006,8 +3006,8 @@ a.cont-from:hover { color: var(--fg); }
 .server-local-icon { flex: none; color: var(--fg-2); }
 /* This server's name (Servers page): one row, the hint under it; Save beside the field once it changed */
 .server-local-name { display: flex; flex-direction: column; gap: 6px; }
-.server-local-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
-.server-local-row input { flex: 0 1 62ch; min-width: 0; }
+.server-local-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.server-local-row input { flex: 1 1 20rem; max-width: 62ch; min-width: 0; }
 .server-local-save { flex: none; }
 .server-local-save.is-idle { visibility: hidden; }
 .server-status { display: inline-flex; align-items: center; gap: 6px; }

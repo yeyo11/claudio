@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import type { SentToAgent, TranscriptEntry } from '@claudio/shared';
-import { relayWords, subagentComposerState } from '../src/composer/SubagentComposer';
+import { relayToSubagent, type SentToAgent, type TranscriptEntry } from '@claudio/shared';
+import { subagentComposerState } from '../src/composer/SubagentComposer';
+import { isLeadRelay, readAgentEntry, systemLabelKey } from '../src/lib/agent-messages';
 import { transcriptRows } from '../src/lib/chat-steps';
 import { withRelays } from '../src/lib/relay-rows';
 
@@ -19,9 +20,19 @@ test('the box reads the subagent and the chat: running, finished, stopped by the
   for (const status of ['running', 'completed', 'stopped'] as const) assert.equal(subagentComposerState(false, status), 'gone');
 });
 
-test('the hint to the lead names the subagent and carries the words, and a backtick cannot end the name', () => {
-  assert.equal(relayWords('check the logs', 'try the other port'), 'Relay this to your background agent `check the logs` with SendMessage: try the other port');
-  assert.match(relayWords('a `b` c', 'x'), /`a 'b' c`/);
+test("\"Send through the lead\" lands in the lead as a relay row, not as the person's hint", () => {
+  const text = relayToSubagent('person', { name: 'check the logs', agentId: 'a1' }, 'try the other port');
+  const read = readAgentEntry({ uuid: 'u', role: 'user', timestamp: '2026-11-10T10:00:00.000Z', model: null, blocks: [{ type: 'text', text }] } as TranscriptEntry);
+  assert.equal(read?.kind, 'system');
+  assert.ok(read?.kind === 'system' && isLeadRelay(read.message));
+  assert.equal(read?.kind === 'system' ? read.message?.words : null, 'try the other port');
+});
+
+test("the Supervisor's relay is a lead relay too, and a plain Supervisor hint is not", () => {
+  const supervisor = readAgentEntry({ uuid: 'u', role: 'user', timestamp: '2026-11-10T10:00:00.000Z', model: null, blocks: [{ type: 'text', text: relayToSubagent('supervisor', { name: 'n' }, 'x') }] } as TranscriptEntry);
+  assert.ok(supervisor?.kind === 'system' && isLeadRelay(supervisor.message));
+  assert.equal(supervisor?.kind === 'system' ? systemLabelKey(supervisor.message) : null, 'system.supervisor');
+  assert.equal(isLeadRelay(null), false);
 });
 
 test('every state of the box has its note, in both languages', () => {

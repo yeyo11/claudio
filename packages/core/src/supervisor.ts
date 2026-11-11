@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ChatMessageSource, DecisionMode, HealthSignal, HealthSignalAgent, HealthSignalKind, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
+import type { ChatMessageSource, DecisionMode, HealthSignal, HealthSignalAgent, HealthSignalKind, RelayTarget, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
 import { isTransientRefusal } from './chat-errors.ts';
 import { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 import type { ChatRuntime } from './chats.ts';
@@ -106,6 +106,12 @@ export interface SupervisorDeps {
    * front (chat not live, subagent stopped or unknown). Absent, a hint about a subagent goes to the lead.
    */
   messageAgent?: (chatId: string, agentId: string, words: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<{ delivered: boolean }>;
+  /**
+   * Hands the proposal's lead (the chat's, or the task's worker) the hint framed as a message to pass on
+   * to `target` (`relayToSubagent`), which the page draws as a system row and not as a hint. Absent, the
+   * lead is sent `relayHint` through `hint`, as before.
+   */
+  relay?: (proposal: SupervisorProposal, target: RelayTarget, words: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<void>;
   /**
    * Cancels the command `toolUseId` of the proposal's chat with its hint as the reason: the failed
    * result reaches the agent blocked in it, which a message would not until the call returned.
@@ -358,9 +364,9 @@ export class Supervisor {
         signal: signal.kind,
         occurrence: occurrenceOf(signal),
         ...(agent ? { agent } : {}),
-        // A subagent that can be addressed gets the raw hint written to it (D7); without its agent id the
-        // lead is asked to pass it on, which is also the fallback when the direct write fails
-        hint: agent && !(agent.agentId && this.deps.messageAgent) ? relayHint(agent, hint) : hint,
+        // Stored as the subagent reads it: written to it straight when it can be addressed (D7), else framed
+        // for the lead to pass on when it is delivered. Without a relay of its own, the lead's old sentence
+        hint: agent && !(agent.agentId && this.deps.messageAgent) && !this.deps.relay ? relayHint(agent, hint) : hint,
         costUsd,
         at: new Date().toISOString(),
         status: 'proposed',
@@ -479,12 +485,16 @@ export class Supervisor {
   private async deliver(proposal: SupervisorProposal, source: Extract<ChatMessageSource, 'person' | 'supervisor'>): Promise<void> {
     const agent = proposal.agent;
     const direct = this.deps.messageAgent;
-    if (!agent || !agent.agentId || !direct || proposal.hint.startsWith(RELAY_START)) return this.deps.hint(proposal, source);
-    try {
-      if ((await direct(proposal.chatId, agent.agentId, proposal.hint, source)).delivered) return;
-    } catch {
-      // Refused up front: the lead can still pass it on, or fail the same way and leave the proposal for a person
+    // A proposal stored as the lead's sentence (before the relay had its own frame) goes as it was written
+    if (!agent || proposal.hint.startsWith(RELAY_START)) return this.deps.hint(proposal, source);
+    if (agent.agentId && direct) {
+      try {
+        if ((await direct(proposal.chatId, agent.agentId, proposal.hint, source)).delivered) return;
+      } catch {
+        // Refused up front: the lead can still pass it on, or fail the same way and leave the proposal for a person
+      }
     }
+    if (this.deps.relay) return this.deps.relay(proposal, { name: agentName(agent), ...(agent.agentId ? { agentId: agent.agentId } : {}) }, proposal.hint, source);
     return this.deps.hint({ ...proposal, hint: relayHint(agent, proposal.hint) }, source);
   }
 

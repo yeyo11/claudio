@@ -346,16 +346,20 @@
   gap: 6px;
 }
 
+/* On a desktop Save sits beside the field; on a phone the field takes the whole row (a 134 px field
+   showed 13 of a name's 60 characters) and Save its own line, reserved like its place beside it */
 .server-local-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   min-width: 0;
 }
 
-/* Wide enough for the 60 characters a name may have; it narrows first on a phone */
+/* Wide enough for the 60 characters a name may have */
 .server-local-row input {
-  flex: 0 1 62ch;
+  flex: 1 1 20rem;
+  max-width: 62ch;
   min-width: 0;
 }
 

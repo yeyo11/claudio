@@ -191,3 +191,8 @@ test("an agent's report drops the id line and the usage block the CLI appends fo
 test('a patch counts its added and removed lines, not its headers', () => {
   assert.deepEqual(patchCounts('--- a/x\n+++ b/x\n@@ -1,2 +1,3 @@\n a\n-b\n+c\n+d\n'), { additions: 2, deletions: 1 });
 });
+
+test("an agent call description is a label in the UI font, and its fallback is not", () => {
+  assert.deepEqual(toolHint("Agent", { description: "Audit the overflow", subagent_type: "qa" }, CWD, callHint), { text: "Audit the overflow", label: true });
+  assert.equal(toolHint("Agent", { subagent_type: "qa" }, CWD, callHint).label, undefined);
+});

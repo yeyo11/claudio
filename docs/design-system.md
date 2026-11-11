@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-11T01:00:00Z
+updated_at: 2026-11-11T05:30:00Z
 tags:
     - design-system
     - web
@@ -2507,6 +2507,12 @@ read them) is the case these rules exist for ([plans/agent-messages.md](plans/ag
    the keyboard reaches the end of a long line. Side by side keeps each half in its column and cuts
    the line there: one long line would otherwise widen both halves and push the "after" side away.
    A phone wraps the code instead (`.diff-wrap`).
+
+   Tool output follows the same rule, with no exception and on a phone too: a `Read` (`.code.call-lines`),
+   a command's output (`.call-term`, `.call-stderr`) and any `pre.code` keep their lines
+   (`white-space: pre`) and scroll inside their block. The numbers of a read file stay on the left because the
+   text column is as wide as its longest line. Only prose wraps (rule 6). A phone does not turn them
+   back into wrapping text (an earlier phone override did and is gone).
 5. **The page and the panes never scroll sideways.** A pane that scrolls vertically (`overflow-y:
    auto`, which turns `overflow-x` to `auto` too) shows a horizontal scrollbar the moment a child is
    wider than it; that scrollbar is the bug, not the fix.
@@ -2983,12 +2989,15 @@ Variants the app drew where the reference had no class, mirrored in §19 of
   address, Retry (which stays on the screen and says it is trying) and the way back. Never the hub's
   modal.
 - **This server's name** (2026-11-10, `LocalNameCard`) is the last card: one row, `.server-local-name`
-  and `.server-local-row`, with the **Name** label, an input of `62ch` for 60 characters and **Save
+  and `.server-local-row`, with the **Name** label, an input up to `62ch` for 60 characters (the whole
+  row on a phone, with Save on its own reserved line) and **Save
   name** beside it, visible only once the field differs from what is saved (`.server-local-save.is-idle`
   keeps its place, `inert`, so typing never moves the hint), then one hint that says an empty name is
   "This server" again; focus goes back to the field after a save. The selector's name and its menu
   items end in an ellipsis, with the whole name in a `Tooltip` on the name (never `title` inside a
-  button).
+  button). In the phone's sheet, where a tooltip cannot open on touch, a menu item's name takes two
+  lines instead. Inside a remote, the status bar's server item lets its name give way so its status
+  word never runs into **Back to this server**.
 - **A remote on a newer Claudio** says so in the warn tone and a word: `.server-row-newer` ("Newer than
   this Claudio (X)") beside a row's version, and, inside that remote, `ServerSkewBanner`, the reload
   banner's classes with `alert-warn` and one link, **Update this Claudio**. It is never shown with the

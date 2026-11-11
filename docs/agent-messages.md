@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-10T14:00:00Z
-updated_at: 2026-11-10T19:10:00Z
+updated_at: 2026-11-11T12:00:00Z
 tags:
     - chats
     - subagents
@@ -65,7 +65,9 @@ session (both break the one rule).
   resumes it. The id may be the CLI agent id or the launching tool call's id.
 - **The frame.** The subagent reads who wrote it, since the CLI calls every such message the
   coordinator's (D3; prefixes in `@claudio/shared`'s `system-messages.ts`): a person's words begin
-  with `AGENT_MESSAGE_PERSON_PREFIX`, the Supervisor's or Claudio's with `AGENT_MESSAGE_AUTO_PREFIX`.
+  with `AGENT_MESSAGE_PERSON_PREFIX`, the Supervisor's with `AGENT_MESSAGE_SUPERVISOR_PREFIX` (so the
+  subagent's row says "Supervisor"), Claudio's own with `AGENT_MESSAGE_AUTO_PREFIX` ("Claudio ·
+  automático"). Rows recorded before the Supervisor had its own prefix still read as Claudio's.
 - **States.** `written` (in Claudio's queue), `taken` (handed to the mod, its answer not in),
   `delivered`, `undelivered` with a reason:
 
@@ -84,11 +86,34 @@ session (both break the one rule).
 - **Record.** `AgentMessages.history(chatId)` returns every row, for the lead's transcript to merge
   ("Tú → E2" relay rows, D5).
 
+## Through the lead, when the bridge cannot carry it
+
+When a message ends `undelivered` with `bridge-unavailable`, the drawer's card offers "Send through
+the lead" (`POST /chats/:id/subagents/:agentId/messages` with `{ text, via: 'lead' }`, then the lost
+row is dismissed). `ChatService.relayToAgent` names the subagent (its description, and its agent id
+when known, which `SendMessage` takes) and `ChatService.relay` writes to the lead, through the chat's
+`inOrder`, recorded with source `person` and the bare words. The lead reads:
+
+```
+A message from the person following this chat for your subagent `<description>` (agent id `<id>`); pass it on verbatim with SendMessage:
+
+<words>
+```
+
+It is refused like a direct message (no live process, unknown or stopped subagent) but not for a run
+without the bridge, which is what the lead is for. The Supervisor's fallback (D7) takes the same way
+with its own head (`relayToSubagent('supervisor', …)`, "…for your subagent `<description>`, which
+looks stuck; pass it on verbatim with SendMessage, or stop it if it cannot get past it:"), and for an
+orchestration's worker through `Orchestrator.relayTask`. `readSystemMessage` reads both back as
+`relay-person` and `relay-supervisor`, with the target in `agent`; the lead's transcript draws a
+system row "You → <subagent> · through the lead" (or "Supervisor → …") whose fold holds the exact
+text. The lessons' signals skip both (`NUDGE_PREFIXES`): the lead only passes them on.
+
 ## Routes and access
 
 | Route | Who |
 |---|---|
-| `POST /chats/:id/subagents/:agentId/messages` | `work`; a chat's token may not target its own chat (`403 chat-not-self`) and sends only `text` |
+| `POST /chats/:id/subagents/:agentId/messages` | `work`; a chat's token may not target its own chat (`403 chat-not-self`) and sends only `text` and `via` |
 | `DELETE /chats/:id/subagents/:agentId/messages/:messageId` | `person` (every DELETE is the person's in this API, `route-access.test.ts`): withdraws a `written` one (`cancelled`) or dismisses a lost one; `409 taken` once taken |
 | `GET /chats/:id/bridge/next?wait=` | **only that chat's own token, from this machine**: long poll, `wait` ≤ 25 s |
 | `POST /chats/:id/bridge/:messageId` | **only that chat's own token, from this machine**: `204`; ignored for a message not taken from this chat |

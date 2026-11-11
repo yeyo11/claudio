@@ -2,7 +2,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { ChatNotFoundError } from './chat-errors.ts';
 import { AgentMessageRefusal, BRIDGE_WAIT_MAX_S } from './agent-messages.ts';
-import { AGENT_MESSAGE_AUTO_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, AUTO_CANCEL_NOTICE_PREFIX, AUTO_HINT_PREFIX, SUPERVISOR_HINT_PREFIX, NotFoundError, type BridgeNextResponse, type BridgeReport, type SubagentMessageReceipt, CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
+import { AGENT_MESSAGE_AUTO_PREFIX, AGENT_MESSAGE_PERSON_PREFIX, AGENT_MESSAGE_SUPERVISOR_PREFIX, relayToSubagent, type RelayTarget, AUTO_CANCEL_NOTICE_PREFIX, AUTO_HINT_PREFIX, SUPERVISOR_HINT_PREFIX, NotFoundError, type BridgeNextResponse, type BridgeReport, type SubagentMessageReceipt, CANCEL_NOTICE_PREFIX, CHAT_HINT_PREFIX, EFFORT_LEVELS, entrySearchText, errorMessage, isEffort, recommendedEffort, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentReadScope, type AgentTranscript, type ApiChatPolicy, type BackgroundTaskOutput, type CancelCommandRequest, type CancelCommandResult, type Chat, type ChatBackgroundTaskEntry, type ChatCompactAvailability, type ChatControl, type ChatDetail, type ChatEnvironment, type ChatExport, type ChatInterruptRequest, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageRequest, type ChatMessageResponse, type ChatMessageSource, type ChatOrchestration, type ChatOrigin, type ChatProject, type ChatRef, type ChatSettingsUpdate, type ChatStartOptions, type ChatState, type ChatSubagentEntry, type ChatSummary, type ChatToolConfig, type ChatWorkflowEntry, type ChatWorktree, type ClaudioAssistantMarker, type EditStep, type Execution, type ForkChatRequest, type ModelOption, type NewChatRequest, type OrchestrationChatRole, type ProjectProvidersSettings, type ProviderCapability, type ProviderId, type ProviderMove, type ProviderMoveDecider, type ProviderMoveSubjectKind, type ProvidersSettings, type ProviderStatus, type ResumeChatRequest, type RunEvent, type ToolPolicy, type ToolPreset, type TranscriptEntry, type TranscriptSearchResult, type UsageBreakdown, type UsageBucket, type UsageReport, type UsageSeries } from '@claudio/shared';
 import { randomUUID } from 'node:crypto';
 import { TYPED_COMPACT } from './context-notes.ts';
 import { editStepsFromEntries, editStepsOf } from './edit-steps.ts';
@@ -1197,8 +1197,47 @@ export class ChatService {
       const target = await this.agentTarget(id, agentId);
       if (!target) throw new NotFoundError('this chat has no subagent with that id');
       if (target.status === 'stopped') throw new AgentMessageRefusal('You stopped this subagent, and a stopped subagent cannot be resumed.', 409, 'agent-stopped');
-      const prefix = source === 'person' ? AGENT_MESSAGE_PERSON_PREFIX : AGENT_MESSAGE_AUTO_PREFIX;
+      // The Supervisor's own prefix lets the subagent's row say "Supervisor" rather than "Claudio"
+      const prefix = source === 'person' ? AGENT_MESSAGE_PERSON_PREFIX : source === 'supervisor' ? AGENT_MESSAGE_SUPERVISOR_PREFIX : AGENT_MESSAGE_AUTO_PREFIX;
       return this.deps.runtime.agentMessages.write(id, target.agentId, { words, text: `${prefix}\n\n${words}`, source });
+    });
+  }
+
+  /**
+   * Words for one subagent handed to the chat's lead, which passes them on with `SendMessage`: the way
+   * left when the chat's bridge cannot carry them straight ("Send through the lead"). The lead reads
+   * them framed by who wrote them (`relayToSubagent`), and the page draws them as a system row, not as
+   * the person's hint. Refused like `messageAgent` (no live process, unknown or stopped subagent), but
+   * not for a run without the bridge: that is what the lead is for. A subagent whose agent id is not
+   * known yet is still named by its description.
+   */
+  async relayToAgent(id: string, agentId: string, text: string, opts: { source?: Extract<ChatMessageSource, 'person' | 'supervisor'> } = {}): Promise<SubagentMessageReceipt> {
+    const words = typeof text === 'string' ? text.trim() : '';
+    if (!words) throw new Error('text is required');
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
+    const live = this.deps.runtime.subagentOf(id, agentId);
+    const found = live ? null : (await this.subagents(id)).find((sub) => sub.id === agentId);
+    if (!live && !found) throw new NotFoundError('this chat has no subagent with that id');
+    if ((live?.status ?? found?.status) === 'stopped') throw new AgentMessageRefusal('You stopped this subagent, and a stopped subagent cannot be resumed.', 409, 'agent-stopped');
+    const target: RelayTarget = { name: live?.description ?? found?.description ?? '', ...((live?.agentId ?? found?.id) ? { agentId: live?.agentId ?? found?.id } : {}) };
+    const receipt = await this.relay(id, target, words, opts);
+    return { id: receipt.id, state: receipt.taken === 'held' ? 'held' : 'written' };
+  }
+
+  /**
+   * Hands the lead a message to pass on to one of its subagents, through the chat's sends in order like
+   * `hint`, recorded as the person's or the Supervisor's with their bare words. The Supervisor's
+   * fallback when it cannot write to a stuck subagent straight comes here too (D7).
+   */
+  async relay(id: string, target: RelayTarget, words: string, opts: { source?: Extract<ChatMessageSource, 'person' | 'supervisor'> } = {}): Promise<ChatMessageReceipt> {
+    const said = words.trim();
+    if (!said) throw new Error('text is required');
+    if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
+    const source = opts.source ?? 'person';
+    return this.inOrder(id, () => {
+      // Read when its turn in the order comes: a process that ended meanwhile is not started again for a relay
+      if (this.deps.runtime.get(id)?.pid == null) throw new ChatConflictError('The chat has no live process to pass the message on.', null);
+      return this.deps.runtime.sendMessage(id, relayToSubagent(source, target, said), [], undefined, undefined, { source, words: said });
     });
   }
 

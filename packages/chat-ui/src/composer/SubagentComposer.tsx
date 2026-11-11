@@ -28,14 +28,6 @@ export function subagentComposerState(alive: boolean, status: AgentTranscript['s
   return status === 'completed' || status === 'failed' ? 'finished' : 'running';
 }
 
-/**
- * The hint the lead reads when a subagent could not be written to: it passes the words on with its
- * own tools. English because the agent reads it; the name is cut of backticks, which would end the code span.
- */
-export function relayWords(name: string, words: string): string {
-  return `Relay this to your background agent \`${name.replace(/`/g, "'")}\` with SendMessage: ${words}`;
-}
-
 const NOTE_KEY = {
   running: 'agentComposer.note',
   finished: 'agentComposer.resumes',
@@ -103,9 +95,10 @@ export function SubagentComposer({
   });
   const viaLead = useMutation({
     mutationFn: async (message: QueuedMessage) => {
-      // Offered only when the client has `hintChat` (above)
-      if (!client.hintChat || !client.withdrawSubagentMessage) throw new Error('the chat client cannot hint a chat');
-      await client.hintChat(chatId, { text: relayWords(name, message.text) });
+      // Offered only when the client can write to a subagent (above). Core frames it for the lead, which
+      // passes it on; the lead's transcript draws it as a system row, not as the person's hint
+      if (!client.sendToSubagent || !client.withdrawSubagentMessage) throw new Error('the chat client cannot write to a subagent');
+      await client.sendToSubagent(chatId, agentId, { text: message.text, via: 'lead' });
       // Put away once the lead has it: the card must not offer to send it again
       await client.withdrawSubagentMessage(chatId, agentId, message.id);
     },
@@ -150,7 +143,7 @@ export function SubagentComposer({
         }}
         // Pressed twice, the lead would get the relay twice. Only while the subagent can still take
         // words: a stopped one cannot be resumed by the lead either, and a chat gone has no lead to ask
-        {...(enabled && client.hintChat ? { onViaLead: (message: QueuedMessage) => void once(viaLead.mutate, message) } : {})}
+        {...(enabled && client.sendToSubagent ? { onViaLead: (message: QueuedMessage) => void once(viaLead.mutate, message) } : {})}
         sending={busy}
       />
       <ComposerBox

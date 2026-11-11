@@ -219,7 +219,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.shot('agent-messages-bridge-down');
     const before = logOf(fake.log).filter((e) => e.event === 'stdin').length;
     await page.click('[role=dialog] .agent-composer .chat-queued-actions .btn', 'Send through the lead', 400);
-    await until(() => logOf(fake.log).filter((e) => e.event === 'stdin').slice(before).some((e) => e.text.includes('Relay this to your background agent') && e.text.includes(LOST)), 'the lead to receive the relay hint');
+    await until(() => logOf(fake.log).filter((e) => e.event === 'stdin').slice(before).some((e) => e.text.includes('A message from the person following this chat for your subagent') && e.text.includes(LOST)), 'the lead to receive the relay');
     await page.waitFor(`return document.querySelector('[role=dialog] .agent-composer .chat-queued-item') === null`, { label: 'the card to go once the lead has it' });
     writeScripts();
     await page.key('Escape');
@@ -235,6 +235,14 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       return { text: m.innerText, tag: m.querySelector('.msg-head .badge')?.textContent.trim() ?? '' };`);
     check(bubble.tag === 'Hint', `the person's hint carries the "Hint" tag (${JSON.stringify(bubble)})`);
     check(!bubble.text.includes('A hint from the person following this chat'), `and none of the English prefix (${JSON.stringify(bubble.text)})`);
+
+    // ---- a message the lead passes on is a system row in the lead, "You → <subagent> · through the lead" ----
+    const RELAYED = 'Pass this on: the staging launches are fake.';
+    const viaLead = await api.post(`/chats/${chatId}/subagents/${agentId}/messages`, { text: RELAYED, via: 'lead' });
+    check(viaLead.status === 200 || viaLead.status === 201, `the relay was taken (${viaLead.status})`);
+    await page.waitFor(`return [...document.querySelectorAll('.transcript .sys-msg')].some((m) => m.innerText.includes('through the lead') && m.innerText.includes(${JSON.stringify(RELAYED)}))`, { label: 'the relay row in the lead', timeout: 20_000 });
+    const relayed = await page.eval(`return [...document.querySelectorAll('.transcript .msg-user')].some((m) => m.innerText.includes(${JSON.stringify(RELAYED)}))`);
+    check(!relayed, "the relay is not drawn as the person's bubble");
 
     // ---- a reload draws the same cards and rows ----
     writeFileSync(join(work, HOLDS.turn), '');
