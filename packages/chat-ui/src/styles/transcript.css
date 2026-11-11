@@ -1785,7 +1785,8 @@
    rules, which it overrides */
 @media (max-width: 767px) {
   .sys-msg-label {
-    flex: 1 1 auto;
+    /* From 0, not its text's width: a label wider than the line wrapped under the icon */
+    flex: 1 1 0;
     max-width: 100%;
     min-width: 0;
   }
