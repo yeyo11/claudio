@@ -480,8 +480,11 @@
   color: var(--fg-3);
 }
 
+/* The name never shrinks while there is directory left to give: only past its whole width (a name
+   longer than the bar) does it end in an ellipsis */
 .changes-review .changes-path-name {
-  flex: 0 1 auto;
+  flex: 0 0 auto;
+  max-width: 100%;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

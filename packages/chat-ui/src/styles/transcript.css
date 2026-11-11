@@ -593,10 +593,13 @@
   font-size: var(--fs-small);
 }
 
-/* On a phone a fold opens under a thumb: a step's "1 tool" line was 24 px tall */
+/* On a phone a fold opens under a thumb: a step's "1 tool" line was 24 px tall. The target is 44 px
+   but the row keeps its 24: the negative margins give the extra back to the line above and below, as
+   .composer-server-link does, so a transcript of steps does not grow by a seventh on a phone */
 @media (max-width: 767px) {
   .fold > .collapsible-trigger {
     min-height: var(--touch);
+    margin-block: calc((24px - var(--touch)) / 2);
   }
 }
 
@@ -880,7 +883,9 @@
 .call-term:hover,
 .call-stderr:hover,
 .call-stderr-neutral:hover,
-.call-term:focus-visible {
+.call-term:focus-visible,
+.call-stderr:focus-visible,
+.call-stderr-neutral:focus-visible {
   scrollbar-color: var(--border-strong) transparent;
 }
 
@@ -1752,10 +1757,23 @@
   align-items: center;
   gap: 6px;
   min-width: 0;
+  max-width: 100%;
 }
 
+/* The subagent's name gives way, never "· through the lead": cut after it, the row read like a direct
+   message ("You → Survey the build sc" at 320) */
 .sys-msg-relay .agent-msg-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
   color: var(--text-muted);
+}
+
+.sys-msg-relay > svg,
+.sys-msg-via {
+  flex: none;
 }
 
 .sys-msg-relay .agent-msg-name.link-btn {

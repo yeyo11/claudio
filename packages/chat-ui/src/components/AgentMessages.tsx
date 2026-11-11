@@ -225,7 +225,7 @@ export function LeadRelayRow({ message, text, at }: { message: SystemMessage; te
           <span className="agent-msg-name" title={agent}>
             {agent}
           </span>
-          {t('system.viaLead')}
+          <span className="sys-msg-via">{t('system.viaLead')}</span>
         </span>
       }
       words={first}

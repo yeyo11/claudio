@@ -302,6 +302,13 @@
   color: var(--fg-3);
 }
 
+/* "See it in the conversation" is a 24 px target (WCAG 2.5.8, I9); it was 20 */
+.changes-review .edit-step-source > a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
+}
+
 .changes-review .edit-step-main {
   display: flex;
   flex-direction: column;
