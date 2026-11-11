@@ -193,6 +193,7 @@
   color: var(--fg-2);
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
+  overflow-wrap: anywhere;
 }
 
 .changes-review .edit-step.is-current .edit-step-intent {
@@ -527,8 +528,14 @@
 .changes-review .edit-steps-phone .edit-step-where {
   flex: none;
   font-size: var(--fs-body);
+  display: block;
   white-space: normal;
   overflow-wrap: anywhere;
+}
+
+.changes-review .edit-steps-phone .edit-step-where > span {
+  white-space: normal;
+  overflow: visible;
 }
 
 .changes-review .edit-steps-phone .edit-step-why {

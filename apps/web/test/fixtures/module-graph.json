@@ -200,6 +200,7 @@
   "Panel [ITEM_PANEL_PARAM, ItemByKey, WorkItemPanelHost, itemPanelSearch]",
   "PartOf [PartOf]",
   "PasteSheet [PasteSheet]",
+  "PathLabel [PathLabel]",
   "PermissionPrompts [PermissionPrompts]",
   "Phone [PhoneAssistant]",
   "PhoneBoard [PhoneBoard]",

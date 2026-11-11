@@ -489,8 +489,16 @@
   font-variant-ligatures: none;
   overflow: auto;
   max-height: 420px;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  /* Code keeps its lines and scrolls inside its own block, never the pane (design system, overflow) */
+  white-space: pre;
+  overflow-wrap: normal;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.code:hover,
+.code:focus-visible {
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .code-block > .code {
@@ -840,7 +848,8 @@
   overflow-wrap: anywhere;
 }
 
-/* What a command printed: the terminal's words, no syntax, wrapped so nothing scrolls sideways */
+/* What a command printed: the terminal's words, no syntax. Lines are kept and the block scrolls
+   sideways on hover, so the page and the pane never do */
 .call-term,
 .call-stderr,
 .call-stderr-neutral {
@@ -851,10 +860,19 @@
   background: var(--bg-sunken);
   font: var(--fw-regular) var(--fs-small)/var(--lh-body) var(--mono);
   color: var(--text-muted);
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
+  white-space: pre;
+  overflow-wrap: normal;
   max-height: 420px;
   overflow: auto;
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.call-term:hover,
+.call-stderr:hover,
+.call-stderr-neutral:hover,
+.call-term:focus-visible {
+  scrollbar-color: var(--border-strong) transparent;
 }
 
 .call-stderr {
@@ -866,7 +884,10 @@
 /* A read file: the stylesheet numbers the lines from where the read started, so a copy leaves them out */
 .call-lines > span {
   display: grid;
-  grid-template-columns: var(--ln-w) minmax(0, 1fr);
+  /* The text column is as wide as its line, so the numbers stay on the left while the block scrolls */
+  grid-template-columns: var(--ln-w) max-content;
+  min-width: 100%;
+  width: max-content;
   column-gap: 14px;
   counter-increment: call-ln;
 }
@@ -1302,15 +1323,6 @@
 /* A message that is nothing but notices has no bubble and no name over it */
 .msg-notice .msg-body {
   gap: 6px;
-}
-
-/* On a phone a code block that scrolls sideways swallows the swipe meant for the conversation */
-@media (max-width: 900px) {
-  .run-scroll pre.code,
-  .run-scroll .code-block.has-header > .code {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-  }
 }
 
 /*

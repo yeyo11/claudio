@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-11T02:30:00Z
+updated_at: 2026-11-11T05:30:00Z
 tags:
     - design-system
     - web
@@ -2507,6 +2507,12 @@ read them) is the case these rules exist for ([plans/agent-messages.md](plans/ag
    the keyboard reaches the end of a long line. Side by side keeps each half in its column and cuts
    the line there: one long line would otherwise widen both halves and push the "after" side away.
    A phone wraps the code instead (`.diff-wrap`).
+
+   Tool output follows the same rule, with no exception and on a phone too: a `Read` (`.code.call-lines`),
+   a command's output (`.call-term`, `.call-stderr`) and any `pre.code` keep their lines
+   (`white-space: pre`) and scroll inside their block. The numbers of a read file stay on the left because the
+   text column is as wide as its longest line. Only prose wraps (rule 6). A phone does not turn them
+   back into wrapping text (an earlier phone override did and is gone).
 5. **The page and the panes never scroll sideways.** A pane that scrolls vertically (`overflow-y:
    auto`, which turns `overflow-x` to `auto` too) shows a horizontal scrollbar the moment a child is
    wider than it; that scrollbar is the bug, not the fix.

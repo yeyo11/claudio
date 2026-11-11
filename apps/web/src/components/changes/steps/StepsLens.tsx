@@ -14,6 +14,7 @@ import { DiffView } from '../DiffView';
 import { Intent } from '../Intent';
 import { StepRisk } from './StepRisk';
 import { Counts } from '../FileMap';
+import { PathLabel } from '../PathLabel';
 import { splitPath, unexplainedOf } from '../review-model';
 import { useUnexplainedRows } from '../useUnexplained';
 import {
@@ -108,13 +109,7 @@ function StepTime({ step }: { step: EditStep }) {
 
 
 function StepPath({ path }: { path: string }) {
-  const { dir, name } = splitPath(path);
-  return (
-    <span className="changes-path edit-step-where" title={path}>
-      {dir && <span className="changes-path-dir">{dir}/</span>}
-      <span className="changes-path-name">{name}</span>
-    </span>
-  );
+  return <PathLabel path={path} className="edit-step-where" />;
 }
 
 function StepList({ steps, current, hrefOf, note }: { steps: EditStep[]; current: EditStep; hrefOf: (id: string) => string; note: string | null }) {
@@ -190,7 +185,12 @@ function StepList({ steps, current, hrefOf, note }: { steps: EditStep[]; current
                 </span>
                 {/* A line of its own: beside the path in a 340 px list it would push the counts out of the card */}
                 <StepRisk risk={s.risk} inLink />
-                {s.intent && <span className="edit-step-intent">{plainIntent(s.intent)}</span>}
+                {s.intent && (
+                  // The card clamps it to two lines; the whole sentence is on hover (a span: the card is the link)
+                  <span className="edit-step-intent" title={plainIntent(s.intent)}>
+                    {plainIntent(s.intent)}
+                  </span>
+                )}
               </span>
             </Link>
           );

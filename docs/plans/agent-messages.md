@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-10T11:30:00Z
-updated_at: 2026-11-10T19:10:00Z
+updated_at: 2026-11-11T09:00:00Z
 tags:
     - plan
     - chats
@@ -589,9 +589,8 @@ decisions below on its own; `review` checked them against this plan.
 
 ### Left open
 
-- **Tool output keeps wrapping.** Rule 3 of the overflow section says code scrolls sideways in its
-  own block; tool bodies (`.code.call-lines`) still wrap, as an earlier plan decided. The owner
-  chooses: scroll, or record wrapping as the exception in `docs/design-system.md`.
+- **Tool output keeps wrapping.** Resolved on 2026-11-11 (branch `fix/chat-ui-debt`): the owner
+  chose scrolling; tool bodies keep their lines, no exception, recorded in `docs/design-system.md`.
 - **"Send through the lead" is a person's hint.** It sends an English relay sentence through
   `hintChat`, so the lead's transcript shows it as the person's "Pista" bubble. A core relay with
   its own prefix in `system-messages.ts` would read better.
@@ -601,10 +600,10 @@ decisions below on its own; `review` checked them against this plan.
   paths only, and the drawer needs a seeded chat. It was measured by hand in review.
 - `docs/agent-messages.md` must be registered with `kb_add_document` after the merge (pando writes
   into the main checkout).
-- Debt seen and not touched: the Stop button and some drawer links under 44 px (I9),
-  `.run-scroll` and `.detail-scroll` without `scrollbar-gutter` (I6), the `Agent` lens in mono,
-  `.edit-step-intent` clamped without its full text, and step-bar paths cut at the end instead of
-  the middle.
+- Debt seen and not touched, paid on 2026-11-11 in `fix/chat-ui-debt`: the Stop button and the
+  drawer links under 44 px on a phone (I9), `scrollbar-gutter` on `.run-scroll` and `.detail-scroll`
+  (I6), the `Agent` lens description in the UI font, `.edit-step-intent` with its full text as
+  `title`, and step-bar paths cut in the middle (`PathLabel`).
 
 ## Related
 

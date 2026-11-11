@@ -460,20 +460,31 @@
 }
 
 .changes-review .changes-path {
+  display: flex;
   flex: 1 1 auto;
   min-width: 0;
   overflow: hidden;
+  /* literal: a path */
   font-family: var(--mono);
   font-size: var(--fs-small);
   white-space: nowrap;
-  text-overflow: ellipsis;
 }
 
+/* A path too long for its bar gives up its directory first, so the file name stays whole: the cut
+   falls in the middle of the path, not at its end */
 .changes-review .changes-path-dir {
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--fg-3);
 }
 
 .changes-review .changes-path-name {
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: var(--fg);
   font-weight: var(--fw-regular);
 }

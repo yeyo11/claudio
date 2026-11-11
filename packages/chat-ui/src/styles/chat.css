@@ -454,6 +454,7 @@
   /* Never sideways: a swipe that is a few degrees off vertical must still scroll the conversation,
      and anything too wide for the column (a table, a diagram) scrolls inside its own box */
   overflow: hidden auto;
+  scrollbar-gutter: stable;
   overscroll-behavior: contain;
   /* The windowed transcript keeps its own anchor to the end; the browser's would move the view twice */
   overflow-anchor: none;
@@ -2060,6 +2061,8 @@ a.attachment-chip:hover {
   gap: 14px;
   min-height: 0;
   overflow-y: auto;
+  /* The bar appearing must not shift the content */
+  scrollbar-gutter: stable;
 }
 
 .detail-facts {
@@ -2283,6 +2286,26 @@ a.attachment-chip:hover {
   color: var(--text-faint);
   font-size: var(--fs-small);
   overflow-wrap: anywhere;
+}
+
+/* A thumb needs 44 px: the Stop button and the drawer's links (I9) */
+@media (max-width: 767px) {
+  /* A round button here (40 px up to 900): this widens it to the target, as the touch block does */
+  .composer .composer-stop {
+    width: var(--touch);
+    height: var(--touch);
+    min-width: var(--touch);
+    min-height: var(--touch);
+  }
+
+  .detail-scroll .link-btn {
+    min-height: var(--touch);
+  }
+
+  .detail-scroll .link-btn {
+    display: inline-flex;
+    align-items: center;
+  }
 }
 
 /* Under 44 px a thumb misses the card's two small buttons on a phone */

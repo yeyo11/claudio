@@ -17,6 +17,7 @@ import { Counts } from './FileMap';
 import { Intent } from './Intent';
 import { FileFindingsFold, FindingsChip, findingLayer, mergeLayers, useFileFindings, useReviewFindings } from './ReviewFindings';
 import { FileThreadsFold, ThreadsChip, threadLayer, useFileThreads, useReviewThreads } from './ReviewThreads';
+import { PathLabel } from './PathLabel';
 import { reviewKey, scopeQuery, splitPath, type ReviewScope } from './review-model';
 import { useLiveRefresh, type ReviewSource } from './source';
 import { plainIntent } from './steps/steps-model';
@@ -385,10 +386,7 @@ export function FileReview({
   return (
     <section className="changes-pane" aria-label={paneLabel ?? file.path}>
       <div className="changes-file-head">
-        <span className="changes-path" title={file.path}>
-          {dir && <span className="changes-path-dir">{dir}/</span>}
-          <span className="changes-path-name">{name}</span>
-        </span>
+        <PathLabel path={file.path} />
         {badge && (
           <span className="changes-badge">
             <Tag>{t(`status.${badge}`)}</Tag>
