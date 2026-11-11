@@ -227,7 +227,7 @@
     },
     "fallbackName": "This server",
     "behind": {
-      "text": "{{name}} runs Claudio {{remote}} and this Claudio runs {{local}}: what {{name}} added since does not show here until you update this Claudio.",
+      "text": "{{name}} runs Claudio {{remote}} and this Claudio runs {{local}}: what it added since does not show here until you update this Claudio.",
       "action": "Update this Claudio",
       "dismiss": "Dismiss"
     }
@@ -259,7 +259,7 @@
   "localName": {
     "title": "This server",
     "label": "Name",
-    "hint": "How this Claudio names itself in its server selector.",
+    "hint": "Shown in the server selector. Leave it empty to use “This server”.",
     "save": "Save name",
     "saved": "Name saved",
     "failed": "Could not save the name"

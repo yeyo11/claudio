@@ -1,8 +1,8 @@
 import { MAX_LOCAL_SERVER_NAME } from '@claudio/shared';
-import { useState, type FormEvent } from 'react';
+import { useId, useRef, useState, type FormEvent } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useToast } from '@claudio/ui/components/Toast';
-import { Card, Field } from '@claudio/ui/components/ui';
+import { Card } from '@claudio/ui/components/ui';
 import { serversApi, useLocalServerName, useServersMutation } from '../../lib/api/servers';
 
 /**
@@ -11,25 +11,36 @@ import { serversApi, useLocalServerName, useServersMutation } from '../../lib/ap
  */
 export function LocalNameForm({ saved, pending, onSave }: { saved: string | null; pending: boolean; onSave: (name: string | null) => void }) {
   const { t } = useTranslation(['serversPage', 'shell']);
+  const id = useId();
+  const input = useRef<HTMLInputElement>(null);
   const [draft, setDraft] = useState<string | null>(null);
   const value = draft ?? saved ?? '';
   const next = value.trim() || null;
+  const changed = next !== saved;
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    if (next === saved) return;
+    if (!changed) return;
+    // The draft stays: emptied now, the field would show the old name until the hub answers
     onSave(next);
-    setDraft(null);
+    // Save hides once the name is saved: focus goes back to the field, never to the page's body
+    input.current?.focus();
   };
   return (
+    // One row: the label, a field sized for 60 characters and Save, which keeps its place while it is
+    // hidden (nothing to save), so typing never moves the hint under it
     <form className="server-local-name" onSubmit={submit}>
-      <Field label={t('serversPage:localName.label')} hint={t('serversPage:localName.hint')}>
-        <input value={value} onChange={(event) => setDraft(event.target.value)} placeholder={t('shell:servers.local')} maxLength={MAX_LOCAL_SERVER_NAME} autoComplete="off" data-testid="server-local-name" />
-      </Field>
-      <div className="form-actions">
-        <button type="submit" className="btn" disabled={pending || next === saved}>
+      <label className="field-label" htmlFor={id}>
+        {t('serversPage:localName.label')}
+      </label>
+      <span className="server-local-row">
+        <input ref={input} id={id} value={value} onChange={(event) => setDraft(event.target.value)} placeholder={t('shell:servers.local')} maxLength={MAX_LOCAL_SERVER_NAME} autoComplete="off" aria-describedby={`${id}-hint`} data-testid="server-local-name" />
+        <button type="submit" className={`btn server-local-save${changed ? '' : ' is-idle'}`} disabled={pending} inert={!changed} aria-hidden={!changed}>
           {t('serversPage:localName.save')}
         </button>
-      </div>
+      </span>
+      <span className="field-hint" id={`${id}-hint`}>
+        {t('serversPage:localName.hint')}
+      </span>
     </form>
   );
 }

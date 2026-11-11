@@ -615,17 +615,17 @@ test('a server on a newer Claudio than this one says so beside its version, in a
   await i18n.changeLanguage('en');
 });
 
-test("this Claudio's name: the saved one in the field, This server as the placeholder, Save idle until it changes", async () => {
+test("this Claudio's name: the saved one in the field, This server as the placeholder, no Save until it changes", async () => {
   await i18n.changeLanguage('en');
   const named = wrap(<LocalNameForm saved="Portátil" pending={false} onSave={() => {}} />);
   assert.match(named, /value="Portátil"/);
   assert.match(named, /placeholder="This server"/);
   assert.match(named, /maxLength="60"/);
-  assert.match(named, /<button type="submit" class="btn" disabled="">Save name<\/button>/, 'nothing to save yet');
+  assert.match(named, /class="btn server-local-save is-idle"[^>]*inert=""[^>]*>Save name</, 'nothing to save: Save keeps its place but is hidden and inert, so typing moves nothing');
   const unnamed = wrap(<LocalNameForm saved={null} pending={false} onSave={() => {}} />);
   assert.match(unnamed, /value=""/);
-  assert.match(text(unnamed), /How this Claudio names itself in its server selector\./);
+  assert.match(text(unnamed), /Shown in the server selector\. Leave it empty to use “This server”\./, 'the way back to the default is said');
   await i18n.changeLanguage('es');
-  assert.match(text(wrap(<LocalNameForm saved={null} pending={false} onSave={() => {}} />)), /Nombre .*Guardar nombre/);
+  assert.match(text(wrap(<LocalNameForm saved={null} pending={false} onSave={() => {}} />)), /Nombre .*Déjalo vacío para usar «Este servidor»\./);
   await i18n.changeLanguage('en');
 });

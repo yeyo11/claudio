@@ -227,7 +227,7 @@
     },
     "fallbackName": "Este servidor",
     "behind": {
-      "text": "{{name}} usa Claudio {{remote}} y este Claudio, la {{local}}: lo que {{name}} ha añadido desde entonces no se ve aquí hasta que actualices este Claudio.",
+      "text": "{{name}} usa Claudio {{remote}} y este, la versión {{local}}: lo que ha añadido desde entonces no se ve aquí hasta que actualices este Claudio.",
       "action": "Actualizar este Claudio",
       "dismiss": "Descartar"
     }
@@ -259,7 +259,7 @@
   "localName": {
     "title": "Este servidor",
     "label": "Nombre",
-    "hint": "Cómo se llama este Claudio en su selector de servidores.",
+    "hint": "Se muestra en el selector de servidores. Déjalo vacío para usar «Este servidor».",
     "save": "Guardar nombre",
     "saved": "Nombre guardado",
     "failed": "No se ha podido guardar el nombre"

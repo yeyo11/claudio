@@ -219,9 +219,9 @@ export function ServersView({
         )}
       </section>
 
-      <LocalNameCard />
       <ConnectCard />
       <HubsCard />
+      <LocalNameCard />
 
       {open?.kind === 'add' && <AddServerDialog servers={servers ?? []} onClose={close} onAdded={() => {}} />}
       {open?.kind === 'edit' && <EditServerDialog server={open.server} onClose={close} />}

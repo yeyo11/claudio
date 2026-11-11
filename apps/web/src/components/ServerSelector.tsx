@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import type { MenuEntry } from '@claudio/ui/components/controls/Menu';
 import { MoreActions } from '@claudio/ui/components/controls/MoreActions';
 import { ICON_SM } from '@claudio/ui/components/icons';
+import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { useToast } from '@claudio/ui/components/Toast';
 import { activeServerId, LOCAL_SERVER_ID } from '@claudio/ui/lib/server-scope';
 import { useLocalServerName, useServers, useServersFeatureOn } from '../lib/api/servers';
@@ -31,6 +32,21 @@ export function ServerSelector() {
   const localName = useLocalServerName();
   if (!on) return null;
   return <SelectorView servers={servers.data ?? []} current={activeServerId()} localName={localName} />;
+}
+
+/**
+ * A server's name, which ends in an ellipsis past its room (a name may have 60 characters): the whole
+ * of it in a Tooltip on the name itself, never a `title` inside the button or the menu item, and the
+ * accessible name of the control already holds it all.
+ */
+function NameTip({ name, className }: { name: string; className: string }) {
+  return (
+    <Tooltip content={name}>
+      <span className={className} data-tooltip="">
+        {name}
+      </span>
+    </Tooltip>
+  );
 }
 
 /** What the menu does besides drawing itself; the component fills them from the router and the scope */
@@ -78,7 +94,7 @@ export function selectorEntries(
           label: (
             <span className="server-item">
               <Server {...ICON_SM} className="server-local-icon" aria-hidden />
-              {local}
+              <NameTip name={local} className="server-item-name" />
             </span>
           ),
         },
@@ -88,7 +104,7 @@ export function selectorEntries(
           label: (
             <span className="server-item">
               <ServerMark server={server} />
-              <span className="server-item-name">{server.name}</span>
+              <NameTip name={server.name} className="server-item-name" />
             </span>
           ),
           meta: <ServerStatusWord status={server.health?.status ?? null} />,
@@ -138,7 +154,7 @@ export function SelectorView({ servers, current = LOCAL_SERVER_ID, localName = n
               <span className="sr-only">{`${t('servers.selector.label')}: `}</span>
               <span className="select-value server-selector-value">
                 {remote ? <ServerMark server={remote} /> : <Server {...ICON_SM} className="server-local-icon" aria-hidden />}
-                <span className="server-selector-name">{name}</span>
+                <NameTip name={name} className="server-selector-name" />
               </span>
               <ChevronDown {...ICON_SM} className="select-chevron" aria-hidden />
             </button>

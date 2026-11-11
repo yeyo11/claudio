@@ -339,6 +339,35 @@
   margin: 0;
 }
 
+/* This server's name: one setting, so one row, the hint under it */
+.server-local-name {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.server-local-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+/* Wide enough for the 60 characters a name may have; it narrows first on a phone */
+.server-local-row input {
+  flex: 0 1 62ch;
+  min-width: 0;
+}
+
+.server-local-save {
+  flex: none;
+}
+
+/* Nothing to save: the button keeps its place so the row never reflows */
+.server-local-save.is-idle {
+  visibility: hidden;
+}
+
 .server-code {
   display: flex;
   flex-direction: column;

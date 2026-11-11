@@ -54,6 +54,8 @@ export function ServerSkewBanner({ build = BUILD_VERSION }: { build?: string }) 
         onClick={() => {
           dismissed.add(`${serverId}:${ahead}`);
           setTick((n) => n + 1);
+          // The button goes with the banner: focus goes on to the page, never to the body
+          document.getElementById('main')?.focus();
         }}
       >
         <X {...ICON} />
