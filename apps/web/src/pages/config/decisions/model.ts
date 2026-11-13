@@ -319,7 +319,8 @@ export const orderSignals = (kinds: readonly HealthSignalKind[]): HealthSignalKi
 
 export const draftOf = (saved: DecisionSettings): Draft => ({
   provider: saved.provider,
-  autoSignals: orderSignals(saved.supervisor.autoSignals),
+  // A server from before the Supervisor's options (a remote on an older Claudio) sends none: an empty list, as its default is
+  autoSignals: orderSignals((saved as Partial<Pick<DecisionSettings, 'supervisor'>>).supervisor?.autoSignals ?? []),
   cli: saved.cli,
   historyDays: saved.historyDays,
   points: Object.fromEntries(Object.entries(saved.points).map(([id, point]) => [id, { mode: point.mode, threshold: point.threshold, ...(point.floor !== undefined ? { floor: point.floor } : {}) }])),
