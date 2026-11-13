@@ -9,6 +9,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { useDirty } from '../../../lib/dirty';
+import { SaveError, savedNotice } from '../decisions/ActivationRefusal';
 import { BulkConsentDialog } from '../decisions/BulkConsentDialog';
 import { ConsentDialog, ExamplePayloadDialog } from '../decisions/ConsentDialog';
 import { DecisionHistory } from '../decisions/DecisionHistory';
@@ -144,6 +145,7 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
         provider: draft.provider,
         cli: { ...draft.cli, model: draft.cli.model.trim() },
         historyDays: draft.historyDays,
+        supervisor: { autoSignals: draft.autoSignals },
         points: Object.fromEntries(
           [...ids].map((id) => {
             const point = draft.points[id] ?? { mode: 'off' as const, threshold: catalogue.find((p) => p.id === id)?.defaultThreshold ?? THRESHOLD_MIN };
@@ -153,10 +155,11 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
       };
       return api.putDecisionSettings(body);
     },
-    onSuccess: (next) => {
-      queryClient.setQueryData(keys.decisionSettings, next);
+    onSuccess: ({ warnings, ...next }) => {
+      // The warnings belong to this save: they are said once, not kept in the cached document
+      queryClient.setQueryData<DecisionSettings>(keys.decisionSettings, next);
       void queryClient.invalidateQueries({ queryKey: keys.decisionPoints });
-      toast.success(t('engine.saved'));
+      toast.show(savedNotice(t, warnings));
     },
   });
 
@@ -190,6 +193,8 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
           onReset={onReset}
           bulkNote={bulkNote}
           onThreshold={(id, threshold) => setDraft((current) => ({ ...current, points: { ...current.points, [id]: { ...pointOf(current, catalogue, id), threshold } } }))}
+          onAutoSignals={(autoSignals) => patch({ autoSignals })}
+          onFloor={(id, floor) => setDraft((current) => ({ ...current, points: { ...current.points, [id]: { ...pointOf(current, catalogue, id), floor } } }))}
         />
         <SettingsDetailRow to={settingsHref('decisions', { detail: 'history' })} label={t('allHistory')} setting="points.history" />
       </SettingsSection>
@@ -224,7 +229,7 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
       {example && <ExamplePayloadDialog info={example} name={pointName(t, example.id)} onClose={() => setExample(null)} />}
       {(dirty || save.isPending) && (
         <div className="dp-foot card" role="group" aria-label={t('engine.save')}>
-          <ErrorBox error={save.error} />
+          <SaveError error={save.error} />
           <button type="button" className="btn btn-primary dp-save" disabled={!valid || save.isPending} onClick={() => save.mutate()}>
             <Save {...ICON_SM} />
             {/* Both labels take the room, the hidden one too, so "Saving…" does not move the bar */}

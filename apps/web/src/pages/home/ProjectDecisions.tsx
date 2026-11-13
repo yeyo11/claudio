@@ -7,11 +7,13 @@ import { api, keys, useProjectSettings } from '../../api';
 import { Collapsible, Sheet, Slider } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
-import { ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
+import { Segmented, Skeleton, ErrorBox } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import { AREAS, MODES, POINT_KEY, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
+import { SaveError } from '../config/decisions/ActivationRefusal';
+import { gateMissing } from '../config/decisions/gate';
+import { AREAS, MODES, bestReading, gateBlocked, POINT_KEY, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
 
 type Provider = 'inherit' | DecisionProviderId;
 type Override = { mode?: DecisionMode; threshold?: number };
@@ -147,7 +149,7 @@ export function ProjectDecisions({ project }: { project: Project }) {
           </div>
         ),
       )}
-      <ErrorBox error={save.error} title={t('general.saveFailed')} />
+      <SaveError error={save.error} title={t('general.saveFailed')} />
     </>
   );
 
@@ -194,6 +196,8 @@ function OverrideRow({
   onReset: () => void;
 }) {
   const { t } = useTranslation(['projects', 'decisions']);
+  // The gate's wording lives in `decisions`; `t` above would look in `projects` first
+  const { t: td } = useTranslation('decisions');
   const name = t(`decisions:points.names.${POINT_KEY[info.id] ?? info.id}`, { defaultValue: info.id });
   const modeSet = override?.mode !== undefined;
   const thresholdSet = override?.threshold !== undefined;
@@ -201,6 +205,8 @@ function OverrideRow({
   const threshold = override?.threshold ?? info.effective.threshold;
   // An act point on the CLI has no calibrated confidence to compare with its threshold
   const activeBlocked = info.kind === 'act' && provider === 'cli';
+  // The gate the server enforces on save, told before: Active is earned on the point's evidence
+  const unproven = !activeBlocked && gateBlocked(info, mode);
 
   return (
     <div className="dp-row" data-point={info.id}>
@@ -218,6 +224,7 @@ function OverrideRow({
           value: m,
           label: t(`decisions:points.modes.${m}`),
           ...(m === 'active' && activeBlocked ? { disabled: true, title: t('decisions:points.activeNeedsJev') } : {}),
+          ...(m === 'active' && unproven ? { disabled: true, title: td('gate.activeNeeds', { missing: gateMissing(td, info.gate, bestReading(info.live, info.replay)) }) } : {}),
         }))}
       />
       {info.kind === 'act' ? (

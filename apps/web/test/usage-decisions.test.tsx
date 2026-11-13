@@ -48,7 +48,7 @@ const render = (value: DecisionStats) =>
     </MemoryRouter>,
   );
 
-test('the line says what Jev cost and how many runs were saved, with a link to the history', async () => {
+test('the line says what Jev cost and the net in runs, with a link to the history', async () => {
   // setLanguage, not changeLanguage alone: the cost is an Intl format, which follows the stored
   // language, and CI's locale is not the developer's
   setLanguage('en');
@@ -56,13 +56,22 @@ test('the line says what Jev cost and how many runs were saved, with a link to t
   const html = render(stats(12));
   assert.match(html, /Decisions/);
   assert.match(html, /Jev (US)?\$?0[.,]38/);
-  assert.match(html, /37 agent runs saved/);
+  assert.match(html, /Net: 37 agent runs saved \(37 saved, 0 caused\)/);
   assert.match(html, /href="\/settings\/decisions\/history"/);
+  assert.doesNotMatch(html, /agent runs saved<\/span>/);
   setLanguage('es');
   await i18n.changeLanguage('es');
-  assert.match(render(stats(12, { claudeRunsSaved: 1 })), /1 ejecución del agente ahorrada/);
+  assert.match(render(stats(12, { runsSaved: 1, runsCaused: 0, netRuns: 1 })), /Neto: 1 ejecución del agente ahorrada \(1 ahorradas, 0 provocadas\)/);
   setLanguage('en');
   await i18n.changeLanguage('en');
+});
+
+test('the net counts what the decisions caused against what they saved, and says so when it is a cost or nothing', async () => {
+  setLanguage('en');
+  await i18n.changeLanguage('en');
+  assert.match(render(stats(12, { runsSaved: 3, runsCaused: 8, netRuns: -5 })), /Net: 5 agent runs added \(3 saved, 8 caused\)/);
+  assert.match(render(stats(12, { runsSaved: 4, runsCaused: 3, netRuns: 1 })), /Net: 1 agent run saved \(4 saved, 3 caused\)/);
+  assert.match(render(stats(12, { runsSaved: 2, runsCaused: 2, netRuns: 0 })), /Net: no agent runs saved or added \(2 saved, 2 caused\)/);
 });
 
 test('the line is hidden when no decision was recorded in the window', async () => {

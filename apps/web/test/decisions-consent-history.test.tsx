@@ -148,9 +148,14 @@ test('a yes/no answer gets its two bars from the one probability', () => {
   assert.deepEqual(line?.bars.map((bar) => [bar.id, bar.probability]), [['yes', 0.75], ['no', 0.25]]);
 });
 
-test("a point's evidence counts its decisions, how often it agreed and where it did not", () => {
-  assert.deepEqual(evidenceOf(stats()), { count: 41, agreement: 88, disagreements: 3 });
-  // Nothing compared yet: no agreement to show, not a made-up 0 %
-  assert.deepEqual(evidenceOf(stats({ resolved: 0, agreed: 0 })), { count: 41, agreement: null, disagreements: 0 });
-  assert.deepEqual(evidenceOf(undefined), { count: 0, agreement: null, disagreements: 0 });
+test("a point's evidence counts its decisions, what is known for sure, its precision and how it differs from today's rule", () => {
+  const proven = stats({
+    resolvedDirect: 30,
+    baseline: { rows: 40, differs: 10, decisionRight: 6, baselineRight: 2, unresolved: 2 },
+    evidence: { ...stats().evidence, precision: { n: 20, hits: 18, value: 0.9, lower90: 0.76 } },
+  });
+  assert.deepEqual(evidenceOf(proven), { count: 41, direct: 30, precision: 90, differs: 25, disagreements: 3 });
+  // Nothing scored or comparable yet: no number to show, not a made-up 0
+  assert.deepEqual(evidenceOf(stats({ resolved: 0, agreed: 0 })), { count: 41, direct: 0, precision: null, differs: null, disagreements: 0 });
+  assert.deepEqual(evidenceOf(undefined), { count: 0, direct: 0, precision: null, differs: null, disagreements: 0 });
 });

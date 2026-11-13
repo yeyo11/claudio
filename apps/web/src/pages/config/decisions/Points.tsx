@@ -1,3 +1,4 @@
+import type { HealthSignalKind } from '@claudio/shared';
 import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointStats, DecisionProviderId, DecisionSettings } from '@claudio/shared';
 import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
@@ -6,16 +7,19 @@ import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../../../api';
-import { Slider } from '@claudio/ui/components/controls';
+import { Checkbox, Collapsible, Slider } from '@claudio/ui/components/controls';
 import { useToast } from '@claudio/ui/components/Toast';
-import { ErrorBox, Segmented } from '@claudio/ui/components/ui';
+import { ErrorBox, Segmented, Tag } from '@claudio/ui/components/ui';
 import { formatDate, formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { settingsHref } from '../settingsGroups';
 import { Overridden, ServerSettingChange } from '../SettingChange';
 import { pointAnchor } from '../settingsIndex';
 import { BulkMode } from './BulkMode';
+import { gateMissing } from './gate';
 import {
   AREAS,
+  AUTO_SIGNAL_KINDS,
+  FLOOR_DEFAULT,
   MODES,
   POINT_KEY,
   SUPERVISOR_POINT,
@@ -23,9 +27,12 @@ import {
   THRESHOLD_MIN,
   activeBlocked,
   areaOf,
+  bestReading,
   evidenceOf,
+  gateBlocked,
   groupSummary,
   offUntilConsent,
+  orderSignals,
   supervisorMeaning,
   type AreaId,
   type Draft,
@@ -77,6 +84,8 @@ export function PointsSection({
   onBulk,
   bulkNote,
   onThreshold,
+  onFloor,
+  onAutoSignals,
   onReviewConsent,
   onReset,
 }: {
@@ -90,6 +99,8 @@ export function PointsSection({
   onBulk: (ids: readonly DecisionPointId[], mode: DecisionMode) => void;
   bulkNote: BulkNote | null;
   onThreshold: (id: DecisionPointId, threshold: number) => void;
+  onFloor: (id: DecisionPointId, floor: number) => void;
+  onAutoSignals: (kinds: HealthSignalKind[]) => void;
   /** Opens the consent dialog for a point that is not off and has no consent, in its current mode */
   onReviewConsent?: (id: DecisionPointId, mode: Exclude<DecisionMode, 'off'>) => void;
   /** A point went back to its default on the server: the draft takes its mode and threshold from the saved document */
@@ -183,6 +194,8 @@ export function PointsSection({
                           stats={stats ? (stats.get(id) ?? null) : undefined}
                           onMode={onMode}
                           onThreshold={onThreshold}
+                          onFloor={onFloor}
+                          onAutoSignals={onAutoSignals}
                           onWithdraw={() => withdraw.mutate(info)}
                           {...(onReset ? { onReset } : {})}
                           {...(onReviewConsent ? { onReviewConsent } : {})}
@@ -212,6 +225,8 @@ export function PointRow({
   stats,
   onMode,
   onThreshold,
+  onFloor,
+  onAutoSignals,
   onWithdraw,
   onReviewConsent,
   onReset,
@@ -224,6 +239,8 @@ export function PointRow({
   stats?: DecisionPointStats | null | undefined;
   onMode: (id: DecisionPointId, mode: DecisionMode) => void;
   onThreshold: (id: DecisionPointId, threshold: number) => void;
+  onFloor: (id: DecisionPointId, floor: number) => void;
+  onAutoSignals: (kinds: HealthSignalKind[]) => void;
   onWithdraw?: () => void;
   onReviewConsent?: (id: DecisionPointId, mode: Exclude<DecisionMode, 'off'>) => void;
   onReset?: (setting: string) => void;
@@ -236,6 +253,18 @@ export function PointRow({
   const off = point.mode === 'off';
   const supervisor = info.id === SUPERVISOR_POINT;
   const showThreshold = provider === 'jev' && info.kind === 'act' && !off;
+  // A suggestion's confidence is only there under Jev: the CLI gives none, so it is never held to a floor
+  const showFloor = provider === 'jev' && info.kind === 'suggest' && !off;
+  const unproven = !blocked && gateBlocked(info, point.mode);
+  const missing = gateMissing(t, info.gate, bestReading(info.live, info.replay));
+  // What the row says about why a point that is on does not do what its mode names. No consent has its own words in the consent part, and a demotion its own line below
+  const limit = info.effective.limitedBy;
+  const limitReason =
+    !supervisor && !off && point.mode === info.effective.mode && limit !== null && limit !== 'no-consent' && limit !== 'demoted'
+      ? limit === 'cli'
+        ? t('limited.cli')
+        : t(limit === 'failing' ? 'limited.failing' : 'limited.unproven', { missing })
+      : null;
 
   return (
     <div className="dp-point" id={anchor} data-setting={anchor} data-point={info.id}>
@@ -251,21 +280,33 @@ export function PointRow({
           options={MODES.map((mode) => ({
             value: mode,
             label: t(`points.modes.${mode}`),
+            // The CLI's reason first: Jev fixes it, and only then does the proof matter
             ...(mode === 'active' && blocked ? { disabled: true, title: t('points.activeNeedsJev') } : {}),
+            ...(mode === 'active' && unproven ? { disabled: true, title: t('gate.activeNeeds', { missing }) } : {}),
           }))}
         />
       </div>
       <p className="dp-evidence">
-        <EvidenceLine id={info.id} stats={stats} />
+        <Tag tone={info.standing === 'proven' ? 'ok' : info.standing === 'failing' ? 'warn' : 'muted'}>{t(`standing.${info.standing}`)}</Tag>
+        <EvidenceLine id={info.id} kind={info.kind} stats={stats} />
         <Overridden id={anchor} bare />
         {!off && <ConsentPart info={info} settings={settings} mode={point.mode} provider={provider} {...(onWithdraw ? { onWithdraw } : {})} {...(onReviewConsent ? { onReviewConsent } : {})} />}
       </p>
+      {(limitReason || info.demoted) && (
+        <p className="dp-point-line">
+          <span className="dp-evidence-consent dp-consent-off">
+            <TriangleAlert size={14} strokeWidth={2} aria-hidden />
+            {info.demoted ? <DemotedWhy info={info} /> : limitReason}
+          </span>
+        </p>
+      )}
       {/* Without consent a point is off whatever its mode: the line says what it does, not what was asked */}
       {supervisor && (
         <p className="dp-point-line">
           {t(`supervisor.${supervisorMeaning(offUntilConsent(info, settings.points[info.id]?.consent ?? null, point.mode, provider) ? 'off' : point.mode, provider)}`)}
         </p>
       )}
+      {supervisor && point.mode === 'active' && <AutoSignals chosen={draft.autoSignals} onChange={onAutoSignals} />}
       {/* Beside the modes on a desktop (the point's grid), and on a phone a line of its own under the consequence */}
       <ServerSettingChange
         id={anchor}
@@ -288,12 +329,67 @@ export function PointRow({
           <output>{formatNumber(point.threshold, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</output>
         </div>
       )}
+      {showFloor && (
+        <div className="dp-thr dp-point-thr">
+          <span className="dp-point-line">{t('points.floorLine')}</span>
+          <Slider
+            aria-label={t('points.floor', { point: info.id })}
+            min={THRESHOLD_MIN}
+            max={THRESHOLD_MAX}
+            step={0.01}
+            value={point.floor ?? info.effective.floor ?? FLOOR_DEFAULT}
+            onChange={(floor) => onFloor(info.id, Math.round(floor * 100) / 100)}
+          />
+          <output>{formatNumber(point.floor ?? info.effective.floor ?? FLOOR_DEFAULT, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</output>
+        </div>
+      )}
     </div>
   );
 }
 
-/** "47 decisions · agrees with you 94 % · 3 disagreements": the last part opens its decisions in History. */
-function EvidenceLine({ id, stats }: { id: DecisionPointId; stats: DecisionPointStats | null | undefined }) {
+/**
+ * What the Supervisor sends on its own under Active: a folded list of the signal kinds, each a
+ * Checkbox, so a phone shows one line until the person opens it. The kinds not ticked are proposed.
+ */
+function AutoSignals({ chosen, onChange }: { chosen: readonly HealthSignalKind[]; onChange: (kinds: HealthSignalKind[]) => void }) {
+  const { t } = useTranslation('decisions');
+  // The names the health panel already uses for these signals
+  const { t: names } = useTranslation('observe');
+  const count = AUTO_SIGNAL_KINDS.filter((kind) => chosen.includes(kind)).length;
+  return (
+    <div className="dp-point-line" data-setting="supervisor.auto-signals">
+      <Collapsible title={t('supervisor.autoSummary', { n: formatNumber(count), total: formatNumber(AUTO_SIGNAL_KINDS.length) })}>
+        {AUTO_SIGNAL_KINDS.map((kind) => (
+          <div key={kind}>
+            <Checkbox checked={chosen.includes(kind)} onChange={(on) => onChange(on ? orderSignals([...chosen, kind]) : chosen.filter((other) => other !== kind))}>
+              {names(`health.signal.${kind}`)}
+            </Checkbox>
+          </div>
+        ))}
+      </Collapsible>
+    </div>
+  );
+}
+
+/** When the engine moved the point back to Shadow and why, from what it read then. */
+function DemotedWhy({ info }: { info: DecisionPointInfo }) {
+  const { t } = useTranslation('decisions');
+  const demoted = info.demoted;
+  if (!demoted) return null;
+  const evidence = demoted.evidence;
+  const why =
+    demoted.reason === 'failing'
+      ? t(info.kind === 'act' ? 'standing.demotedWhy.failingAct' : 'standing.demotedWhy.failingSuggest', { hits: formatNumber(evidence.precision.hits), n: formatNumber(evidence.precision.n) })
+      : t('standing.demotedWhy.rate', { acts: formatNumber(evidence.recentActs), rows: formatNumber(evidence.recentRows) });
+  return <>{t('standing.demotedOn', { date: formatDate(demoted.at), why })}</>;
+}
+
+/**
+ * "47 decisions · 31 with a known outcome · right 94 of the time it acts · differs from today's rule
+ * in 12 of answers · 3 disagreements": what the point has proved, from outcomes that do not depend on
+ * it. The first and the last open its decisions in History.
+ */
+function EvidenceLine({ id, kind, stats }: { id: DecisionPointId; kind: DecisionPointInfo['kind']; stats: DecisionPointStats | null | undefined }) {
   const { t } = useTranslation('decisions');
   // Reserved while the numbers load, so the row does not grow under the pointer
   if (stats === undefined) return <span className="dp-evidence-wait">{t('evidence.none')}</span>;
@@ -304,7 +400,9 @@ function EvidenceLine({ id, stats }: { id: DecisionPointId; stats: DecisionPoint
   return (
     <>
       {evidence.disagreements > 0 ? <span className="tnum">{count}</span> : <Link to={history} className="tnum">{count}</Link>}
-      {evidence.agreement !== null && <span className="tnum">{t('evidence.agrees', { percent: formatPercent(evidence.agreement) })}</span>}
+      <span className="tnum">{t('evidence.direct', { formatted: formatNumber(evidence.direct) })}</span>
+      {evidence.precision !== null && <span className="tnum">{t(kind === 'act' ? 'evidence.precisionAct' : 'evidence.precisionSuggest', { percent: formatPercent(evidence.precision) })}</span>}
+      {evidence.differs !== null && <span className="tnum">{t('evidence.differs', { percent: formatPercent(evidence.differs) })}</span>}
       {evidence.disagreements > 0 && (
         <Link to={history} className="tnum">
           {t('evidence.disagreements', { count: evidence.disagreements, formatted: formatNumber(evidence.disagreements) })}

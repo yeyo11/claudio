@@ -20,7 +20,8 @@ const info = (id: DecisionPointId, kind: 'act' | 'suggest', over: Partial<Decisi
   needsLowLatency: false,
   stateVersion: 2,
   effective: { mode: 'off', threshold: 0.85, provider: 'cli', consent: null, limited: false, limitedBy: null, floor: null },
-  standing: 'unproven',
+  // Proven by default: the bulk tests are about the CLI and consent, the gate has its own test below
+  standing: 'proven',
   gate: { enforced: true, minCases: 30, breakEven: 0.5, minPrecision: null, maxFlagRate: null },
   live: { source: 'live', at: null, cases: 0, precision: { n: 0, hits: 0, value: null, lower90: null }, baselinePrecision: { n: 0, hits: 0, value: null, lower90: null }, actRate: { n: 0, hits: 0, value: null, lower90: null }, shortfalls: ['cases'] },
   replay: null,
@@ -53,6 +54,14 @@ test('active on Jev sets every point', () => {
   const result = plan('active', 'jev');
   assert.equal(result.capped.length, 0);
   assert.ok(result.changes.every((change) => change.mode === 'active'));
+});
+
+test('active keeps a point without proof in shadow, but never sends an active one back', () => {
+  const unproven = [info('flow.bounce', 'act', { standing: 'unproven' }), info('team.assign', 'act', { standing: 'failing' }), info('board.triage', 'suggest', { gate: { enforced: false, minCases: 30, breakEven: null, minPrecision: 0.6, maxFlagRate: 0.3 }, standing: 'unproven' })];
+  const result = planBulk(unproven, unproven.map((point) => point.id), 'active', (id) => (id === 'team.assign' ? 'active' : 'off'), () => null, 'jev');
+  assert.deepEqual(result.capped, ['flow.bounce']);
+  assert.deepEqual(result.changes.map((change) => [change.id, change.mode]), [['flow.bounce', 'shadow'], ['board.triage', 'active']]);
+  assert.deepEqual(result.unchanged, ['team.assign']);
 });
 
 test('a point already in the resulting mode does not change nor ask', () => {

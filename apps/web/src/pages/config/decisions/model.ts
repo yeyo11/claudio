@@ -1,5 +1,6 @@
 import { DECISION_POINT_IDS, pointSettingId } from '@claudio/shared';
-import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointSettings, DecisionPointStats, DecisionProviderId, DecisionRecord, DecisionSettings } from '@claudio/shared';
+import type { HealthSignalKind } from '@claudio/shared';
+import type { DecisionGateReading, DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointSettings, DecisionPointStats, DecisionProviderId, DecisionRecord, DecisionSettings } from '@claudio/shared';
 
 /** Rough size of a request in tokens: the consent dialog says "about", so four bytes a token is enough. */
 export const approxTokens = (bytes: number) => Math.ceil(bytes / 4);
@@ -20,6 +21,8 @@ export function consentProviders(info: Pick<DecisionPointInfo, 'stateVersion'>, 
 
 export const THRESHOLD_MIN = 0.5;
 export const THRESHOLD_MAX = 0.99;
+/** What a suggest point's floor reads when none is saved (the server's default) */
+export const FLOOR_DEFAULT = 0.7;
 export const MODES: DecisionMode[] = ['off', 'shadow', 'active'];
 
 /** The point the Supervisor is (docs/plans/settings-ia.md §7.2): its mode is the Supervisor's only switch. */
@@ -96,6 +99,21 @@ export const activeBlocked = (info: Pick<DecisionPointInfo, 'id' | 'kind'>, prov
   info.kind === 'act' && provider === 'cli' && info.id !== SUPERVISOR_POINT;
 
 /**
+ * The server refuses `active` for a point whose standing is not `proven` where its gate is enforced
+ * (act points, and suggest points that start a run). The row learns it first, so the person does not
+ * find out on save; the refusal stays the backstop. A point already active is left alone: this only
+ * stops a new step up.
+ */
+export const gateBlocked = (info: Pick<DecisionPointInfo, 'id' | 'standing' | 'gate'>, current: DecisionMode): boolean =>
+  // The Supervisor is exempt: its Active is the owner's own switch, and on the CLI it can earn no evidence
+  info.id !== SUPERVISOR_POINT && current !== 'active' && info.gate.enforced && info.standing !== 'proven';
+
+/** Of the live reading and the replay, the one that lacks less: the standing is read from the better of the two. */
+export function bestReading(live: DecisionGateReading, replay: DecisionGateReading | null): DecisionGateReading {
+  return replay && replay.shortfalls.length < live.shortfalls.length ? replay : live;
+}
+
+/**
  * A point that is not off but has no consent for this provider and state: the engine returns
  * "off" for it before it splits shadow from active (`engine.ts`), so the row says so and offers
  * the consent. The Supervisor's Active on the CLI never reaches the engine, so it is exempt.
@@ -128,17 +146,29 @@ export function examplePoint(order: readonly DecisionPointId[], consented: (id: 
   return order.find(consented) ?? SUPERVISOR_POINT;
 }
 
-/** A point's evidence over the history window: how many it decided, how often it agreed with you, and where it did not. */
+/** A point's evidence over the history window: what it decided, what was learnt of it and how it stands against today's rule. */
 export interface Evidence {
   count: number;
-  /** Whole percentage of the compared answers that matched; null before any was compared */
-  agreement: number | null;
+  /** Answers whose outcome is known for sure (`direct`, or a person's word): what the promotion gate counts */
+  direct: number;
+  /** Whole percentage of the acting (or flagging) answers that were right; null while none was scored */
+  precision: number | null;
+  /** Whole percentage of the answers that differed from today's rule; null when none could be compared */
+  differs: number | null;
+  /** Answers the person disagreed with, which History lists */
   disagreements: number;
 }
 
-export function evidenceOf(stats: Pick<DecisionPointStats, 'count' | 'resolved' | 'agreed'> | undefined): Evidence {
-  if (!stats) return { count: 0, agreement: null, disagreements: 0 };
-  return { count: stats.count, agreement: percent(stats.agreed, stats.resolved), disagreements: Math.max(0, stats.resolved - stats.agreed) };
+export function evidenceOf(stats: Pick<DecisionPointStats, 'count' | 'resolved' | 'agreed' | 'resolvedDirect' | 'evidence' | 'baseline'> | undefined): Evidence {
+  if (!stats) return { count: 0, direct: 0, precision: null, differs: null, disagreements: 0 };
+  const precision = stats.evidence.precision.value;
+  return {
+    count: stats.count,
+    direct: stats.resolvedDirect,
+    precision: precision === null ? null : Math.round(precision * 100),
+    differs: percent(stats.baseline.differs, stats.baseline.rows),
+    disagreements: Math.max(0, stats.resolved - stats.agreed),
+  };
 }
 
 /**
@@ -188,7 +218,8 @@ export function planBulk(
   for (const id of ids) {
     const info = catalogue.find((point) => point.id === id);
     if (!info) continue;
-    const capped = mode === 'active' && activeBlocked(info, provider);
+    // A point already active is not sent back to shadow by a bulk "Active": only a step up is refused
+    const capped = mode === 'active' && (activeBlocked(info, provider) || gateBlocked(info, current(id)));
     const result: DecisionMode = capped ? 'shadow' : mode;
     if (capped) plan.capped.push(id);
     if (current(id) === result) {
@@ -252,21 +283,38 @@ export function answerLines(record: Pick<DecisionRecord, 'questions' | 'answers'
 export interface PointDraft {
   mode: DecisionMode;
   threshold: number;
+  /** Suggest points: the confidence a suggestion needs; absent reads as the server's default */
+  floor?: number;
 }
 
 /** What the save bar sends together (§7.1): who answers, the cap, Advanced and every point's mode. */
 export interface Draft {
   provider: DecisionProviderId;
+  /** The signal kinds the Supervisor sends a hint for on its own under Active; it proposes the rest */
+  autoSignals: HealthSignalKind[];
   cli: DecisionSettings['cli'];
   historyDays: number;
   points: Partial<Record<DecisionPointId, PointDraft>>;
 }
 
+/**
+ * The kinds the Supervisor drafts a hint for: the signals that call for stepping in (`STEP_IN` in the
+ * health panel). A hint for "waiting for you" or "branches failed" would help nobody.
+ */
+export const AUTO_SIGNAL_KINDS: readonly HealthSignalKind[] = ['hung-command', 'repeat-stall', 'no-progress', 'loop', 'weakened-test', 'silence', 'budget', 'guard-blocked', 'guard-missing'];
+
+/** The list in the screen's order, so the same choice is never read as an edit; a kind the screen does not list is kept, last. */
+export const orderSignals = (kinds: readonly HealthSignalKind[]): HealthSignalKind[] => [
+  ...AUTO_SIGNAL_KINDS.filter((kind) => kinds.includes(kind)),
+  ...kinds.filter((kind) => !AUTO_SIGNAL_KINDS.includes(kind)),
+];
+
 export const draftOf = (saved: DecisionSettings): Draft => ({
   provider: saved.provider,
+  autoSignals: orderSignals(saved.supervisor.autoSignals),
   cli: saved.cli,
   historyDays: saved.historyDays,
-  points: Object.fromEntries(Object.entries(saved.points).map(([id, point]) => [id, { mode: point.mode, threshold: point.threshold }])),
+  points: Object.fromEntries(Object.entries(saved.points).map(([id, point]) => [id, { mode: point.mode, threshold: point.threshold, ...(point.floor !== undefined ? { floor: point.floor } : {}) }])),
 });
 
 /**
