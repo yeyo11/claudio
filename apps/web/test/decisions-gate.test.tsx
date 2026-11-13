@@ -6,7 +6,7 @@ import type { DecisionActivationIssue } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { ApiRequestError } from '../src/api';
 import i18n, { setLanguage } from '../src/i18n';
-import { SaveError, savedNotice } from '../src/pages/config/decisions/ActivationRefusal';
+import { SaveError, savedNotice, stillAsked } from '../src/pages/config/decisions/ActivationRefusal';
 
 // The promotion gate on save (docs/plans/decision-engine-v2.md §5): a refusal says which points and
 // what each lacks, and a save that went through says once what it let pass.
@@ -88,4 +88,25 @@ test('a save that let suggest points through says it once, in one notice, naming
   assert.equal(notice.tone, 'warn');
   assert.equal(notice.title, 'Decision settings saved');
   assert.match(notice.detail ?? '', /^Active without proof yet: .+ and .+\.$/);
+});
+
+test('the refusal is a note in the flow that can be closed, with no box of its own to scroll', () => {
+  const out = renderToStaticMarkup(<SaveError error={refusal('decision-unproven', [issue('flow.bounce', ['cases'])])} onClose={() => undefined} id="dp-save-failure" />);
+  assert.match(out, /role="alert"/);
+  assert.match(out, /id="dp-save-failure"/);
+  assert.match(out, /tabindex="-1"/);
+  assert.match(out, /<button[^>]*aria-label="Close the note"/);
+  assert.doesNotMatch(out, /style=/);
+  // Without a way to close it (a caller that keeps it), no button is drawn
+  assert.doesNotMatch(render(refusal('decision-unproven', [issue('flow.bounce', ['cases'])])), /<button/);
+});
+
+test('a refusal is cleared once the draft no longer asks for what was refused, and a save that was not refused never is', () => {
+  const error = refusal('decision-unproven', [issue('flow.bounce', ['cases']), issue('team.assign', ['cases'])]);
+  const asked = { 'flow.bounce': 'active', 'team.assign': 'active' };
+  assert.equal(stillAsked(error, asked, () => 'active'), true);
+  // One of the two set back: the other is still asked for
+  assert.equal(stillAsked(error, asked, (id) => (id === 'flow.bounce' ? 'off' : 'active')), true);
+  assert.equal(stillAsked(error, asked, () => 'shadow'), false);
+  assert.equal(stillAsked(new ApiRequestError('Disk full', 500), {}, () => 'off'), true);
 });

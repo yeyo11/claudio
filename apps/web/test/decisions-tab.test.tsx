@@ -12,7 +12,7 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n, { setLanguage } from '../src/i18n';
 import { CapLine, EngineSection } from '../src/pages/config/decisions/Engine';
-import { activeBlocked, AUTO_SIGNAL_KINDS, orderSignals, bestReading, capConsequence, draftOf, gateBlocked, examplePoint, offUntilConsent, standingInforms, supervisorMeaning, supervisorOn } from '../src/pages/config/decisions/model';
+import { activeBlocked, activeUnseen, AUTO_SIGNAL_KINDS, orderSignals, bestReading, capConsequence, draftOf, gateBlocked, examplePoint, offUntilConsent, standingInforms, supervisorMeaning, supervisorOn } from '../src/pages/config/decisions/model';
 import { gateMissing } from '../src/pages/config/decisions/gate';
 import { PointRow } from '../src/pages/config/decisions/Points';
 import { detailsOf, resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
@@ -502,4 +502,29 @@ test('an invalid Supervisor cap stays visible with the Supervisor off, so no hid
     />,
   );
   assert.match(out, /data-setting="engine\.supervisor-cap"/);
+});
+
+test("the Supervisor shows no standing badge, and lists its signals only when it would really send them", () => {
+  const supervisor = info({ id: 'supervisor.intervene', kind: 'act', scope: 'global', standing: 'unproven' });
+  const consent = { at: '2026-10-17T10:00:00Z', stateVersion: 2, providers: ['cli' as const, 'jev' as const] };
+  const at = (provider: 'cli' | 'jev', withConsent: boolean) =>
+    row(supervisor, settings({ 'supervisor.intervene': { mode: 'active', threshold: 0.85, consent: withConsent ? consent : null } }), provider, null);
+  // Active and saved Active, so any other point would carry its standing here
+  assert.doesNotMatch(at('cli', true), /Sin demostrar/);
+  assert.match(at('cli', true), /tipos de señal/);
+  // On Jev without consent it is off whatever its mode: no list of what it would send
+  assert.doesNotMatch(at('jev', false), /tipos de señal/);
+  assert.match(at('jev', true), /tipos de señal/);
+});
+
+test("an Off point nobody has read has its Active out of reach unseen, which the area says once", () => {
+  const unread = info({ id: 'flow.bounce', kind: 'act' });
+  assert.equal(activeUnseen(unread, 'off', 'off', 'jev'), true);
+  // In play, or already read: its row gives the reason itself
+  assert.equal(activeUnseen(unread, 'shadow', 'shadow', 'jev'), false);
+  assert.equal(activeUnseen(info({ id: 'flow.bounce', kind: 'act', live: { ...unread.live, cases: 5 } }), 'off', 'off', 'jev'), false);
+  // Active is out of reach for another reason (the CLI), or not out of reach at all
+  assert.equal(activeUnseen(unread, 'off', 'off', 'cli'), false);
+  assert.equal(activeUnseen(info({ id: 'flow.bounce', kind: 'act', standing: 'proven' }), 'off', 'off', 'jev'), false);
+  assert.equal(activeUnseen(info({ id: 'supervisor.intervene', kind: 'act' }), 'off', 'off', 'jev'), false);
 });

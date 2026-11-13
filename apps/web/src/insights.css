@@ -980,13 +980,17 @@
 .usage-decisions .sep {
   color: var(--fg-3);
 }
+/* A link in a flex line is a block, so it takes its own target: 24 px here, 44 on a phone */
 .usage-decisions a {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   margin-left: auto;
   font-size: var(--fs-small);
   color: var(--accent);
 }
 @media (max-width: 900px) {
-  /* The title leads a line and the facts follow; the history link stays on the desktop */
+  /* The title leads a line and the facts follow */
   .usage-decisions {
     padding: 10px 14px;
     gap: 2px 8px;
@@ -998,9 +1002,14 @@
   .usage-decisions .fact {
     flex: 1 1 100%;
   }
-  .usage-decisions .sep,
-  .usage-decisions a {
+  .usage-decisions .sep {
     display: none;
+  }
+  /* The history is not a desktop-only page: its link stays, a target of its own on the last line */
+  .usage-decisions a {
+    flex: 1 1 100%;
+    min-height: var(--touch);
+    margin-left: 0;
   }
 }
 

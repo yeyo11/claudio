@@ -135,7 +135,8 @@
     },
     "thresholdLine": "Acts when at least this sure",
     "floor": "Suggestion floor of {{point}}",
-    "floorLine": "Below this confidence nothing is flagged"
+    "floorLine": "Below this confidence nothing is flagged",
+    "activeEarned": "Active is earned: a point shows what it needs once it is on Shadow"
   },
   "supervisor": {
     "off": "Does not watch for stuck workers",
@@ -374,7 +375,9 @@
     "bulkBody": "Several points without proof would become Active at once. Set one to Active, save, and then the next.",
     "point": "{{point}} needs {{missing}}.",
     "inherited": "{{point}} is Active in your global settings. Without its Shadow override here it would become Active in this project, and it is not proven yet: it needs {{missing}}.",
-    "kept": "Your changes are still here."
+    "kept": "Your changes are still here.",
+    "close": "Close the note",
+    "barNote": "Not saved: see the note above"
   },
   "warnings": {
     "unproven": "Active without proof yet: {{points}}."

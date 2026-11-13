@@ -135,7 +135,8 @@
     },
     "thresholdLine": "Actúa con al menos esta confianza",
     "floor": "Confianza mínima de {{point}}",
-    "floorLine": "Por debajo de esta confianza no se señala nada"
+    "floorLine": "Por debajo de esta confianza no se señala nada",
+    "activeEarned": "Activo se gana: un punto dice qué necesita en cuanto está en Sombra"
   },
   "supervisor": {
     "off": "No vigila a los workers atascados",
@@ -374,7 +375,9 @@
     "bulkBody": "Varios puntos sin demostrar pasarían a Activo a la vez. Pon uno en Activo, guarda y luego el siguiente.",
     "point": "{{point}} necesita {{missing}}.",
     "inherited": "{{point}} está Activo en los ajustes globales. Sin su anulación en Sombra aquí pasaría a Activo en este proyecto y aún no está demostrado: necesita {{missing}}.",
-    "kept": "Tus cambios siguen aquí."
+    "kept": "Tus cambios siguen aquí.",
+    "close": "Cerrar la nota",
+    "barNote": "No guardado: ver la nota"
   },
   "warnings": {
     "unproven": "Activo sin demostrar aún: {{points}}."
