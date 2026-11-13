@@ -266,6 +266,23 @@ test('a lesson.mine question is answered true without a script', async () => {
   await c.done();
 });
 
+test('a replayed case is answered as its state says', async () => {
+  const c = chat();
+  c.say('Answer the questions below.\n\n<pasted_content id="ab12cd34">\n{"detail":"E2E-REPLAY:intervene=false case 3"}\n</pasted_content id="ab12cd34">\n\nQuestions:\n\nintervene: Is this worker stuck? Answer true or false.');
+  const result = await c.next((e) => e.type === 'result');
+  assert.deepEqual(result.structured_output, { intervene: false });
+  await c.done();
+});
+
+test('the Supervisor\'s draft is a stuck worker with a hint, as the structure it is asked for', async () => {
+  const c = chat();
+  c.say("You are watching an AI coding agent working in a project. Claudio's health checks flagged it:");
+  const result = await c.next((e) => e.type === 'result');
+  assert.equal(result.structured_output.stuck, true);
+  assert.match(result.structured_output.hint, /^E2E supervisor hint/);
+  await c.done();
+});
+
 test('the lesson miner\'s prompt is answered with the scripts file\'s "@lesson-miner" line, or with no lessons', async () => {
   const prompt = 'You review part of a chat between a person and a coding agent working in one project. The person corrected the agent.\n\nSignals, newest first:\n\nS1 no, usa pnpm siempre';
   const dir = mkdtempSync(join(tmpdir(), 'fake-miner-'));

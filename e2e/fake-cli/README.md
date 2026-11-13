@@ -216,6 +216,15 @@ not hooked.
 **A `lesson.mine` question** (a line `mine: Do these signals show…`) is answered `{"mine": true}` with no
 script, so a chat a spec corrected goes on to the miner.
 
+**A replayed case** (a prompt whose state holds `E2E-REPLAY:<id>=<value>,…`, as the cases
+`e2e/specs/decision-proof.mjs` imports) is answered with exactly those answers (`true` and `false` as booleans, any other
+value as a string), with no script. A replay puts each labelled state to the provider once, so a spec
+makes the fake right or wrong, and acting or holding, case by case from the state it labels.
+
+**The Supervisor's draft** (a prompt that starts `You are watching an AI coding agent`) is answered
+`{"stuck":true,"hint":"E2E supervisor hint: look at what the command is waiting for."}`, or with the
+scripts file's `"@supervisor-draft"` line, a `json: {"stuck":false,"hint":""}` for a worker that is not stuck.
+
 **The lesson miner's prompt** (it starts `You review part of a chat between a person and a coding agent…`) is
 answered with the scripts file's `"@lesson-miner"` entry, a `json: {"lessons":[…]}` line a spec writes
 with the quote it typed; without the entry the answer is `{"lessons":[]}`. Whatever the miner returns still
