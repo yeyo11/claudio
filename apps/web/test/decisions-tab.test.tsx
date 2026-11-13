@@ -216,6 +216,31 @@ test('active in name only, the row says why in one sentence, and says nothing wh
   assert.doesNotMatch(row(info({ effective: { ...info().effective, mode: 'active', limited: true, limitedBy: 'unproven' } }), off, 'jev', null), /Funciona como Sombra/);
 });
 
+test('a point no outcome can prove says so instead of asking for cases that cannot arrive', () => {
+  const consent = { at: '2026-10-17T10:00:00Z', stateVersion: 2, providers: ['jev' as const] };
+  const active = settings({ 'flow.refine-needed': { mode: 'active', threshold: 0.85, consent } }, { provider: 'jev' });
+  const shadow = settings({ 'flow.refine-needed': { mode: 'shadow', threshold: 0.85, consent } }, { provider: 'jev' });
+  const held = info({ evidencePossible: false, effective: { ...info().effective, mode: 'active', limited: true, limitedBy: 'unproven' } });
+  const sentence = /Ningún resultado que Claudio pueda observar demuestra este punto; solo tu propio útil o no útil\./;
+  const out = row(held, active, 'jev', null);
+  assert.match(out, sentence);
+  assert.doesNotMatch(out, /aún necesita 30 casos/);
+  // The standing tag stays
+  assert.match(out, /Sin demostrar/);
+  // The reason Active is not offered says the same
+  assert.match(row(info({ evidencePossible: false }), shadow, 'jev', null), sentence);
+  // A point that can be proven keeps asking for its cases
+  assert.match(row(info({ effective: held.effective }), active, 'jev', null), /aún necesita 30 casos más/);
+});
+
+test('a proven or failing point says which reading decided, and an unproven one says nothing of it', () => {
+  assert.match(row(info({ standing: 'proven', decidedBy: 'live' }), settings(), 'cli', null), /Demostrado[\s\S]*según su historial/);
+  assert.match(row(info({ standing: 'proven', decidedBy: 'replay' }), settings(), 'cli', null), /Demostrado[\s\S]*según una repetición/);
+  assert.match(row(info({ standing: 'failing', decidedBy: 'live' }), settings(), 'cli', null), /Fallando[\s\S]*según su historial/);
+  const unproven = row(info({ standing: 'unproven', decidedBy: null }), settings(), 'cli', null);
+  assert.doesNotMatch(unproven, /según su historial|según una repetición/);
+});
+
 test('a demoted point says when and why it went back to Shadow', () => {
   const evidence = { cases: 40, precision: { n: 20, hits: 9, value: 0.45, lower90: 0.3 }, breakEven: 0.5, shortfalls: ['break-even' as const], recentRows: 30, recentActs: 25, recentRate: 0.83, promotedRate: 0.3 };
   const failing = row(info({ demoted: { at: '2026-11-10T10:00:00Z', reason: 'failing', evidence } }), settings(), 'cli', null);

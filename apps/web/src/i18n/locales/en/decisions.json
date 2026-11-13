@@ -341,6 +341,10 @@
     "unproven": "Unproven",
     "proven": "Proven",
     "failing": "Failing",
+    "decidedBy": {
+      "live": "from its history",
+      "replay": "from a replay"
+    },
     "heldTitle_one": "{{formatted}} point runs as Shadow for now",
     "heldTitle_other": "{{formatted}} points run as Shadow for now",
     "heldBody_one": "It was Active before points had to earn it. It stays Active in your settings and starts acting once its own evidence clears the gate; its row says what it still needs.",
@@ -360,7 +364,8 @@
     "baseline": "better results than today's rule",
     "precision": "a precision of at least {{value}}",
     "flagRate": "flags on at most {{value}} of answers",
-    "activeNeeds": "Active is earned: it still needs {{missing}}."
+    "activeNeeds": "Active is earned: it still needs {{missing}}.",
+    "noEvidence": "No outcome Claudio can observe proves this point; only your own useful or not useful does."
   },
   "refusal": {
     "title_one": "Not saved: {{count}} point cannot be Active yet",
