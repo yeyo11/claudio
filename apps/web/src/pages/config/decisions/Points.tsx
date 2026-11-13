@@ -33,6 +33,7 @@ import {
   groupSummary,
   offUntilConsent,
   orderSignals,
+  standingInforms,
   supervisorMeaning,
   type AreaId,
   type Draft,
@@ -271,7 +272,10 @@ export function PointRow({
   const showThreshold = provider === 'jev' && info.kind === 'act' && !off;
   // A suggestion's confidence is only there under Jev: the CLI gives none, so it is never held to a floor
   const showFloor = provider === 'jev' && info.kind === 'suggest' && !off;
-  const unproven = !blocked && gateBlocked(info, point.mode, settings.points[info.id]?.mode ?? 'off');
+  const savedMode = settings.points[info.id]?.mode ?? 'off';
+  const unproven = !blocked && gateBlocked(info, point.mode, savedMode);
+  // An Off point nobody has read keeps the row it had: the badge and the reason are for points that are in play
+  const informs = standingInforms(info, savedMode);
   const missing = gateMissing(t, info.gate, bestReading(info.live, info.replay));
   // No outcome the app observes is ever direct for this point: asking for more cases would ask for what can never arrive
   const noEvidence = !info.evidencePossible;
@@ -285,6 +289,8 @@ export function PointRow({
           ? t('gate.noEvidence')
           : t(limit === 'failing' ? 'limited.failing' : 'limited.unproven', { missing })
       : null;
+  // A phone has no hover, so the reason Active is out of reach is said on the row, not only in the segment's title
+  const activeReason = unproven && (informs || !off) ? (noEvidence ? t('gate.noEvidence') : t('gate.activeNeeds', { missing })) : null;
 
   return (
     <div className="dp-point" id={anchor} data-setting={anchor} data-point={info.id}>
@@ -307,7 +313,7 @@ export function PointRow({
         />
       </div>
       <p className="dp-evidence">
-        <Tag tone={info.standing === 'proven' ? 'ok' : info.standing === 'failing' ? 'warn' : 'muted'}>{t(`standing.${info.standing}`)}</Tag>
+        {informs && <Tag tone={info.standing === 'proven' ? 'ok' : info.standing === 'failing' ? 'warn' : 'muted'}>{t(`standing.${info.standing}`)}</Tag>}
         {info.decidedBy && info.standing !== 'unproven' && <span>{t(`standing.decidedBy.${info.decidedBy}`)}</span>}
         <EvidenceLine id={info.id} kind={info.kind} stats={stats} />
         <Overridden id={anchor} bare />
@@ -321,6 +327,7 @@ export function PointRow({
           </span>
         </p>
       )}
+      {!limitReason && !info.demoted && activeReason && <p className="dp-point-line">{activeReason}</p>}
       {/* Without consent a point is off whatever its mode: the line says what it does, not what was asked */}
       {supervisor && (
         <p className="dp-point-line">
@@ -379,10 +386,10 @@ function AutoSignals({ chosen, onChange }: { chosen: readonly HealthSignalKind[]
   const count = AUTO_SIGNAL_KINDS.filter((kind) => chosen.includes(kind)).length;
   return (
     <div className="dp-point-line" data-setting="supervisor.auto-signals">
-      <Collapsible title={t('supervisor.autoSummary', { n: formatNumber(count), total: formatNumber(AUTO_SIGNAL_KINDS.length) })}>
+      <Collapsible className="dp-auto" title={t('supervisor.autoSummary', { n: formatNumber(count), total: formatNumber(AUTO_SIGNAL_KINDS.length) })}>
         {AUTO_SIGNAL_KINDS.map((kind) => (
           <div key={kind}>
-            <Checkbox checked={chosen.includes(kind)} onChange={(on) => onChange(on ? orderSignals([...chosen, kind]) : chosen.filter((other) => other !== kind))}>
+            <Checkbox className="check dp-auto-check" checked={chosen.includes(kind)} onChange={(on) => onChange(on ? orderSignals([...chosen, kind]) : chosen.filter((other) => other !== kind))}>
               {names(`health.signal.${kind}`)}
             </Checkbox>
           </div>

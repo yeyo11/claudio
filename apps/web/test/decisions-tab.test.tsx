@@ -12,7 +12,7 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n, { setLanguage } from '../src/i18n';
 import { CapLine, EngineSection } from '../src/pages/config/decisions/Engine';
-import { activeBlocked, AUTO_SIGNAL_KINDS, orderSignals, bestReading, capConsequence, draftOf, gateBlocked, examplePoint, offUntilConsent, supervisorMeaning, supervisorOn } from '../src/pages/config/decisions/model';
+import { activeBlocked, AUTO_SIGNAL_KINDS, orderSignals, bestReading, capConsequence, draftOf, gateBlocked, examplePoint, offUntilConsent, standingInforms, supervisorMeaning, supervisorOn } from '../src/pages/config/decisions/model';
 import { gateMissing } from '../src/pages/config/decisions/gate';
 import { PointRow } from '../src/pages/config/decisions/Points';
 import { detailsOf, resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
@@ -193,10 +193,38 @@ test("the evidence line counts, says what is known for sure, the precision and t
   assert.match(row(info(), settings(), 'cli', null), /Aún no hay decisiones/);
 });
 
+const shadowSaved = () => settings({ 'flow.refine-needed': { mode: 'shadow', threshold: 0.85, consent: null } });
+
 test('the row says where the point stands in words: unproven, proven or failing', () => {
-  assert.match(row(info({ standing: 'unproven' }), settings(), 'cli', null), /badge-muted[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Sin demostrar/s);
-  assert.match(row(info({ standing: 'proven' }), settings(), 'cli', null), /badge-ok[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Demostrado/s);
-  assert.match(row(info({ standing: 'failing' }), settings(), 'cli', null), /badge-warn[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Fallando/s);
+  assert.match(row(info({ standing: 'unproven' }), shadowSaved(), 'cli', null), /badge-muted[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Sin demostrar/s);
+  assert.match(row(info({ standing: 'proven' }), shadowSaved(), 'cli', null), /badge-ok[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Demostrado/s);
+  assert.match(row(info({ standing: 'failing' }), shadowSaved(), 'cli', null), /badge-warn[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Con fallos/s);
+});
+
+test('the standing badge shows only when it informs a decision: the point is on, has cases behind it or was demoted', () => {
+  const badge = /class="badge /;
+  // An Off point nobody has read keeps the row it had before standing existed
+  assert.doesNotMatch(row(info(), settings(), 'cli', null), badge);
+  assert.match(row(info(), shadowSaved(), 'cli', null), badge);
+  const reading = { ...info().live, cases: 12 };
+  assert.match(row(info({ live: reading }), settings(), 'cli', null), badge);
+  assert.match(row(info({ replay: { ...reading, source: 'replay', at: '2026-11-01T10:00:00Z' } }), settings(), 'cli', null), badge);
+  const evidence = { cases: 40, precision: { n: 20, hits: 9, value: 0.45, lower90: 0.3 }, breakEven: 0.5, shortfalls: ['break-even' as const], recentRows: 30, recentActs: 25, recentRate: 0.83, promotedRate: 0.3 };
+  assert.match(row(info({ demoted: { at: '2026-11-10T10:00:00Z', reason: 'failing', evidence } }), settings(), 'cli', null), badge);
+  assert.equal(standingInforms(info(), 'off'), false);
+  assert.equal(standingInforms(info(), 'active'), true);
+});
+
+test('the reason Active is out of reach is written on the row for a point in play, and a point left off says nothing more', () => {
+  const needs = /Activo se gana: aún necesita 30 casos más con resultado conocido\./;
+  // Visible text, not only the segment's title: a tap on a phone opens no tooltip
+  const shown = row(info(), shadowSaved(), 'jev', null);
+  assert.match(shown, /<p class="dp-point-line">Activo se gana: aún necesita/);
+  assert.match(shown, needs);
+  // The accessible text stays in the segment, so the check is on the row's own line
+  assert.doesNotMatch(row(info(), settings(), 'jev', null), /<p class="dp-point-line">/);
+  assert.match(row(info({ evidencePossible: false }), shadowSaved(), 'jev', null), /<p class="dp-point-line">Ningún resultado/);
+  assert.doesNotMatch(row(info({ standing: 'proven' }), shadowSaved(), 'jev', null), /<p class="dp-point-line">/);
 });
 
 test('active in name only, the row says why in one sentence, and says nothing when the point is off or acts', () => {
@@ -234,9 +262,9 @@ test('a point no outcome can prove says so instead of asking for cases that cann
 });
 
 test('a proven or failing point says which reading decided, and an unproven one says nothing of it', () => {
-  assert.match(row(info({ standing: 'proven', decidedBy: 'live' }), settings(), 'cli', null), /Demostrado[\s\S]*según su historial/);
-  assert.match(row(info({ standing: 'proven', decidedBy: 'replay' }), settings(), 'cli', null), /Demostrado[\s\S]*según una repetición/);
-  assert.match(row(info({ standing: 'failing', decidedBy: 'live' }), settings(), 'cli', null), /Fallando[\s\S]*según su historial/);
+  assert.match(row(info({ standing: 'proven', decidedBy: 'live' }), shadowSaved(), 'cli', null), /Demostrado[\s\S]*según su historial/);
+  assert.match(row(info({ standing: 'proven', decidedBy: 'replay' }), shadowSaved(), 'cli', null), /Demostrado[\s\S]*según una repetición/);
+  assert.match(row(info({ standing: 'failing', decidedBy: 'live' }), shadowSaved(), 'cli', null), /Con fallos[\s\S]*según su historial/);
   const unproven = row(info({ standing: 'unproven', decidedBy: null }), settings(), 'cli', null);
   assert.doesNotMatch(unproven, /según su historial|según una repetición/);
 });

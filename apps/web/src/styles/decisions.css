@@ -1279,11 +1279,17 @@
 
 /* The parts of the evidence line read as one sentence, a middle dot between each; the dot ends a
    part rather than starting the next, so a wrapped line never opens with one */
-.dp-evidence > :not(:last-child)::after {
+.dp-evidence > :not(:last-child, .badge)::after {
   content: '·';
   display: inline-block;
   padding: 0 6px;
   color: var(--fg-3);
+}
+
+/* The standing badge opens the line and is not a part of the sentence, so it takes no dot of its own
+   (the dot would sit inside its padded box) and the line's gap follows it instead */
+.dp-evidence > .badge {
+  margin-right: 8px;
 }
 
 /* A link inside a line of text still takes a whole target, 24 px here and 44 px on a phone, and the
@@ -1295,6 +1301,18 @@
   line-height: var(--lh-small);
   padding-block: 3px;
   margin-block: -3px;
+}
+
+/* The Supervisor's signal list: the opener and each tick are targets of their own (24 px here, 44 px
+   on a phone), where the line they sit in is 18 px tall */
+.dp-auto > .collapsible-trigger {
+  min-height: 24px;
+  color: var(--fg-2);
+}
+
+.dp-auto-check {
+  display: flex;
+  min-height: 24px;
 }
 
 .dp-evidence-consent.is-none,
@@ -1319,8 +1337,9 @@
   max-width: 520px;
 }
 
+/* Both sliders' lines take one width, so a floor and a threshold on a row start at the same x */
 .dp-point-thr > .dp-point-line {
-  flex: none;
+  flex: 0 0 min(280px, 55%);
 }
 
 /* The save bar stays in reach at the foot of the window while there is something to save */
@@ -1334,8 +1353,26 @@
   justify-content: flex-end;
 }
 
+/* The refusal sits over the page just above the bar rather than inside it: a row that grew with it
+   moved Save and Discard as it appeared. The tint is laid over a solid ground, because the alert's
+   own soft tint is translucent and the rows would show through it */
 .dp-screen > .dp-foot > .alert {
-  flex: 1 1 100%;
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 0;
+  right: 0;
+  max-height: 50vh;
+  overflow-y: auto;
+  background: linear-gradient(var(--alert-tint, transparent), var(--alert-tint, transparent)), var(--bg-1);
+  box-shadow: var(--shadow-md);
+}
+
+.dp-screen > .dp-foot > .alert-warn {
+  --alert-tint: var(--warn-soft);
+}
+
+.dp-screen > .dp-foot > .alert-bad {
+  --alert-tint: var(--bad-soft);
 }
 
 /* Both labels share one cell, so the button keeps the width of the longer one (AP10) */
@@ -1416,7 +1453,9 @@
 @media (max-width: 900px) {
   .dp-point-mode > .segmented .segment,
   .dp-area-toggle,
-  .dp-advanced > .collapsible-trigger {
+  .dp-advanced > .collapsible-trigger,
+  .dp-auto > .collapsible-trigger,
+  .dp-auto-check {
     min-height: var(--touch);
   }
 
@@ -1427,11 +1466,11 @@
     margin-block: -13px;
   }
 
-  /* The evidence line's links ("Overridden in 2 projects", "Review and consent") wrap onto lines of
-     their own: 26 px between lines (44 − the 18 px line) keeps each one's whole target clear of the
-     next one's, where 2 px laid one over the other */
-  .dp-evidence {
-    row-gap: 26px;
+  /* An evidence link takes its 44 px inside its own line box instead of through a negative margin:
+     the line's links wrap onto lines of their own, and a margin would lay one target over the next
+     one's. The text pieces keep the line's 2 px gap and flow as text */
+  .dp-evidence .link-btn {
+    margin-block: 0;
   }
 
   /* The last evidence link's target reaches 13 px under its line: the slot's Reset starts past it */

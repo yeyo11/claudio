@@ -85,11 +85,16 @@
   "decisions": {
     "label": "Decisions",
     "jev": "Jev {{cost}}",
-    "netSaved_one": "Net: {{formatted}} agent run saved ({{saved}} saved, {{caused}} caused)",
-    "netSaved_other": "Net: {{formatted}} agent runs saved ({{saved}} saved, {{caused}} caused)",
-    "netCaused_one": "Net: {{formatted}} agent run added ({{saved}} saved, {{caused}} caused)",
-    "netCaused_other": "Net: {{formatted}} agent runs added ({{saved}} saved, {{caused}} caused)",
-    "netZero": "Net: no agent runs saved or added ({{saved}} saved, {{caused}} caused)",
+    "savedCount_one": "{{formatted}} saved",
+    "savedCount_other": "{{formatted}} saved",
+    "causedCount_one": "{{formatted}} caused",
+    "causedCount_other": "{{formatted}} caused",
+    "detail": "{{saved}}, {{caused}}",
+    "netSaved_one": "Net: {{formatted}} agent run saved ({{detail}})",
+    "netSaved_other": "Net: {{formatted}} agent runs saved ({{detail}})",
+    "netCaused_one": "Net: {{formatted}} agent run added ({{detail}})",
+    "netCaused_other": "Net: {{formatted}} agent runs added ({{detail}})",
+    "netZero": "Net: no agent runs saved or added ({{detail}})",
     "history": "See the history"
   },
   "cap": {
