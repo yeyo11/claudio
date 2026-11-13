@@ -8058,6 +8058,9 @@
         "$ref": "#/components/schemas/SpendAlertEvent"
       },
       {
+        "$ref": "#/components/schemas/DecisionDemotedEvent"
+      },
+      {
         "$ref": "#/components/schemas/GuardsChangedEvent"
       },
       {
@@ -14205,6 +14208,210 @@
       "type"
     ],
     "description": "Spend reached 75 % or 100 % of the cap; emitted once per day and level, whichever process saw it first."
+  },
+  "DecisionDemotedEvent": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "number",
+        "description": "Monotonic per server process; what `Last-Event-ID` resumes from"
+      },
+      "at": {
+        "type": "string"
+      },
+      "title": {
+        "type": "string",
+        "description": "One line a notification can show as it is"
+      },
+      "type": {
+        "type": "string",
+        "const": "decision.demoted"
+      },
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "demotion": {
+        "$ref": "#/components/schemas/DecisionDemotion"
+      },
+      "titleCode": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string"
+      },
+      "reasonCode": {
+        "type": "string"
+      },
+      "params": {
+        "$ref": "#/components/schemas/LocalizedParams"
+      }
+    },
+    "required": [
+      "at",
+      "demotion",
+      "id",
+      "params",
+      "point",
+      "reason",
+      "reasonCode",
+      "title",
+      "titleCode",
+      "type"
+    ],
+    "description": "The decision engine moved an active point back to shadow (docs/plans/decision-engine-v2.md §5, D2): today's behaviour runs again until a person promotes it. `reasonCode` and `params` let a client say `reason` in its own language; `title` and `reason` are the server's English."
+  },
+  "DecisionPointId": {
+    "type": "string",
+    "enum": [
+      "flow.refine-needed",
+      "flow.bounce",
+      "orchestration.retry",
+      "supervisor.intervene",
+      "memory.triage",
+      "assistant.rerank",
+      "assistant.sources",
+      "journal.relevance",
+      "lesson.mine",
+      "board.triage",
+      "team.assign",
+      "flow.scope-drift",
+      "flow.criteria-precheck",
+      "flow.criteria-merge",
+      "flow.restart",
+      "context.compact",
+      "run.continuation",
+      "orchestration.model",
+      "orchestration.fixer",
+      "health.semantic-loop",
+      "health.test-weakening",
+      "changes.unexplained-hunk",
+      "palette.intent",
+      "notification.urgency",
+      "checks.fix",
+      "review.triage",
+      "issue.triage",
+      "account.model-fallback",
+      "review.depth"
+    ]
+  },
+  "DecisionDemotion": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "type": "string"
+      },
+      "reason": {
+        "type": "string",
+        "enum": [
+          "failing",
+          "rate"
+        ],
+        "description": "`failing`: it no longer clears its gate; `rate`: it acted (or flagged) more than twice as often as in shadow"
+      },
+      "evidence": {
+        "type": "object",
+        "properties": {
+          "cases": {
+            "type": "number"
+          },
+          "precision": {
+            "$ref": "#/components/schemas/DecisionRate"
+          },
+          "breakEven": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Act points only"
+          },
+          "shortfalls": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DecisionGateShortfall"
+            }
+          },
+          "recentRows": {
+            "type": "number",
+            "description": "Answered rows of the last seven days, and how many acted (or flagged)"
+          },
+          "recentActs": {
+            "type": "number"
+          },
+          "recentRate": {
+            "type": [
+              "number",
+              "null"
+            ]
+          },
+          "promotedRate": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "The rate it was promoted on"
+          }
+        },
+        "required": [
+          "cases",
+          "precision",
+          "breakEven",
+          "shortfalls",
+          "recentRows",
+          "recentActs",
+          "recentRate",
+          "promotedRate"
+        ]
+      }
+    },
+    "required": [
+      "at",
+      "reason",
+      "evidence"
+    ],
+    "description": "Why the engine moved an active point back to shadow, and what it read"
+  },
+  "DecisionRate": {
+    "type": "object",
+    "properties": {
+      "n": {
+        "type": "number",
+        "description": "How many rows the proportion is over"
+      },
+      "hits": {
+        "type": "number",
+        "description": "How many of them count for it"
+      },
+      "value": {
+        "type": [
+          "number",
+          "null"
+        ]
+      },
+      "lower90": {
+        "type": [
+          "number",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "n",
+      "hits",
+      "value",
+      "lower90"
+    ],
+    "description": "A proportion with its one-sided 90 % lower bound (Wilson); both null when nothing was counted"
+  },
+  "DecisionGateShortfall": {
+    "type": "string",
+    "enum": [
+      "cases",
+      "break-even",
+      "baseline",
+      "precision",
+      "flag-rate"
+    ],
+    "description": "What a gate reading lacks; empty when it clears"
   },
   "GuardsChangedEvent": {
     "type": "object",
@@ -33678,6 +33885,10 @@
       "historyDays": {
         "type": "number",
         "description": "Days of history kept, 1..365"
+      },
+      "gate": {
+        "$ref": "#/components/schemas/DecisionGateSettings",
+        "description": "The promotion gate's numbers; the defaults when the document has none"
       }
     },
     "required": [
@@ -33685,7 +33896,8 @@
       "cli",
       "jev",
       "points",
-      "historyDays"
+      "historyDays",
+      "gate"
     ]
   },
   "DecisionCliSettings": {
@@ -33754,6 +33966,32 @@
           }
         ],
         "description": "Set when the owner consents after seeing the preview; cleared when the state shape changes. `providers` names what the consent covers: consent given while the point ran on `cli` does not cover `jev`."
+      },
+      "floor": {
+        "type": "number",
+        "description": "Suggest points only, 0.5..0.99: the confidence a suggestion needs before it is shown. Absent reads as 0.7. A null confidence (the CLI) is not held to it."
+      },
+      "demoted": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionDemotion"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set by the engine when it moved an active point back to shadow; cleared when a person promotes it again. A settings write cannot set it"
+      },
+      "promotion": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionPromotion"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set by the engine when the point started to act on proven evidence: the rate demotion compares against. A settings write cannot set it"
       }
     },
     "required": [
@@ -33761,6 +33999,49 @@
       "threshold",
       "consent"
     ]
+  },
+  "DecisionPromotion": {
+    "type": "object",
+    "properties": {
+      "at": {
+        "type": "string"
+      },
+      "actRate": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "The act (or flag) rate of the shadow evidence that proved it; null when it had none to read"
+      }
+    },
+    "required": [
+      "at",
+      "actRate"
+    ],
+    "description": "When and on what rate a point started to act; demotion compares the last seven days with it"
+  },
+  "DecisionGateSettings": {
+    "type": "object",
+    "properties": {
+      "minCases": {
+        "type": "number",
+        "description": "Scored cases (outcomes that are `direct`, or labels in a replay) a point needs before it is judged; 1..10000, default 30"
+      },
+      "suggestMinPrecision": {
+        "type": "number",
+        "description": "The flag precision a suggest point needs; 0..1, default 0.6"
+      },
+      "suggestMaxFlagRate": {
+        "type": "number",
+        "description": "The highest share of answers a suggest point may flag; (0, 1], default 0.3"
+      }
+    },
+    "required": [
+      "minCases",
+      "suggestMinPrecision",
+      "suggestMaxFlagRate"
+    ],
+    "description": "What a point must show before it may act (docs/plans/decision-engine-v2.md §5). Each install may tighten or loosen it; the break-even of an act point is the point's own, not a setting."
   },
   "DecisionSettingsUpdate": {
     "type": "object",
@@ -33882,10 +34163,15 @@
           "review.depth": {
             "$ref": "#/components/schemas/DecisionPointSettings"
           }
-        }
+        },
+        "description": "A point's `demoted` and `promotion` are the engine's and are ignored here, as `consent` is"
       },
       "historyDays": {
         "type": "number"
+      },
+      "gate": {
+        "$ref": "#/components/schemas/DecisionGateSettings",
+        "description": "Absent keeps the stored gate"
       }
     },
     "required": [
@@ -34076,7 +34362,25 @@
           },
           "limited": {
             "type": "boolean",
-            "description": "True when the mode is `active` but the point behaves as `shadow` (act point on `cli` other than `supervisor.intervene`, or no consent)"
+            "description": "True when the mode is `active` but the point behaves as `shadow` (or, without consent, as `off`); `limitedBy` says why"
+          },
+          "limitedBy": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DecisionLimitReason"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why a point that is not `off` does not do what its mode says; null when it does. Set in shadow too when the point asks nothing (no consent)"
+          },
+          "floor": {
+            "type": [
+              "number",
+              "null"
+            ],
+            "description": "Suggest points: the confidence a suggestion needs to be shown; null for act points"
           }
         },
         "required": [
@@ -34084,9 +34388,43 @@
           "threshold",
           "provider",
           "consent",
-          "limited"
+          "limited",
+          "limitedBy",
+          "floor"
         ],
         "description": "Mode, threshold and consent after project, then global, then the point's defaults"
+      },
+      "standing": {
+        "$ref": "#/components/schemas/DecisionStanding",
+        "description": "Computed from the window's `direct` outcomes or a replay; never stored"
+      },
+      "gate": {
+        "$ref": "#/components/schemas/DecisionGateInForce",
+        "description": "The gate's numbers in force, and the readings the standing came from"
+      },
+      "live": {
+        "$ref": "#/components/schemas/DecisionGateReading"
+      },
+      "replay": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionGateReading"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "demoted": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionDemotion"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when the engine moved the point back to shadow and no one promoted it since"
       }
     },
     "required": [
@@ -34099,43 +34437,14 @@
       "causesRun",
       "needsLowLatency",
       "stateVersion",
-      "effective"
+      "effective",
+      "standing",
+      "gate",
+      "live",
+      "replay",
+      "demoted"
     ],
     "description": "The catalogue entry the UI needs, with the settings in force for a scope"
-  },
-  "DecisionPointId": {
-    "type": "string",
-    "enum": [
-      "flow.refine-needed",
-      "flow.bounce",
-      "orchestration.retry",
-      "supervisor.intervene",
-      "memory.triage",
-      "assistant.rerank",
-      "assistant.sources",
-      "journal.relevance",
-      "lesson.mine",
-      "board.triage",
-      "team.assign",
-      "flow.scope-drift",
-      "flow.criteria-precheck",
-      "flow.criteria-merge",
-      "flow.restart",
-      "context.compact",
-      "run.continuation",
-      "orchestration.model",
-      "orchestration.fixer",
-      "health.semantic-loop",
-      "health.test-weakening",
-      "changes.unexplained-hunk",
-      "palette.intent",
-      "notification.urgency",
-      "checks.fix",
-      "review.triage",
-      "issue.triage",
-      "account.model-fallback",
-      "review.depth"
-    ]
   },
   "DecisionPointKind": {
     "type": "string",
@@ -34161,6 +34470,115 @@
       "noul"
     ],
     "description": "The three typed questions, named as Jev names them: a choice, a score on a rubric, a yes/no."
+  },
+  "DecisionLimitReason": {
+    "type": "string",
+    "enum": [
+      "cli",
+      "no-consent",
+      "unproven",
+      "failing",
+      "demoted"
+    ],
+    "description": "Why a point that is switched on does not do what its mode says. `cli`: an act point on the CLI, which gives no confidence to clear a threshold (or the palette, which needs Jev). `no-consent`: no consent for this state version and provider, so nothing is asked. `unproven` and `failing`: an active point whose standing does not allow acting (act points, and suggest points that start a run). `demoted`: the engine moved it back to shadow and a project still sets it active."
+  },
+  "DecisionStanding": {
+    "type": "string",
+    "enum": [
+      "unproven",
+      "proven",
+      "failing"
+    ],
+    "description": "Where a point stands against its gate, computed and never stored: `unproven` has too few scored cases, `proven` clears the gate, `failing` has the cases and does not clear it."
+  },
+  "DecisionGateInForce": {
+    "type": "object",
+    "properties": {
+      "enforced": {
+        "type": "boolean",
+        "description": "True when acting without standing `proven` is refused (act points, and suggest points that start a run)"
+      },
+      "minCases": {
+        "type": "number"
+      },
+      "breakEven": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Act points: what the precision's lower bound must be above; null for suggest points"
+      },
+      "minPrecision": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Suggest points: the flag precision needed; null for act points"
+      },
+      "maxFlagRate": {
+        "type": [
+          "number",
+          "null"
+        ],
+        "description": "Suggest points: the highest flag rate; null for act points"
+      }
+    },
+    "required": [
+      "enforced",
+      "minCases",
+      "breakEven",
+      "minPrecision",
+      "maxFlagRate"
+    ],
+    "description": "The gate's numbers in force for one point"
+  },
+  "DecisionGateReading": {
+    "type": "object",
+    "properties": {
+      "source": {
+        "type": "string",
+        "enum": [
+          "live",
+          "replay"
+        ]
+      },
+      "at": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "For a replay, when it ran; null for the live history"
+      },
+      "cases": {
+        "type": "number",
+        "description": "Scored cases: rows with a `direct` outcome or a person's word, or labelled cases replayed"
+      },
+      "precision": {
+        "$ref": "#/components/schemas/DecisionRate"
+      },
+      "baselinePrecision": {
+        "$ref": "#/components/schemas/DecisionRate"
+      },
+      "actRate": {
+        "$ref": "#/components/schemas/DecisionRate"
+      },
+      "shortfalls": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionGateShortfall"
+        }
+      }
+    },
+    "required": [
+      "source",
+      "at",
+      "cases",
+      "precision",
+      "baselinePrecision",
+      "actRate",
+      "shortfalls"
+    ],
+    "description": "One source of evidence read against the gate: the live history of the window, or the latest replay over the golden set"
   },
   "DecisionPreview": {
     "type": "object",
@@ -34943,6 +35361,226 @@
         "type": "string"
       }
     }
+  },
+  "DecisionSettingsSaveResult": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId",
+        "description": "The global default provider"
+      },
+      "cli": {
+        "$ref": "#/components/schemas/DecisionCliSettings",
+        "description": "The CLI's model, effort and cap per decision; `supervisorMaxCostUsd` is the cap of the Supervisor's chat, which reads the worker's files and so costs more than a one-shot question"
+      },
+      "jev": {
+        "type": "object",
+        "properties": {
+          "model": {
+            "type": "string",
+            "const": "jev-1.13.0"
+          },
+          "keySet": {
+            "type": "boolean"
+          },
+          "keyHint": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "model",
+          "keySet",
+          "keyHint"
+        ],
+        "description": "The key itself is never returned, only whether one is saved and its last four characters"
+      },
+      "points": {
+        "type": "object",
+        "properties": {
+          "flow.refine-needed": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.bounce": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.retry": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "supervisor.intervene": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "memory.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "assistant.rerank": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "assistant.sources": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "journal.relevance": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "lesson.mine": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "board.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "team.assign": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.scope-drift": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.criteria-precheck": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.criteria-merge": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "flow.restart": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "context.compact": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "run.continuation": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.model": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "orchestration.fixer": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "health.semantic-loop": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "health.test-weakening": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "changes.unexplained-hunk": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "palette.intent": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "notification.urgency": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "checks.fix": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "review.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "issue.triage": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "account.model-fallback": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          },
+          "review.depth": {
+            "$ref": "#/components/schemas/DecisionPointSettings"
+          }
+        }
+      },
+      "historyDays": {
+        "type": "number",
+        "description": "Days of history kept, 1..365"
+      },
+      "gate": {
+        "$ref": "#/components/schemas/DecisionGateSettings",
+        "description": "The promotion gate's numbers; the defaults when the document has none"
+      },
+      "warnings": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionActivationIssue"
+        }
+      }
+    },
+    "required": [
+      "cli",
+      "gate",
+      "historyDays",
+      "jev",
+      "points",
+      "provider",
+      "warnings"
+    ],
+    "description": "What `PUT /decisions/settings` answers: the settings, and the suggest points activated without standing `proven`"
+  },
+  "DecisionActivationIssue": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "kind": {
+        "$ref": "#/components/schemas/DecisionPointKind"
+      },
+      "standing": {
+        "$ref": "#/components/schemas/DecisionStanding"
+      },
+      "live": {
+        "$ref": "#/components/schemas/DecisionGateReading",
+        "description": "The best reading it has (live or replay) and what that reading lacks"
+      },
+      "replay": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/DecisionGateReading"
+          },
+          {
+            "type": "null"
+          }
+        ]
+      },
+      "gate": {
+        "$ref": "#/components/schemas/DecisionGateInForce"
+      }
+    },
+    "required": [
+      "point",
+      "kind",
+      "standing",
+      "live",
+      "replay",
+      "gate"
+    ],
+    "description": "A point a settings write would switch to `active` without standing `proven`"
+  },
+  "DecisionActivationRefusal": {
+    "type": "object",
+    "properties": {
+      "error": {
+        "type": "string"
+      },
+      "code": {
+        "type": "string",
+        "enum": [
+          "decision-unproven",
+          "decision-bulk-activation"
+        ]
+      },
+      "points": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionActivationIssue"
+        }
+      }
+    },
+    "required": [
+      "error",
+      "code",
+      "points"
+    ],
+    "description": "The 409 of a settings write the promotion gate refuses. `decision-unproven`: an act point, or a suggest point that starts a run, would become active without standing `proven`. `decision-bulk-activation`: more than one point without standing `proven` would become active at once, whatever their kind. Nothing is written."
   },
   "EvalDefinition": {
     "type": "object",
@@ -37133,38 +37771,6 @@
       "actRate"
     ],
     "description": "What a point has proved over a window (docs/plans/decision-engine-v2.md, M6). Precision, baseline and calibration read only `direct` outcomes (a person's word counts as direct); a point whose answers say nothing about acting (a ranking, a model per task) has null precisions."
-  },
-  "DecisionRate": {
-    "type": "object",
-    "properties": {
-      "n": {
-        "type": "number",
-        "description": "How many rows the proportion is over"
-      },
-      "hits": {
-        "type": "number",
-        "description": "How many of them count for it"
-      },
-      "value": {
-        "type": [
-          "number",
-          "null"
-        ]
-      },
-      "lower90": {
-        "type": [
-          "number",
-          "null"
-        ]
-      }
-    },
-    "required": [
-      "n",
-      "hits",
-      "value",
-      "lower90"
-    ],
-    "description": "A proportion with its one-sided 90 % lower bound (Wilson); both null when nothing was counted"
   },
   "DecisionCalibrationBucket": {
     "type": "object",

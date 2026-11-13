@@ -119,5 +119,12 @@
       "forbidden": "The owner no longer shares this project with this install: it stopped sharing it or removed this install from the group",
       "failed": "The last pull failed"
     }
+  },
+  "decisions": {
+    "demoted": {
+      "title": "{{point}} went back to Shadow",
+      "failing": "Its evidence no longer clears the gate: {{hits}} of {{n}} acting answers were right. Today's behaviour runs again until you set it to Active.",
+      "rate": "In the last 7 days it acted on {{acts}} of {{rows}} answers, more than twice as often as in Shadow. Today's behaviour runs again until you set it to Active."
+    }
   }
 }

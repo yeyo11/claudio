@@ -5,7 +5,8 @@ import type { DecisionPointId, DecisionRecord, DecisionSettings, DecisionQuestio
 import { Db } from '../src/db.ts';
 import type { DecisionProvider } from '../src/decisions/engine.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
-import { labelsFromOutcomes, parseQuestions, questionsHash, replayConsent, replayDecisions, replayRecord, ReplayError, ReplayRunner, type ReplayCase } from '../src/decisions/replay.ts';
+import { labelsFromOutcomes, parseQuestions, replayConsent, replayDecisions, replayRecord, ReplayError, ReplayRunner, type ReplayCase } from '../src/decisions/replay.ts';
+import { hashQuestions as questionsHash } from '../src/decisions/questions-hash.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { choiceOf, ScriptedProvider } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';

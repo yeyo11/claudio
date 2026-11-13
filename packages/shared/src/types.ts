@@ -9506,6 +9506,21 @@ export interface SpendAlertEvent extends ClaudioEventBase {
   spend: SpendState;
 }
 
+/**
+ * The decision engine moved an active point back to shadow (docs/plans/decision-engine-v2.md §5, D2):
+ * today's behaviour runs again until a person promotes it. `reasonCode` and `params` let a client say
+ * `reason` in its own language; `title` and `reason` are the server's English.
+ */
+export interface DecisionDemotedEvent extends ClaudioEventBase {
+  type: 'decision.demoted';
+  point: DecisionPointId;
+  demotion: DecisionDemotion;
+  titleCode: string;
+  reason: string;
+  reasonCode: string;
+  params: LocalizedParams;
+}
+
 /** The global guard settings changed (`PUT /settings/guards`); applies to the next process spawned. */
 export interface GuardsChangedEvent extends ClaudioEventBase {
   type: 'guards.changed';
@@ -10059,6 +10074,7 @@ export type ClaudioEvent =
   | LoginUpdatedEvent
   | SpendChangedEvent
   | SpendAlertEvent
+  | DecisionDemotedEvent
   | GuardsChangedEvent
   | EvalRunEvent
   | EvalSampleEvent
@@ -10260,6 +10276,147 @@ export interface DecisionPointSettings {
    * cover `jev`.
    */
   consent: { at: string; stateVersion: number; providers: DecisionProviderId[] } | null;
+  /**
+   * Suggest points only, 0.5..0.99: the confidence a suggestion needs before it is shown. Absent
+   * reads as 0.7. A null confidence (the CLI) is not held to it.
+   */
+  floor?: number;
+  /** Set by the engine when it moved an active point back to shadow; cleared when a person promotes it again. A settings write cannot set it */
+  demoted?: DecisionDemotion | null;
+  /** Set by the engine when the point started to act on proven evidence: the rate demotion compares against. A settings write cannot set it */
+  promotion?: DecisionPromotion | null;
+}
+
+/**
+ * What a point must show before it may act (docs/plans/decision-engine-v2.md §5). Each install may
+ * tighten or loosen it; the break-even of an act point is the point's own, not a setting.
+ */
+export interface DecisionGateSettings {
+  /** Scored cases (outcomes that are `direct`, or labels in a replay) a point needs before it is judged; 1..10000, default 30 */
+  minCases: number;
+  /** The flag precision a suggest point needs; 0..1, default 0.6 */
+  suggestMinPrecision: number;
+  /** The highest share of answers a suggest point may flag; (0, 1], default 0.3 */
+  suggestMaxFlagRate: number;
+}
+
+/**
+ * Where a point stands against its gate, computed and never stored: `unproven` has too few scored
+ * cases, `proven` clears the gate, `failing` has the cases and does not clear it.
+ */
+export type DecisionStanding = 'unproven' | 'proven' | 'failing';
+
+/**
+ * Why a point that is switched on does not do what its mode says. `cli`: an act point on the CLI,
+ * which gives no confidence to clear a threshold (or the palette, which needs Jev). `no-consent`:
+ * no consent for this state version and provider, so nothing is asked. `unproven` and `failing`:
+ * an active point whose standing does not allow acting (act points, and suggest points that start a
+ * run). `demoted`: the engine moved it back to shadow and a project still sets it active.
+ */
+export type DecisionLimitReason = 'cli' | 'no-consent' | 'unproven' | 'failing' | 'demoted';
+
+/** What a gate reading lacks; empty when it clears */
+export type DecisionGateShortfall =
+  /** Fewer scored cases than `minCases` */
+  | 'cases'
+  /** Act points: the lower 90 % bound of the acting answer's precision is not above the point's break-even (or there is none) */
+  | 'break-even'
+  /** Act points: that bound is not above the code rule's precision on the same rows */
+  | 'baseline'
+  /** Suggest points: flag precision under `suggestMinPrecision` (or none) */
+  | 'precision'
+  /** Suggest points: flags more often than `suggestMaxFlagRate` */
+  | 'flag-rate';
+
+/** One source of evidence read against the gate: the live history of the window, or the latest replay over the golden set */
+export interface DecisionGateReading {
+  source: 'live' | 'replay';
+  /** For a replay, when it ran; null for the live history */
+  at: string | null;
+  /** Scored cases: rows with a `direct` outcome or a person's word, or labelled cases replayed */
+  cases: number;
+  precision: DecisionRate;
+  baselinePrecision: DecisionRate;
+  actRate: DecisionRate;
+  shortfalls: DecisionGateShortfall[];
+}
+
+/** The gate's numbers in force for one point */
+export interface DecisionGateInForce {
+  /** True when acting without standing `proven` is refused (act points, and suggest points that start a run) */
+  enforced: boolean;
+  minCases: number;
+  /** Act points: what the precision's lower bound must be above; null for suggest points */
+  breakEven: number | null;
+  /** Suggest points: the flag precision needed; null for act points */
+  minPrecision: number | null;
+  /** Suggest points: the highest flag rate; null for act points */
+  maxFlagRate: number | null;
+}
+
+/** A point's standing with what it was read from */
+export interface DecisionPointStanding {
+  point: DecisionPointId;
+  standing: DecisionStanding;
+  gate: DecisionGateInForce;
+  live: DecisionGateReading;
+  /** Null when no replay counts: none ran, or the point's questions changed since */
+  replay: DecisionGateReading | null;
+}
+
+/** When and on what rate a point started to act; demotion compares the last seven days with it */
+export interface DecisionPromotion {
+  at: string;
+  /** The act (or flag) rate of the shadow evidence that proved it; null when it had none to read */
+  actRate: number | null;
+}
+
+/** Why the engine moved an active point back to shadow, and what it read */
+export interface DecisionDemotion {
+  at: string;
+  /** `failing`: it no longer clears its gate; `rate`: it acted (or flagged) more than twice as often as in shadow */
+  reason: 'failing' | 'rate';
+  evidence: {
+    cases: number;
+    precision: DecisionRate;
+    /** Act points only */
+    breakEven: number | null;
+    shortfalls: DecisionGateShortfall[];
+    /** Answered rows of the last seven days, and how many acted (or flagged) */
+    recentRows: number;
+    recentActs: number;
+    recentRate: number | null;
+    /** The rate it was promoted on */
+    promotedRate: number | null;
+  };
+}
+
+/** A point a settings write would switch to `active` without standing `proven` */
+export interface DecisionActivationIssue {
+  point: DecisionPointId;
+  kind: DecisionPointKind;
+  standing: DecisionStanding;
+  /** The best reading it has (live or replay) and what that reading lacks */
+  live: DecisionGateReading;
+  replay: DecisionGateReading | null;
+  gate: DecisionGateInForce;
+}
+
+/**
+ * The 409 of a settings write the promotion gate refuses. `decision-unproven`: an act point, or a
+ * suggest point that starts a run, would become active without standing `proven`.
+ * `decision-bulk-activation`: more than one point without standing `proven` would become active at
+ * once, whatever their kind. Nothing is written.
+ */
+export interface DecisionActivationRefusal {
+  error: string;
+  code: 'decision-unproven' | 'decision-bulk-activation';
+  points: DecisionActivationIssue[];
+}
+
+/** What `PUT /decisions/settings` answers: the settings, and the suggest points activated without standing `proven` */
+export interface DecisionSettingsSaveResult extends DecisionSettings {
+  warnings: DecisionActivationIssue[];
 }
 
 /** How the CLI answers: the model and effort of every question, and the two caps. */
@@ -10285,6 +10442,8 @@ export interface DecisionSettings {
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
   /** Days of history kept, 1..365 */
   historyDays: number;
+  /** The promotion gate's numbers; the defaults when the document has none */
+  gate: DecisionGateSettings;
 }
 
 /** `PUT /decisions/settings` replaces the whole document; the key travels apart, in the credentials */
@@ -10292,8 +10451,11 @@ export interface DecisionSettingsUpdate {
   provider: DecisionProviderId;
   /** `supervisorMaxCostUsd` absent reads as its default (0.25) */
   cli: Omit<DecisionCliSettings, 'supervisorMaxCostUsd'> & { supervisorMaxCostUsd?: number };
+  /** A point's `demoted` and `promotion` are the engine's and are ignored here, as `consent` is */
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
   historyDays: number;
+  /** Absent keeps the stored gate */
+  gate?: DecisionGateSettings;
 }
 
 /** Only points of scope `project` accept an override; consent is never part of it */
@@ -10349,9 +10511,21 @@ export interface DecisionPointInfo {
     threshold: number;
     provider: DecisionProviderId;
     consent: DecisionPointSettings['consent'];
-    /** True when the mode is `active` but the point behaves as `shadow` (act point on `cli` other than `supervisor.intervene`, or no consent) */
+    /** True when the mode is `active` but the point behaves as `shadow` (or, without consent, as `off`); `limitedBy` says why */
     limited: boolean;
+    /** Why a point that is not `off` does not do what its mode says; null when it does. Set in shadow too when the point asks nothing (no consent) */
+    limitedBy: DecisionLimitReason | null;
+    /** Suggest points: the confidence a suggestion needs to be shown; null for act points */
+    floor: number | null;
   };
+  /** Computed from the window's `direct` outcomes or a replay; never stored */
+  standing: DecisionStanding;
+  /** The gate's numbers in force, and the readings the standing came from */
+  gate: DecisionGateInForce;
+  live: DecisionGateReading;
+  replay: DecisionGateReading | null;
+  /** Set when the engine moved the point back to shadow and no one promoted it since */
+  demoted: DecisionDemotion | null;
 }
 
 /** What the palette's person did with the proposal, classified against the row's `command` answer */

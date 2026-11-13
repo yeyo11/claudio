@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import type {
   DecisionAnswer,
   DecisionLabel,
@@ -22,6 +22,7 @@ import { lowestConfidence, type DecisionProvider, type DecisionEngine, type Prov
 import { rate, scoreEvidence, type EvidenceCase, type EvidenceWindow } from './evidence.ts';
 import { decisionPoint, type DecisionPointDefinition } from './points.ts';
 import { redactState } from './redact.ts';
+import { hashQuestions, questionsHash as pointQuestionsHash } from './questions-hash.ts';
 import { JEV_MODEL } from './settings.ts';
 
 /*
@@ -31,22 +32,6 @@ import { JEV_MODEL } from './settings.ts';
  * it does share with a live request is the door to the provider (the same `ask`, under a deadline),
  * the redaction of the state, and the need for consent, because it sends states out all the same.
  */
-
-/** A stable hash of the questions' JSON, keys sorted, so the same wording hashes the same wherever it was built */
-export function questionsHash(questions: ReadonlyArray<DecisionQuestion>): string {
-  return createHash('sha256').update(canonical(questions)).digest('hex').slice(0, 32);
-}
-
-function canonical(value: unknown): string {
-  if (Array.isArray(value)) return `[${value.map(canonical).join(',')}]`;
-  if (value !== null && typeof value === 'object') {
-    const entries = Object.entries(value as Record<string, unknown>)
-      .filter(([, v]) => v !== undefined)
-      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-    return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(',')}}`;
-  }
-  return JSON.stringify(value) ?? 'null';
-}
 
 /** Carries the HTTP status a route should answer with; Fastify reads `statusCode` off any thrown error */
 export class ReplayError extends Error {
@@ -314,7 +299,9 @@ export async function replayDecisions(input: ReplayInput): Promise<ReplayRun> {
     provider: provider.id,
     model: answeredModel ?? input.model ?? '',
     questions,
-    questionsHash: questionsHash(questions),
+    // The point's own wording is hashed the way the gate hashes it (from a fixed probe), so a replay of a
+    // point whose questions vary with the state still counts; reworded questions hash as themselves
+    questionsHash: input.questions ? hashQuestions(questions) : (pointQuestionsHash(input.point) ?? hashQuestions(questions)),
     cases: cases.length,
     unavailable: unavailableCount,
     score: scoreEvidence(scored),
@@ -498,7 +485,7 @@ export class ReplayRunner {
       },
     });
     const first = labels[0];
-    const hash = questionsHash(request.questions ?? (first ? currentQuestions(def, first) : []));
+    const hash = request.questions ? hashQuestions(request.questions) : (pointQuestionsHash(request.point) ?? hashQuestions(first ? currentQuestions(def, first) : []));
     started
       .then((run) => {
         if (run.aborted) throw new Error('the replay was stopped before it finished, so nothing was stored');

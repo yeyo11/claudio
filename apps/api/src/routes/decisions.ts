@@ -1,6 +1,6 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { randomUUID } from 'node:crypto';
-import { decisionPoint, DECISION_POINTS, labelsFromOutcomes, parseQuestions, redactState, ReplayRunner, type Core } from '@claudio/core';
+import { DecisionActivationError, decisionPoint, DECISION_POINTS, labelsFromOutcomes, parseQuestions, redactState, ReplayRunner, type Core } from '@claudio/core';
 import type {
   DecisionCredentialsResult,
   DecisionFeedback,
@@ -83,7 +83,15 @@ export const decisionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   const credentials = (): DecisionCredentialsResult => ({ ...core.decisionCredentials.status(), notice: PRIVACY_NOTICE });
 
   app.get('/decisions/settings', () => core.decisionSettings.get());
-  app.put<{ Body: unknown }>('/decisions/settings', (req) => core.decisionSettings.set(req.body));
+  // The promotion gate refuses with the evidence each point lacks, which the plain error answer has no room for
+  app.put<{ Body: unknown }>('/decisions/settings', async (req, reply) => {
+    try {
+      return await core.decisions.saveSettings(req.body);
+    } catch (error) {
+      if (error instanceof DecisionActivationError) return reply.status(409).send(error.body);
+      throw error;
+    }
+  });
 
   app.put<{ Body: unknown }>('/decisions/credentials', async (req) => {
     await core.decisionCredentials.set(req.body);

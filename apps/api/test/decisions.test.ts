@@ -7,6 +7,7 @@ import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type {
+  DecisionActivationRefusal,
   DecisionCredentialsResult,
   DecisionPage,
   DecisionPaletteResult,
@@ -14,6 +15,7 @@ import type {
   DecisionPreview,
   DecisionRecord,
   DecisionSettings,
+  DecisionSettingsSaveResult,
   DecisionStats,
   DecisionTestResult,
 } from '@claudio/shared';
@@ -113,7 +115,7 @@ test('the settings are read, replaced whole and validated, and consent survives 
   const again = await app.inject({
     method: 'PUT',
     url: '/api/decisions/settings',
-    ...json(settingsBody(before, { 'flow.bounce': { mode: 'active', threshold: 0.9, consent: null } })),
+    ...json(settingsBody(before, { 'flow.bounce': { mode: 'shadow', threshold: 0.8, consent: null } })),
   });
   assert.equal(again.json<DecisionSettings>().points['flow.bounce']?.consent?.stateVersion, 1);
 
@@ -145,6 +147,49 @@ test('the Jev key is saved with the privacy notice, never returned, and removed'
 
   const removed = await app.inject({ method: 'DELETE', url: '/api/decisions/credentials' });
   assert.equal(removed.json<DecisionCredentialsResult>().keySet, false);
+});
+
+test('the promotion gate refuses an unproven act point with a typed 409 and the evidence it lacks, and warns for a suggestion', async () => {
+  const before = (await app.inject('/api/decisions/settings')).json<DecisionSettings>();
+  assert.deepEqual(before.gate, { minCases: 30, suggestMinPrecision: 0.6, suggestMaxFlagRate: 0.3 });
+
+  const refused = await app.inject({ method: 'PUT', url: '/api/decisions/settings', ...json(settingsBody(before, { ...before.points, 'orchestration.retry': { mode: 'active', threshold: 0.9, consent: null } })) });
+  assert.equal(refused.statusCode, 409);
+  const body = refused.json<DecisionActivationRefusal>();
+  assert.equal(body.code, 'decision-unproven');
+  assert.equal(body.points[0]?.point, 'orchestration.retry');
+  assert.equal(body.points[0]?.standing, 'unproven');
+  assert.ok(body.points[0]?.live.shortfalls.includes('cases'));
+  assert.equal(body.points[0]?.gate.breakEven, 0.7);
+  assert.equal((await app.inject('/api/decisions/settings')).json<DecisionSettings>().points['orchestration.retry'], undefined, 'nothing was written');
+
+  const bulk = await app.inject({
+    method: 'PUT',
+    url: '/api/decisions/settings',
+    ...json(settingsBody(before, { ...before.points, 'memory.triage': { mode: 'active', threshold: 0.85, consent: null }, 'team.assign': { mode: 'active', threshold: 0.85, consent: null } })),
+  });
+  assert.equal(bulk.statusCode, 409);
+  assert.equal(bulk.json<DecisionActivationRefusal>().code, 'decision-bulk-activation');
+
+  const warned = await app.inject({ method: 'PUT', url: '/api/decisions/settings', ...json(settingsBody(before, { ...before.points, 'memory.triage': { mode: 'active', threshold: 0.85, consent: null } })) });
+  assert.equal(warned.statusCode, 200);
+  const saved = warned.json<DecisionSettingsSaveResult>();
+  assert.equal(saved.points['memory.triage']?.mode, 'active');
+  assert.deepEqual(saved.warnings.map((w) => w.point), ['memory.triage']);
+
+  // Saving again leaves the active unproven point as it is: no error, no warning
+  const again = await app.inject({ method: 'PUT', url: '/api/decisions/settings', ...json(settingsBody(before, saved.points)) });
+  assert.equal(again.statusCode, 200);
+  assert.deepEqual(again.json<DecisionSettingsSaveResult>().warnings, []);
+
+  const points = (await app.inject('/api/decisions/points')).json<DecisionPointInfo[]>();
+  const triage = points.find((p) => p.id === 'memory.triage');
+  assert.equal(triage?.standing, 'unproven');
+  assert.equal(triage?.effective.floor, 0.7);
+  assert.equal(triage?.effective.limitedBy, 'no-consent', 'switched on and silent: no consent');
+  assert.equal(points.find((p) => p.id === 'orchestration.retry')?.gate.enforced, true);
+
+  await app.inject({ method: 'PUT', url: '/api/decisions/settings', ...json(settingsBody(before, before.points)) });
 });
 
 test('testing Jev without a key says why, and a provider that is not one is refused', async () => {

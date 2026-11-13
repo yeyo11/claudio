@@ -7,8 +7,9 @@ export type DecisionAsker = Pick<DecisionEngine, 'ask' | 'effective'>;
 /**
  * How a call site takes part in a decision: not at all (`off`, or no engine), asking in the
  * background with today's behaviour deciding (`watch`: shadow, or active where the engine reports
- * `limited`: the CLI on an act point, or no consent), or waiting for the answer (`wait`: active and
- * able to clear a threshold). Anything that goes wrong reading the settings is `off`.
+ * `limited`: the CLI on an act point, no consent, or a gated point without standing `proven`), or
+ * waiting for the answer (`wait`: active and able to act). Anything that goes wrong reading the
+ * settings is `off`.
  */
 export function stanceOf(engine: DecisionAsker | null | undefined, point: DecisionPointId, projectId: string | null): 'off' | 'watch' | 'wait' {
   if (!engine) return 'off';

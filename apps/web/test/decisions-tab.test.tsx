@@ -29,7 +29,12 @@ const info = (over: Partial<DecisionPointInfo> = {}): DecisionPointInfo => ({
   causesRun: false,
   needsLowLatency: false,
   stateVersion: 2,
-  effective: { mode: 'off', threshold: 0.85, provider: 'cli', consent: null, limited: false },
+  effective: { mode: 'off', threshold: 0.85, provider: 'cli', consent: null, limited: false, limitedBy: null, floor: null },
+  standing: 'unproven',
+  gate: { enforced: true, minCases: 30, breakEven: 0.5, minPrecision: null, maxFlagRate: null },
+  live: { source: 'live', at: null, cases: 0, precision: { n: 0, hits: 0, value: null, lower90: null }, baselinePrecision: { n: 0, hits: 0, value: null, lower90: null }, actRate: { n: 0, hits: 0, value: null, lower90: null }, shortfalls: ['cases'] },
+  replay: null,
+  demoted: null,
   ...over,
 });
 
@@ -39,6 +44,7 @@ const settings = (points: DecisionSettings['points'] = {}, over: Partial<Decisio
   jev: { model: 'jev-1.13.0', keySet: false, keyHint: null },
   points,
   historyDays: 30,
+  gate: { minCases: 30, suggestMinPrecision: 0.6, suggestMaxFlagRate: 0.3 },
   ...over,
 });
 

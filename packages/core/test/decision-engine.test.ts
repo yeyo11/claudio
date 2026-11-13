@@ -58,7 +58,8 @@ function setup(project: ProjectDecisionSettings | null = null) {
   const db = new Db(config);
   const credentials = new DecisionCredentialStore(config);
   const settings = new DecisionSettingsStore(config, credentials);
-  const engine = new DecisionEngine({ settings, db, projectDecisions: () => project });
+  // These tests are about asking and acting; the promotion gate and the holdout are decision-lifecycle.test.ts's
+  const engine = new DecisionEngine({ settings, db, projectDecisions: () => project, standing: () => 'proven', random: () => 1 });
   return { db, settings, engine };
 }
 
@@ -311,7 +312,7 @@ test('pruning keeps historyDays of rows', async () => {
   await configure(s, 'flow.bounce', 'shadow');
   const out = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
   assert.equal(s.engine.prune(), 0);
-  const later = new DecisionEngine({ settings: s.settings, db: s.db, projectDecisions: () => null, now: () => new Date(Date.now() + 31 * 86_400_000) });
+  const later = new DecisionEngine({ settings: s.settings, db: s.db, projectDecisions: () => null, now: () => new Date(Date.now() + 31 * 86_400_000), standing: () => 'proven' });
   assert.equal(later.prune(), 1);
   assert.equal(s.db.decision(out.decisionId ?? ''), null);
 });

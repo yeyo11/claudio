@@ -43,7 +43,8 @@ async function deciding(point: DecisionPointId, mode: 'off' | 'shadow' | 'active
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
-  const engine = new DecisionEngine({ settings, db, projectDecisions: () => null });
+  // What the call site does once its point may act: proven, and never held out (the gate is tested in decision-lifecycle.test.ts)
+  const engine = new DecisionEngine({ settings, db, projectDecisions: () => null, standing: () => 'proven', random: () => 1 });
   const calls: DecisionRequest[] = [];
   const provider: DecisionProvider = {
     id: 'jev',
