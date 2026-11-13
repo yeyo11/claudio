@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.17.0](https://github.com/yeyo11/claudio/compare/v0.16.2...v0.17.0) (2026-11-13)
+
+
+### Features
+
+* **decisions:** a decision point earns Active, and a resumed session is billed only its own turns ([#122](https://github.com/yeyo11/claudio/issues/122)) ([257a4a4](https://github.com/yeyo11/claudio/commit/257a4a43b18601d1a0b0bc88a49a87d36d169dbd))
+
+
+### Documentation
+
+* bring status.md and the stale plan statuses up to date ([#117](https://github.com/yeyo11/claudio/issues/117)) ([873614c](https://github.com/yeyo11/claudio/commit/873614cdd105125b411c9c13244a7d1f4f2cdbba))
+
 ## [0.16.2](https://github.com/yeyo11/claudio/compare/v0.16.1...v0.16.2) (2026-11-11)
 
 
