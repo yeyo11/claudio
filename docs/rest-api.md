@@ -494,6 +494,13 @@ The decision engine: a decision point puts typed questions to a provider (the Cl
 | POST | `/decisions/:id/palette-action` | `{ commandId: string \| null }` — what the palette did with a `palette.intent` proposal: the row records `proposed`, `other` or `dismissed`; the first report wins. `404` unknown id, `400` another point's row or a malformed `commandId`. Not open to a chat's token |
 | POST | `/decisions/notification-opened` | `{ key }` — the app was opened from the push with that key; sets `openedAt` on the newest `notification.urgency` row: `{ decisionId }`, null when none matches. Not open to a chat's token |
 | DELETE | `/decisions/:id` | Delete one row |
+| GET | `/decisions/labels` | The golden set, oldest first, optionally of `?point=`: stored states with their questions and whether the answer that acts was right, from a `direct` outcome or a person; kept past `historyDays` |
+| POST | `/decisions/labels` | `{ decisionId, positive, note? }` — a person labels a history row, replacing an earlier label of it. `404` unknown row. Not open to a chat's token |
+| DELETE | `/decisions/labels/:id` | Delete a label. Not open to a chat's token |
+| POST | `/decisions/labels/import` | `{ labels: [{ point, state, questions, positive, note? }] }` — a set built outside, up to 500, validated whole; states are redacted on the way in: `{ imported }`. Not open to a chat's token |
+| POST | `/decisions/labels/outcomes` | `{ point, days? }` — labels each answered row of the last `days` (30) whose outcome is `direct`; a person's label of the row is kept: `{ saved, keptPerson, unreadable }`. Not open to a chat's token |
+| POST | `/decisions/replays` | `{ point, provider?, questions?, limit?, concurrency?, note? }` — puts the newest labelled states (100) to a provider again, under the point's questions or reworded ones, in the background. Needs the point's consent for that provider and state version (`409` otherwise); one per point at a time; ends after 30 minutes or 1 US$; writes no `decisions` row: `{ point, provider, cases, questionsHash }`. Not open to a chat's token |
+| GET | `/decisions/replays` | The stored results, newest first, optionally of `?point=`: score against the labels, confusion table, unavailable count, cost, consent; with `running` and `failed` |
 | POST | `/decisions/palette` | `{ query, commands: [{ id, title }] }` — the `palette.intent` point: `{ commandId, confidence, decisionId }`, with `commandId` null when the point is off, unavailable or unsure |
 
 ## Push

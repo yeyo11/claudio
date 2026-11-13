@@ -245,6 +245,7 @@ import { DEFAULT_SUPERVISOR_PRESET, Supervisor, toolsOfRules, type SupervisorAns
 export { DECISION_POINTS, decisionPoint } from './decisions/points.ts';
 export { maskSecrets, recognizeSecrets, redactState, SECRET_MASK } from './decisions/redact.ts';
 export { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from './decisions/settings.ts';
+export { labelsFromOutcomes, parseQuestions, questionsHash, ReplayRunner } from './decisions/replay.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 import { TerminalService } from './terminals/service.ts';

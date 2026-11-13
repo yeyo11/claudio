@@ -21,7 +21,6 @@ import type {
   DecisionBaseline,
   DecisionFeedback,
   DecisionLabel,
-  DecisionLabelSource,
   DecisionPaletteAction,
   DecisionFilter,
   DecisionPage,
@@ -32,6 +31,7 @@ import type {
   DecisionProviderId,
   DecisionQuestion,
   DecisionRecord,
+  DecisionReplay,
   DecisionResolution,
   DecisionRunEffect,
   DecisionSubjectKind,
@@ -54,6 +54,7 @@ import type {
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import { recomputeResumedCosts } from './session-totals.ts';
 import type { CoreConfig } from './paths.ts';
+import { insertDecisionReplay, readDecisionLabels, readDecisionReplays, readLatestDecisionReplay } from './decisions/replay-rows.ts';
 import { pruneWebhookDeliveries } from './webhook-store.ts';
 
 /**
@@ -1662,6 +1663,25 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
    CREATE INDEX decision_labels_point ON decision_labels (point, at);
    CREATE UNIQUE INDEX decision_labels_decision ON decision_labels (decision_id) WHERE decision_id IS NOT NULL;
    ALTER TABLE flow_runs ADD COLUMN continuation_effects TEXT;`,
+  // Replays of the golden set (docs/plans/decision-engine-v2.md, M5): one row per run, so the promotion
+  // gate can read the newest result under the questions a point ships with
+  `CREATE TABLE decision_replays (
+     id              TEXT PRIMARY KEY,
+     point           TEXT NOT NULL,
+     at              TEXT NOT NULL,
+     provider        TEXT NOT NULL,
+     model           TEXT NOT NULL,
+     questions       TEXT NOT NULL,
+     questions_hash  TEXT NOT NULL,
+     cases           INTEGER NOT NULL,
+     unavailable     INTEGER NOT NULL,
+     score           TEXT NOT NULL,
+     confusion       TEXT NOT NULL,
+     cost_usd        REAL NOT NULL,
+     consent         TEXT NOT NULL,
+     note            TEXT
+   );
+   CREATE INDEX decision_replays_point ON decision_replays (point, questions_hash, at);`,
 ];
 
 /**
@@ -3354,38 +3374,27 @@ export class Db {
 
   /** The labels of a point, or of every point, oldest first */
   decisionLabels(point?: DecisionPointId): DecisionLabel[] {
-    const rows = (
-      point === undefined
-        ? this.db.prepare('SELECT * FROM decision_labels ORDER BY at, id').all()
-        : this.db.prepare('SELECT * FROM decision_labels WHERE point = ? ORDER BY at, id').all(point)
-    ) as unknown as Array<{
-      id: string;
-      point: string;
-      decision_id: string | null;
-      state: string;
-      questions: string;
-      positive: number;
-      answers: string | null;
-      source: string;
-      note: string | null;
-      at: string;
-    }>;
-    return rows.map((r) => ({
-      id: r.id,
-      point: r.point as DecisionPointId,
-      decisionId: r.decision_id,
-      state: JSON.parse(r.state) as Record<string, unknown>,
-      questions: JSON.parse(r.questions) as DecisionQuestion[],
-      positive: r.positive === 1,
-      answers: r.answers === null ? null : (JSON.parse(r.answers) as Record<string, string | boolean>),
-      source: r.source as DecisionLabelSource,
-      note: r.note,
-      at: r.at,
-    }));
+    return readDecisionLabels(this.db, point);
   }
 
   deleteDecisionLabel(id: string): boolean {
     return Number(this.db.prepare('DELETE FROM decision_labels WHERE id = ?').run(id).changes) > 0;
+  }
+
+  // ---------- decision replays ----------
+
+  saveDecisionReplay(replay: DecisionReplay): void {
+    insertDecisionReplay(this.db, replay);
+  }
+
+  /** Stored replays, newest first; `point` absent reads every point */
+  decisionReplays(point?: DecisionPointId): DecisionReplay[] {
+    return readDecisionReplays(this.db, point);
+  }
+
+  /** The newest replay of a point under exactly these questions, which the promotion gate reads */
+  latestDecisionReplay(point: DecisionPointId, questionsHash: string): DecisionReplay | null {
+    return readLatestDecisionReplay(this.db, point, questionsHash);
   }
 
   /** The newest row of a point, for the consent preview's "what was sent last" (D12). */
