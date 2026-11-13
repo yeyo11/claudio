@@ -425,9 +425,11 @@ test('which points can ever earn direct evidence is declared beside the resolver
   // Every resolver is declared, and nothing is declared without a resolver
   assert.deepEqual(Object.keys(DIRECT_OUTCOMES).sort(), [...RESOLVED_POINTS].sort());
   for (const point of RESOLVED_POINTS) {
-    // Read from the resolver's own source: a branch that can return direct names the quality literally
+    // Read from the resolver's own source: a branch that can return direct names the quality literally.
+    // The source is what the loader emitted, and esbuild (tsx) prints every string in double quotes
     const source = resolverOf(point)?.toString() ?? '';
-    assert.equal(/'direct'/.test(source), DIRECT_OUTCOMES[point], `${point}: declared ${String(DIRECT_OUTCOMES[point])}, its resolver ${/'direct'/.test(source) ? 'can' : 'cannot'} return direct`);
+    const canDirect = /(['"`])direct\1/.test(source);
+    assert.equal(canDirect, DIRECT_OUTCOMES[point], `${point}: declared ${String(DIRECT_OUTCOMES[point])}, its resolver ${canDirect ? 'can' : 'cannot'} return direct`);
   }
   // A point with no resolver has no evidence the app can infer
   for (const def of DECISION_POINTS) if (!RESOLVED_POINTS.includes(def.id)) assert.equal(evidencePossible(def.id), false, def.id);
