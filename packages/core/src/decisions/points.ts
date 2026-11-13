@@ -375,7 +375,8 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
   point({ id: 'orchestration.fixer', kind: 'act', breakEven: 0.6, scope: 'project', primitives: ['noul'], effect: noulEffect('another-attempt', false, 1), fields: ['checks', 'failedSpecs', 'notes', 'attempt'] }, () => [
     noul('another-attempt', 'Is another fixer attempt likely to make these failing checks pass?'),
   ]),
-  point({ id: 'health.semantic-loop', kind: 'suggest', scope: 'global', primitives: ['noul'], fields: ['calls'] }, () => [
+  // Version 2: each call is its tool, a digest of its input and its target (at most 80 characters), never the input or the result. Asked only when a cheap rule finds the same tool on near-identical input; consent is asked again
+  point({ id: 'health.semantic-loop', kind: 'suggest', scope: 'global', primitives: ['noul'], maxStateBytes: 4 * 1024, stateVersion: 2, fields: ['calls'] }, () => [
     noul('loop', 'Is this worker repeating the same kind of step without making progress?'),
   ]),
   point({ id: 'health.test-weakening', kind: 'suggest', scope: 'global', primitives: ['noul'], fields: ['path', 'before', 'after'] }, () => [

@@ -513,7 +513,8 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
       .all(job.id, job.started_at ?? '') as unknown as Array<{ id: string; status: string }>;
     if (made.some((l) => l.status === 'proposed')) return null;
     const approved = made.filter((l) => l.status !== 'rejected').length;
-    return verdict(made.length > 0 ? 'direct' : 'proxy', approved > 0, approved > 0 ? 'A proposed lesson was approved' : made.length ? 'Every proposed lesson was rejected' : 'The miner proposed nothing', { proposed: made.length, approved });
+    // A miner that proposed nothing is a result too, and the decision cannot fake it: the paid run was wasted
+    return verdict('direct', approved > 0, approved > 0 ? 'A proposed lesson was approved' : made.length ? 'Every proposed lesson was rejected' : 'The miner proposed nothing', { proposed: made.length, approved });
   },
 
   'board.triage': (row, sql) => {
@@ -661,9 +662,27 @@ export const RESOLVED_POINTS: readonly DecisionPointId[] = Object.keys(RESOLVERS
 /** The events after which an outcome may have become known */
 const EVENTS = /^(flow\.|orchestration\.|workitem\.|change-request\.|memory\.|lesson\.|assistant\.|supervisor\.|run\.ended$|health\.)/;
 
+/** Rows one pass reads in all, shared between the points */
 const SWEEP_MAX = 500;
 const SWEEP_EVERY_MS = 5 * 60_000;
 const DEBOUNCE_MS = 2_000;
+/** Slack past a signal's window, for a pass that was late (the app was closed) */
+const REACH_GRACE_MS = 6 * 3_600_000;
+
+/**
+ * How long after its row a point's outcome can still arrive. Past it the resolver cannot return
+ * anything but null, so the sweep stops reading the row (thousands of them crowded the others out).
+ * A point absent here has no such limit.
+ */
+const REACH_MS: Partial<Record<DecisionPointId, number>> = {
+  'health.semantic-loop': PERSON_WINDOW_MS + REACH_GRACE_MS,
+};
+
+/** Points whose resolver judges only a flag: a row with no "yes" in its answers waits for ever, so it is not read */
+const FLAG_ONLY: ReadonlySet<DecisionPointId> = new Set<DecisionPointId>(['health.semantic-loop', 'health.test-weakening', 'changes.unexplained-hunk', 'flow.scope-drift']);
+/** What else a row must have for its resolver to ever say anything: a push nobody opened has no outcome, now or later */
+const NEEDS_SQL: Partial<Record<DecisionPointId, string>> = { 'notification.urgency': 'AND opened_at IS NOT NULL' };
+const FLAGGED_SQL = "AND EXISTS (SELECT 1 FROM json_each(decisions.answers) WHERE json_extract(json_each.value, '$.value') = 1)";
 
 export interface DecisionResolversDeps {
   sql: Sql;
@@ -690,34 +709,67 @@ export class DecisionResolvers {
     this.deps = deps;
   }
 
-  /** Resolves what can be resolved now; returns how many rows it resolved */
+  /** Per point, the `seq` the last read stopped at: the next one goes on from there, and wraps at the end */
+  private readonly cursors = new Map<DecisionPointId, number>();
+
+  /**
+   * Resolves what can be resolved now; returns how many rows it resolved. Each point gets an equal
+   * share of {@link SWEEP_MAX}, its oldest unresolved rows first and from where its last read
+   * stopped, so a point with thousands of rows that cannot resolve neither crowds out the others nor
+   * keeps its own newer rows from being read. What a point does not fill goes to the points that did.
+   */
   sweep(): number {
     const now = this.deps.now?.() ?? new Date();
     const since = new Date(now.getTime() - this.deps.historyDays() * 86_400_000).toISOString();
     let resolved = 0;
     try {
-      const points = RESOLVED_POINTS.map(() => '?').join(',');
-      const ids = this.deps.sql
-        .prepare(`SELECT id FROM decisions WHERE outcome IS NULL AND status = 'answered' AND answers IS NOT NULL AND at >= ? AND point IN (${points}) ORDER BY seq DESC LIMIT ${SWEEP_MAX}`)
-        .all(since, ...RESOLVED_POINTS) as unknown as Array<{ id: string }>;
-      for (const { id } of ids) {
-        const row = this.deps.db.decision(id);
-        const resolver = row ? RESOLVERS[row.point] : undefined;
-        if (!row || !resolver) continue;
-        try {
-          const outcome = resolver(row, this.deps.sql, now.getTime(), { modelFallbacks: this.deps.modelFallbacks ?? (() => []) });
-          if (outcome) {
-            this.deps.engine.resolve(id, outcome);
-            resolved += 1;
-          }
-        } catch {
-          // One row whose signal cannot be read must not hold the others back
-        }
-      }
+      const share = Math.max(1, Math.floor(SWEEP_MAX / RESOLVED_POINTS.length));
+      let used = 0;
+      const full: DecisionPointId[] = [];
+      const read = (point: DecisionPointId, limit: number): number => {
+        const rows = this.unresolved(point, since, now.getTime(), limit);
+        for (const id of rows) resolved += this.resolveRow(id, now.getTime());
+        used += rows.length;
+        return rows.length;
+      };
+      for (const point of RESOLVED_POINTS) if (read(point, share) >= share) full.push(point);
+      // What the quiet points left unread goes to the ones that filled their share
+      const extra = full.length ? Math.floor((SWEEP_MAX - used) / full.length) : 0;
+      if (extra > 0) for (const point of full) read(point, extra);
     } catch {
       // The database may be closed at shutdown
     }
     return resolved;
+  }
+
+  /** The ids of up to `limit` unresolved rows of a point after its cursor, oldest first; moves the cursor */
+  private unresolved(point: DecisionPointId, since: string, nowMs: number, limit: number): string[] {
+    const reach = REACH_MS[point];
+    const from = reach === undefined ? since : new Date(Math.max(Date.parse(since), nowMs - reach)).toISOString();
+    const rows = this.deps.sql
+      .prepare(
+        `SELECT id, seq FROM decisions WHERE point = ? AND outcome IS NULL AND status = 'answered' AND answers IS NOT NULL AND at >= ? AND seq > ? ${FLAG_ONLY.has(point) ? FLAGGED_SQL : ''} ${NEEDS_SQL[point] ?? ''} ORDER BY seq LIMIT ?`,
+      )
+      .all(point, from, this.cursors.get(point) ?? 0, limit) as unknown as Array<{ id: string; seq: number }>;
+    // A short read reached the end: the next pass starts again from the oldest
+    this.cursors.set(point, rows.length < limit ? 0 : (rows[rows.length - 1]?.seq ?? 0));
+    return rows.map((r) => r.id);
+  }
+
+  /** 1 when the row's outcome is known now and was recorded */
+  private resolveRow(id: string, nowMs: number): number {
+    const row = this.deps.db.decision(id);
+    const resolver = row ? RESOLVERS[row.point] : undefined;
+    if (!row || !resolver) return 0;
+    try {
+      const outcome = resolver(row, this.deps.sql, nowMs, { modelFallbacks: this.deps.modelFallbacks ?? (() => []) });
+      if (!outcome) return 0;
+      this.deps.engine.resolve(id, outcome);
+      return 1;
+    } catch {
+      // One row whose signal cannot be read must not hold the others back
+      return 0;
+    }
   }
 
   observe(event: ClaudioEvent): void {

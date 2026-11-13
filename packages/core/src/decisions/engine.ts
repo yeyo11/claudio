@@ -29,6 +29,7 @@ import type { ClaudioEventInput } from '../events.ts';
 import { decisionStats, pointEvidence, readPointEvidence, type EvidenceWindow } from './evidence.ts';
 import { decisionPoint, DECISION_POINTS, type DecisionPointDefinition, type DecisionSubject } from './points.ts';
 import { questionsHash } from './questions-hash.ts';
+import { labelsFromOutcomes } from './replay.ts';
 import { redactState, stateBytes } from './redact.ts';
 import { DEFAULT_FLOOR, DEFAULT_GATE, DEFAULT_THRESHOLD, JEV_MODEL, SUPERVISOR_POINT, type DecisionSettingsStore } from './settings.ts';
 import {
@@ -78,7 +79,7 @@ export interface DecisionOutcome {
 
 export interface DecisionEngineDeps {
   settings: DecisionSettingsStore;
-  db: Pick<Db, 'insertDecision' | 'resolveDecision' | 'lastDecisionOf' | 'pruneDecisions' | 'decisionStats' | 'decisionEvidenceRows'>;
+  db: Pick<Db, 'insertDecision' | 'resolveDecision' | 'lastDecisionOf' | 'pruneDecisions' | 'decisionStats' | 'decisionEvidenceRows' | 'listDecisions' | 'decisionLabels' | 'saveDecisionLabel'>;
   /** A project's own overrides, read from its settings document */
   projectDecisions: (projectId: string) => ProjectDecisionSettings | null;
   now?: () => Date;
@@ -578,10 +579,16 @@ export class DecisionEngine {
     return decisionStats(this.deps.db, since);
   }
 
-  /** Drops the rows older than `historyDays`; returns how many went */
+  /**
+   * Drops the rows older than `historyDays`; returns how many went. A row whose outcome was `direct`
+   * becomes a label first, so the golden set grows by itself and outlives the history (a person's own
+   * label for a row is never overwritten, see `labelsFromOutcomes`).
+   */
   prune(): number {
     const days = this.deps.settings.get().historyDays;
-    return this.deps.db.pruneDecisions(new Date(this.now().getTime() - days * 86_400_000).toISOString());
+    const before = new Date(this.now().getTime() - days * 86_400_000).toISOString();
+    for (const point of DECISION_POINTS) labelsFromOutcomes(this.deps.db, point.id, { since: '', until: before }, () => this.now());
+    return this.deps.db.pruneDecisions(before);
   }
 
   /** Prunes now and once a day (D9) */

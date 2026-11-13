@@ -86,8 +86,15 @@ const call = (name: string, input: Record<string, unknown>, over: Partial<ToolCa
 });
 const traceOf = (calls: ToolCall[]): Trace => ({ executionStartedAt: new Date(T0).toISOString(), lastEventAt: new Date(T0).toISOString(), calls, heartbeats: new Map() });
 
-/** Nine reads of nine files: nothing repeats exactly, so only the semantic point can call it a loop */
-const wandering = (): ToolCall[] => Array.from({ length: 9 }, (_, i) => call('Read', { file_path: `src/file-${String(i)}.ts` }, { result: `contents ${'a'.repeat(i + 1)}` }, i));
+/** Nine reads, four of them of one file at other offsets: no call repeats exactly, so only the semantic point can call it a loop */
+const wandering = (): ToolCall[] =>
+  Array.from({ length: 9 }, (_, i) =>
+    i % 2 === 0 ? call('Read', { file_path: 'src/cart.ts', offset: i * 10 }, { result: `contents ${'a'.repeat(i + 1)}` }, i) : call('Read', { file_path: `src/file-${String(i)}.ts` }, { result: `contents ${'b'.repeat(i + 1)}` }, i),
+  );
+/** Nine reads of nine different files: nothing repeats, near or exactly */
+const exploring = (): ToolCall[] => Array.from({ length: 9 }, (_, i) => call('Read', { file_path: `src/file-${String(i)}.ts` }, { result: `contents ${'a'.repeat(i + 1)}` }, i));
+/** A chat's calls grown one at a time, each a read of one file at a new offset: near-identical, never exact, and a new state every time */
+const growing = (count: number): ToolCall[] => Array.from({ length: count }, (_, i) => call('Read', { file_path: 'src/cart.ts', offset: i * 7 }, { result: `page ${String(i)} ${'x'.repeat(i % 5)}` }, i));
 
 function healthOf(trace: Trace, engine: DecisionEngine): HealthService {
   const runtime = { get: () => ({ id: 'chat-1', workingDir: '/nonexistent' }), trace: () => trace };
@@ -117,8 +124,109 @@ test('health.semantic-loop: shadow records a row and the signals stay as today',
   assert.equal(provider.calls.length, 1);
   assert.equal(rows(db, 'health.semantic-loop')[0]?.mode, 'shadow');
   assert.equal(looped(health), false);
-  // The state is the last calls' names, inputs and result heads, and nothing else
+  // The state is the last calls' names, digests and targets, and nothing else
   assert.deepEqual(Object.keys(provider.calls[0]?.state ?? {}), ['calls']);
+  // The code rule does not flag: the baseline recorded is "no flag"
+  assert.equal(rows(db, 'health.semantic-loop')[0]?.baseline, false);
+});
+
+test('health.semantic-loop: a worker with no repetition is not asked anything', async () => {
+  const provider = new FakeProvider('jev', answering(true, 0.9));
+  const { engine, db } = await engineFor('health.semantic-loop', 'active', provider);
+  const health = healthOf(traceOf(exploring()), engine);
+  health.read('chat-1', base);
+  await health.idle();
+  assert.equal(provider.calls.length, 0);
+  assert.equal(rows(db, 'health.semantic-loop').length, 0);
+});
+
+test('health.semantic-loop: the state carries a digest and a short target of each call, never the input or the result', async () => {
+  const provider = new FakeProvider('jev', answering(false, 0.9));
+  const { engine } = await engineFor('health.semantic-loop', 'shadow', provider);
+  const long = `src/${'deep/'.repeat(40)}file.ts`;
+  const calls = [
+    ...Array.from({ length: 4 }, (_, i) => call('Bash', { command: `npm run build-secret-flag --token=hunter${String(i)}`, description: `attempt ${String(i)}` }, { result: `error output ${'z'.repeat(i + 1)} PRIVATE-RESULT` }, i)),
+    ...Array.from({ length: 5 }, (_, i) => call('Read', { file_path: `${long}${String(i)}` }, { result: `PRIVATE-RESULT ${'q'.repeat(i + 1)}` }, i + 4)),
+  ];
+  const health = healthOf(traceOf(calls), engine);
+  health.read('chat-1', base);
+  await health.idle();
+  const sent = provider.calls[0]?.state.calls as Array<Record<string, string>>;
+  assert.equal(sent.length, 9);
+  for (const entry of sent) {
+    assert.deepEqual(Object.keys(entry), ['name', 'digest', 'target']);
+    assert.match(entry.digest ?? '', /^[0-9a-f]{10}$/);
+    assert.ok((entry.target ?? '').length <= 80);
+  }
+  assert.equal(sent[0]?.target, 'npm', 'a command is its first word');
+  const text = JSON.stringify(provider.calls[0]?.state);
+  assert.ok(!text.includes('hunter') && !text.includes('PRIVATE-RESULT') && !text.includes('secret'), 'no input text and no result text is sent');
+  assert.ok(Buffer.byteLength(text) <= (decisionPoint('health.semantic-loop')?.maxStateBytes ?? 0));
+});
+
+test('health.semantic-loop: the same state is never asked twice, and a changed one is', async () => {
+  const provider = new FakeProvider('jev', answering(false, 0.9));
+  const { engine } = await engineFor('health.semantic-loop', 'shadow', provider);
+  const calls = growing(12);
+  const health = healthOf(traceOf(calls), engine);
+  for (let i = 0; i < 3; i++) {
+    health.read('chat-1', base);
+    await health.idle();
+  }
+  assert.equal(provider.calls.length, 1);
+  calls.push(...growing(13).slice(12).map((c) => ({ ...c, id: `late-${c.id}` })));
+  health.read('chat-1', base);
+  await health.idle();
+  assert.equal(provider.calls.length, 2);
+});
+
+test('health.semantic-loop: after three "no" in a row a chat is asked once per 40 calls, until an answer says yes', async () => {
+  const provider = new FakeProvider('jev', answering(false, 0.9));
+  const { engine } = await engineFor('health.semantic-loop', 'shadow', provider);
+  const calls = growing(12);
+  const health = healthOf(traceOf(calls), engine);
+  const readAll = async (): Promise<void> => {
+    health.read('chat-1', base);
+    await health.idle();
+  };
+  const grow = (to: number): void => {
+    const next = growing(to);
+    calls.push(...next.slice(calls.length).map((c) => ({ ...c, id: `g-${c.id}` })));
+  };
+  await readAll();
+  grow(13);
+  await readAll();
+  grow(14);
+  await readAll();
+  assert.equal(provider.calls.length, 3);
+  // Backed off: new states keep coming and none is asked until 40 calls have passed since the last question
+  grow(53);
+  await readAll();
+  assert.equal(provider.calls.length, 3);
+  grow(54);
+  await readAll();
+  assert.equal(provider.calls.length, 4);
+  // A yes ends the back-off: the next new state is asked at once
+  provider.answer = (request) => Promise.resolve(answering(true, 0.9)(request));
+  grow(94);
+  await readAll();
+  assert.equal(provider.calls.length, 5);
+  grow(95);
+  await readAll();
+  assert.equal(provider.calls.length, 6);
+  grow(96);
+  await readAll();
+  assert.equal(provider.calls.length, 7, 'after a yes the chat is asked as often as a new state allows');
+});
+
+test('health.semantic-loop: a yes under the suggest floor adds no warning', async () => {
+  const provider = new FakeProvider('jev', answering(true, 0.3));
+  const { engine, db } = await engineFor('health.semantic-loop', 'active', provider);
+  const health = healthOf(traceOf(wandering()), engine);
+  health.read('chat-1', base);
+  await health.idle();
+  assert.equal(looped(health), false);
+  assert.equal(rows(db, 'health.semantic-loop')[0]?.acted, false);
 });
 
 test('health.semantic-loop: active adds a warning, and only where the exact rule is silent', async () => {
@@ -393,11 +501,11 @@ test('flow.scope-drift: unavailable flags nothing', async () => {
 
 const chat = { id: 'chat-1', title: 'Fix greeting', firstPrompt: 'Fix the greeting', project: { id: 'project-1', name: 'P' }, cwd: '/tmp', worktree: null, execution: null, orchestration: null } as unknown as ChatSummary;
 
-function stepsOf(engine: DecisionEngine): Changes {
+function stepsOf(engine: DecisionEngine, intent: string | null = 'Renaming the greeting.'): Changes {
   const state: EditStepsState = {
     entries: 3,
     intent: null,
-    calls: new Map([['e1', { id: 'e1', tool: 'Edit', path: 'src/a.ts', at: null, intent: 'Renaming the greeting.', entryIndex: 2 }]]),
+    calls: new Map([['e1', { id: 'e1', tool: 'Edit', path: 'src/a.ts', at: null, intent, entryIndex: 2 }]]),
     results: new Map([['e1', { ok: true, diff: '@@ -1 +1 @@\n-hello\n+hi', additions: 1, deletions: 1, created: false }]]),
   };
   return new Changes({ decisions: engine, chats: { summaryOf: () => Promise.resolve(chat) }, sessions: { editSteps: () => Promise.resolve(state) }, runtime: {} } as never);
@@ -436,6 +544,21 @@ test('changes.unexplained-hunk: active marks the row, once per step', async () =
   const [row] = rows(db, 'changes.unexplained-hunk');
   assert.equal(row?.acted, true);
   assert.equal(row?.subjectId, 'chat-1');
+});
+
+test('changes.unexplained-hunk: a hunk with no sentence before it is not asked about, and the baseline is no flag', async () => {
+  const provider = new FakeProvider('jev', answering(true, 0.9));
+  const { engine, db } = await engineFor('changes.unexplained-hunk', 'active', provider);
+  const changes = stepsOf(engine, null);
+  assert.equal((await changes.chatSteps('chat-1')).length, 1);
+  await changes.idle();
+  assert.equal(provider.calls.length, 0, 'with no step to compare it with, "unexplained" is the code\'s answer and not the model\'s');
+  const asked = await engineFor('changes.unexplained-hunk', 'shadow', new FakeProvider('jev', answering(true, 0.9)));
+  const explained = stepsOf(asked.engine);
+  await explained.chatSteps('chat-1');
+  await explained.idle();
+  assert.equal(rows(asked.db, 'changes.unexplained-hunk')[0]?.baseline, false);
+  assert.equal(rows(db, 'changes.unexplained-hunk').length, 0);
 });
 
 test('changes.unexplained-hunk: unavailable leaves the steps as they are, at once', async () => {

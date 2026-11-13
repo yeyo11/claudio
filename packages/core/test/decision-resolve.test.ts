@@ -4,7 +4,7 @@ import test from 'node:test';
 import type { DecisionAnswer, DecisionPointId, DecisionRecord } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
-import { DecisionResolvers } from '../src/decisions/resolve.ts';
+import { DecisionResolvers, RESOLVED_POINTS } from '../src/decisions/resolve.ts';
 import { LessonStore } from '../src/lessons/store.ts';
 import { choiceOf, noulOf, scoreOf } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';
@@ -176,6 +176,7 @@ test('lesson.mine: resolved once the job is done and every proposal it made was 
   assert.equal(s.get(approved.id)?.agreed, true);
   assert.equal(s.get(rejected.id)?.agreed, false, 'every proposal was rejected');
   assert.equal(s.get(nothing.id)?.agreed, false, 'the miner proposed nothing');
+  assert.equal(s.get(nothing.id)?.outcome?.quality, 'direct', 'what the miner produced, or did not, is a fact the decision could not fake');
   for (const open of [waiting, running, shadow, no]) assert.equal(s.get(open.id)?.resolvedAt, null, open.id);
 });
 
@@ -274,6 +275,61 @@ test('rows that are unavailable, off the window, or resolved already are left al
   assert.equal(s.get(old.id)?.resolvedAt, null);
   assert.equal(s.get(first.id)?.agreed, true);
   assert.equal(s.resolvers.sweep(), 0, 'a resolved row is not resolved twice');
+});
+
+const stuckFlag = (s: ReturnType<typeof setup>, n: number): void => {
+  // A flagged test edit of a chat that belongs to no card: the resolver can never say anything about it
+  for (let i = 0; i < n; i++) s.row('health.test-weakening', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c-nowhere', answers: { weakened: noulOf(true) } });
+};
+
+test('the sweep reaches a point that sits behind thousands of rows no signal can resolve', () => {
+  const s = setup();
+  s.run('r1', { outcome: 'rejected', endedAt: T0 });
+  s.run('r2', { outcome: 'rejected', endedAt: T1 });
+  // Older than the stuck rows below: the old sweep took the newest 500 of all points and never got to it
+  const behind = s.row('flow.bounce', { subjectId: 'r1', answers: { bounce: choiceOf('fixable') } });
+  stuckFlag(s, 700);
+  assert.equal(s.resolvers.sweep(), 1);
+  assert.equal(s.get(behind.id)?.agreed, false);
+});
+
+test('within one point the sweep goes on from where it stopped, so newer rows are reached too', () => {
+  const s = setup();
+  stuckFlag(s, 1500);
+  s.run('w1', { item: 'iw', stage: 'work', chat: 'cw' });
+  s.run('v1', { item: 'iw', stage: 'verify', outcome: 'rejected', endedAt: T1 });
+  const newest = s.row('health.test-weakening', { kind: 'suggest', subjectKind: 'chat', subjectId: 'cw', answers: { weakened: noulOf(true) } });
+  let sweeps = 0;
+  while (s.get(newest.id)?.resolvedAt === null && sweeps < 8) {
+    s.resolvers.sweep();
+    sweeps += 1;
+  }
+  assert.ok(s.get(newest.id)?.resolvedAt, `still unresolved after ${String(sweeps)} sweeps`);
+  assert.ok(sweeps > 1, 'one pass is bounded, it does not read every row');
+});
+
+test('the sweep does not read a row its resolver can never settle: an unflagged loop answer, or a flag past what a person could answer', () => {
+  const s = setup();
+  const loop = (at: string, yes: boolean) => s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c1', at, answers: { loop: noulOf(yes) } });
+  const readable = loop('2026-09-01T23:40:00.000Z', true);
+  loop('2026-09-01T23:41:00.000Z', false);
+  loop('2026-09-01T09:00:00.000Z', true);
+  const read: string[] = [];
+  const resolvers = new DecisionResolvers({
+    sql: s.db.connection,
+    db: {
+      decision: (id) => {
+        read.push(id);
+        return s.db.decision(id);
+      },
+    },
+    engine: { resolve: () => undefined },
+    historyDays: () => 30,
+    now: () => new Date('2026-09-02T00:00:00.000Z'),
+  });
+  resolvers.sweep();
+  assert.deepEqual(read, [readable.id]);
+  assert.ok(RESOLVED_POINTS.includes('health.semantic-loop'));
 });
 
 const action = (kind: 'proposed' | 'other' | 'dismissed', commandId: string | null) => ({ action: kind, commandId, at: T1 });
