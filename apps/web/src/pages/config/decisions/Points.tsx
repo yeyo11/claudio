@@ -26,6 +26,7 @@ import {
   THRESHOLD_MAX,
   THRESHOLD_MIN,
   activeBlocked,
+  activeUnseen,
   areaOf,
   bestReading,
   evidenceOf,
@@ -139,6 +140,7 @@ export function PointsSection({
   }, [focus]);
 
   const modeOf = (id: DecisionPointId): DecisionMode => draft.points[id]?.mode ?? 'off';
+  const unseen = (info: DecisionPointInfo | undefined) => info !== undefined && activeUnseen(info, modeOf(info.id), settings.points[info.id]?.mode ?? 'off', draft.provider);
   const byId = new Map(catalogue.map((info) => [info.id, info]));
   // A point the catalogue has and no area lists (a newer server) still shows, last, rather than vanishing
   const listed = new Set(AREAS.flatMap((area) => area.points));
@@ -197,6 +199,8 @@ export function PointsSection({
                 <BulkMode scope={t(`points.areas.${group.id}`)} onApply={(mode) => onBulk(group.points, mode)} />
               </div>
               <div id={`dp-area-${group.id}`} className="dp-area-points" hidden={!isOpen}>
+                {/* One line for the area, not a sentence per row: Active stays greyed on an Off point nobody has read, and says why only once it is on Shadow */}
+                {isOpen && group.points.some((id) => unseen(byId.get(id))) && <p className="dp-area-note">{t('points.activeEarned')}</p>}
                 {isOpen &&
                   group.points.map((id) => {
                     const info = byId.get(id);
@@ -275,7 +279,8 @@ export function PointRow({
   const savedMode = settings.points[info.id]?.mode ?? 'off';
   const unproven = !blocked && gateBlocked(info, point.mode, savedMode);
   // An Off point nobody has read keeps the row it had: the badge and the reason are for points that are in play
-  const informs = standingInforms(info, savedMode);
+  // The Supervisor has no standing to earn: its Active is never held to the gate, so no badge states one
+  const informs = !supervisor && standingInforms(info, savedMode);
   const missing = gateMissing(t, info.gate, bestReading(info.live, info.replay));
   // No outcome the app observes is ever direct for this point: asking for more cases would ask for what can never arrive
   const noEvidence = !info.evidencePossible;
@@ -334,7 +339,8 @@ export function PointRow({
           {t(`supervisor.${supervisorMeaning(offUntilConsent(info, settings.points[info.id]?.consent ?? null, point.mode, provider) ? 'off' : point.mode, provider)}`)}
         </p>
       )}
-      {supervisor && point.mode === 'active' && <AutoSignals chosen={draft.autoSignals} onChange={onAutoSignals} />}
+      {/* The list is for what the point would really send: Active, with the consent it needs */}
+      {supervisor && point.mode === 'active' && !offUntilConsent(info, settings.points[info.id]?.consent ?? null, point.mode, provider) && <AutoSignals chosen={draft.autoSignals} onChange={onAutoSignals} />}
       {/* Beside the modes on a desktop (the point's grid), and on a phone a line of its own under the consequence */}
       <ServerSettingChange
         id={anchor}

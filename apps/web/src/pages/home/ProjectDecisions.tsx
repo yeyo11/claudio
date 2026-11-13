@@ -11,9 +11,9 @@ import { Segmented, Skeleton, ErrorBox } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import { SaveError } from '../config/decisions/ActivationRefusal';
+import { SaveError, useSaveFailure } from '../config/decisions/ActivationRefusal';
 import { gateMissing } from '../config/decisions/gate';
-import { AREAS, MODES, bestReading, gateBlocked, POINT_KEY, standingInforms, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
+import { AREAS, MODES, activeUnseen, bestReading, gateBlocked, POINT_KEY, standingInforms, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
 
 type Provider = 'inherit' | DecisionProviderId;
 type Override = { mode?: DecisionMode; threshold?: number };
@@ -60,14 +60,20 @@ export function ProjectDecisions({ project }: { project: Project }) {
   useDirty('project-decisions', dirty);
   const [open, setOpen] = useState(false);
 
+  // The refusal heads the card or the sheet and goes when the form stops asking for what was refused. A point with no
+  // override of its own is the global's: dropping a Shadow override is what the server counted as an activation
+  const askedOf = (form: { points: Overrides }) => (id: DecisionPointId) => form.points[id]?.mode ?? 'inherit';
+  const failure = useSaveFailure(askedOf(draft));
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (sent: { provider: Provider; points: Overrides }) => {
       // The document is replaced whole: read it again right before writing
       const fresh = await api.projectSettings(project.id);
       const { decisions: _previous, ...rest } = fresh;
-      const decisions = decisionsOf(draft.provider, draft.points);
+      const decisions = decisionsOf(sent.provider, sent.points);
       return api.putProjectSettings(project.id, decisions ? { ...rest, decisions } : rest);
     },
+    onMutate: () => failure.clear(),
+    onError: (error, sent) => failure.hold(error, askedOf(sent)),
     onSuccess: () => {
       setEdit(null);
       toast.success(t('decisions.saved'));
@@ -88,6 +94,14 @@ export function ProjectDecisions({ project }: { project: Project }) {
     const { [id]: _gone, ...rest } = draft.points;
     change({ points: rest });
   };
+
+  // As on the global screen: one line for an area where some point's Active is out of reach and says nothing on its row
+  const unseen = (ids: readonly DecisionPointId[]) =>
+    ids.some((id) => {
+      const info = byId.get(id);
+      return info !== undefined && activeUnseen(info, draft.points[id]?.mode ?? info.effective.mode, saved.points[id]?.mode ?? global.data?.points[id]?.mode ?? 'off', provider);
+    });
+  const earned = (ids: readonly DecisionPointId[]) => unseen(ids) && <p className="dp-area-note">{t('decisions:points.activeEarned')}</p>;
 
   const groups = AREAS.map((area) => ({ id: area.id, ids: area.points.filter((id) => byId.has(id)) })).filter((g) => g.ids.length > 0);
 
@@ -115,7 +129,7 @@ export function ProjectDecisions({ project }: { project: Project }) {
           {t('general.discard')}
         </button>
       )}
-      <button type="button" className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+      <button type="button" className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate(draft)}>
         {save.isPending ? t('general.saving') : t('general.save')}
       </button>
     </div>
@@ -123,6 +137,9 @@ export function ProjectDecisions({ project }: { project: Project }) {
 
   const body = (
     <>
+      {failure.error !== null && (
+        <SaveError error={failure.error} title={t('general.saveFailed')} onClose={failure.clear} inheritedActive={new Set(catalogue.data.filter((info) => global.data?.points[info.id]?.mode === 'active').map((info) => info.id))} />
+      )}
       <div className="dp-block">
         <span className="section-label">{t('decisions.provider')}</span>
         <Segmented
@@ -140,16 +157,17 @@ export function ProjectDecisions({ project }: { project: Project }) {
       {groups.map((group, index) =>
         narrow ? (
           <Collapsible key={group.id} className="dp-fold" defaultOpen={index === 0} title={groupHead(group.id, group.ids)}>
+            {earned(group.ids)}
             {group.ids.map(row)}
           </Collapsible>
         ) : (
           <div key={group.id} className="dp-group" role="group" aria-label={t(`decisions:points.areas.${group.id}`)}>
             <div className="dp-group-head">{groupHead(group.id, group.ids)}</div>
+            {earned(group.ids)}
             {group.ids.map(row)}
           </div>
         ),
       )}
-      <SaveError error={save.error} title={t('general.saveFailed')} inheritedActive={new Set(catalogue.data.filter((info) => global.data?.points[info.id]?.mode === 'active').map((info) => info.id))} />
     </>
   );
 

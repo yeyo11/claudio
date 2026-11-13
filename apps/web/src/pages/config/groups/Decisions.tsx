@@ -9,12 +9,12 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
 import { useDirty } from '../../../lib/dirty';
-import { SaveError, savedNotice } from '../decisions/ActivationRefusal';
+import { SaveError, SaveFailureLink, savedNotice, useSaveFailure } from '../decisions/ActivationRefusal';
 import { BulkConsentDialog } from '../decisions/BulkConsentDialog';
 import { ConsentDialog, ExamplePayloadDialog } from '../decisions/ConsentDialog';
 import { DecisionHistory } from '../decisions/DecisionHistory';
 import { ADVANCED_SETTINGS, capValid, EngineSection, MAX_HISTORY_DAYS } from '../decisions/Engine';
-import { type BulkPlan, THRESHOLD_MIN, draftOf, examplePoint, needsConsent, planBulk, pointOf, sameDraft, withSettingFrom } from '../decisions/model';
+import { type BulkPlan, type Draft, THRESHOLD_MIN, draftOf, examplePoint, needsConsent, planBulk, pointOf, sameDraft, withSettingFrom } from '../decisions/model';
 import { type BulkNote, PointsSection, pointName } from '../decisions/Points';
 import { settingsHref } from '../settingsGroups';
 import { DECISION_POINTS, pointAnchor } from '../settingsIndex';
@@ -139,24 +139,29 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
   const daysValid = Number.isInteger(draft.historyDays) && draft.historyDays >= 1 && draft.historyDays <= MAX_HISTORY_DAYS;
   const valid = draft.cli.model.trim() !== '' && costValid && supervisorCostValid && daysValid;
 
+  // A refusal is told at the head of the points, where the held notice is, and is gone when the draft stops asking for it
+  const failure = useSaveFailure((id) => draft.points[id]?.mode ?? 'off');
   const save = useMutation({
-    mutationFn: () => {
+    mutationFn: (sent: Draft) => {
       // Consent is not part of the document the server accepts as a change, but it is part of its shape
-      const ids = new Set<DecisionPointId>([...(Object.keys(saved.points) as DecisionPointId[]), ...(Object.keys(draft.points) as DecisionPointId[])]);
+      const ids = new Set<DecisionPointId>([...(Object.keys(saved.points) as DecisionPointId[]), ...(Object.keys(sent.points) as DecisionPointId[])]);
       const body: DecisionSettingsUpdate = {
-        provider: draft.provider,
-        cli: { ...draft.cli, model: draft.cli.model.trim() },
-        historyDays: draft.historyDays,
-        supervisor: { autoSignals: draft.autoSignals },
+        provider: sent.provider,
+        cli: { ...sent.cli, model: sent.cli.model.trim() },
+        historyDays: sent.historyDays,
+        supervisor: { autoSignals: sent.autoSignals },
         points: Object.fromEntries(
           [...ids].map((id) => {
-            const point = draft.points[id] ?? { mode: 'off' as const, threshold: catalogue.find((p) => p.id === id)?.defaultThreshold ?? THRESHOLD_MIN };
+            const point = sent.points[id] ?? { mode: 'off' as const, threshold: catalogue.find((p) => p.id === id)?.defaultThreshold ?? THRESHOLD_MIN };
             return [id, { ...point, consent: saved.points[id]?.consent ?? null }];
           }),
         ),
       };
       return api.putDecisionSettings(body);
     },
+    onMutate: () => failure.clear(),
+    // What the form asked for when it was sent: the note stays only while the draft still asks for it
+    onError: (error, sent) => failure.hold(error, (id) => sent.points[id]?.mode ?? 'off'),
     onSuccess: ({ warnings, ...next }) => {
       // The warnings belong to this save: they are said once, not kept in the cached document
       queryClient.setQueryData<DecisionSettings>(keys.decisionSettings, next);
@@ -183,6 +188,7 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
         />
       </SettingsSection>
       <SettingsSection id="points" title={t('points.title')}>
+        {failure.error !== null && <SaveError id="dp-save-failure" error={failure.error} onClose={failure.clear} />}
         <PointsSection
           catalogue={catalogue}
           settings={saved}
@@ -231,8 +237,8 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
       {example && <ExamplePayloadDialog info={example} name={pointName(t, example.id)} onClose={() => setExample(null)} />}
       {(dirty || save.isPending) && (
         <div className="dp-foot card" role="group" aria-label={t('engine.save')}>
-          <SaveError error={save.error} />
-          <button type="button" className="btn btn-primary dp-save" disabled={!valid || save.isPending} onClick={() => save.mutate()}>
+          {failure.error !== null && <SaveFailureLink target="dp-save-failure" />}
+          <button type="button" className="btn btn-primary dp-save" disabled={!valid || save.isPending} onClick={() => save.mutate(draft)}>
             <Save {...ICON_SM} />
             {/* Both labels take the room, the hidden one too, so "Saving…" does not move the bar */}
             <span className="dp-save-label">

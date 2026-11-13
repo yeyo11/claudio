@@ -296,10 +296,21 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       return true`);
     await page.click(".dp-foot button.dp-save", undefined, 600);
     await page.waitFor(
-      `return !!document.querySelector('.dp-foot [data-testid="activation-refusal"]')`,
-      { label: "the refusal is shown in the save bar" },
+      `return !!document.querySelector('[data-testid="activation-refusal"]')`,
+      { label: "the refusal is shown" },
     );
-    const refusal = (await page.text(".dp-foot [data-testid=activation-refusal]")).replace(/\s+/g, " ");
+    // In the flow at the head of the points, never in or over the save bar, and focused for a keyboard
+    check(
+      await page.eval(
+        `const a=document.querySelector('[data-testid="activation-refusal"]'); const head=a.parentElement.querySelector('.settings-section-title'); return !a.closest('.dp-foot') && getComputedStyle(a).position==='static' && a.previousElementSibling===head && document.activeElement===a`,
+      ),
+      "the refusal sits in the flow at the head of the points section and takes focus",
+    );
+    check(
+      (await page.text(".dp-foot .dp-foot-note")).includes("Not saved: see the note above"),
+      "the save bar says where the refusal is, in one line",
+    );
+    const refusal = (await page.text("[data-testid=activation-refusal]")).replace(/\s+/g, " ");
     check(
       refusal.includes("Not saved: 1 point cannot be Active yet") &&
         refusal.includes("needs 18 more cases with a known outcome") &&
@@ -313,12 +324,17 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       "the form keeps what the person had after a refusal",
     );
     check((await modeOf(api)) === "shadow", "a refused save writes nothing");
-    const refusalViolations = await page.axe({ include: ".dp-foot" });
+    const refusalViolations = await page.axe({ include: "[data-testid=activation-refusal]" });
     check(
       refusalViolations.length === 0,
       `the refusal has accessibility violations: ${JSON.stringify(refusalViolations)}`,
     );
     await page.eval(`window.fetch = window.__realFetch; return true`);
+    await page.click('[data-testid=activation-refusal] button[aria-label="Close the note"]', undefined, 300);
+    check(
+      await page.eval(`return !document.querySelector('[data-testid="activation-refusal"]') && !document.querySelector('.dp-foot-note')`),
+      "the refusal's close button clears it and the bar's line",
+    );
     await page.click(".dp-foot button", "Discard", 400);
 
     // The point's evidence counts the row and opens History filtered by the point

@@ -123,6 +123,13 @@ export function bestReading(live: DecisionGateReading, replay: DecisionGateReadi
 }
 
 /**
+ * An Off point nobody has read keeps its Active greyed with no reason on its row (the row only gives
+ * one for a point in play), and a tap on it does nothing visible on touch. The area says it once.
+ */
+export const activeUnseen = (info: Pick<DecisionPointInfo, 'id' | 'kind' | 'standing' | 'gate' | 'live' | 'replay' | 'demoted'>, mode: DecisionMode, saved: DecisionMode, provider: DecisionProviderId): boolean =>
+  mode === 'off' && !activeBlocked(info, provider) && gateBlocked(info, mode, saved) && !standingInforms(info, saved);
+
+/**
  * A point that is not off but has no consent for this provider and state: the engine returns
  * "off" for it before it splits shadow from active (`engine.ts`), so the row says so and offers
  * the consent. The Supervisor's Active on the CLI never reaches the engine, so it is exempt.
