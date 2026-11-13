@@ -289,12 +289,15 @@ export class Changes {
     const engine = this.deps.decisions;
     const projectId = chat.project?.id ?? null;
     if (!engine || engine.effective('changes.unexplained-hunk', projectId).mode === 'off') return;
-    const fresh = steps.filter((s) => s.diff && !s.pending && this.firstTime(`hunk:${chat.id}:${s.id}`)).slice(0, HUNKS_PER_READ);
+    // A hunk with no sentence before it has nothing to be compared with: it is unexplained by construction,
+    // which is the code's answer and not the model's (it said so for 973 of 1,019 hunks). It is not asked about.
+    const fresh = steps.filter((s) => s.diff && !s.pending && s.intent && this.firstTime(`hunk:${chat.id}:${s.id}`)).slice(0, HUNKS_PER_READ);
     for (const step of fresh) {
       const work = engine.ask(
         'changes.unexplained-hunk',
         { kind: 'chat', id: chat.id, data: { hunk: step.diff.slice(0, HUNK_CHARS), step: step.intent ?? '', title: chat.firstPrompt ?? chat.title } },
-        { projectId },
+        // The code rule does not flag; whether a hunk shows as unexplained follows `outcome.act`, read where the row is used
+        { projectId, baseline: false },
       );
       this.pending.add(work);
       void work.finally(() => this.pending.delete(work));

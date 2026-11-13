@@ -54,7 +54,9 @@ interface Rig {
   mined: string[];
   proposals: ProposalRequest[];
   /** What the next gate answers */
-  gate: { next: 'yes' | 'no' | 'unavailable' };
+  gate: { next: 'yes' | 'no' | 'unavailable' | 'withheld' };
+  /** The baseline each gate question carried */
+  baselines: unknown[];
   miner: { next: MinerRun | (() => Promise<MinerRun>) };
   memory: Set<string>;
   clock: { now: Date };
@@ -82,7 +84,7 @@ function rig(over: { db?: Db; settings?: Partial<LessonSettings>; chats?: string
   const events: ClaudioEvent[] = [];
   const chats = new Map<string, LessonChatInfo>();
   for (const id of over.chats ?? ['c1']) chats.set(id, chatInfo(id));
-  const r = { asked: [] as string[], mined: [] as string[], proposals: [] as ProposalRequest[] };
+  const r = { asked: [] as string[], mined: [] as string[], proposals: [] as ProposalRequest[], baselines: [] as unknown[] };
   const gate: Rig['gate'] = { next: 'yes' };
   const miner: Rig['miner'] = { next: answered() };
   const mode: Rig['mode'] = { p1: 'active', p2: 'active' };
@@ -105,9 +107,12 @@ function rig(over: { db?: Db; settings?: Partial<LessonSettings>; chats?: string
       effective: (_point, projectId) => ({ mode: mode[projectId ?? ''] ?? 'off' }),
       ask: (_point, subject, scope): Promise<DecisionOutcome> => {
         r.asked.push(subject.id);
+        r.baselines.push(scope.baseline);
         const m = mode[scope.projectId ?? ''] ?? 'off';
         if (m === 'off') return Promise.resolve({ decisionId: null, mode: 'off', act: false, answers: null });
         if (m === 'shadow') return Promise.resolve({ decisionId: 'd-shadow', mode: 'shadow', act: false, answers: null });
+        // The engine said yes but did not act on it: a suggestion under its floor, or a point not proven
+        if (gate.next === 'withheld') return Promise.resolve({ decisionId: 'd-withheld', mode: 'active', act: false, answers: { mine: { kind: 'noul', value: true, probability: null, confidence: 0.2 } } });
         if (gate.next === 'unavailable') return Promise.resolve({ decisionId: 'd-unavailable', mode: 'active', act: false, answers: null });
         return Promise.resolve({ decisionId: 'd-1', mode: 'active', act: true, answers: { mine: { kind: 'noul', value: gate.next === 'yes', probability: null, confidence: null } } });
       },
@@ -303,6 +308,20 @@ test('active and a yes: the miner runs, its candidate becomes a proposal and the
     assert.equal(lessons[0]?.status, 'proposed');
     assert.equal(lessons[0]?.evidence[0]?.quote, 'No, keep it in cents');
     assert.deepEqual(r.events.filter((e) => e.type === 'lesson.job').map((e) => (e as { status: string }).status), ['queued', 'running', 'done']);
+  } finally {
+    r.db.close();
+  }
+});
+
+test('a miner starts only on a yes the engine acted on, and the question carries the code rule\'s answer: no mining', async () => {
+  const r = rig();
+  r.gate.next = 'withheld';
+  try {
+    await trigger(r, 'c1');
+    assert.equal(r.mined.length, 0, 'a yes under the floor is a suggestion, not a miner run');
+    assert.equal(r.job('c1').status, 'deferred');
+    // With the point off the code does not mine on its own, so the baseline of every question is "no"
+    assert.deepEqual(r.baselines, [false]);
   } finally {
     r.db.close();
   }

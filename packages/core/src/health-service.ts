@@ -22,6 +22,11 @@ export interface HealthBase {
   taskSpentUsd?: number;
 }
 
+/** "No" answers in a row after which a chat is asked less often */
+const SEMANTIC_LOOP_NO_STREAK = 3;
+/** Calls a backed-off chat makes before it is asked again, until an answer says yes */
+const SEMANTIC_LOOP_BACKOFF_CALLS = 40;
+
 /** How long the state of a worktree is trusted between reads: `git status` is an exec, and a UI polls. */
 const FINGERPRINT_TTL_MS = 10_000;
 
@@ -42,8 +47,11 @@ export class HealthService {
    * signal, so a worker's own edits can never talk one away.
    */
   decisions: Pick<DecisionEngine, 'ask' | 'effective'> | null = null;
-  /** Per chat: the semantic loop point's last question and what it answered */
-  private readonly loops = new Map<string, { asked: string; callsAtAsk: number; inFlight: boolean; flagged: { count: number; since: string } | null }>();
+  /**
+   * Per chat: the semantic loop point's last question and what it answered. `asked` is the hash of the
+   * state last put, `callsAtAsk` how many calls the chat had then and `noStreak` how many "no" in a row.
+   */
+  private readonly loops = new Map<string, { asked: string; callsAtAsk: number; noStreak: number; inFlight: boolean; flagged: { count: number; since: string } | null }>();
   /** Per chat: the test edits the weakening point has been asked about, and those it flagged */
   private readonly tests = new Map<string, { asked: Set<string>; flagged: Map<string, ToolCall> }>();
   private readonly pending = new Set<Promise<unknown>>();
@@ -144,20 +152,30 @@ export class HealthService {
   private semanticLoop(chatId: string, trace: Trace): HealthSignal | null {
     const engine = this.decisions;
     if (!engine || engine.effective('health.semantic-loop', null).mode === 'off') return null;
-    const entry = this.loops.get(chatId) ?? { asked: '', callsAtAsk: 0, inFlight: false, flagged: null };
+    const entry = this.loops.get(chatId) ?? { asked: '', callsAtAsk: 0, noStreak: 0, inFlight: false, flagged: null };
     this.loops.set(chatId, entry);
+    // No state means the cheap rule found no repetition worth judging: no repetition, no question
     const state = semanticLoopState(trace);
-    // Only worth asking after the worker has done several new steps since the last question
-    if (state && !entry.inFlight && state.lastCallId !== entry.asked && trace.calls.length - entry.callsAtAsk >= 4) {
+    // The same state is never asked twice; after three "no" in a row a chat is asked once per 40 calls
+    const backedOff = entry.noStreak >= SEMANTIC_LOOP_NO_STREAK && trace.calls.length - entry.callsAtAsk < SEMANTIC_LOOP_BACKOFF_CALLS;
+    if (state && !entry.inFlight && state.hash !== entry.asked && !backedOff) {
       entry.inFlight = true;
-      entry.asked = state.lastCallId;
+      entry.asked = state.hash;
       entry.callsAtAsk = trace.calls.length;
-      const asking = engine.ask('health.semantic-loop', { kind: 'chat', id: chatId, data: { calls: state.calls } }, { projectId: null }).then((outcome) => {
-        const answer = outcome.answers?.loop;
-        entry.flagged = outcome.act && answer?.kind === 'noul' && answer.value ? { count: state.calls.length, since: state.firstAt } : null;
-      }).finally(() => {
-        entry.inFlight = false;
-      });
+      // The code rule does not flag: the baseline is "no flag"
+      const asking = engine
+        .ask('health.semantic-loop', { kind: 'chat', id: chatId, data: { calls: state.calls } }, { projectId: null, baseline: false })
+        .then((outcome) => {
+          const answer = outcome.answers?.loop;
+          const yes = answer?.kind === 'noul' ? answer.value : null;
+          // An unavailable provider answered nothing: that is neither a yes nor a no
+          if (yes !== null) entry.noStreak = yes ? 0 : entry.noStreak + 1;
+          // Whether it shows is the engine's call (`act`: mode, standing and the suggest floor), not ours
+          entry.flagged = outcome.act && yes ? { count: state.calls.length, since: state.firstAt } : null;
+        })
+        .finally(() => {
+          entry.inFlight = false;
+        });
       this.track(asking);
     }
     if (!entry.flagged || !state) return null;
@@ -173,7 +191,7 @@ export class HealthService {
     for (const edit of fresh) {
       entry.asked.add(edit.key);
       const asking = engine
-        .ask('health.test-weakening', { kind: 'chat', id: chatId, data: { path: edit.path, before: edit.before, after: edit.after } }, { projectId: null })
+        .ask('health.test-weakening', { kind: 'chat', id: chatId, data: { path: edit.path, before: edit.before, after: edit.after } }, { projectId: null, baseline: false })
         .then((outcome) => {
           const answer = outcome.answers?.weakened;
           if (outcome.act && answer?.kind === 'noul' && answer.value && !entry.flagged.has(edit.path)) entry.flagged.set(edit.path, edit.call);

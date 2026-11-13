@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { GuardOutcome, HealthSignal, HealthSignalAgent, TaskLimits } from '@claudio/shared';
 import { commandKind, slowAfterMs, type UsualDuration } from './commands.ts';
 import { oneLine, said, wholeMinutes } from './health-strings.ts';
@@ -242,18 +243,71 @@ export function loop(trace: Trace): HealthSignal | null {
 
 /** Calls the semantic loop point needs in its window before it is worth asking about. */
 export const SEMANTIC_LOOP_MIN_CALLS = 8;
+/** The same tool on near-identical input this many times in the window is repetition worth a judgment. */
+export const SEMANTIC_LOOP_REPEATS = 3;
+/** Longest target (a path, or a command's first word) the point is sent */
+const TARGET_CHARS = 80;
+/** Input fields that change from one call to the next without changing what the call does */
+const VOLATILE_INPUT = new Set(['description', 'timeout', 'run_in_background']);
+
+/** Sorted-key JSON, so the same input always serialises the same. */
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (typeof value === 'object' && value !== null) {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([k]) => !VOLATILE_INPUT.has(k))
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stable(v)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+const digestOf = (text: string): string => createHash('sha256').update(text).digest('hex').slice(0, 10);
 
 /**
- * What the `health.semantic-loop` point sends, or null when the exact rule already says loop or the
- * worker has not done enough to judge. The point only ever adds a signal to what {@link loop} finds.
+ * "Near-identical": the same tool whose input, with digits and runs of whitespace flattened and the
+ * volatile fields dropped, is equal. Retrying a command with another port, line number or timeout is
+ * the same step; a different file or a different pattern is not. Cheap on purpose: it only decides
+ * whether a question is worth its call.
  */
-export function semanticLoopState(trace: Trace): { lastCallId: string; firstAt: string; calls: Array<Record<string, string>> } | null {
+function nearKey(call: ToolCall): string {
+  return `${call.parentToolUseId ?? ''}\0${call.name}\0${digestOf(stable(call.input).replace(/\d+/g, '#').replace(/\s+/g, ' '))}`;
+}
+
+/** What a call acts on, cut short: a path or a pattern, or the first word of a command. Never the whole input. */
+function targetOf(call: ToolCall): string {
+  const input = call.input;
+  if (typeof input.command === 'string') return (input.command.trim().split(/\s+/)[0] ?? '').slice(0, TARGET_CHARS);
+  for (const key of ['file_path', 'path', 'notebook_path', 'pattern', 'url', 'query']) {
+    const value = input[key];
+    if (typeof value === 'string') return value.slice(0, TARGET_CHARS);
+  }
+  return '';
+}
+
+/**
+ * What the `health.semantic-loop` point sends, or null when it is not worth a question: the exact
+ * rule already says loop, the worker has not done enough to judge, or no tool was called on
+ * near-identical input {@link SEMANTIC_LOOP_REPEATS} times (the cheap rule; without it the point was
+ * asked every four calls and was 87 % of all decisions). The point only ever adds a signal to what
+ * {@link loop} finds.
+ *
+ * Each call is its tool name, a digest of its input and its target, never the input or the output:
+ * the state was 24 M tokens of tool calls. `hash` identifies the state so the same one is not asked twice.
+ */
+export function semanticLoopState(trace: Trace): { lastCallId: string; firstAt: string; hash: string; calls: Array<Record<string, string>> } | null {
   const recent = trace.calls.filter((c) => c.endedAt && !BOOKKEEPING.has(c.name)).slice(-WINDOW);
   if (recent.length < SEMANTIC_LOOP_MIN_CALLS || loop(trace)) return null;
+  const tally = new Map<string, number>();
+  for (const call of recent) tally.set(nearKey(call), (tally.get(nearKey(call)) ?? 0) + 1);
+  if (![...tally.values()].some((n) => n >= SEMANTIC_LOOP_REPEATS)) return null;
+  const calls = recent.map((c) => ({ name: c.name, digest: digestOf(stable(c.input)), target: targetOf(c) }));
   return {
     lastCallId: (recent[recent.length - 1] as ToolCall).id,
     firstAt: (recent[0] as ToolCall).at,
-    calls: recent.map((c) => ({ name: c.name, input: JSON.stringify(c.input).slice(0, 200), result: oneLine(c.result, 160) })),
+    hash: digestOf(JSON.stringify(calls)),
+    calls,
   };
 }
 
