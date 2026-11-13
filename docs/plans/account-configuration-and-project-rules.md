@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-13T21:00:00Z
 tags:
     - plan
     - study
@@ -565,6 +565,14 @@ touch the same file are sequential (stated in "Depends on").
 | T11 | Documents: `docs/accounts.md` sections for modes and rules, `docs/status.md` | T10 | `docs/accounts.md`, `docs/status.md` | Sonnet |
 
 Nothing is launched by this plan.
+
+## The owner's decisions (2026-11-13)
+
+Taken the day the study was written. Every decision of the table in section 11 is the recommended option:
+
+- **D1** per account, with an install default (shared) for new accounts. **D2** an account that turns independent starts from a copy of the shared configuration, with empty offered in the dialog. **D3** history is shared whatever the mode. **D4** plugins are reconciled with the CLI's own commands, not linked. **D5** the MCP overlay for shared accounts. **D6** reconcile before every spawn. **D7** the Add-account flow asks whether the new account joins the existing rules. **D8** what happens when no allowed account has room follows section 7.2, by origin, with the person-only "use another account once". **D9** a running chat on a newly forbidden account moves at the end of its turn. **D10** a pin outside a rule is refused. **D11** the configuration group is a tie-breaker in rotation. **D12** the reserve is headroom on the preferred account, capped at 30 %, released when the other accounts are out. **D13** all five owed spikes are authorised; the two that need a scratch sign-in are done by the owner in a temporary directory when asked. **D14** how the tests wrote into real account directories is investigated before the first task, and the orphan directory is listed on the page, never removed automatically.
+- **Order.** The first task of this plan and the first task of [limit-resume-and-credits.md](limit-resume-and-credits.md) are built at the same time, after the decision engine's pull request; the rest follows in each plan's order.
+- The plan stays on its branch until it is built; it travels with the pull request that implements it.
 
 ## Related
 
