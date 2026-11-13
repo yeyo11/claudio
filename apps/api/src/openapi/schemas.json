@@ -35650,6 +35650,558 @@
     ],
     "description": "The 409 of a settings write the promotion gate refuses. `decision-unproven`: an act point, or a suggest point that starts a run, would become active without standing `proven`. `decision-bulk-activation`: more than one point without standing `proven` would become active at once, whatever their kind. Nothing is written."
   },
+  "DecisionLabel": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "decisionId": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The history row it was taken from; null for a label written without one, or once that row is pruned"
+      },
+      "state": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "questions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionQuestion"
+        }
+      },
+      "positive": {
+        "type": "boolean",
+        "description": "True when the answer that acts (or flags) was the right one for this state"
+      },
+      "answers": {
+        "anyOf": [
+          {
+            "type": "object",
+            "additionalProperties": {
+              "type": [
+                "string",
+                "boolean"
+              ]
+            }
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Per question, the right answer when the source says more than `positive`; null otherwise"
+      },
+      "source": {
+        "$ref": "#/components/schemas/DecisionLabelSource"
+      },
+      "note": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Why, in a line: the outcome's summary or the person's note"
+      },
+      "at": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "id",
+      "point",
+      "decisionId",
+      "state",
+      "questions",
+      "positive",
+      "answers",
+      "source",
+      "note",
+      "at"
+    ],
+    "description": "One row of the golden set (docs/plans/decision-engine-v2.md, M5): a stored state and its questions with the truth about it, kept past `historyDays` so a reworded question or another provider can be replayed against it."
+  },
+  "DecisionLabelSource": {
+    "type": "string",
+    "enum": [
+      "outcome",
+      "person"
+    ],
+    "description": "Where a golden-set label came from: a `direct` outcome, or a person"
+  },
+  "DecisionLabelRequest": {
+    "type": "object",
+    "properties": {
+      "decisionId": {
+        "type": "string"
+      },
+      "positive": {
+        "type": "boolean"
+      },
+      "note": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "decisionId",
+      "positive"
+    ],
+    "description": "A person labels a history row: the answer that acts was right (`positive`) or wrong for its state"
+  },
+  "DecisionLabelImportRequest": {
+    "type": "object",
+    "properties": {
+      "labels": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionLabelImportItem"
+        }
+      }
+    },
+    "required": [
+      "labels"
+    ]
+  },
+  "DecisionLabelImportItem": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "state": {
+        "type": "object",
+        "additionalProperties": {}
+      },
+      "questions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionQuestion"
+        }
+      },
+      "positive": {
+        "type": "boolean"
+      },
+      "note": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "point",
+      "state",
+      "questions",
+      "positive"
+    ],
+    "description": "One state of a set built outside Claudio (the review's labelled reports): redacted on the way in"
+  },
+  "DecisionLabelImportResult": {
+    "type": "object",
+    "properties": {
+      "imported": {
+        "type": "number"
+      }
+    },
+    "required": [
+      "imported"
+    ]
+  },
+  "DecisionLabelOutcomesRequest": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "days": {
+        "type": "number",
+        "description": "How far back to read; default 30"
+      }
+    },
+    "required": [
+      "point"
+    ],
+    "description": "Turns a point's resolved history into labels (`direct` outcomes only), before the history is pruned"
+  },
+  "DecisionLabelOutcomesResult": {
+    "type": "object",
+    "properties": {
+      "saved": {
+        "type": "number",
+        "description": "Labels written or refreshed"
+      },
+      "keptPerson": {
+        "type": "number",
+        "description": "Rows a person had already labelled: their word stands"
+      },
+      "unreadable": {
+        "type": "number",
+        "description": "Rows whose answers say neither acting nor holding, so they cannot be labelled"
+      }
+    },
+    "required": [
+      "saved",
+      "keptPerson",
+      "unreadable"
+    ]
+  },
+  "DecisionReplayRequest": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId",
+        "description": "Defaults to the provider the point runs on"
+      },
+      "questions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionQuestion"
+        },
+        "description": "Reworded questions to try instead of the point's own"
+      },
+      "limit": {
+        "type": "number",
+        "description": "The newest labels to use; default 100, at most 500"
+      },
+      "concurrency": {
+        "type": "number",
+        "description": "Calls at once; default 2, at most 8"
+      },
+      "note": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "point"
+    ]
+  },
+  "DecisionReplayStarted": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "cases": {
+        "type": "number"
+      },
+      "questionsHash": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "point",
+      "provider",
+      "cases",
+      "questionsHash"
+    ],
+    "description": "`POST /decisions/replays`: the run goes on in the background; read it from `GET /decisions/replays`"
+  },
+  "DecisionReplayList": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionReplay"
+        },
+        "description": "Newest first"
+      },
+      "running": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionReplayRunning"
+        }
+      },
+      "failed": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionReplayFailure"
+        },
+        "description": "The last run of each point that ended without a result"
+      }
+    },
+    "required": [
+      "items",
+      "running",
+      "failed"
+    ]
+  },
+  "DecisionReplay": {
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      },
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "at": {
+        "type": "string"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "model": {
+        "type": "string"
+      },
+      "questions": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionQuestion"
+        },
+        "description": "The questions asked: the point's own, or the reworded ones that were being tried"
+      },
+      "questionsHash": {
+        "type": "string",
+        "description": "Stable hash of `questions`; the promotion gate looks a replay up by it"
+      },
+      "cases": {
+        "type": "number",
+        "description": "Labelled cases put to the provider, answered or not"
+      },
+      "fallbackCases": {
+        "type": "number",
+        "description": "Cases whose stored state could not rebuild the point's questions, so they were asked the label's own; `questionsHash` is then the hash of what was asked, and the run does not count for the gate"
+      },
+      "unavailable": {
+        "type": "number",
+        "description": "Of those, how many got no answer; they are left out of the score"
+      },
+      "score": {
+        "$ref": "#/components/schemas/DecisionReplayScore"
+      },
+      "confusion": {
+        "$ref": "#/components/schemas/DecisionReplayConfusion"
+      },
+      "costUsd": {
+        "type": "number"
+      },
+      "consent": {
+        "$ref": "#/components/schemas/DecisionReplayConsent"
+      },
+      "note": {
+        "type": [
+          "string",
+          "null"
+        ]
+      }
+    },
+    "required": [
+      "id",
+      "point",
+      "at",
+      "provider",
+      "model",
+      "questions",
+      "questionsHash",
+      "cases",
+      "fallbackCases",
+      "unavailable",
+      "score",
+      "confusion",
+      "costUsd",
+      "consent",
+      "note"
+    ],
+    "description": "One stored replay: a point's labelled states put to a provider again"
+  },
+  "DecisionReplayScore": {
+    "type": "object",
+    "properties": {
+      "precision": {
+        "$ref": "#/components/schemas/DecisionRate",
+        "description": "Precision of the answer that acts (act points) or flags (suggest points)"
+      },
+      "baselinePrecision": {
+        "$ref": "#/components/schemas/DecisionRate",
+        "description": "The same for the code rule, over rows that carry a baseline and a `direct` outcome"
+      },
+      "baseline": {
+        "$ref": "#/components/schemas/DecisionBaselineComparison",
+        "description": "The answer against the code rule, row by row"
+      },
+      "calibration": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/DecisionCalibrationBucket"
+        },
+        "description": "Confidence in buckets against observed accuracy; rows without a confidence (the CLI) are left out"
+      },
+      "actRate": {
+        "$ref": "#/components/schemas/DecisionRate",
+        "description": "How often an answered row acts (or flags)"
+      }
+    },
+    "required": [
+      "precision",
+      "baselinePrecision",
+      "baseline",
+      "calibration",
+      "actRate"
+    ],
+    "description": "The scorer's output for a replay: the same structure the promotion gate reads from live history"
+  },
+  "DecisionBaselineComparison": {
+    "type": "object",
+    "properties": {
+      "rows": {
+        "type": "number",
+        "description": "Answered rows that carry a baseline the point can read"
+      },
+      "differs": {
+        "type": "number",
+        "description": "Of those, how many the decision answered otherwise than the code rule"
+      },
+      "decisionRight": {
+        "type": "number",
+        "description": "Differing rows with a `direct` outcome where the decision was right, so the code rule was wrong"
+      },
+      "baselineRight": {
+        "type": "number",
+        "description": "Differing rows with a `direct` outcome where the code rule was right"
+      },
+      "unresolved": {
+        "type": "number",
+        "description": "Differing rows with no `direct` outcome yet"
+      }
+    },
+    "required": [
+      "rows",
+      "differs",
+      "decisionRight",
+      "baselineRight",
+      "unresolved"
+    ],
+    "description": "Answered rows against what the code rule answered for the same input"
+  },
+  "DecisionCalibrationBucket": {
+    "type": "object",
+    "properties": {
+      "from": {
+        "type": "number",
+        "description": "Inclusive lower edge"
+      },
+      "to": {
+        "type": "number",
+        "description": "Exclusive upper edge, except the last bucket, which holds exactly 1"
+      },
+      "all": {
+        "$ref": "#/components/schemas/DecisionRate",
+        "description": "Every answer in the bucket: how often it was right"
+      },
+      "acting": {
+        "$ref": "#/components/schemas/DecisionRate",
+        "description": "Only the answers that act (or flag): what a threshold is read from"
+      }
+    },
+    "required": [
+      "from",
+      "to",
+      "all",
+      "acting"
+    ],
+    "description": "One confidence bucket of a point's calibration, over rows with a `direct` outcome"
+  },
+  "DecisionReplayConfusion": {
+    "type": "object",
+    "properties": {
+      "actedRight": {
+        "type": "number",
+        "description": "Acted, and acting was right"
+      },
+      "actedWrong": {
+        "type": "number",
+        "description": "Acted, and acting was wrong"
+      },
+      "heldRight": {
+        "type": "number",
+        "description": "Held, and acting would have been wrong"
+      },
+      "heldWrong": {
+        "type": "number",
+        "description": "Held, and acting would have been right"
+      },
+      "unreadable": {
+        "type": "number",
+        "description": "Answered, but its answers say neither acting nor holding"
+      },
+      "recall": {
+        "$ref": "#/components/schemas/DecisionRate",
+        "description": "Of the cases where acting was right, how many the answer acted on"
+      }
+    },
+    "required": [
+      "actedRight",
+      "actedWrong",
+      "heldRight",
+      "heldWrong",
+      "unreadable",
+      "recall"
+    ],
+    "description": "Answers against labels. \"Acted\" is the answer that acts or flags; \"right\" is the label's `positive`"
+  },
+  "DecisionReplayConsent": {
+    "type": "string",
+    "enum": [
+      "point",
+      "owner-flag"
+    ],
+    "description": "Where a replay's right to send the states came from: the point's own consent, or the owner's word for one run"
+  },
+  "DecisionReplayRunning": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "provider": {
+        "$ref": "#/components/schemas/DecisionProviderId"
+      },
+      "startedAt": {
+        "type": "string"
+      },
+      "cases": {
+        "type": "number"
+      },
+      "done": {
+        "type": "number",
+        "description": "Cases that have an answer or a refusal so far"
+      }
+    },
+    "required": [
+      "point",
+      "provider",
+      "startedAt",
+      "cases",
+      "done"
+    ]
+  },
+  "DecisionReplayFailure": {
+    "type": "object",
+    "properties": {
+      "point": {
+        "$ref": "#/components/schemas/DecisionPointId"
+      },
+      "at": {
+        "type": "string"
+      },
+      "message": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "point",
+      "at",
+      "message"
+    ]
+  },
   "EvalDefinition": {
     "type": "object",
     "properties": {
@@ -37750,39 +38302,6 @@
       "evidence"
     ]
   },
-  "DecisionBaselineComparison": {
-    "type": "object",
-    "properties": {
-      "rows": {
-        "type": "number",
-        "description": "Answered rows that carry a baseline the point can read"
-      },
-      "differs": {
-        "type": "number",
-        "description": "Of those, how many the decision answered otherwise than the code rule"
-      },
-      "decisionRight": {
-        "type": "number",
-        "description": "Differing rows with a `direct` outcome where the decision was right, so the code rule was wrong"
-      },
-      "baselineRight": {
-        "type": "number",
-        "description": "Differing rows with a `direct` outcome where the code rule was right"
-      },
-      "unresolved": {
-        "type": "number",
-        "description": "Differing rows with no `direct` outcome yet"
-      }
-    },
-    "required": [
-      "rows",
-      "differs",
-      "decisionRight",
-      "baselineRight",
-      "unresolved"
-    ],
-    "description": "Answered rows against what the code rule answered for the same input"
-  },
   "DecisionPointEvidence": {
     "type": "object",
     "properties": {
@@ -37839,34 +38358,6 @@
       "actRate"
     ],
     "description": "What a point has proved over a window (docs/plans/decision-engine-v2.md, M6). Precision, baseline and calibration read only `direct` outcomes (a person's word counts as direct); a point whose answers say nothing about acting (a ranking, a model per task) has null precisions."
-  },
-  "DecisionCalibrationBucket": {
-    "type": "object",
-    "properties": {
-      "from": {
-        "type": "number",
-        "description": "Inclusive lower edge"
-      },
-      "to": {
-        "type": "number",
-        "description": "Exclusive upper edge, except the last bucket, which holds exactly 1"
-      },
-      "all": {
-        "$ref": "#/components/schemas/DecisionRate",
-        "description": "Every answer in the bucket: how often it was right"
-      },
-      "acting": {
-        "$ref": "#/components/schemas/DecisionRate",
-        "description": "Only the answers that act (or flag): what a threshold is read from"
-      }
-    },
-    "required": [
-      "from",
-      "to",
-      "all",
-      "acting"
-    ],
-    "description": "One confidence bucket of a point's calibration, over rows with a `direct` outcome"
   },
   "DecisionPaletteRequest": {
     "type": "object",

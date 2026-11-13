@@ -175,7 +175,9 @@ export class HealthService {
       const asking = engine
         .ask('health.semantic-loop', { kind: 'chat', id: chatId, data: { calls: state.calls } }, { projectId: null, baseline: false })
         .then((outcome) => {
-          const answer = outcome.answers?.loop;
+          // The back-off counts every answer, shadow and under the floor included: `answers` is set
+          // only when the point acts, and read alone it never backed a shadow point off
+          const answer = outcome.reply?.loop;
           const yes = answer?.kind === 'noul' ? answer.value : null;
           // An unavailable provider answered nothing: that is neither a yes nor a no
           if (yes !== null) entry.noStreak = yes ? 0 : entry.noStreak + 1;

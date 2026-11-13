@@ -78,6 +78,12 @@ export interface DecisionOutcome {
   act: boolean;
   /** Set only when `act` is true: a shadow answer never reaches a call site's behaviour */
   answers: Record<string, DecisionAnswer> | null;
+  /**
+   * What the provider answered, in any mode, absent when nothing was asked. Only for a call site that
+   * paces its own questions by them (the semantic loop backs off after three "no"): a shadow point
+   * costs the same calls as an active one, so its pace cannot wait for `act`. Never for behaviour.
+   */
+  reply?: Record<string, DecisionAnswer> | null;
 }
 
 export interface DecisionEngineDeps {
@@ -462,9 +468,9 @@ export class DecisionEngine {
       this.deps.db.insertDecision(row);
     } catch {
       // A history row that cannot be written is not a reason to change what happens
-      return { decisionId: null, mode: inForce, act, answers: act ? answers : null };
+      return { decisionId: null, mode: inForce, act, answers: act ? answers : null, reply: answers };
     }
-    return { decisionId: id, mode: inForce, act, answers: act ? answers : null };
+    return { decisionId: id, mode: inForce, act, answers: act ? answers : null, reply: answers };
   }
 
   /** Runs the provider under the deadline; whatever it does short of answering is unavailable */

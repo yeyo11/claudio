@@ -291,21 +291,31 @@ function stable(value: unknown): string {
 
 const digestOf = (text: string): string => createHash('sha256').update(text).digest('hex').slice(0, 10);
 
+/** Input fields that name what a call acts on: a path, a pattern, a URL or a query */
+const TARGET_INPUT = ['file_path', 'path', 'notebook_path', 'pattern', 'url', 'query'] as const;
+
 /**
  * "Near-identical": the same tool whose input, with digits and runs of whitespace flattened and the
  * volatile fields dropped, is equal. Retrying a command with another port, line number or timeout is
- * the same step; a different file or a different pattern is not. Cheap on purpose: it only decides
- * whether a question is worth its call.
+ * the same step; a different file or a different pattern is not, so the fields that name what the
+ * call acts on keep their digits (`file-1.ts` and `file-2.ts` are two files, and reading nine of
+ * them is exploring, not repeating). Cheap on purpose: it only decides whether a question is worth
+ * its call.
  */
 function nearKey(call: ToolCall): string {
-  return `${call.parentToolUseId ?? ''}\0${call.name}\0${digestOf(stable(call.input).replace(/\d+/g, '#').replace(/\s+/g, ' '))}`;
+  const flat = (value: unknown): string => stable(value).replace(/\d+/g, '#').replace(/\s+/g, ' ');
+  const isTarget = ([key, value]: [string, unknown]): boolean => typeof value === 'string' && (TARGET_INPUT as readonly string[]).includes(key);
+  const entries = Object.entries(call.input);
+  const kept = entries.filter(isTarget).map(([key, value]) => `${key}=${String(value)}`).sort();
+  const rest = Object.fromEntries(entries.filter((entry) => !isTarget(entry)));
+  return `${call.parentToolUseId ?? ''}\0${call.name}\0${digestOf(`${kept.join('\0')}\0${flat(rest)}`)}`;
 }
 
 /** What a call acts on, cut short: a path or a pattern, or the first word of a command. Never the whole input. */
 function targetOf(call: ToolCall): string {
   const input = call.input;
   if (typeof input.command === 'string') return (input.command.trim().split(/\s+/)[0] ?? '').slice(0, TARGET_CHARS);
-  for (const key of ['file_path', 'path', 'notebook_path', 'pattern', 'url', 'query']) {
+  for (const key of TARGET_INPUT) {
     const value = input[key];
     if (typeof value === 'string') return value.slice(0, TARGET_CHARS);
   }
