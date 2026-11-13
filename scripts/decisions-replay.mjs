@@ -181,6 +181,19 @@ if (!(maxCostUsd > 0)) die('--max-cost must be above 0');
  * server uses its chat runtime for this; standing that up here would open the live database for
  * writing, which this script must not. It runs in an empty directory so no project's files are read.
  */
+// As confined as the engine's own chat (`confine` in packages/core/src/one-shot.ts and the flags
+// `providers/claude-code/args.ts` builds from it): the stored states are untrusted text, so the
+// person's hooks, settings files and MCP servers must not load beside them. The `=` forms keep an
+// empty list a value of its flag.
+const CONFINEMENT = ['--restricted', '--tools=', '--setting-sources=', '--strict-mcp-config', '--disable-slash-commands', '--permission-mode', 'dontAsk'];
+
+/** The child's environment: what it needs to sign in, and never a Claudio server's address, token or chat id */
+function confinedEnv() {
+  const env = { ...process.env };
+  for (const name of ['CLAUDIO_API_URL', 'CLAUDIO_API_TOKEN', 'CLAUDIO_CHAT_ID']) delete env[name];
+  return env;
+}
+
 function claudeCliProvider() {
   const bin = process.env.CLAUDE_BIN || 'claude';
   const callBudget = typeof cliSettings.maxCostUsd === 'number' && cliSettings.maxCostUsd > 0 ? cliSettings.maxCostUsd : 0.1;
@@ -191,12 +204,12 @@ function claudeCliProvider() {
     ask(request, { signal }) {
       const started = Date.now();
       const unavailable = (reason) => ({ status: 'unavailable', reason, latencyMs: Date.now() - started });
-      const args = ['-p', '--output-format', 'json', '--json-schema', JSON.stringify(decisionSchema(request.questions)), '--model', model, '--max-budget-usd', String(callBudget), '--tools', '', '--no-session-persistence'];
+      const args = ['-p', '--output-format', 'json', '--json-schema', JSON.stringify(decisionSchema(request.questions)), '--model', model, '--max-budget-usd', String(callBudget), '--no-session-persistence', ...CONFINEMENT];
       return new Promise((resolveAsk) => {
         let out = '';
         let child;
         try {
-          child = spawn(bin, args, { cwd, stdio: ['pipe', 'pipe', 'ignore'], signal });
+          child = spawn(bin, args, { cwd, env: confinedEnv(), stdio: ['pipe', 'pipe', 'ignore'], signal });
         } catch {
           resolveAsk(unavailable('server-error'));
           return;
