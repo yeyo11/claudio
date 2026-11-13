@@ -38,5 +38,8 @@
         ]
       }
     ]
+  },
+  "enabledPlugins": {
+    "infra@yeyo11": true
   }
 }
