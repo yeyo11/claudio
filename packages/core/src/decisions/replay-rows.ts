@@ -61,6 +61,7 @@ interface ReplayRow {
   questions: string;
   questions_hash: string;
   cases: number;
+  fallback_cases: number | undefined;
   unavailable: number;
   score: string;
   confusion: string;
@@ -78,6 +79,8 @@ const replayOf = (r: ReplayRow): DecisionReplay => ({
   questions: JSON.parse(r.questions) as DecisionQuestion[],
   questionsHash: r.questions_hash,
   cases: r.cases,
+  // Absent on a database the script reads before the server migrated it
+  fallbackCases: r.fallback_cases ?? 0,
   unavailable: r.unavailable,
   score: JSON.parse(r.score) as DecisionReplayScore,
   confusion: JSON.parse(r.confusion) as DecisionReplayConfusion,
@@ -91,27 +94,38 @@ export function hasReplayTable(conn: DatabaseSync): boolean {
   return conn.prepare("SELECT 1 AS found FROM sqlite_master WHERE type = 'table' AND name = 'decision_replays'").get() !== undefined;
 }
 
+/** True when the replays table records fallback cases: a script may write to an install that has not migrated yet */
+function hasFallbackColumn(conn: DatabaseSync): boolean {
+  const columns = conn.prepare('PRAGMA table_info(decision_replays)').all() as unknown as Array<{ name: string }>;
+  return columns.some((c) => c.name === 'fallback_cases');
+}
+
+/**
+ * Stores a run. On a database from before `fallback_cases` a clean run is stored without it; a run
+ * with fallback cases is refused there, since nothing would keep the gate from reading it.
+ */
 export function insertDecisionReplay(conn: DatabaseSync, replay: DecisionReplay): void {
-  conn
-    .prepare(
-      'INSERT INTO decision_replays (id, point, at, provider, model, questions, questions_hash, cases, unavailable, score, confusion, cost_usd, consent, note) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
-    )
-    .run(
-      replay.id,
-      replay.point,
-      replay.at,
-      replay.provider,
-      replay.model,
-      JSON.stringify(replay.questions),
-      replay.questionsHash,
-      replay.cases,
-      replay.unavailable,
-      JSON.stringify(replay.score),
-      JSON.stringify(replay.confusion),
-      replay.costUsd,
-      replay.consent,
-      replay.note,
-    );
+  const withFallback = hasFallbackColumn(conn);
+  if (!withFallback && replay.fallbackCases > 0) throw new Error('this database predates fallback cases: start the server once to migrate it, then store the replay');
+  const columns = ['id', 'point', 'at', 'provider', 'model', 'questions', 'questions_hash', 'cases', ...(withFallback ? ['fallback_cases'] : []), 'unavailable', 'score', 'confusion', 'cost_usd', 'consent', 'note'];
+  const values: SQLInputValue[] = [
+    replay.id,
+    replay.point,
+    replay.at,
+    replay.provider,
+    replay.model,
+    JSON.stringify(replay.questions),
+    replay.questionsHash,
+    replay.cases,
+    ...(withFallback ? [replay.fallbackCases] : []),
+    replay.unavailable,
+    JSON.stringify(replay.score),
+    JSON.stringify(replay.confusion),
+    replay.costUsd,
+    replay.consent,
+    replay.note,
+  ];
+  conn.prepare(`INSERT INTO decision_replays (${columns.join(', ')}) VALUES (${columns.map(() => '?').join(', ')})`).run(...values);
 }
 
 /** Newest first; `point` absent reads every point */
@@ -123,10 +137,27 @@ export function readDecisionReplays(conn: DatabaseSync, point?: DecisionPointId)
   return rows.map(replayOf);
 }
 
-/** The newest replay of a point under exactly these questions, or null */
-export function readLatestDecisionReplay(conn: DatabaseSync, point: DecisionPointId, questionsHash: string): DecisionReplay | null {
-  const row = conn
-    .prepare('SELECT * FROM decision_replays WHERE point = ? AND questions_hash = ? ORDER BY at DESC, rowid DESC LIMIT 1')
-    .get(point, questionsHash) as unknown as ReplayRow | undefined;
+/**
+ * The newest replay of a point under exactly these questions that the gate may read, or null: none
+ * whose cases were asked other questions, and with `runsOn` only one on that provider (and, for Jev,
+ * that model)
+ */
+export function readLatestDecisionReplay(
+  conn: DatabaseSync,
+  point: DecisionPointId,
+  questionsHash: string,
+  runsOn?: { provider: DecisionProviderId; model: string | null },
+): DecisionReplay | null {
+  const where = ['point = ?', 'questions_hash = ?', 'fallback_cases = 0'];
+  const params: SQLInputValue[] = [point, questionsHash];
+  if (runsOn) {
+    where.push('provider = ?');
+    params.push(runsOn.provider);
+    if (runsOn.provider === 'jev' && runsOn.model !== null) {
+      where.push('model = ?');
+      params.push(runsOn.model);
+    }
+  }
+  const row = conn.prepare(`SELECT * FROM decision_replays WHERE ${where.join(' AND ')} ORDER BY at DESC, rowid DESC LIMIT 1`).get(...params) as unknown as ReplayRow | undefined;
   return row ? replayOf(row) : null;
 }

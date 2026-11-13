@@ -164,7 +164,14 @@ test('health.semantic-loop: the state carries a digest and a short target of eac
   assert.ok(Buffer.byteLength(text) <= (decisionPoint('health.semantic-loop')?.maxStateBytes ?? 0));
 });
 
-test('health.semantic-loop: the same state is never asked twice, and a changed one is', async () => {
+/** A letter name per index, since digits are flattened out of what counts as "the same input" */
+const word = (k: number): string => `${'abcdefghijklmnopqrstuvwxyz'[k % 26] ?? 'a'}${'pqrs'[Math.floor(k / 26)] ?? 'z'}`;
+/** Three reads of one file at three offsets: one repetition of its own, distinct from every other burst's */
+const burst = (k: number): ToolCall[] =>
+  Array.from({ length: 3 }, (_, j) => call('Read', { file_path: `src/${word(k)}.ts`, offset: j * 7 }, { result: `page ${word(k)} ${'x'.repeat(j + 1)}` }, k * 3 + j));
+const bursts = (from: number, to: number): ToolCall[] => Array.from({ length: to - from }, (_, i) => burst(from + i)).flat();
+
+test('health.semantic-loop: the same repetition is not asked twice however the window moves, and a new one is', async () => {
   const provider = new FakeProvider('jev', answering(false, 0.9));
   const { engine } = await engineFor('health.semantic-loop', 'shadow', provider);
   const calls = growing(12);
@@ -174,7 +181,15 @@ test('health.semantic-loop: the same state is never asked twice, and a changed o
     await health.idle();
   }
   assert.equal(provider.calls.length, 1);
-  calls.push(...growing(13).slice(12).map((c) => ({ ...c, id: `late-${c.id}` })));
+  // More of the same read: every call is a new window, and still the same repetition
+  for (let i = 13; i <= 16; i++) {
+    calls.push(...growing(i).slice(i - 1).map((c) => ({ ...c, id: `late-${c.id}` })));
+    health.read('chat-1', base);
+    await health.idle();
+  }
+  assert.equal(provider.calls.length, 1, 'a window that moves over one repetition is not a new question');
+  // Another repetition joins it: that is new
+  calls.push(...burst(0).map((c) => ({ ...c, id: `other-${c.id}` })));
   health.read('chat-1', base);
   await health.idle();
   assert.equal(provider.calls.length, 2);
@@ -183,40 +198,40 @@ test('health.semantic-loop: the same state is never asked twice, and a changed o
 test('health.semantic-loop: after three "no" in a row a chat is asked once per 40 calls, until an answer says yes', async () => {
   const provider = new FakeProvider('jev', answering(false, 0.9));
   const { engine } = await engineFor('health.semantic-loop', 'shadow', provider);
-  const calls = growing(12);
+  const calls = bursts(0, 4);
   const health = healthOf(traceOf(calls), engine);
   const readAll = async (): Promise<void> => {
     health.read('chat-1', base);
     await health.idle();
   };
+  // Each burst is a repetition not asked about before, so each read has a new one to ask
   const grow = (to: number): void => {
-    const next = growing(to);
-    calls.push(...next.slice(calls.length).map((c) => ({ ...c, id: `g-${c.id}` })));
+    calls.push(...bursts(calls.length / 3, to));
   };
   await readAll();
-  grow(13);
+  grow(5);
   await readAll();
-  grow(14);
-  await readAll();
-  assert.equal(provider.calls.length, 3);
-  // Backed off: new states keep coming and none is asked until 40 calls have passed since the last question
-  grow(53);
+  grow(6);
   await readAll();
   assert.equal(provider.calls.length, 3);
-  grow(54);
+  // Backed off at 18 calls: new repetitions keep coming and none is asked until 40 calls have passed
+  grow(19);
+  await readAll();
+  assert.equal(provider.calls.length, 3);
+  grow(20);
   await readAll();
   assert.equal(provider.calls.length, 4);
-  // A yes ends the back-off: the next new state is asked at once
+  // A yes ends the back-off (asked at 60 calls, so the next question waits for 100)
   provider.answer = (request) => Promise.resolve(answering(true, 0.9)(request));
-  grow(94);
+  grow(34);
   await readAll();
   assert.equal(provider.calls.length, 5);
-  grow(95);
+  grow(35);
   await readAll();
   assert.equal(provider.calls.length, 6);
-  grow(96);
+  grow(36);
   await readAll();
-  assert.equal(provider.calls.length, 7, 'after a yes the chat is asked as often as a new state allows');
+  assert.equal(provider.calls.length, 7, 'after a yes the chat is asked as often as a new repetition allows');
 });
 
 test('health.semantic-loop: a yes under the suggest floor adds no warning', async () => {

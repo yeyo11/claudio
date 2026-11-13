@@ -6,7 +6,7 @@ import { Db } from '../src/db.ts';
 import type { DecisionProvider } from '../src/decisions/engine.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
 import { labelsFromOutcomes, parseQuestions, replayConsent, replayDecisions, replayRecord, ReplayError, ReplayRunner, type ReplayCase } from '../src/decisions/replay.ts';
-import { hashQuestions as questionsHash } from '../src/decisions/questions-hash.ts';
+import { hashQuestions as questionsHash, questionsHash as pointQuestionsHash } from '../src/decisions/questions-hash.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from '../src/decisions/settings.ts';
 import { choiceOf, ScriptedProvider } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';
@@ -207,6 +207,46 @@ test('a stored replay is read back by point and by the hash of its questions, ne
   assert.equal(latest?.cases, 2);
   assert.equal(latest?.questions[0]?.id, 'bounce');
   assert.equal(s.db.latestDecisionReplay(POINT, 'nothing'), null);
+});
+
+test('the gate reads a stored replay only for the provider and, for Jev, the model it ran on', async () => {
+  const s = setup();
+  const run = await s.run([labelled(true)]);
+  s.db.saveDecisionReplay(replayRecord(run, { at: new Date('2026-11-13T10:00:00.000Z') }));
+  assert.equal(s.db.latestDecisionReplay(POINT, run.questionsHash, { provider: 'jev', model: run.model })?.provider, 'jev');
+  assert.equal(s.db.latestDecisionReplay(POINT, run.questionsHash, { provider: 'cli', model: null }), null);
+  assert.equal(s.db.latestDecisionReplay(POINT, run.questionsHash, { provider: 'jev', model: 'jev-0.1.0' }), null);
+});
+
+test('cases a stored state cannot rebuild the questions for are recorded as fallbacks, stored under what they were asked, and never read by the gate', async () => {
+  const s = setup();
+  const point: DecisionPointId = 'flow.criteria-precheck';
+  const settings: Pick<DecisionSettings, 'points'> = {
+    points: { [point]: { mode: 'shadow', threshold: 0.85, consent: { at: '2026-11-01T00:00:00.000Z', stateVersion: 1, providers: ['jev'] } } },
+  };
+  s.provider.script = (request) => Object.fromEntries(request.questions.map((q) => [q.id, choiceOf('clearly-unmet')]));
+  const ownQuestions: DecisionQuestion[] = [{ kind: 'choice', id: 'c9', question: 'An older wording', options: [{ id: 'clearly-unmet', label: 'u' }, { id: 'met-or-unknown', label: 'm' }] }];
+  const rebuilt: ReplayCase = { id: null, state: { criteria: [{ id: 'c1', text: 'It works' }] }, questions: [], positive: true };
+  // Its state lost the criteria: the point's questions cannot be built, so it is asked what the label stored
+  const lost: ReplayCase = { id: null, state: { summary: 'done' }, questions: ownQuestions, positive: true };
+  const run = (cases: ReplayCase[]) => s.run(cases, { point, consent: { settings } });
+
+  const clean = await run([rebuilt]);
+  assert.deepEqual([clean.fallbackCases, clean.questionsHash], [0, pointQuestionsHash(point)]);
+
+  const mixed = await run([rebuilt, lost]);
+  assert.equal(mixed.fallbackCases, 1);
+  assert.notEqual(mixed.questionsHash, pointQuestionsHash(point), 'not stored under questions some cases were never asked');
+
+  const allLost = await run([lost, lost]);
+  assert.deepEqual([allLost.fallbackCases, allLost.questionsHash], [2, questionsHash(ownQuestions)], 'the hash of what was actually asked');
+
+  s.db.saveDecisionReplay(replayRecord(clean, { at: new Date('2026-11-13T10:00:00.000Z') }));
+  s.db.saveDecisionReplay(replayRecord(mixed, { at: new Date('2026-11-13T11:00:00.000Z') }));
+  s.db.saveDecisionReplay(replayRecord(allLost, { at: new Date('2026-11-13T12:00:00.000Z') }));
+  assert.deepEqual(s.db.decisionReplays(point).map((r) => r.fallbackCases), [2, 1, 0], 'every run is kept, with what it fell back on');
+  assert.equal(s.db.latestDecisionReplay(point, pointQuestionsHash(point) ?? '')?.fallbackCases, 0, 'the gate reads the clean run, not the newer mixed one');
+  assert.equal(s.db.latestDecisionReplay(point, questionsHash(ownQuestions)), null, 'a run of fallbacks never counts');
 });
 
 test('labels from outcomes survive the history being pruned', () => {

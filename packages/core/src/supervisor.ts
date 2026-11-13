@@ -25,6 +25,9 @@ import { NotFoundError } from '@claudio/shared';
 // The draft decides first whether the worker is stuck at all (docs/plans/decision-engine-v2.md §6):
 // most of what woke it was a worker waiting on a command doing work, on CI or on agents it delegated
 // to, and a hint there only interrupts. A draft that says so sends nothing and proposes nothing.
+// It does not close the occurrence either: a build that was honest work at minute twenty can hang for
+// hours after, so a "not stuck" occurrence is drafted again after a back-off ({@link notStuckDue}), up
+// to {@link NOT_STUCK_MAX_DRAFTS} drafts, and a later draft that finds it stuck is an ordinary proposal.
 //
 // What it answers is one occurrence of a signal (D5 of docs/plans/regression-fixes-2026-10-29.md):
 // the call a signal is about, or when it started. A hint is a message the agent reads only once the
@@ -103,6 +106,10 @@ export type SupervisorDraft = { stuck: false } | { stuck: true; hint: string };
 const COMMAND_SIGNALS: ReadonlySet<HealthSignalKind> = new Set(['hung-command', 'repeat-stall']);
 /** A question that failed is asked again after this long: one broken answer is not the last word on a long chat */
 export const FAILED_RETRY_MS = 15 * 60_000;
+/** A "not stuck" occurrence that is not a running command is drafted again after this long: longer than a failed draft's wait, since this one was answered */
+export const NOT_STUCK_RETRY_MS = 60 * 60_000;
+/** Drafts per occurrence, the first included: a worker judged not stuck this often is left to the person */
+export const NOT_STUCK_MAX_DRAFTS = 4;
 /** Between tries of a question refused for room (a full slot, short memory) */
 export const ROOM_RETRY_MS = 15_000;
 /** How long a question waits for room before it gives up for now; the next announcement asks again */
@@ -307,6 +314,22 @@ function answers(proposal: SupervisorProposal, signal: HealthSignal, occurrence:
   return !!signal.toolUseId && COMMAND_SIGNALS.has(signal.kind) && COMMAND_SIGNALS.has(proposal.signal) && proposal.occurrence === signal.toolUseId;
 }
 
+/**
+ * Whether a `not-stuck` answer is due to be drafted again. A running command is asked again once its
+ * running time has doubled since the answer (twenty minutes in, at forty; forty, at eighty), which
+ * follows the command's own pace; anything else after {@link NOT_STUCK_RETRY_MS}. Both read the row's
+ * `at`, the time of its latest answer, so the back-off survives a restart.
+ */
+export function notStuckDue(answer: Pick<SupervisorProposal, 'at'>, signal: Pick<HealthSignal, 'kind' | 'toolUseId' | 'since'>, nowMs: number): boolean {
+  const answeredAt = Date.parse(answer.at);
+  if (!Number.isFinite(answeredAt)) return false;
+  const since = signal.since ? Date.parse(signal.since) : Number.NaN;
+  if (signal.toolUseId && COMMAND_SIGNALS.has(signal.kind) && Number.isFinite(since) && answeredAt > since) {
+    return nowMs - since >= 2 * (answeredAt - since);
+  }
+  return nowMs - answeredAt >= NOT_STUCK_RETRY_MS;
+}
+
 /** Today's rule for `supervisor.intervene`, as the row's baseline: a hint is drafted, so nothing is declined */
 const DRAFT_BASELINE = false;
 
@@ -327,12 +350,17 @@ const pause = (ms: number): Promise<void> =>
 /**
  * Wakes on a worker's bad health, once per occurrence of a signal per chat, and keeps what it
  * proposed as a row. The rule lives in the store (a unique key on chat, signal and occurrence), so
- * neither a monitor tick nor a restart asks twice about the same thing.
+ * neither a monitor tick nor a restart asks twice about the same thing; the one exception is an
+ * occurrence a draft found not stuck, asked again on the same row after its back-off.
  */
 export class Supervisor {
   /** Occurrences being asked about right now: the monitor can announce again before the answer is in */
   private readonly asking = new Set<string>();
-  /** Occurrences whose question failed, and when: asked again once {@link FAILED_RETRY_MS} has passed */
+  /**
+   * Occurrences not to ask about again before a time: a failed question for {@link FAILED_RETRY_MS},
+   * one the engine declined for {@link NOT_STUCK_RETRY_MS} (its "no hint helps" is an answer, like a
+   * "not stuck" draft, and the monitor wakes a chat that stays bad every few minutes)
+   */
   private readonly failed = new Map<string, number>();
 
   constructor(private readonly deps: SupervisorDeps) {}
@@ -366,11 +394,17 @@ export class Supervisor {
     return this.config;
   }
 
+  /** Whether an occurrence already answered is to be drafted again: only a `not-stuck` one, after its back-off and under the cap */
+  private redraftDue(answer: SupervisorProposal, signal: HealthSignal): boolean {
+    if (answer.status !== 'not-stuck' || !notStuckDue(answer, signal, this.now())) return false;
+    return this.deps.db.proposalAsks(answer.id) < NOT_STUCK_MAX_DRAFTS;
+  }
+
   /** Whether a question about `key` failed recently enough not to be asked again yet; an old failure is forgotten */
   private failedRecently(key: string): boolean {
-    const at = this.failed.get(key);
-    if (at === undefined) return false;
-    if (this.now() - at < FAILED_RETRY_MS) return true;
+    const until = this.failed.get(key);
+    if (until === undefined) return false;
+    if (this.now() < until) return true;
     this.failed.delete(key);
     return false;
   }
@@ -389,13 +423,17 @@ export class Supervisor {
     if (this.deps.spendOpen?.() === false) return null;
     const proposals = this.deps.db.proposalsOf(chat.id);
     const keyOf = (s: HealthSignal) => `${chat.id}:${s.kind}:${occurrenceOf(s)}`;
+    const answerOf = (s: HealthSignal): SupervisorProposal | undefined => proposals.find((p) => answers(p, s, occurrenceOf(s)));
     const signal = signals.find((s) => {
       if (s.level !== 'bad') return false;
-      const occurrence = occurrenceOf(s);
       const key = keyOf(s);
-      return !proposals.some((p) => answers(p, s, occurrence)) && !this.asking.has(key) && !this.failedRecently(key);
+      if (this.asking.has(key) || this.failedRecently(key)) return false;
+      const answer = answerOf(s);
+      return !answer || this.redraftDue(answer, s);
     });
     if (!signal) return null;
+    // Set when this is a "not stuck" occurrence asked again: its row takes the new answer
+    const previous = answerOf(signal) ?? null;
     const key = keyOf(signal);
     const agent = signal.agent ?? null;
     this.asking.add(key);
@@ -403,7 +441,7 @@ export class Supervisor {
       const entries = await this.deps.steps(chat.id, signal.agent).catch((): TranscriptEntry[] => []);
       // A worker the decision says no hint can help gets none; the signal itself stays on the chat
       if (await this.declined(chat, signal, entries)) {
-        this.failed.set(key, this.now());
+        this.failed.set(key, this.now() + NOT_STUCK_RETRY_MS);
         return null;
       }
       const steps = lastSteps(entries, agent?.parentToolUseId ?? null);
@@ -421,23 +459,27 @@ export class Supervisor {
       if (task && costUsd > 0) this.deps.charge(task.orchestrationId, costUsd);
       const draft = answer.isError ? null : draftOf(answer.structured);
       if (!draft) {
-        this.failed.set(key, this.now());
+        this.failed.set(key, this.now() + FAILED_RETRY_MS);
         return null;
       }
+      const at = new Date(this.now()).toISOString();
+      const occurrence = previous ? previous.occurrence : occurrenceOf(signal);
       const base = {
-        id: randomUUID(),
+        id: previous?.id ?? randomUUID(),
         chatId: chat.id,
         ...(task ? { taskId: task.taskId, orchestrationId: task.orchestrationId } : {}),
-        signal: signal.kind,
-        occurrence: occurrenceOf(signal),
+        // A row asked again keeps the kind and occurrence it is stored under: the store's unique key
+        signal: previous?.signal ?? signal.kind,
+        ...(occurrence !== undefined ? { occurrence } : {}),
         ...(agent ? { agent } : {}),
         costUsd,
-        at: new Date().toISOString(),
+        at,
       };
       if (!draft.stuck) {
-        // Kept as the occurrence's answer, which the store's unique key holds across restarts: the
-        // same occurrence is not asked about again, and nothing reaches the worker or a person
-        this.deps.db.saveProposal({ ...base, hint: '', status: 'not-stuck' });
+        // Kept as the occurrence's answer, which the store's unique key holds across restarts: nothing
+        // reaches the worker or a person, and the occurrence is asked again only after its back-off
+        if (previous) this.deps.db.redraftProposal(previous.id, { hint: '', status: 'not-stuck', costUsd, at, agent });
+        else this.deps.db.saveProposal({ ...base, hint: '', status: 'not-stuck' });
         return null;
       }
       const hint = draft.hint;
@@ -448,7 +490,11 @@ export class Supervisor {
         hint: agent && !(agent.agentId && this.deps.messageAgent) && !this.deps.relay ? relayHint(agent, hint) : hint,
         status: 'proposed',
       };
-      if (!this.deps.db.saveProposal(proposal)) return null;
+      // A redraft adds its cost to the row's, so the proposal carries the occurrence's whole cost
+      let stored: SupervisorProposal | null = null;
+      if (!previous) stored = this.deps.db.saveProposal(proposal) ? proposal : null;
+      else if (this.deps.db.redraftProposal(previous.id, { hint: proposal.hint, status: 'proposed', costUsd, at, agent })) stored = this.deps.db.proposal(previous.id);
+      if (!stored) return null;
       const who = task?.taskName ?? chat.name;
       this.deps.emit({
         type: 'supervisor.proposed',
@@ -456,19 +502,19 @@ export class Supervisor {
         ...runRef(chat),
         taskId: task?.taskId ?? null,
         taskName: task?.taskName ?? null,
-        proposal,
+        proposal: stored,
       });
       // Read again: a person who switched the point while the hint was being drafted decides. Under
       // Active only the kinds the owner listed are sent on their own; the rest wait for a person
-      if (this.mode() !== 'active' || !this.actsOn(signal.kind)) return proposal;
+      if (this.mode() !== 'active' || !this.actsOn(signal.kind)) return stored;
       try {
-        return await this.act(proposal, signal, hint);
+        return await this.act(stored, signal, hint);
       } catch {
         // The worker moved on before the answer came: the proposal stays for a person to judge
-        return proposal;
+        return stored;
       }
     } catch {
-      this.failed.set(key, this.now());
+      this.failed.set(key, this.now() + FAILED_RETRY_MS);
       return null;
     } finally {
       this.asking.delete(key);

@@ -34435,6 +34435,14 @@
         "$ref": "#/components/schemas/DecisionStanding",
         "description": "Computed from the window's `direct` outcomes or a replay; never stored"
       },
+      "decidedBy": {
+        "$ref": "#/components/schemas/DecisionStandingSource",
+        "description": "The reading that settled `standing`"
+      },
+      "evidencePossible": {
+        "type": "boolean",
+        "description": "Whether any outcome the app infers for this point can ever be `direct`, the only kind its evidence counts. False when the point has no resolver, or when every outcome its resolver reads is a `proxy`: then no outcome the app can observe proves this point, and only a person's own useful / not useful (always direct) does."
+      },
       "gate": {
         "$ref": "#/components/schemas/DecisionGateInForce",
         "description": "The gate's numbers in force, and the readings the standing came from"
@@ -34476,6 +34484,8 @@
       "stateVersion",
       "effective",
       "standing",
+      "decidedBy",
+      "evidencePossible",
       "gate",
       "live",
       "replay",
@@ -34527,6 +34537,18 @@
       "failing"
     ],
     "description": "Where a point stands against its gate, computed and never stored: `unproven` has too few scored cases, `proven` clears the gate, `failing` has the cases and does not clear it."
+  },
+  "DecisionStandingSource": {
+    "type": [
+      "string",
+      "null"
+    ],
+    "enum": [
+      "live",
+      "replay",
+      null
+    ],
+    "description": "Which reading settled a standing. The live history decides once it has the gate's `minCases` scored cases; below that a replay may decide (it only bootstraps a point). Null while unproven."
   },
   "DecisionGateInForce": {
     "type": "object",
@@ -35569,6 +35591,9 @@
       "standing": {
         "$ref": "#/components/schemas/DecisionStanding"
       },
+      "decidedBy": {
+        "$ref": "#/components/schemas/DecisionStandingSource"
+      },
       "live": {
         "$ref": "#/components/schemas/DecisionGateReading",
         "description": "The best reading it has (live or replay) and what that reading lacks"
@@ -35591,6 +35616,7 @@
       "point",
       "kind",
       "standing",
+      "decidedBy",
       "live",
       "replay",
       "gate"

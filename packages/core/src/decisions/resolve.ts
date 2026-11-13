@@ -283,7 +283,9 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
       return verdict('proxy', next.outcome === 'passed', next.outcome === 'passed' ? 'The next QA run passed' : 'The next QA run rejected it again', { next: next.outcome });
     }
     const waiting = sql.prepare('SELECT waiting FROM work_items WHERE id = ?').get(run.item_id) as { waiting: string | null } | undefined;
-    if (waiting?.waiting === 'bounces' || people) return verdict(people ? 'direct' : 'proxy', true, 'The card waited for a person', { waiting: waiting?.waiting ?? null, person: people });
+    // An acted needs-person parked the card itself, and a person then moving it is what parking asks
+    // for: the decision caused the agreement, so only a held-out or shadow row's person is direct
+    if (waiting?.waiting === 'bounces' || people) return verdict(people && !row.acted ? 'direct' : 'proxy', true, 'The card waited for a person', { waiting: waiting?.waiting ?? null, person: people });
     if (!next) return null;
     return verdict('proxy', next.outcome !== 'passed', next.outcome === 'passed' ? 'A bounce was enough: the next QA run passed' : 'The next QA run rejected it again', { next: next.outcome });
   },
@@ -572,7 +574,9 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const withinMs = opened !== null && Number.isFinite(opened) ? opened - start : null;
     const inTime = withinMs !== null && withinMs <= NOTIFICATION_WINDOW_MS;
     const detail = { urgency, openedAt: row.openedAt, withinMs };
-    if (inTime) return verdict('direct', urgency === 'high', urgency === 'high' ? 'A raised notification was opened within the hour' : 'A normal notification was opened within the hour', detail);
+    // An acted answer set the push's priority, and a raised push interrupts: the open it made more
+    // likely is the decision's own doing. A shadow or held-out row went out as today's push
+    if (inTime) return verdict(row.acted ? 'proxy' : 'direct', urgency === 'high', urgency === 'high' ? 'A raised notification was opened within the hour' : 'A normal notification was opened within the hour', detail);
     // A push nobody tapped says nothing: people ignore most of them, the app may have been opened some
     // other way, and no push may have reached a device at all. Counting that as "normal was right"
     // made the score mostly the share of normal answers, so only an open is a signal.
@@ -658,6 +662,48 @@ RESOLVERS['health.test-weakening'] = viaItemOfChat;
 RESOLVERS['changes.unexplained-hunk'] = viaItemOfChat;
 
 export const RESOLVED_POINTS: readonly DecisionPointId[] = Object.keys(RESOLVERS) as DecisionPointId[];
+
+/**
+ * Whether each resolver can ever return a `direct` outcome, declared beside the resolvers so the two
+ * move together (a test reads every resolver's own source against it). A point declared false, or
+ * with no resolver at all, can never earn evidence from what the app observes: only a person's
+ * useful / not useful proves it (D6 of docs/plans/decision-engine-v2.md).
+ */
+export const DIRECT_OUTCOMES: Readonly<Partial<Record<DecisionPointId, boolean>>> = {
+  'flow.refine-needed': true,
+  'flow.criteria-precheck': false,
+  'flow.bounce': true,
+  'context.compact': true,
+  'flow.restart': true,
+  'flow.criteria-merge': true,
+  'team.assign': true,
+  'run.continuation': true,
+  'orchestration.retry': true,
+  'orchestration.fixer': true,
+  'review.depth': false,
+  'supervisor.intervene': true,
+  'memory.triage': true,
+  'assistant.rerank': true,
+  'assistant.sources': true,
+  'journal.relevance': false,
+  'lesson.mine': true,
+  'board.triage': true,
+  'flow.scope-drift': false,
+  'health.semantic-loop': true,
+  'palette.intent': true,
+  'notification.urgency': true,
+  'orchestration.model': false,
+  'checks.fix': true,
+  'account.model-fallback': true,
+  'health.test-weakening': false,
+  'changes.unexplained-hunk': false,
+};
+
+/** Whether an outcome the app infers can ever count as this point's evidence; served as `evidencePossible` */
+export const evidencePossible = (point: DecisionPointId): boolean => DIRECT_OUTCOMES[point] === true;
+
+/** A point's resolver, for the test that holds {@link DIRECT_OUTCOMES} to what each resolver can return */
+export const resolverOf = (point: DecisionPointId): Resolver | undefined => RESOLVERS[point];
 
 /** The events after which an outcome may have become known */
 const EVENTS = /^(flow\.|orchestration\.|workitem\.|change-request\.|memory\.|lesson\.|assistant\.|supervisor\.|run\.ended$|health\.)/;

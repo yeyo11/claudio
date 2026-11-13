@@ -17,9 +17,9 @@ import { DecisionActivationError, DecisionEngine } from '../src/decisions/engine
 import { scoreEvidence } from '../src/decisions/evidence.ts';
 import { DECISION_POINTS, decisionPoint } from '../src/decisions/points.ts';
 import { hashQuestions, questionsHash } from '../src/decisions/questions-hash.ts';
-import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS, DEFAULT_GATE, parseDecisionSettings } from '../src/decisions/settings.ts';
+import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS, DEFAULT_GATE, JEV_MODEL, parseDecisionSettings } from '../src/decisions/settings.ts';
 import { stanceOf } from '../src/decisions/stance.ts';
-import { DEMOTION_CODES, demotionOf, holdoutShare, judgeActivation, standingOf, type ReplayEvidence } from '../src/decisions/standing.ts';
+import { DEMOTION_CODES, demotionOf, holdoutShare, judgeActivation, standingOf, type ReplayEvidence, type RunsOn } from '../src/decisions/standing.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
 import { choiceOf, noulOf, ScriptedProvider } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';
@@ -35,7 +35,7 @@ const ago = (days: number): string => new Date(NOW.getTime() - days * DAY).toISO
 interface RigOptions {
   random?: () => number;
   standing?: (point: DecisionPointId) => DecisionStanding;
-  replay?: (point: DecisionPointId) => ReplayEvidence | null;
+  replay?: (point: DecisionPointId, runsOn: RunsOn) => ReplayEvidence | null;
   project?: ProjectDecisionSettings | null;
 }
 
@@ -191,13 +191,13 @@ test('a replay proves a point only under the questions in force: a reworded ques
   const score = scoreEvidence(Array.from({ length: 50 }, () => ({ acts: true, confidence: 0.95, positive: true })));
   const hash = questionsHash('flow.bounce');
   assert.ok(hash);
-  const current = rig({ replay: () => ({ at: ago(2), cases: 50, questionsHash: hash, score }) });
+  const current = rig({ replay: () => ({ at: ago(2), cases: 50, provider: 'cli', model: 'haiku', questionsHash: hash, score }) });
   const standing = current.engine.pointStanding('flow.bounce');
   assert.equal(standing?.standing, 'proven');
   assert.equal(standing?.replay?.source, 'replay');
   assert.equal(standing?.replay?.cases, 50);
 
-  const stale = rig({ replay: () => ({ at: ago(2), cases: 50, questionsHash: 'an-older-wording', score }) });
+  const stale = rig({ replay: () => ({ at: ago(2), cases: 50, provider: 'cli', model: 'haiku', questionsHash: 'an-older-wording', score }) });
   const voided = stale.engine.pointStanding('flow.bounce');
   assert.equal(voided?.standing, 'unproven');
   assert.equal(voided?.replay, null);
@@ -646,4 +646,109 @@ test('a review queued by an outcome runs after the sweep, and shutdown waits for
   await s.engine.settled();
   assert.equal(s.events.filter((e) => e.type === 'decision.demoted').length, 1);
   assert.equal(s.settings.get().points['flow.bounce']?.mode, 'shadow');
+});
+
+// ---------- the review's fixes: the replay bootstraps, any failing point demotes, the holdout since promotion ----------
+
+const perfectReplay = (provider: 'cli' | 'jev' = 'cli', model = 'haiku'): ReplayEvidence => ({
+  at: ago(2),
+  cases: 50,
+  provider,
+  model,
+  questionsHash: questionsHash('flow.bounce') ?? '',
+  score: scoreEvidence(Array.from({ length: 50 }, () => ({ acts: true, confidence: 0.95, positive: true }))),
+});
+
+test('a replay only bootstraps a point: once the live history has the cases, it alone decides the standing', () => {
+  const early = rig({ replay: () => perfectReplay() });
+  early.bounces(10, 2);
+  const bootstrapped = early.engine.pointStanding('flow.bounce');
+  assert.deepEqual([bootstrapped?.standing, bootstrapped?.decidedBy], ['proven', 'replay'], 'ten live cases are too few to overrule it');
+
+  const live = rig({ replay: () => perfectReplay() });
+  live.bounces(40, 10);
+  const judged = live.engine.pointStanding('flow.bounce');
+  assert.deepEqual([judged?.standing, judged?.decidedBy], ['failing', 'live'], 'a stored replay does not keep a point proven that is wrong live');
+  assert.equal(judged?.replay?.shortfalls.length, 0, 'the replay is still shown, cleared, and still not what decides');
+
+  const none = rig();
+  none.bounces(5, 5);
+  assert.deepEqual([none.engine.pointStanding('flow.bounce')?.standing, none.engine.pointStanding('flow.bounce')?.decidedBy], ['unproven', null]);
+  assert.equal(none.engine.catalogue(null).find((p) => p.id === 'flow.bounce')?.decidedBy, null, 'the catalogue serves which reading decided');
+});
+
+test('a point proven by its replay and promoted is demoted once its live evidence fails', async () => {
+  const s = rig({ replay: () => perfectReplay() });
+  await s.consent('flow.bounce', ['cli']);
+  await s.settings.set(s.body({ 'flow.bounce': { mode: 'active', threshold: 0.85, consent: null } }));
+  await s.settings.markPromotion('flow.bounce', { at: ago(20), actRate: 1 });
+  s.bounces(40, 8, { mode: 'active', acted: true });
+  const [made] = await s.engine.review();
+  assert.equal(made?.demotion.reason, 'failing');
+  assert.equal(made?.demotion.evidence.cases, 40, 'told by the live reading that decided');
+  assert.equal(s.settings.get().points['flow.bounce']?.mode, 'shadow');
+});
+
+test('a replay counts only for the provider the point runs on, and for Jev only on its pinned model', () => {
+  const def = decisionPoint('flow.bounce');
+  assert.ok(def);
+  const empty = { point: def.id, answered: 0, resolvedDirect: 0, resolvedProxy: 0, unresolved: 0, ...scoreEvidence([]) };
+  const hash = questionsHash('flow.bounce');
+  const onJev: RunsOn = { provider: 'jev', model: JEV_MODEL };
+  assert.equal(standingOf(def, DEFAULT_GATE, empty, perfectReplay('cli'), hash, onJev).standing, 'unproven', "a replay on the CLI's model says nothing about Jev");
+  assert.equal(standingOf(def, DEFAULT_GATE, empty, perfectReplay('jev', 'jev-1.12.0'), hash, onJev).standing, 'unproven', 'nor one on an older Jev');
+  assert.equal(standingOf(def, DEFAULT_GATE, empty, perfectReplay('jev', JEV_MODEL), hash, onJev).standing, 'proven');
+  assert.equal(standingOf(def, DEFAULT_GATE, empty, perfectReplay('jev', JEV_MODEL), hash, { provider: 'cli', model: null }).standing, 'unproven');
+  assert.equal(standingOf(def, DEFAULT_GATE, empty, perfectReplay('cli', 'sonnet'), hash, { provider: 'cli', model: null }).standing, 'proven', 'the CLI is not held to a model');
+});
+
+test('the engine looks up the replay for the provider the install runs the point on', async () => {
+  const asked: RunsOn[] = [];
+  const s = rig({
+    replay: (_point, runsOn) => {
+      asked.push(runsOn);
+      return null;
+    },
+  });
+  s.engine.pointStanding('flow.bounce', s.settings.get(), true);
+  await s.settings.set({ ...s.body(), provider: 'jev' });
+  s.engine.pointStanding('flow.bounce', s.settings.get(), true);
+  assert.deepEqual(asked, [
+    { provider: 'cli', model: null },
+    { provider: 'jev', model: JEV_MODEL },
+  ]);
+});
+
+test('an active point with no promotion mark whose standing is failing goes back to shadow; the Supervisor never does', async () => {
+  const s = rig({ standing: () => 'failing' });
+  // As on the owner's install: switched on before the gate existed, so no point carries a mark
+  await s.settings.set(
+    s.body({
+      'flow.bounce': { mode: 'active', threshold: 0.85, consent: null },
+      'changes.unexplained-hunk': { mode: 'active', threshold: 0.85, consent: null },
+      'supervisor.intervene': { mode: 'active', threshold: 0.85, consent: null },
+    }),
+  );
+  const made = await s.engine.review();
+  assert.deepEqual(made.map((m) => m.point).sort(), ['changes.unexplained-hunk', 'flow.bounce'], 'a suggest point the gate does not enforce is demoted too');
+  assert.ok(made.every((m) => m.demotion.reason === 'failing'));
+  assert.equal(s.settings.get().points['changes.unexplained-hunk']?.mode, 'shadow');
+  assert.equal(s.settings.get().points['supervisor.intervene']?.mode, 'active', "its Active is its owner's switch for sending hints");
+
+  // Unproven, without a mark, is left alone: it has no evidence to lose
+  const quiet = rig({ standing: () => 'unproven' });
+  await quiet.settings.set(quiet.body({ 'flow.bounce': { mode: 'active', threshold: 0.85, consent: null } }));
+  assert.deepEqual(await quiet.engine.review(), []);
+});
+
+test('the holdout counts the acts since the point was promoted, not those of the window before it', async () => {
+  const s = rig({ standing: () => 'proven', random: () => 0.07 });
+  await s.consent('flow.bounce');
+  await s.settings.set({ ...s.body({ 'flow.bounce': { mode: 'active', threshold: 0.85, consent: null } }), provider: 'jev' });
+  s.provider.script = () => ({ bounce: choiceOf('needs-person', 0.99) });
+  // A hundred acts from an earlier time in Active, before it was demoted and promoted again
+  for (let i = 0; i < 100; i++) s.row('flow.bounce', { bounce: choiceOf('needs-person') }, { mode: 'active', acted: true, outcome: null, agreed: null, at: ago(3) });
+  assert.equal((await s.engine.ask('flow.bounce', subject, { projectId: null })).act, true, 'with no mark the window counts: past a hundred, 0.07 acts');
+  await s.settings.markPromotion('flow.bounce', { at: ago(1), actRate: 0.5 });
+  assert.equal((await s.engine.ask('flow.bounce', subject, { projectId: null })).act, false, 'since the promotion it has acted once: 0.07 is held out');
 });

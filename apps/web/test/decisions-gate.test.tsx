@@ -24,6 +24,7 @@ const issue = (point: DecisionActivationIssue['point'], shortfalls: DecisionActi
   point,
   kind: 'act',
   standing: 'unproven',
+  decidedBy: null,
   live: reading(shortfalls),
   replay: null,
   gate: { enforced: true, minCases: 30, breakEven: 0.5, minPrecision: null, maxFlagRate: null },

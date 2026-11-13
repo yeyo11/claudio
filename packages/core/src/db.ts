@@ -1688,6 +1688,15 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // Active. The `supervisor.intervene` resolver reads a person's send as a direct outcome and the
   // Supervisor's as a proxy, whatever the point's mode. Null on unsent rows and on rows from before.
   `ALTER TABLE supervisor_proposals ADD COLUMN sent_by TEXT;`,
+
+  // How many times the Supervisor drafted for an occurrence. A "not stuck" draft no longer closes the
+  // occurrence: it is asked again after a back-off, a bounded number of times, on the same row (so the
+  // unique key keeps one answer per occurrence) with `at` moved to the latest answer.
+  `ALTER TABLE supervisor_proposals ADD COLUMN asks INTEGER NOT NULL DEFAULT 1;`,
+
+  // Replay cases whose stored state could not rebuild the point's questions and were asked the
+  // label's own: such a run is stored under the hash of what was asked and never counts for the gate
+  `ALTER TABLE decision_replays ADD COLUMN fallback_cases INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 /**
@@ -3104,6 +3113,24 @@ export class Db {
     return Number(result.changes) > 0;
   }
 
+  /**
+   * Drafts the occurrence of a `not-stuck` row again: its new answer (still not stuck, or a hint to
+   * propose) replaces the old one on the same row, its cost is added and its draft counted. False when
+   * the row is gone or is no longer `not-stuck`.
+   */
+  redraftProposal(id: string, next: Pick<SupervisorProposal, 'hint' | 'costUsd' | 'at'> & { status: 'proposed' | 'not-stuck'; agent: HealthSignalAgent | null }): boolean {
+    const result = this.db
+      .prepare("UPDATE supervisor_proposals SET hint = ?, status = ?, cost_usd = cost_usd + ?, at = ?, agent = ?, asks = asks + 1 WHERE id = ? AND status = 'not-stuck'")
+      .run(next.hint, next.status, next.costUsd, next.at, next.agent ? JSON.stringify(next.agent) : null, id);
+    return Number(result.changes) > 0;
+  }
+
+  /** How many times the Supervisor drafted for a proposal's occurrence; 0 for an unknown id */
+  proposalAsks(id: string): number {
+    const row = this.db.prepare('SELECT asks FROM supervisor_proposals WHERE id = ?').get(id) as { asks: number } | undefined;
+    return row?.asks ?? 0;
+  }
+
   proposal(id: string): SupervisorProposal | null {
     const row = this.db.prepare('SELECT * FROM supervisor_proposals WHERE id = ?').get(id) as ProposalRow | undefined;
     return row ? proposalOf(row) : null;
@@ -3403,9 +3430,13 @@ export class Db {
     return readDecisionReplays(this.db, point);
   }
 
-  /** The newest replay of a point under exactly these questions, which the promotion gate reads */
-  latestDecisionReplay(point: DecisionPointId, questionsHash: string): DecisionReplay | null {
-    return readLatestDecisionReplay(this.db, point, questionsHash);
+  /**
+   * The newest replay of a point under exactly these questions, which the promotion gate reads: with
+   * `runsOn`, only one run on that provider (and, for Jev, that model), and never one whose cases were
+   * asked other questions
+   */
+  latestDecisionReplay(point: DecisionPointId, questionsHash: string, runsOn?: { provider: DecisionProviderId; model: string | null }): DecisionReplay | null {
+    return readLatestDecisionReplay(this.db, point, questionsHash, runsOn);
   }
 
   /** The newest row of a point, for the consent preview's "what was sent last" (D12). */

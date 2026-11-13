@@ -1,4 +1,4 @@
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type {
   DecisionAnswer,
   DecisionLabel,
@@ -176,15 +176,31 @@ export interface ReplayRun extends Omit<DecisionReplay, 'id' | 'at' | 'note'> {
   aborted: boolean;
 }
 
-/** Current questions come from the point, built from the state it stores; a state it cannot rebuild them from keeps what it was asked then */
-function currentQuestions(def: DecisionPointDefinition, c: ReplayCase): ReadonlyArray<DecisionQuestion> {
+/**
+ * Current questions come from the point, built from the state it stores; a state it cannot rebuild
+ * them from keeps what it was asked then, and says so (`fallback`): such a case was not asked the
+ * questions in force.
+ */
+function currentQuestions(def: DecisionPointDefinition, c: ReplayCase): { questions: ReadonlyArray<DecisionQuestion>; fallback: boolean } {
   try {
     const current = def.questions({ kind: 'palette', id: null, data: c.state });
-    if (questionsFit(current)) return current;
+    if (questionsFit(current)) return { questions: current, fallback: false };
   } catch {
     // keep the stored questions
   }
-  return c.questions;
+  return { questions: c.questions, fallback: true };
+}
+
+/**
+ * The hash a run is stored under: the hash of what was actually asked. Every case on the point's own
+ * questions is `pointHash` (the gate's, from a fixed probe); every case on one fallback set is that
+ * set's own hash; a mix is a hash of the mix, which no point's questions ever hash to.
+ */
+function askedHash(pointHash: string, fallbackHashes: readonly string[], cases: number): string {
+  const distinct = [...new Set(fallbackHashes)].sort();
+  if (distinct.length === 0) return pointHash;
+  if (distinct.length === 1 && fallbackHashes.length === cases) return distinct[0] ?? pointHash;
+  return createHash('sha256').update(`mixed\0${pointHash}\0${distinct.join(',')}`).digest('hex');
 }
 
 const MAX_CONCURRENCY = 8;
@@ -208,6 +224,8 @@ export async function replayDecisions(input: ReplayInput): Promise<ReplayRun> {
   const concurrency = Math.min(Math.max(Math.trunc(input.concurrency) || 1, 1), MAX_CONCURRENCY);
   const results: Array<ReplayCaseResult | undefined> = new Array<ReplayCaseResult | undefined>(cases.length).fill(undefined);
   const askedQuestions: Array<ReadonlyArray<DecisionQuestion> | undefined> = new Array<ReadonlyArray<DecisionQuestion> | undefined>(cases.length).fill(undefined);
+  /** The hash of what each case fell back to, for the cases that could not be asked the point's own questions */
+  const fallbackHashes: string[] = [];
   let next = 0;
   let done = 0;
   let spent = 0;
@@ -234,9 +252,11 @@ export async function replayDecisions(input: ReplayInput): Promise<ReplayRun> {
       stopped = provider.whyUnavailable?.() ?? (provider.id === 'jev' ? 'no-key' : 'server-error');
       return unavailable(c, stopped);
     }
-    const questions = input.questions ?? currentQuestions(def, c);
+    const built = input.questions ? { questions: input.questions, fallback: false } : currentQuestions(def, c);
+    const questions = built.questions;
     if (!questionsFit(questions)) return unavailable(c, 'invalid-answer');
     askedQuestions[at] = questions;
+    if (built.fallback) fallbackHashes.push(hashQuestions(questions));
     const state = redactState(c.state, def.maxStateBytes);
     const result = await askBounded(provider, { point: input.point, state, questions }, input.deadlineMs, signal);
     if (result.status === 'unavailable') {
@@ -300,9 +320,11 @@ export async function replayDecisions(input: ReplayInput): Promise<ReplayRun> {
     model: answeredModel ?? input.model ?? '',
     questions,
     // The point's own wording is hashed the way the gate hashes it (from a fixed probe), so a replay of a
-    // point whose questions vary with the state still counts; reworded questions hash as themselves
-    questionsHash: input.questions ? hashQuestions(questions) : (pointQuestionsHash(input.point) ?? hashQuestions(questions)),
+    // point whose questions vary with the state still counts; reworded questions hash as themselves, and
+    // a run whose cases fell back to their labels' questions as what they were asked
+    questionsHash: input.questions ? hashQuestions(questions) : askedHash(pointQuestionsHash(input.point) ?? hashQuestions(questions), fallbackHashes, askedQuestions.filter((q) => q !== undefined).length),
     cases: cases.length,
+    fallbackCases: fallbackHashes.length,
     unavailable: unavailableCount,
     score: scoreEvidence(scored),
     confusion: { ...confusion, recall: rate(confusion.actedRight, confusion.actedRight + confusion.heldWrong) },
@@ -350,6 +372,7 @@ export function replayRecord(run: ReplayRun, meta: { id?: string; at: Date; note
     questions: run.questions,
     questionsHash: run.questionsHash,
     cases: run.cases,
+    fallbackCases: run.fallbackCases,
     unavailable: run.unavailable,
     score: run.score,
     confusion: run.confusion,
@@ -485,7 +508,7 @@ export class ReplayRunner {
       },
     });
     const first = labels[0];
-    const hash = request.questions ? hashQuestions(request.questions) : (pointQuestionsHash(request.point) ?? hashQuestions(first ? currentQuestions(def, first) : []));
+    const hash = request.questions ? hashQuestions(request.questions) : (pointQuestionsHash(request.point) ?? hashQuestions(first ? currentQuestions(def, first).questions : []));
     started
       .then((run) => {
         if (run.aborted) throw new Error('the replay was stopped before it finished, so nothing was stored');
