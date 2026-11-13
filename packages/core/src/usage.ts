@@ -16,32 +16,53 @@ export function addTokenUsage(into: TokenUsage, more: TokenUsage): void {
 }
 
 /**
- * The tokens one turn used: the growth of the CLI's per-model counts since the previous `result` of
- * the same process. The CLI reports `modelUsage` cumulative over its process (as it does
- * `total_cost_usd`), so a long-lived or resumed chat would over-report every turn after its first
- * if the figure were read as the turn's own. A model whose count went down (a counter that started
- * again) counts from zero. Null when the result carried no counts at all: nothing is estimated.
+ * What a cumulative figure grew by since `then`. One that came back lower started again from zero
+ * (a session the CLI could not restore the totals of), so all of it is new.
+ */
+export function grownSince(then: number | undefined, now: number | undefined): number {
+  const n = num(now);
+  const t = num(then);
+  return n >= t ? n - t : n;
+}
+
+/**
+ * The tokens one turn used: the growth of the CLI's per-model counts since the session's previous
+ * `result`. The CLI reports `modelUsage` cumulative over the session, as it does `total_cost_usd`,
+ * and across processes: `--resume` restores both and a fork starts from its parent's (spike S1 of
+ * docs/plans/decision-engine-v2.md), so `previous` is the session's last report, whichever process
+ * made it. A model whose count went down counts from zero. Null when the result carried no counts
+ * at all: nothing is estimated.
  */
 export function turnTokens(previous: readonly ModelUsage[], current: readonly ModelUsage[]): TokenUsage | null {
   if (current.length === 0) return null;
   const before = new Map(previous.map((m) => [m.model, m]));
-  const grown = (now: number | undefined, then: number | undefined): number => {
-    const n = num(now);
-    const t = num(then);
-    return n >= t ? n - t : n;
-  };
   const turn = emptyTokenUsage();
   for (const m of current) {
     const p = before.get(m.model);
     addTokenUsage(turn, {
-      input: grown(m.inputTokens, p?.inputTokens),
-      output: grown(m.outputTokens, p?.outputTokens),
-      cacheRead: grown(m.cacheReadInputTokens, p?.cacheReadInputTokens),
-      cacheCreation: grown(m.cacheCreationInputTokens, p?.cacheCreationInputTokens),
+      input: grownSince(p?.inputTokens, m.inputTokens),
+      output: grownSince(p?.outputTokens, m.outputTokens),
+      cacheRead: grownSince(p?.cacheReadInputTokens, m.cacheReadInputTokens),
+      cacheCreation: grownSince(p?.cacheCreationInputTokens, m.cacheCreationInputTokens),
       total: 0,
     });
   }
   return turn;
+}
+
+/**
+ * What one turn cost per model: the growth of each model's reported `costUSD` since the session's
+ * previous result, on the same terms as {@link turnTokens}. A model the result reports no cost for
+ * is left out.
+ */
+export function turnModelCosts(previous: readonly ModelUsage[], current: readonly ModelUsage[]): Record<string, number> {
+  const before = new Map(previous.map((m) => [m.model, m.costUsd]));
+  const out: Record<string, number> = {};
+  for (const { model, costUsd } of current) {
+    if (costUsd === undefined || !Number.isFinite(costUsd)) continue;
+    out[model] = grownSince(before.get(model), costUsd);
+  }
+  return out;
 }
 
 /** What the last response of the main conversation read, and the model that answered it. */

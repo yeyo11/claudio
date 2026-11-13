@@ -5,7 +5,7 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
 import { worktreesChanged } from './git.ts';
-import { turnTokens } from './usage.ts';
+import { grownSince, turnModelCosts, turnTokens } from './usage.ts';
 import { foregroundCall, now, runsInBackground, type ChatHost, type ContextSignal, type LiveChat } from './live-chat.ts';
 import type { DriverEvent, SessionInit } from './providers/driver.ts';
 
@@ -318,30 +318,28 @@ function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
 }
 
 function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, { kind: 'result' }>): void {
-  // What this turn alone used: the process reports both figures cumulative, so each is the growth
-  // since its previous result. Both baselines move here, whether or not an execution is open: one
-  // that moved only with an execution would bill the next turn for this one, and the tokens beside it
-  // would then disagree with its cost
+  // What this turn alone used and cost. The agent reports both figures cumulative over the session,
+  // across its processes (a resume restores them, a fork starts from its parent's), so each is the
+  // growth since the session's previous report, which the chat keeps across spawns and restarts. A
+  // total that came back lower started again and counts whole. The baselines move here, whether or
+  // not an execution is open: one that moved only with an execution would bill the next turn for
+  // this one, and the tokens beside it would then disagree with its cost
   const reportedCost = event.costUsd !== undefined && Number.isFinite(event.costUsd) ? event.costUsd : null;
-  const costDelta = reportedCost !== null ? reportedCost - chat.lastReportedCostUsd : null;
-  chat.lastTurn = {
-    tokens: turnTokens(chat.lastReportedModelUsage, event.modelUsage),
-    costUsd: costDelta !== null ? Math.max(0, costDelta) : null,
-  };
+  const turnCost = reportedCost !== null ? grownSince(chat.lastReportedCostUsd, reportedCost) : null;
+  const modelCosts = turnModelCosts(chat.lastReportedModelUsage, event.modelUsage);
+  chat.lastTurn = { tokens: turnTokens(chat.lastReportedModelUsage, event.modelUsage), costUsd: turnCost };
   if (event.modelUsage.length > 0) chat.lastReportedModelUsage = event.modelUsage;
-  if (reportedCost !== null) chat.lastReportedCostUsd = Math.max(chat.lastReportedCostUsd, reportedCost);
+  if (reportedCost !== null) chat.lastReportedCostUsd = reportedCost;
   chat.results++;
   const execution = chat.execution;
   if (execution) {
     execution.turns += event.turns;
-    // The agent's total is over its process, so per execution it only ever grows
-    if (event.costUsd !== undefined) execution.costUsd = Math.max(execution.costUsd ?? 0, event.costUsd);
-    // The spend of this result is the increase over the process's last report, not the execution's
-    // max(): a process restarted inside one execution begins its total again from zero
-    if (costDelta !== null) {
-      if (costDelta > 0) host.recordSpend(chat, execution, costDelta);
+    // An execution's cost is what its own turns cost, so a chat's executions add up to the session
+    if (turnCost !== null) {
+      execution.costUsd = (execution.costUsd ?? 0) + turnCost;
+      if (turnCost > 0) host.recordSpend(chat, execution, turnCost);
     } else if (event.costUsd === undefined) host.recordSpend(chat, execution, null);
-    host.learnModelCosts(execution, event.modelUsage);
+    host.learnModelCosts(execution, modelCosts);
   }
   host.learnWindows(event.modelUsage);
   if (event.authFailed) {

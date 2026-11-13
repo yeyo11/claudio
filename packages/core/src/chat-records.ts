@@ -1,5 +1,6 @@
 import type { ApiChatPolicy, ClaudioAssistantMarker, ChatFork, ChatOrigin, ChatPendingMessage, ChatToolConfig, Execution, PermissionMode } from '@claudio/shared';
 import { executionOutcome, INTERRUPTED_BY_RESTART } from './chat-model.ts';
+import type { SessionTotals } from './session-totals.ts';
 import { emptyTokenUsage } from './usage.ts';
 
 /** The provider of every chat written before chats carried one: each was a Claude Code session. */
@@ -56,6 +57,13 @@ export interface ChatRecord {
    * them, and says so. A row written before the source was recorded has none: it was a person's.
    */
   pending?: Array<Omit<ChatPendingMessage, 'source'> & Partial<Pick<ChatPendingMessage, 'source'>>>;
+  /**
+   * The totals the session last reported, which are cumulative over the session and survive its
+   * process: the next result, in whichever process and after whichever restart, is billed only its
+   * growth over them (`session-totals.ts`). Absent before a result reported any, and on a record
+   * written before they were kept, whose executions say what they were (`legacyTotals`).
+   */
+  reported?: SessionTotals;
   createdAt: string;
   updatedAt: string;
 }

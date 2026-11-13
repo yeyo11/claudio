@@ -14,6 +14,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -125,7 +126,31 @@ let permissionMode = flag('--permission-mode') ?? 'default';
 const modelName = (m) => (m.includes('-') ? m : `claude-${m}-5`);
 let model = modelName(flag('--model') ?? 'sonnet');
 let turns = 0;
-let costUsd = 0;
+/**
+ * The session's total, which every result reports: cumulative over the session, as Claude Code's is
+ * (spike S1 of docs/plans/decision-engine-v2.md). A resume goes on from the session's last total and
+ * a fork starts from its parent's; the CLI keeps it in the transcript, the fake in a file per session
+ * under the account's config dir.
+ */
+const totalsFile = (session) => join(env.CLAUDE_CONFIG_DIR || tmpdir(), 'fake-cli-totals', `${session}.json`);
+function storedTotal(session) {
+  try {
+    return session ? Number(JSON.parse(readFileSync(totalsFile(session), 'utf8')).costUsd) || 0 : null;
+  } catch {
+    return null;
+  }
+}
+let costUsd = storedTotal(sessionId) ?? storedTotal(argv.includes('--fork-session') ? flag('--resume') : null) ?? 0;
+function keepTotal() {
+  // Nothing to carry while turns cost nothing, which is the default: no file is left behind
+  if (!(costUsd > 0)) return;
+  try {
+    mkdirSync(dirname(totalsFile(sessionId)), { recursive: true });
+    writeFileSync(totalsFile(sessionId), JSON.stringify({ costUsd }));
+  } catch {
+    // a total that cannot be kept only makes the next process of the session count from zero
+  }
+}
 
 /**
  * What the context holds, as the assistant lines' usage report it. A spec that wants a meter worth
@@ -1086,6 +1111,7 @@ function endTurn({ result = '', error = false, structured = undefined }) {
   turn = null;
   turns++;
   costUsd += TURN_COST_USD;
+  keepTotal();
   emit({
     type: 'result',
     subtype: error ? 'error_during_execution' : 'success',
