@@ -3,17 +3,7 @@
 // Supervisor does, Active works on the CLI for this point only, and the deprecated
 // `/settings/supervisor` routes read and write the point. A proposal only exists once a live worker
 // turns bad and a model answers, so Send, Edit and Dismiss on the health card are covered by the unit
-// tests of core and the API, not here: this spec never starts a model on a worker. It does ask the
-// CLI (the fake one) in a replay, because Active is gated: the Supervisor is an act point, so it
-// takes the active mode only once its standing is proven (docs/plans/decision-engine-v2.md §5), and
-// a person earns that with a replay over labelled states, which is what the spec does before it
-// clicks Active.
-import { earnStanding, forgetProof } from './decision-proof.mjs';
-
-// The replay asks the CLI once per labelled case; the fake CLI answers it, a real one would spend tokens
-export const fakeCli = true;
-export const timeout = 300_000;
-
+// tests of core and the API, not here: this spec never starts a model.
 const POINT = 'supervisor.intervene';
 const ROW = `[data-point="${POINT}"]`;
 
@@ -89,6 +79,5 @@ export default async ({ page, api, check }) => {
     check(refused.status === 400, `the server refuses an enabled that is not a boolean (${refused.status})`);
   } finally {
     await reset(api, before.points?.[POINT]?.mode ?? 'off').catch(() => {});
-    await forgetProof({ api }, POINT).catch(() => {});
   }
 };
