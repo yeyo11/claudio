@@ -15,6 +15,7 @@ import { useClockTick, useMotionLevel } from '@claudio/ui/lib/motion';
 import type { ProgressStatus } from '@claudio/ui/lib/progress';
 import { branchCounts, branchElapsed, liveBranches, newestBranch, nextExpiry, type Branch, type BranchChat, type BranchCounts } from '../lib/chat-branches';
 import { scopedKey } from '@claudio/ui/lib/server-scope';
+import { useOptionalChatUi } from '../lib/context';
 
 /** Where the strip's fold is remembered: `'open' | 'closed'`, closed when nothing is stored. */
 export const BRANCHES_STORAGE_KEY = 'claudio-chat-branches';
@@ -299,6 +300,24 @@ function Strip({ chat, branches, onOpen }: { chat: BranchChat; branches: Branch[
 const SEGMENT: Record<Branch['segments'][number], ProgressStatus> = { completed: 'done', running: 'running', failed: 'failed', stopped: 'skipped' };
 
 /**
+ * The separator between the facts of a card, drawn but not read out. Between the parts of the line
+ * it is spaced by its margin; inside a part (`inline`) the text carries its spaces, so the part can
+ * wrap at it on a narrow card.
+ */
+function Dot({ inline = false }: { inline?: boolean }) {
+  return (
+    <span className={inline ? 'chat-launch-sep' : 'chat-launch-dot'} aria-hidden>
+      {inline ? ' · ' : '·'}
+    </span>
+  );
+}
+
+/** The facts joined by dots. */
+function joinWith(parts: ReactNode[]): ReactNode {
+  return parts.flatMap((part, i) => (i === 0 ? [part] : [<Dot key={`dot${i}`} inline />, part]));
+}
+
+/**
  * A branch a step started, as the card the conversation keeps where the delegation happened: what
  * it is, how it stands (the spinner and the live rail while it runs, its final word and length once
  * it has ended), and a way to its panel. Never a gradient: the rail says it runs.
@@ -311,6 +330,15 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
   const mark =
     branch.kind === 'agent' ? <Bot {...ICON_SM} /> : branch.kind === 'task' ? <Terminal {...ICON_SM} /> : branch.description.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase();
   const lead = branch.kind === 'agent' ? branch.label : branch.kind === 'task' ? (branch.command ?? branch.label) : null;
+  const slots = useOptionalChatUi()?.slots;
+  const ModelName = slots?.ModelName;
+  const EffortName = slots?.EffortName;
+  // Only what the stream or the launch said: a card never guesses what an agent inherited
+  const identity: ReactNode[] = [
+    ...(lead !== null ? [lead] : []),
+    ...(branch.kind === 'agent' && branch.model ? [ModelName ? <ModelName key="model" model={branch.model} /> : <span key="model" className="mono">{branch.model}</span>] : []),
+    ...(branch.kind === 'agent' && branch.effort ? [EffortName ? <EffortName key="effort" effort={branch.effort} /> : <span key="effort">{branch.effort}</span>] : []),
+  ];
   const StateIcon = branch.status === 'running' ? null : STATE_ICON[branch.status];
   return (
     <div className={`chat-launch is-${branch.kind} ${running ? 'live-rail is-running' : ''}`.trimEnd()}>
@@ -324,21 +352,35 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
             {StateIcon ? <StateIcon {...ICON_SM} className={`chat-branch-icon is-${branch.status}`} /> : <Spinner />}
             <span className={`chat-launch-status is-${branch.status}`}>{t(`branches.state.${branch.status}`)}</span>
             <span className="chat-launch-facts">
-              {lead !== null && `${lead} · `}
-              {branch.kind === 'workflow' && branch.progress && branch.progress.total > 0 && (
+              {/* The type, the model and the effort say what the agent is and stay whole as long as they can; what it is doing gives way first, and the clock never */}
+              {identity.length > 0 && (
                 <>
-                  <WorkflowFacts branch={branch} />
-                  {' · '}
+                  <span className="chat-launch-ident">{joinWith(identity)}</span>
+                  <Dot />
                 </>
               )}
-              {line && (
-                <>
-                  <span className="verb">{line.verb}</span>
-                  {line.target ? ` ${line.target}` : ''}
-                  {' · '}
-                </>
-              )}
-              <BranchClock branch={branch} words />
+              <span className="chat-launch-tail">
+                {branch.kind === 'workflow' && branch.progress && branch.progress.total > 0 && (
+                  <>
+                    <span className="chat-launch-act">
+                      <WorkflowFacts branch={branch} />
+                    </span>
+                    <Dot />
+                  </>
+                )}
+                {line && (
+                  <>
+                    <span className="chat-launch-act">
+                      <span className="verb">{line.verb}</span>
+                      {line.target ? ` ${line.target}` : ''}
+                    </span>
+                    <Dot />
+                  </>
+                )}
+                <span className="chat-launch-clock">
+                  <BranchClock branch={branch} words />
+                </span>
+              </span>
             </span>
           </span>
         </span>

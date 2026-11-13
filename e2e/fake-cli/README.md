@@ -110,7 +110,8 @@ inside the orchestrator's own words, hence "contains"). The text is read line by
   `--allowedTools` is denied (`Permission to use <name> was denied`). One server per call, closed after it.
   It is how a spec drives Claudio's own MCP tools from a chat (`e2e/fake-cli/mcp.test.mjs`).
 - `agent: <description> | <sidechain script>` — one subagent: an `Agent` call (`input: { description,
-  subagent_type: "Explore", prompt: "Look around" }`), a `system` `task_started` (`task_type:
+  subagent_type: "Explore", prompt: "Look around" }`, plus `model` and `effort` when the description
+  starts with `model=<m>` and `effort=<e>`, as a call that names them), a `system` `task_started` (`task_type:
   "local_agent"`, `task_id` the agent id, `tool_use_id` the call's, `is_backgrounded: false`), then its
   sidechain: each `;`-separated step (`read: <path>` or `run: <command>`, played as the main ones) is an
   `assistant` call and a `user` result with `parent_tool_use_id` the `Agent` call's id and

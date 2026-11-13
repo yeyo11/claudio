@@ -755,7 +755,10 @@ export interface AgentTranscript {
   /** Every stretch it worked, oldest first; empty for a workflow agent */
   runs: ChatBranchRun[];
   lastActivityAt: string | null;
+  /** The model its own messages ran on; until it has written one, the model its launch asked for; null when neither says */
   model: string | null;
+  /** The effort its launch named; null when it named none (the CLI reports none of its own) */
+  effort?: string | null;
   usage: TokenUsage;
   toolCalls: number;
   cwd: string | null;
@@ -1527,6 +1530,14 @@ export interface ChatSubagent {
   lastActivityAt: string | null;
   /** Where it works, when that is not the chat's directory (a worktree) */
   cwd: string | null;
+  /**
+   * The model it runs on: the one its own messages report, else the one its launching call asked
+   * for (an alias such as `opus`, or an id); null when neither says, never a guess at what it
+   * inherited. Absent from a server that predates it.
+   */
+  model?: string | null;
+  /** The effort its launching call named; null when it named none. The CLI reports none of its own. */
+  effort?: string | null;
   tasks: ChatBackgroundTask[];
   /** What it is doing right now, from its latest calls; null while it has no open call or has ended */
   activity: ChatActivity | null;

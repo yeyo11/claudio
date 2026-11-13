@@ -387,3 +387,13 @@ export function entryText(entry: TranscriptEntry): string {
 export function isModelName(model: string | null | undefined): model is string {
   return typeof model === 'string' && model !== '' && !model.startsWith('<');
 }
+
+/**
+ * What an `Agent`/`Task` call's input names for the agent it launches: the model (an alias such as
+ * `opus`, or an id) and the effort. `inherit` and an empty string mean the call chose nothing, so
+ * they read as absent: the card shows only what was asked, never a guess at what was inherited.
+ */
+export function agentLaunch(input: Record<string, unknown>): { requestedModel: string | null; effort: string | null } {
+  const word = (value: unknown): string | null => (typeof value === 'string' && value.trim() !== '' && value.trim() !== 'inherit' ? value.trim() : null);
+  return { requestedModel: word(input.model), effort: word(input.effort) };
+}

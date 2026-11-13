@@ -6,6 +6,7 @@ import { contextLevel, contextShare, formatPercent, formatTokens, lastEnded } fr
 import { formatNumber } from '@claudio/ui/lib/format';
 import '../chats.css';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
+import { FullText } from '@claudio/ui/components/FullText';
 import { usageTone } from '@claudio/ui/components/motion';
 import { statusText } from '@claudio/ui/components/ui';
 import { ProviderMark } from '@claudio/ui/components/ProviderMark';
@@ -103,7 +104,9 @@ export function OriginBadge({ origin, label }: { origin: ChatOrigin; label?: str
   return (
     <Tooltip content={t(`badges.originHint.${origin}`, { agent })} describe>
       <span className="badge badge-muted" tabIndex={0}>
-        <Icon size={11} strokeWidth={2} aria-hidden /> {label ?? t(`badges.origin.${origin}`)}
+        <Icon size={11} strokeWidth={2} aria-hidden />{' '}
+        {/* An orchestration's name and task can be as long as the person wrote them: the label gives way to the column, with its whole text as a title */}
+        <FullText className="badge-text">{label ?? t(`badges.origin.${origin}`)}</FullText>
       </span>
     </Tooltip>
   );

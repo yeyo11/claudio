@@ -2,7 +2,7 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ChatBackgroundTask, ChatChildren, ChatDetail, ChatSubagent, ChatSubagentEntry, SubagentActivityEvent, TranscriptEntry } from '@claudio/shared';
 import * as React from 'react';
 import type { ReactNode } from 'react';
@@ -15,6 +15,7 @@ import { transcriptRows } from '@claudio/chat-ui/lib/chat-steps';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { keys } from '../src/api';
+import { EffortName, ModelName } from '../src/components/AgentFacts';
 import { patchSubagentActivity } from '../src/lib/events';
 import { setLanguage } from '../src/i18n';
 
@@ -135,7 +136,52 @@ test('a card under the step: live rail while it runs, never a gradient', () => {
   const record = render(<BranchCard branch={done!} />);
   assert.match(record, /class="chat-launch is-task"/);
   assert.match(record, /chat-launch-status is-completed">Done</);
-  assert.match(record, /chat-launch-facts">pnpm test · 1m 10s</);
+  assert.match(record, /chat-launch-facts"><span class="chat-launch-ident">pnpm test<\/span><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-tail"><span class="chat-launch-clock">1m 10s<\/span><\/span><\/span>/);
+});
+
+/** The card with the app's own slots, over an overview that lists models the way the CLI names them */
+function agentCard(over: Partial<ChatSubagent>, lang: 'en' | 'es' = 'en'): string {
+  const client = new QueryClient();
+  client.setQueryData(keys.overview, { system: { models: [{ value: 'opus', label: 'Opus 5', resolvedModel: 'claude-opus-5-5' }, { value: 'sonnet', label: 'Sonnet 5', ids: ['claude-sonnet-5-5'] }] } });
+  const [branch] = liveBranches(held(children({ subagents: [sub({ kind: 'general-purpose', ...over })] })), Date.now());
+  setLanguage(lang);
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <ChatUiProvider value={{ ...config, slots: { ModelName, EffortName } as unknown as ChatUiConfig['slots'] }}>
+          <TooltipProvider>
+            <BranchCard branch={branch!} />
+          </TooltipProvider>
+        </ChatUiProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const identity = (html: string) => /<span class="chat-launch-ident">(.*?)<\/span><span class="chat-launch-dot"/.exec(html)?.[1] ?? '';
+
+test("a subagent's card names its model and effort after its type, in the app's own words", () => {
+  const en = agentCard({ model: 'claude-opus-5-5', effort: 'high' });
+  assert.equal(identity(en).replace(/<[^>]+>/g, ''), 'general-purpose · Opus 5 · Effort: High');
+  assert.match(en, /<span class="sr-only">Effort: <\/span>High/);
+  // The same words in Spanish, from the app's effort levels
+  assert.equal(identity(agentCard({ model: 'sonnet', effort: 'medium' }, 'es')).replace(/<[^>]+>/g, ''), 'general-purpose · Sonnet 5 · Effort: Medio');
+});
+
+test('a model the list does not name is drawn as the id it is, in mono', () => {
+  assert.match(identity(agentCard({ model: 'claude-haiku-9-9' })), /general-purpose<span class="chat-launch-sep" aria-hidden="true"> · <\/span><span class="mono">claude-haiku-9-9<\/span>/);
+});
+
+test('a card shows only the facts it has: no model, no effort, nothing in their place', () => {
+  assert.equal(identity(agentCard({ model: null, effort: null })), 'general-purpose');
+  assert.equal(identity(agentCard({})), 'general-purpose');
+  assert.equal(identity(agentCard({ model: 'opus', effort: null })).replace(/<[^>]+>/g, ''), 'general-purpose · Opus 5');
+});
+
+test('the facts line keeps the clock apart from what gives way when it is short of room', () => {
+  const html = agentCard({ model: 'opus', activity: reading });
+  assert.match(html, /<span class="chat-launch-act"><span class="verb">[^<]*<\/span> packages\/core\/src\/chats\.ts<\/span>/);
+  assert.match(html, /<span class="chat-launch-clock">[^<]+<\/span><\/span>/);
 });
 
 test("a step's calls lead to the branches they started", () => {

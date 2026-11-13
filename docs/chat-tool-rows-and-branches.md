@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T14:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-13T12:00:00Z
 tags:
     - chat
     - transcript
@@ -51,6 +51,27 @@ and leaves. On a phone the bar is 44 px and the list is a `Sheet` titled "En mar
 workflow card included. A card stays after its branch ended, with its final word and duration: it is
 the conversation's record. A subagent that is running reads its own activity in the strip, the
 inspector's Branches card and the subagent panel's status line.
+
+**What a subagent's card says of the agent.** Its secondary line reads `type · model · effort`, then
+what it is doing and its clock. Only what the CLI reports for programs is shown, never a guess:
+
+| Fact | Where it comes from | When it is missing |
+| --- | --- | --- |
+| Model | the model on the subagent's own assistant messages (its sidechain in the stream, its first reply in its own transcript on disk); until it has written one, the `model` its launching `Agent`/`Task` call named (`ChatSubagent.model`) | an agent that inherited the choice and has not replied yet shows no model, because "inherit" is not a model |
+| Effort | the `effort` its launching call named (`ChatSubagent.effort`); the CLI reports none of its own for an agent | no word: an agent that was not given one runs on whatever the model's default is, which nothing reports |
+
+The model is named the way the app names models elsewhere: the CLI's own name from its model list
+("Sonnet"), matched on the alias, the id it resolves to or any id it was reported under (the
+`default` row is not a name); a model the list does not name is drawn as the id it is, in mono. The
+effort is the word of the effort picker ("Medium", "Medio"), with "Effort" read out before it. The
+subagent's panel lists both in its facts. A workflow's own card shows neither: its agents report a
+model in their progress, which its panel shows, and no effort.
+
+On a card wide enough, the line is one line and what gives way first is the target of what the agent
+is doing, then the end of the identity; the clock never does. A card narrower than 30 rem (a
+container query on the card, so the open side panel counts) makes it two lines: the identity first
+(allowed to wrap rather than lose the model or the effort), then the activity and the clock, whose
+target is the part cut by an ellipsis.
 
 ## The lenses
 

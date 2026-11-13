@@ -2922,10 +2922,72 @@ a.attachment-chip:hover {
 }
 
 .chat-launch-facts {
+  /* One line of parts: the type, model and effort; then what it is doing and the clock. Each part
+     is its own flex item so that a long target is cut before the model is, and the clock never */
+  display: flex;
   min-width: 0;
   color: var(--fg-3);
   font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
+}
+
+.chat-launch-ident,
+.chat-launch-act {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-launch-ident {
+  flex: 0 1 auto;
+}
+
+.chat-launch-tail {
+  display: flex;
+  flex: 0 100 auto;
+  min-width: 0;
+}
+
+.chat-launch-act {
+  flex: 0 1 auto;
+}
+
+.chat-launch-dot,
+.chat-launch-clock {
+  flex: none;
+  white-space: nowrap;
+}
+
+.chat-launch-dot {
+  margin-inline: 0.4em;
+}
+
+/* A card is its own container: what it can say depends on its width, not on the window's */
+.chat-launch {
+  container-type: inline-size;
+}
+
+/* On a narrow card the line is two: what the agent is (type, model, effort, which may wrap rather
+   than lose the model or the effort), then what it is doing with the clock, whose target is cut */
+@container (max-width: 30rem) {
+  .chat-launch-facts {
+    flex-wrap: wrap;
+  }
+
+  .chat-launch-ident {
+    flex-basis: 100%;
+    overflow: visible;
+    white-space: normal;
+  }
+
+  .chat-launch-facts > .chat-launch-dot {
+    display: none;
+  }
+
+  .chat-launch-tail {
+    flex: 1 1 100%;
+  }
 }
 
 @media (max-width: 900px) {

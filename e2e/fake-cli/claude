@@ -963,7 +963,15 @@ function messageAgent(own, text) {
 function startAgent(own, text) {
   const [head = '', ...rest] = text.split('|');
   const background = /^\s*background:\s*/.test(head);
-  const description = head.replace(/^\s*background:\s*/, '').trim();
+  // `model=<m>` and `effort=<e>` ahead of the description are what the call's input names for the agent
+  const named = {};
+  const description = head
+    .replace(/^\s*background:\s*/, '')
+    .replace(/\b(model|effort)=(\S+)\s*/g, (_, key, value) => {
+      named[key] = value;
+      return '';
+    })
+    .trim();
   const steps = rest
     .join('|')
     .split(';')
@@ -973,7 +981,7 @@ function startAgent(own, text) {
   const id = newToolId();
   // The CLI's agent ids are hex; the id names the agent's transcript and its task
   const agentId = `a${randomUUID().replaceAll('-', '').slice(0, 16)}`;
-  const input = { description, subagent_type: 'Explore', prompt: 'Look around' };
+  const input = { description, subagent_type: 'Explore', prompt: 'Look around', ...named };
   log('agent', { toolUseId: id, agentId, description, background });
   assistant([{ type: 'tool_use', id, name: 'Agent', input }]);
   const branch = openBranch(id, agentId, description, background);

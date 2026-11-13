@@ -30,7 +30,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     JSON.stringify({
       '@transcript': true,
       [KEY]: [
-        `agent: background: Explore the notes | read: ${READ}; hold: ${HOLDS.agent}`,
+        `agent: background: model=opus effort=high Explore the notes | read: ${READ}; hold: ${HOLDS.agent}`,
         `background: until [ -e ${HOLDS.task} ]; do sleep 0.1; done`,
         `hold: ${HOLDS.turn}`,
         'say: Both are under way.',
@@ -61,6 +61,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       name: c.querySelector('.chat-launch-name')?.textContent.trim() ?? '',
       status: c.querySelector('.chat-launch-status')?.textContent.trim() ?? '',
       open: !!c.querySelector('.chat-launch-open'),
+      ident: c.querySelector('.chat-launch-ident')?.textContent.trim() ?? '',
+      clock: c.querySelector('.chat-launch-clock')?.textContent.trim() ?? '',
     }))`);
 
   try {
@@ -110,6 +112,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(Boolean(taskCard) && taskCard.status === 'Working', `the command's card is running (${JSON.stringify(taskCard)})`);
     check(shown.every((c) => c.cls.includes('live-rail') && !c.cls.includes('grad-border')), 'a running card carries the live rail and no gradient');
     check(shown.every((c) => c.open), 'each card offers to open its branch');
+    // The type, then the model its own messages ran on (an id here: the sandbox lists no names), then the effort its call named
+    check(/^Explore\s*·\s*\S+\s*·\s*Effort: High$/.test(agentCard?.ident ?? ''), `the agent's card names its type, its model and its effort (${agentCard?.ident})`);
+    check(Boolean(agentCard?.clock), `the clock stays on the line beside them (${agentCard?.clock})`);
 
     // ---- both end: the rows say done, then leave, and the strip goes ----
     writeFileSync(join(work, HOLDS.turn), '');

@@ -76,6 +76,9 @@
             "endedAt": "<time>"
           }
         ],
+        "requestedModel": null,
+        "effort": null,
+        "model": "claude-opus-5",
         "agentId": "agent-1",
         "background": false
       }
