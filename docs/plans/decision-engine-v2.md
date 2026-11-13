@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T16:30:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-13T21:00:00Z
 tags:
     - plan
     - decisions
@@ -523,6 +523,56 @@ in the stats: not built.
   `run.continuation` with the three answers on Jev got 21 of 64 right (0.33, lower bound 0.26), under
   its 0.6: `failing`.
 
+### The review and its fixes
+
+An independent review of the integrated branch found six defects to fix before merging and several
+lesser ones. They were fixed in two branches, `de2/fix-core` (the engine and the Supervisor) and
+`de2/fix-edges` (the API, the web and the replay script), and merged into the feature branch. Each in
+one line:
+
+- **A "not stuck" draft closed its occurrence for good.** It is now drafted again on the same row after
+  a back-off (a running command's running time doubled since the answer, else an hour), at most four
+  drafts per occurrence, and the monitor wakes the Supervisor again every five minutes while a chat
+  stays `bad`; an occurrence the engine declined waits an hour too (`supervisor_proposals.asks`).
+- **A replay could keep a point proven that was failing live.** Live evidence now decides once it has
+  the gate's cases and a replay only bootstraps; `decidedBy` (`live` or `replay`) is served and shown on
+  the row.
+- **A failing point was demoted only if it carried a promotion mark.** `review()` now demotes any active
+  point whose standing is `failing`, marked or not; the rate rule still needs the mark.
+- **A replay counted for any provider.** It now counts only for the provider the point runs on and, for
+  Jev, the pinned model.
+- **Two resolvers graded what their own act caused.** `flow.bounce` and `notification.urgency` are
+  `proxy` when the row acted, and `direct` only on a shadow or held-out row.
+- **Any chat could rate a decision, which is a `direct` outcome for the gate.** `POST
+  /decisions/:id/feedback` is a person's: a chat's token gets `403`.
+- **A replay whose cases fell back to their labels' questions could still count.** Such a case is
+  counted in `fallbackCases`, the run is stored under the hash of what was actually asked and never
+  counts for the gate (`decision_replays.fallback_cases`).
+- **The Supervisor's point could be demoted**, which would turn off its hints: it is exempt, as it is
+  from the write gate.
+- **The holdout counted acts of an earlier time in Active:** it counts since the promotion mark.
+- **`health.semantic-loop` asked again on every call** while the same three calls sat in the window: it
+  hashes the repeated group and its count bucket, and the chat remembers every repetition it has put.
+- **The command clock hid a command for good** behind an earlier call whose result was lost or that
+  ran for hours: a serial call that answered after it releases it, and a hold ends after two hours.
+- **No point said that no outcome could prove it.** `evidencePossible` is served and the row says so
+  (D6); and the replay script runs confined like the engine's chat, with no Claudio address or token.
+- **The web.** The gate reads the saved mode (a point saved as Active keeps Active available), a bulk
+  Active plans only proven points, a note says how many points run as Shadow for now, and a project's
+  refusal says when a point would inherit a global Active.
+
+What the review listed and was **not** fixed stays open:
+
+- Forks billed before the upgrade stay overbilled, and the cost stored in an orchestration's and a
+  task's own record is not recomputed.
+- A session that starts anew but reports more than the old baseline.
+- The first turn's tokens after the upgrade, for older chats.
+- Standing is recomputed more often than needed.
+- Thresholds and floors are not read from calibration, and a flat calibration does not block promotion.
+- Labels that come from a person's feedback alone.
+- No demotion case in the browser spec.
+- Older unresolved rows of the Supervisor's point may find no proposal after a redraft.
+
 ### Open
 
 - **The feedback surfaces of §7** (a tap on a continuation's row and on a task row, on the
@@ -548,8 +598,7 @@ in the stats: not built.
   `turn.commits` is approximate.
 - **Baselines.** Twelve points pass none ([decision-engine.md](../decision-engine.md#other-points-the-second-plan-changed)),
   so their rows have no comparison.
-- **No evidence possible (§5, D6)** is not listed, calibration does not set a threshold, and the
-  tokens of caused runs are not summed.
+- **Calibration does not set a threshold**, and the tokens of caused runs are not summed.
 - **The e2e specs have not run.** Risks: about 40 fake-CLI chats per replay against the run slots and
   a 60 s deadline, and `e2e/timings.json` was not updated for the new specs.
 - **`claudeRunsSaved`** is a deprecated alias of `runsSaved`, kept for one release.

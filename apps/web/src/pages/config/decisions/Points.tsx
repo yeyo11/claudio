@@ -273,13 +273,17 @@ export function PointRow({
   const showFloor = provider === 'jev' && info.kind === 'suggest' && !off;
   const unproven = !blocked && gateBlocked(info, point.mode, settings.points[info.id]?.mode ?? 'off');
   const missing = gateMissing(t, info.gate, bestReading(info.live, info.replay));
+  // No outcome the app observes is ever direct for this point: asking for more cases would ask for what can never arrive
+  const noEvidence = !info.evidencePossible;
   // What the row says about why a point that is on does not do what its mode names. No consent has its own words in the consent part, and a demotion its own line below
   const limit = info.effective.limitedBy;
   const limitReason =
     !supervisor && !off && point.mode === info.effective.mode && limit !== null && limit !== 'no-consent' && limit !== 'demoted'
       ? limit === 'cli'
         ? t('limited.cli')
-        : t(limit === 'failing' ? 'limited.failing' : 'limited.unproven', { missing })
+        : noEvidence
+          ? t('gate.noEvidence')
+          : t(limit === 'failing' ? 'limited.failing' : 'limited.unproven', { missing })
       : null;
 
   return (
@@ -298,12 +302,13 @@ export function PointRow({
             label: t(`points.modes.${mode}`),
             // The CLI's reason first: Jev fixes it, and only then does the proof matter
             ...(mode === 'active' && blocked ? { disabled: true, title: t('points.activeNeedsJev') } : {}),
-            ...(mode === 'active' && unproven ? { disabled: true, title: t('gate.activeNeeds', { missing }) } : {}),
+            ...(mode === 'active' && unproven ? { disabled: true, title: noEvidence ? t('gate.noEvidence') : t('gate.activeNeeds', { missing }) } : {}),
           }))}
         />
       </div>
       <p className="dp-evidence">
         <Tag tone={info.standing === 'proven' ? 'ok' : info.standing === 'failing' ? 'warn' : 'muted'}>{t(`standing.${info.standing}`)}</Tag>
+        {info.decidedBy && info.standing !== 'unproven' && <span>{t(`standing.decidedBy.${info.decidedBy}`)}</span>}
         <EvidenceLine id={info.id} kind={info.kind} stats={stats} />
         <Overridden id={anchor} bare />
         {!off && <ConsentPart info={info} settings={settings} mode={point.mode} provider={provider} {...(onWithdraw ? { onWithdraw } : {})} {...(onReviewConsent ? { onReviewConsent } : {})} />}

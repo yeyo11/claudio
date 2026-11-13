@@ -341,6 +341,10 @@
     "unproven": "Sin demostrar",
     "proven": "Demostrado",
     "failing": "Fallando",
+    "decidedBy": {
+      "live": "según su historial",
+      "replay": "según una repetición"
+    },
     "heldTitle_one": "{{formatted}} punto funciona en Sombra por ahora",
     "heldTitle_other": "{{formatted}} puntos funcionan en Sombra por ahora",
     "heldBody_one": "Estaba Activo antes de que los puntos tuvieran que ganárselo. Sigue Activo en tus ajustes y empezará a actuar cuando su propia evidencia supere la barrera; su fila dice qué le falta.",
@@ -360,7 +364,8 @@
     "baseline": "mejores resultados que la regla de siempre",
     "precision": "una precisión de al menos {{value}}",
     "flagRate": "avisar como mucho en {{value}} de las respuestas",
-    "activeNeeds": "Activo se gana: aún necesita {{missing}}."
+    "activeNeeds": "Activo se gana: aún necesita {{missing}}.",
+    "noEvidence": "Ningún resultado que Claudio pueda observar demuestra este punto; solo tu propio útil o no útil."
   },
   "refusal": {
     "title_one": "No se ha guardado: {{count}} punto aún no puede estar Activo",
