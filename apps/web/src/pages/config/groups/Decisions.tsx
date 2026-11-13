@@ -101,16 +101,18 @@ function DecisionsForm({ saved, catalogue }: { saved: DecisionSettings; catalogu
     });
     // A point kept at shadow counts once, as kept: it is neither "set" to the asked mode nor merely "already there"
     const kept = new Set(plan.capped);
+    const left = new Set(plan.unproven);
     setBulkNote({
       mode,
       set: plan.changes.filter((change) => change.mode === mode).length,
-      unchanged: plan.unchanged.filter((id) => !kept.has(id)).length,
+      unchanged: plan.unchanged.filter((id) => !kept.has(id) && !left.has(id)).length,
+      unproven: left.size,
       kept: kept.size,
       keptMode: 'shadow',
     });
   };
   const onBulk = (ids: readonly DecisionPointId[], mode: DecisionMode) => {
-    const plan = planBulk(catalogue, ids, mode, (id) => draft.points[id]?.mode ?? 'off', (id) => saved.points[id]?.consent ?? null, draft.provider);
+    const plan = planBulk(catalogue, ids, mode, (id) => draft.points[id]?.mode ?? 'off', (id) => saved.points[id]?.consent ?? null, draft.provider, (id) => saved.points[id]?.mode ?? 'off');
     if (plan.needConsent.length > 0) setBulkAsking({ plan, mode });
     else applyPlan(plan, mode);
   };

@@ -237,6 +237,9 @@ test('Active is not offered to a point that has not earned it, with the reason, 
   assert.doesNotMatch(row(info(), active, 'jev', null), disabledActive);
   assert.equal(gateBlocked(info(), 'shadow'), true);
   assert.equal(gateBlocked(info(), 'active'), false);
+  // Saved as active: the form moving it to Shadow does not close the way back, the server judges a step up from what is saved
+  assert.equal(gateBlocked(info(), 'shadow', 'active'), false);
+  assert.equal(gateBlocked(info(), 'shadow', 'shadow'), true);
 });
 
 test('the reason Active is out of reach names what is missing, from the gate in force', () => {

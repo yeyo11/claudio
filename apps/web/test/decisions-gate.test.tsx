@@ -33,7 +33,7 @@ const refusal = (code: string, points: DecisionActivationIssue[]) => {
   error.refused = points;
   return error;
 };
-const render = (error: unknown) => renderToStaticMarkup(<SaveError error={error} />);
+const render = (error: unknown, inheritedActive?: ReadonlySet<DecisionActivationIssue['point']>) => renderToStaticMarkup(<SaveError error={error} {...(inheritedActive ? { inheritedActive } : {})} />);
 const plain = (text: string) => text.replace(/\s/g, ' ');
 
 test.beforeEach(async () => {
@@ -45,7 +45,7 @@ test('a refused save names each point and what it lacks, and says the changes ar
   const out = plain(render(refusal('decision-unproven', [issue('flow.bounce', ['cases']), issue('team.assign', ['break-even', 'baseline'])])));
   assert.match(out, /Not saved: 2 points cannot be Active yet/);
   assert.match(out, /data-point="flow\.bounce"[^>]*>[^<]*needs 18 more cases with a known outcome\./);
-  assert.match(out, /data-point="team\.assign"[^>]*>[^<]*needs a precision above 50% and better results than today's rule\./);
+  assert.match(out, /data-point="team\.assign"[^>]*>[^<]*needs a precision above 50% and better results than today(?:'|&#x27;)s rule\./);
   assert.match(out, /Your changes are still here\./);
   assert.match(out, /alert-warn/);
 });
@@ -55,6 +55,12 @@ test('a bulk refusal says to activate one point at a time, and still names the p
   assert.match(out, /Not saved: activate one point at a time/);
   assert.match(out, /Set one to Active, save, and then the next\./);
   assert.match(out, /data-point="team\.assign"/);
+});
+
+test("dropping a project's override on a point Active globally says it would become Active in this project", () => {
+  const out = plain(render(refusal('decision-unproven', [issue('flow.bounce', ['cases']), issue('team.assign', ['cases'])]), new Set(['flow.bounce'])));
+  assert.match(out, /data-point="flow\.bounce"[^>]*>[^<]*is Active in your global settings\. Without its Shadow override here it would become Active in this project, and it is not proven yet: it needs 18 more cases/);
+  assert.match(out, /data-point="team\.assign"[^>]*>[^<]*needs 18 more cases with a known outcome\./);
 });
 
 test('the refusal speaks Spanish for a Spanish reader', async () => {

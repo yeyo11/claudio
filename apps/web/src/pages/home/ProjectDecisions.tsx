@@ -103,7 +103,7 @@ export function ProjectDecisions({ project }: { project: Project }) {
     const info = byId.get(id);
     return (
       info && (
-        <OverrideRow key={id} info={info} override={draft.points[id]} provider={provider} onChange={(patch) => setPoint(id, patch)} onReset={() => reset(id)} />
+        <OverrideRow key={id} info={info} override={draft.points[id]} savedMode={saved.points[id]?.mode ?? global.data?.points[id]?.mode ?? 'off'} provider={provider} onChange={(patch) => setPoint(id, patch)} onReset={() => reset(id)} />
       )
     );
   };
@@ -149,7 +149,7 @@ export function ProjectDecisions({ project }: { project: Project }) {
           </div>
         ),
       )}
-      <SaveError error={save.error} title={t('general.saveFailed')} />
+      <SaveError error={save.error} title={t('general.saveFailed')} inheritedActive={new Set(catalogue.data.filter((info) => global.data?.points[info.id]?.mode === 'active').map((info) => info.id))} />
     </>
   );
 
@@ -185,12 +185,15 @@ export function ProjectDecisions({ project }: { project: Project }) {
 function OverrideRow({
   info,
   override,
+  savedMode,
   provider,
   onChange,
   onReset,
 }: {
   info: DecisionPointInfo;
   override: Override | undefined;
+  /** The mode in force in this project as saved: a point already Active there keeps Active whatever the form says */
+  savedMode: DecisionMode;
   provider: DecisionProviderId;
   onChange: (patch: Override) => void;
   onReset: () => void;
@@ -206,7 +209,7 @@ function OverrideRow({
   // An act point on the CLI has no calibrated confidence to compare with its threshold
   const activeBlocked = info.kind === 'act' && provider === 'cli';
   // The gate the server enforces on save, told before: Active is earned on the point's evidence
-  const unproven = !activeBlocked && gateBlocked(info, mode);
+  const unproven = !activeBlocked && gateBlocked(info, mode, savedMode);
 
   return (
     <div className="dp-row" data-point={info.id}>

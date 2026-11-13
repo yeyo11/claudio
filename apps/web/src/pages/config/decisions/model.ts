@@ -104,9 +104,10 @@ export const activeBlocked = (info: Pick<DecisionPointInfo, 'id' | 'kind'>, prov
  * find out on save; the refusal stays the backstop. A point already active is left alone: this only
  * stops a new step up.
  */
-export const gateBlocked = (info: Pick<DecisionPointInfo, 'id' | 'standing' | 'gate'>, current: DecisionMode): boolean =>
-  // The Supervisor is exempt: its Active is the owner's own switch, and on the CLI it can earn no evidence
-  info.id !== SUPERVISOR_POINT && current !== 'active' && info.gate.enforced && info.standing !== 'proven';
+export const gateBlocked = (info: Pick<DecisionPointInfo, 'id' | 'standing' | 'gate'>, current: DecisionMode, saved: DecisionMode = current): boolean =>
+  // The Supervisor is exempt: its Active is the owner's own switch, and on the CLI it can earn no evidence.
+  // The server judges a step up from what is saved, so a point saved as active keeps Active whatever the form says
+  info.id !== SUPERVISOR_POINT && current !== 'active' && saved !== 'active' && info.gate.enforced && info.standing !== 'proven';
 
 /** Of the live reading and the replay, the one that lacks less: the standing is read from the better of the two. */
 export function bestReading(live: DecisionGateReading, replay: DecisionGateReading | null): DecisionGateReading {
@@ -197,6 +198,8 @@ export interface BulkPlan {
   unchanged: DecisionPointId[];
   /** Points that keep a lower mode than the one asked for, because they cannot be active */
   capped: DecisionPointId[];
+  /** Points a bulk "Active" leaves as they are because they are not proven: the server refuses more than one such step at once */
+  unproven: DecisionPointId[];
   /** Changes that leave `off` without consent for what they send now: they wait for the person to see it */
   needConsent: Array<{ id: DecisionPointId; mode: Exclude<DecisionMode, 'off'> }>;
 }
@@ -213,15 +216,20 @@ export function planBulk(
   current: (id: DecisionPointId) => DecisionMode,
   consentOf: (id: DecisionPointId) => DecisionPointSettings['consent'],
   provider: DecisionProviderId,
+  saved: (id: DecisionPointId) => DecisionMode = current,
 ): BulkPlan {
-  const plan: BulkPlan = { changes: [], unchanged: [], capped: [], needConsent: [] };
+  const plan: BulkPlan = { changes: [], unchanged: [], capped: [], unproven: [], needConsent: [] };
   for (const id of ids) {
     const info = catalogue.find((point) => point.id === id);
     if (!info) continue;
     // A point already active is not sent back to shadow by a bulk "Active": only a step up is refused
-    const capped = mode === 'active' && (activeBlocked(info, provider) || gateBlocked(info, current(id)));
-    const result: DecisionMode = capped ? 'shadow' : mode;
+    const capped = mode === 'active' && activeBlocked(info, provider);
+    // The server refuses a bulk that newly activates more than one unproven point, of any kind, so a bulk
+    // plans only proven points; the rest stay as they are and each is switched on its own row
+    const unproven = mode === 'active' && !capped && info.id !== SUPERVISOR_POINT && current(id) !== 'active' && saved(id) !== 'active' && info.standing !== 'proven';
+    const result: DecisionMode = unproven ? current(id) : capped ? 'shadow' : mode;
     if (capped) plan.capped.push(id);
+    if (unproven) plan.unproven.push(id);
     if (current(id) === result) {
       plan.unchanged.push(id);
       continue;
