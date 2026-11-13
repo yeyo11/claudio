@@ -48,6 +48,11 @@ export default async ({ page, api, check, dirs }) => {
     check((await page.eval(`return document.querySelector('.flow-limits input[aria-label="Cost per run, in USD"]').value`)) === '', 'no spending limit unless chosen');
     // "No limit" is read in the field itself: a field squeezed by its row showed one glyph of it
     const placeholderFits = `const i = document.querySelector('.flow-limits input[aria-label="Cost per run, in USD"]'); const c = document.createElement('canvas').getContext('2d'); const s = getComputedStyle(i); c.font = s.font; const room = i.clientWidth - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight); return { text: i.placeholder, need: Math.ceil(c.measureText(i.placeholder).width), room }`;
+    // Measured once the web font is in and the row has settled: a single read right after the card
+    // appeared found the field 25 px wide on a new runner image, in every pull request of that day,
+    // while the page a moment later showed it whole
+    await page.eval('await document.fonts?.ready;return true');
+    await page.waitFor(`const fit = await (async () => { ${placeholderFits} })(); return fit.need <= fit.room`, { timeout: 5000, label: 'the cost field laid out' }).catch(() => {});
     const deskFit = await page.eval(placeholderFits);
     check(deskFit.text === 'No limit' && deskFit.need <= deskFit.room, `the cost field shows its placeholder whole (${JSON.stringify(deskFit)})`);
     await page.fill('.flow-limits input[aria-label="Runs at once"]', '3');
