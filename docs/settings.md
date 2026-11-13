@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T20:00:00Z
-updated_at: 2026-10-20T18:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - settings
     - information-architecture
@@ -75,11 +75,16 @@ proposes a hint; whether it does, and what it does with the hint, is the mode of
 |---|---|
 | Off | The Supervisor does not watch, and no hint is asked for |
 | Shadow | It proposes hints for you to send. Under Jev the engine also records what it would have decided |
-| Active | It sends its hints on its own. Under the Claude Code CLI it sends every hint; under Jev only when the engine expects a hint to help |
+| Active | It sends its hints on its own, but only for the kinds of signal you tick under the row ("Sends on its own for 2 of 9 kinds of signal"); it proposes the rest for you to send. Under Jev it also drops a hint when the engine expects none to help |
 
 Active works under the CLI for this point only: every other act point needs Jev's probabilities to
-act, so it stays active in name only under the CLI. The Supervisor uses the engine's CLI model and the
-cap per decision; it has no model or cost setting of its own.
+act, so it stays active in name only under the CLI. None of the nine kinds is ticked by default, so
+Active on a fresh install proposes everything. Before it drafts anything, the Supervisor decides
+whether the worker is stuck at all: one that is waiting on a command or on agents that are doing work
+gets no hint and no proposal. The Supervisor uses the engine's CLI model and the cap per decision;
+it has no model or cost setting of its own. Unlike any other act point, its Active is not refused for
+lack of proof: it is your switch, and under the CLI it can earn no evidence
+([decision-engine.md](decision-engine.md#standing-and-the-promotion-gate)).
 
 `supervisor.json` stays on disk. The first time Claudio starts after the change it is read once to
 set the point (disabled → Off, enabled → Shadow, enabled with auto-send → Active, unless you had
@@ -93,9 +98,27 @@ From top to bottom: **Who answers** (Claude Code CLI or Jev, with the Jev key an
 "Uses your Claude Code quota. Nothing leaves this machine."), **Cap per decision** with what it comes
 to a day at today's volume (and how many decisions a day fit in your daily spend cap, when you set
 one), **Advanced** (the CLI model and effort, days of history), then the **decision points** by area.
-Each point shows its mode and its evidence: how many decisions, how often it agrees with you, how
-many disagreements (a link to History filtered by the point). The threshold shows only under Jev,
-where it acts. **See every decision** opens History. One save bar saves it all together.
+Each point shows its mode and where it **stands**: a tag (Unproven, Proven or Failing) and its
+evidence, in one line: how many decisions, how many have a known outcome, how often it is right when
+it acts (or flags), how often it differs from today's rule, and how many disagreements (a link to
+History filtered by the point). The threshold of an act point and the **floor** of a suggest point,
+the confidence a suggestion needs to be shown (0.70 by default), show only under Jev, where they
+act.
+
+A point has to earn **Active**. On an act point, and on `lesson.mine`, which starts a paid run,
+Active is disabled until the point is Proven, and says what it still needs: "Active is earned: it
+still needs 12 more cases with a known outcome and a precision above 60 %". A save the server refuses
+anyway, because the point is not proven or because several unproven points would turn Active at once
+(one at a time), shows an alert in the save bar naming each point and what it lacks, writes nothing and
+keeps your unsaved changes. A suggest point can go Active without proof, with a notice that it did. A
+point that is Active but not Proven runs as Shadow, and its row says so. A point the engine moved back
+to Shadow says when and why ("Back to Shadow on 14 Nov: it acted on 31 of 40 answers in the last 7
+days, more than twice as often as in Shadow"), and you also get a notification; the point stays in
+Shadow until you set it to Active again. **See every decision** opens History. One save bar saves it
+all together. The "Decisions" line on Usage shows the net of agent runs the decisions saved or added,
+with how many of each ("Net: 12 agent runs saved (20 saved, 8 caused)"). What a point sends, and
+whether that is text or code, is in
+[decision-engine.md](decision-engine.md#what-leaves-the-machine).
 
 ## Changed, Reset and Overridden
 
