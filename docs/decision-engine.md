@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-11-13T21:00:00Z
+updated_at: 2026-11-13T21:30:00Z
 tags:
     - decisions
     - decision-engine
@@ -295,8 +295,12 @@ already fired. The same repetition is never asked twice. What identifies it is t
 (agent, tool and normalised input) with a count bucket (3 to 5 repeats, 6 to 11, 12 and more), not the
 window around it, which changes with every new call; the chat keeps every repetition it has put, so
 one that leaves the window and comes back is still the one that was asked, while a repetition that
-grows into the next bucket is asked about again. A chat that got "no" three times in a row is asked
-again only after 40 more calls, or at once after a "yes". The state is each call's
+grows into the next bucket is asked about again. Two inputs are near-identical when they are equal
+after dropping the volatile fields and flattening digits, except in what the call acts on (a file
+path, a pattern, a URL or a query keep theirs): nine different files read once each are not a
+repetition. A chat that got "no" three times in a row is asked again only after 40 more calls, or at
+once after a "yes"; every answer counts towards that, in shadow and under the floor too, since a
+question that changes nothing costs the same call. The state is each call's
 tool name, a digest of its input and its target (a path, pattern, URL or query, or a command's first
 word, at most 80 characters): never an input or a result. The baseline is "no flag". Its resolver
 is `direct` only from a person's action on the chat after the flag (a stop, an interrupt, a hint, a
