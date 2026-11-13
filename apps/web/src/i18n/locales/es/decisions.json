@@ -133,13 +133,16 @@
       "off_one": "{{count}} apagado",
       "off_other": "{{count}} apagados"
     },
-    "thresholdLine": "Actúa con al menos esta confianza"
+    "thresholdLine": "Actúa con al menos esta confianza",
+    "floor": "Confianza mínima de {{point}}",
+    "floorLine": "Sugiere con al menos esta confianza"
   },
   "supervisor": {
     "off": "No vigila a los workers atascados",
     "shadow": "Propone pistas para que las envíes tú",
-    "activeCli": "Envía cada pista por su cuenta",
-    "activeJev": "Envía una pista cuando Jev espera que ayude"
+    "activeCli": "Envía por su cuenta los tipos que elijas y propone el resto",
+    "activeJev": "Envía por su cuenta, cuando Jev espera que ayude, los tipos que elijas y propone el resto",
+    "autoSummary": "Envía por su cuenta {{n}} de {{total}} tipos de señal"
   },
   "consent": {
     "title": "Antes de pasar a {{mode}}",
@@ -325,9 +328,49 @@
     "none": "Aún no hay decisiones",
     "count_one": "{{formatted}} decisión",
     "count_other": "{{formatted}} decisiones",
-    "agrees": "coincide contigo en un {{percent}}",
+    "direct": "{{formatted}} con resultado conocido",
+    "precisionAct": "acierta en un {{percent}} cuando actúa",
+    "precisionSuggest": "acierta en un {{percent}} cuando avisa",
+    "differs": "difiere de la regla de siempre en un {{percent}} de las respuestas",
     "disagreements_one": "{{formatted}} discrepancia",
     "disagreements_other": "{{formatted}} discrepancias",
     "consentedOn": "Consentido el {{date}}"
+  },
+  "standing": {
+    "unproven": "Sin demostrar",
+    "proven": "Demostrado",
+    "failing": "Fallando",
+    "demotedOn": "Volvió a Sombra el {{date}}: {{why}}.",
+    "demotedWhy": {
+      "failingAct": "acertó {{hits}} de {{n}} respuestas que actuaban, por debajo del listón",
+      "failingSuggest": "acertó {{hits}} de {{n}} avisos, por debajo del listón",
+      "rate": "en los últimos 7 días actuó en {{acts}} de {{rows}} respuestas, más del doble que en Sombra"
+    }
+  },
+  "gate": {
+    "cases_one": "{{formatted}} caso más con resultado conocido",
+    "cases_other": "{{formatted}} casos más con resultado conocido",
+    "breakEven": "una precisión por encima de {{value}}",
+    "breakEvenNone": "una precisión por encima de su punto de equilibrio",
+    "baseline": "mejores resultados que la regla de siempre",
+    "precision": "una precisión de al menos {{value}}",
+    "flagRate": "avisar como mucho en {{value}} de las respuestas",
+    "activeNeeds": "Activo se gana: aún necesita {{missing}}."
+  },
+  "refusal": {
+    "title_one": "No se ha guardado: {{count}} punto aún no puede estar Activo",
+    "title_other": "No se ha guardado: {{count}} puntos aún no pueden estar Activos",
+    "bulkTitle": "No se ha guardado: activa los puntos de uno en uno",
+    "bulkBody": "Varios puntos sin demostrar pasarían a Activo a la vez. Pon uno en Activo, guarda y luego el siguiente.",
+    "point": "{{point}} necesita {{missing}}.",
+    "kept": "Tus cambios siguen aquí."
+  },
+  "warnings": {
+    "unproven": "Activo sin demostrar aún: {{points}}."
+  },
+  "limited": {
+    "cli": "Funciona como Sombra: el CLI no da una confianza que comparar con el umbral.",
+    "unproven": "Funciona como Sombra: aún necesita {{missing}}.",
+    "failing": "Funciona como Sombra: ya no supera el listón y necesita {{missing}}."
   }
 }

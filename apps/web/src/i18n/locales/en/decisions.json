@@ -133,13 +133,16 @@
       "off_one": "{{count}} off",
       "off_other": "{{count}} off"
     },
-    "thresholdLine": "Acts when at least this sure"
+    "thresholdLine": "Acts when at least this sure",
+    "floor": "Suggestion floor of {{point}}",
+    "floorLine": "Suggests when at least this sure"
   },
   "supervisor": {
     "off": "Does not watch for stuck workers",
     "shadow": "Proposes hints for you to send",
-    "activeCli": "Sends each hint on its own",
-    "activeJev": "Sends a hint when Jev expects it to help"
+    "activeCli": "Sends on its own for the kinds you choose, and proposes the rest",
+    "activeJev": "Sends on its own, when Jev expects it to help, for the kinds you choose, and proposes the rest",
+    "autoSummary": "Sends on its own for {{n}} of {{total}} kinds of signal"
   },
   "consent": {
     "title": "Before moving to {{mode}}",
@@ -325,9 +328,49 @@
     "none": "No decisions yet",
     "count_one": "{{formatted}} decision",
     "count_other": "{{formatted}} decisions",
-    "agrees": "agrees with you {{percent}}",
+    "direct": "{{formatted}} with a known outcome",
+    "precisionAct": "right {{percent}} of the time it acts",
+    "precisionSuggest": "right {{percent}} of the time it flags",
+    "differs": "differs from today's rule on {{percent}} of answers",
     "disagreements_one": "{{formatted}} disagreement",
     "disagreements_other": "{{formatted}} disagreements",
     "consentedOn": "Consented on {{date}}"
+  },
+  "standing": {
+    "unproven": "Unproven",
+    "proven": "Proven",
+    "failing": "Failing",
+    "demotedOn": "Back to Shadow on {{date}}: {{why}}.",
+    "demotedWhy": {
+      "failingAct": "{{hits}} of {{n}} of its answers that acted were right, under the bar",
+      "failingSuggest": "{{hits}} of {{n}} of its flags were right, under the bar",
+      "rate": "it acted on {{acts}} of {{rows}} answers in the last 7 days, more than twice as often as in Shadow"
+    }
+  },
+  "gate": {
+    "cases_one": "{{formatted}} more case with a known outcome",
+    "cases_other": "{{formatted}} more cases with a known outcome",
+    "breakEven": "a precision above {{value}}",
+    "breakEvenNone": "a precision above its break-even",
+    "baseline": "better results than today's rule",
+    "precision": "a precision of at least {{value}}",
+    "flagRate": "flags on at most {{value}} of answers",
+    "activeNeeds": "Active is earned: it still needs {{missing}}."
+  },
+  "refusal": {
+    "title_one": "Not saved: {{count}} point cannot be Active yet",
+    "title_other": "Not saved: {{count}} points cannot be Active yet",
+    "bulkTitle": "Not saved: activate one point at a time",
+    "bulkBody": "Several points without proof would become Active at once. Set one to Active, save, and then the next.",
+    "point": "{{point}} needs {{missing}}.",
+    "kept": "Your changes are still here."
+  },
+  "warnings": {
+    "unproven": "Active without proof yet: {{points}}."
+  },
+  "limited": {
+    "cli": "Runs as Shadow: the CLI gives no confidence to compare with the threshold.",
+    "unproven": "Runs as Shadow: it still needs {{missing}}.",
+    "failing": "Runs as Shadow: it no longer clears its gate and needs {{missing}}."
   }
 }

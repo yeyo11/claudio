@@ -12,7 +12,8 @@ import { ConfirmProvider } from '@claudio/ui/components/Dialog';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import i18n, { setLanguage } from '../src/i18n';
 import { CapLine, EngineSection } from '../src/pages/config/decisions/Engine';
-import { activeBlocked, capConsequence, draftOf, examplePoint, offUntilConsent, supervisorMeaning, supervisorOn } from '../src/pages/config/decisions/model';
+import { activeBlocked, AUTO_SIGNAL_KINDS, orderSignals, bestReading, capConsequence, draftOf, gateBlocked, examplePoint, offUntilConsent, supervisorMeaning, supervisorOn } from '../src/pages/config/decisions/model';
+import { gateMissing } from '../src/pages/config/decisions/gate';
 import { PointRow } from '../src/pages/config/decisions/Points';
 import { detailsOf, resolveSettingsAddress, sectionsOf } from '../src/pages/config/settingsGroups';
 
@@ -104,6 +105,8 @@ const row = (point: DecisionPointInfo, saved: DecisionSettings, provider: 'cli' 
       stats={point_stats}
       onMode={() => undefined}
       onThreshold={() => undefined}
+      onFloor={() => undefined}
+      onAutoSignals={() => undefined}
       onWithdraw={() => undefined}
     />,
   );
@@ -170,12 +173,100 @@ test('under Jev an act point that is not off shows its threshold; a suggest poin
   assert.doesNotMatch(suggest, /Umbral de/);
 });
 
-test('the evidence line counts, agrees and links its disagreements to History filtered by the point', () => {
-  const out = row(info(), settings(), 'cli', stats());
+test("the evidence line counts, says what is known for sure, the precision and the difference with today's rule, and links its disagreements to History", () => {
+  const scored = stats({
+    resolvedDirect: 30,
+    baseline: { rows: 40, differs: 10, decisionRight: 6, baselineRight: 2, unresolved: 2 },
+    evidence: { ...stats().evidence, precision: { n: 20, hits: 18, value: 0.9, lower90: 0.76 } },
+  });
+  const out = row(info(), settings(), 'cli', scored);
   assert.match(out, /41 decisiones/);
-  assert.match(out, /coincide contigo en un 88\s?%/);
+  assert.match(out, /30 con resultado conocido/);
+  assert.match(out, /acierta en un 90\s?% cuando actúa/);
+  assert.match(out, /difiere de la regla de siempre en un 25\s?% de las respuestas/);
   assert.match(out, /href="\/settings\/decisions\/history\?point=flow\.refine-needed"[^>]*>3 discrepancias</);
+  // A suggest point flags rather than acts, and the old "agrees with you" line is gone
+  assert.match(row(info({ kind: 'suggest' }), settings(), 'cli', scored), /acierta en un 90\s?% cuando avisa/);
+  assert.doesNotMatch(out, /coincide contigo/);
   assert.match(row(info(), settings(), 'cli', null), /Aún no hay decisiones/);
+});
+
+test('the row says where the point stands in words: unproven, proven or failing', () => {
+  assert.match(row(info({ standing: 'unproven' }), settings(), 'cli', null), /badge-muted[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Sin demostrar/s);
+  assert.match(row(info({ standing: 'proven' }), settings(), 'cli', null), /badge-ok[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Demostrado/s);
+  assert.match(row(info({ standing: 'failing' }), settings(), 'cli', null), /badge-warn[^>]*>(?:(?!<\/span>).)*(?:<span[^>]*>)?Fallando/s);
+});
+
+test('active in name only, the row says why in one sentence, and says nothing when the point is off or acts', () => {
+  const consent = { at: '2026-10-17T10:00:00Z', stateVersion: 2, providers: ['jev' as const] };
+  const active = settings({ 'flow.refine-needed': { mode: 'active', threshold: 0.85, consent } }, { provider: 'jev' });
+  const limited = (limitedBy: 'cli' | 'unproven' | 'failing' | 'no-consent' | 'demoted' | null, standing: DecisionPointInfo['standing'] = 'unproven') =>
+    row(info({ standing, effective: { ...info().effective, mode: 'active', limited: limitedBy !== null, limitedBy } }), active, 'jev', null);
+  assert.match(limited('unproven'), /Funciona como Sombra: aún necesita 30 casos más con resultado conocido\./);
+  assert.match(limited('failing', 'failing'), /Funciona como Sombra: ya no supera el listón y necesita 30 casos más con resultado conocido\./);
+  assert.match(limited('cli'), /Funciona como Sombra: el CLI no da una confianza/);
+  // Consent and a demotion have their own words elsewhere in the row
+  assert.doesNotMatch(limited('no-consent'), /Funciona como Sombra/);
+  assert.doesNotMatch(limited('demoted'), /Funciona como Sombra/);
+  assert.doesNotMatch(limited(null), /Funciona como Sombra/);
+  // What was asked in this form and not yet saved is not what the server read
+  const off = settings({ 'flow.refine-needed': { mode: 'off', threshold: 0.85, consent } }, { provider: 'jev' });
+  assert.doesNotMatch(row(info({ effective: { ...info().effective, mode: 'active', limited: true, limitedBy: 'unproven' } }), off, 'jev', null), /Funciona como Sombra/);
+});
+
+test('a demoted point says when and why it went back to Shadow', () => {
+  const evidence = { cases: 40, precision: { n: 20, hits: 9, value: 0.45, lower90: 0.3 }, breakEven: 0.5, shortfalls: ['break-even' as const], recentRows: 30, recentActs: 25, recentRate: 0.83, promotedRate: 0.3 };
+  const failing = row(info({ demoted: { at: '2026-11-10T10:00:00Z', reason: 'failing', evidence } }), settings(), 'cli', null);
+  assert.match(failing, /Volvió a Sombra el [^:]+: acertó 9 de 20 respuestas que actuaban, por debajo del listón\./);
+  const rate = row(info({ demoted: { at: '2026-11-10T10:00:00Z', reason: 'rate', evidence } }), settings(), 'cli', null);
+  assert.match(rate, /en los últimos 7 días actuó en 25 de 30 respuestas, más del doble que en Sombra/);
+});
+
+test('Active is not offered to a point that has not earned it, with the reason, and is once it is proven or already active', () => {
+  const disabledActive = /aria-disabled="true"[^>]*>(?:(?!<\/button>).)*Activo/s;
+  const consent = { at: '2026-10-17T10:00:00Z', stateVersion: 2, providers: ['jev' as const] };
+  const shadow = settings({ 'flow.refine-needed': { mode: 'shadow', threshold: 0.85, consent } }, { provider: 'jev' });
+  assert.match(row(info(), shadow, 'jev', null), disabledActive);
+  assert.match(row(info({ standing: 'failing' }), shadow, 'jev', null), disabledActive);
+  assert.doesNotMatch(row(info({ standing: 'proven' }), shadow, 'jev', null), disabledActive);
+  // A suggest point whose gate is not enforced may be activated (the server answers with a warning)
+  const free = info({ kind: 'suggest', gate: { enforced: false, minCases: 30, breakEven: null, minPrecision: 0.6, maxFlagRate: 0.3 } });
+  assert.doesNotMatch(row(free, shadow, 'jev', null), disabledActive);
+  // Already active: the control does not turn against a point the person chose before
+  const active = settings({ 'flow.refine-needed': { mode: 'active', threshold: 0.85, consent } }, { provider: 'jev' });
+  assert.doesNotMatch(row(info(), active, 'jev', null), disabledActive);
+  assert.equal(gateBlocked(info(), 'shadow'), true);
+  assert.equal(gateBlocked(info(), 'active'), false);
+});
+
+test('the reason Active is out of reach names what is missing, from the gate in force', () => {
+  const t = i18n.getFixedT('es', 'decisions');
+  const act = info({ gate: { enforced: true, minCases: 30, breakEven: 0.5, minPrecision: null, maxFlagRate: null }, live: { ...info().live, cases: 12, shortfalls: ['cases', 'break-even', 'baseline'] } });
+  // Spanish writes "50 %" with a no-break space: compare the words, not the kind of space
+  const plain = (text: string) => text.replace(/\s/g, ' ');
+  assert.equal(plain(gateMissing(t, act.gate, bestReading(act.live, act.replay))), '18 casos más con resultado conocido, una precisión por encima de 50 % y mejores resultados que la regla de siempre');
+  const suggest = info({ kind: 'suggest', gate: { enforced: true, minCases: 30, breakEven: null, minPrecision: 0.6, maxFlagRate: 0.3 }, live: { ...info().live, shortfalls: ['precision', 'flag-rate'] } });
+  assert.equal(plain(gateMissing(t, suggest.gate, suggest.live)), 'una precisión de al menos 60 % y avisar como mucho en 30 % de las respuestas');
+  // A replay that lacks less is the reading the standing came from
+  const replay = { ...act.live, source: 'replay' as const, shortfalls: ['baseline' as const] };
+  assert.equal(bestReading(act.live, replay), replay);
+  assert.equal(bestReading(act.live, null), act.live);
+});
+
+test("a suggest point under Jev takes its floor with the row's slider; an act point and the CLI do not", () => {
+  const consent = { at: '2026-10-17T10:00:00Z', stateVersion: 2, providers: ['jev' as const] };
+  const suggest = info({ id: 'board.triage', kind: 'suggest', effective: { ...info().effective, floor: 0.7 } });
+  const shadow = settings({ 'board.triage': { mode: 'shadow', threshold: 0.85, floor: 0.8, consent } }, { provider: 'jev' });
+  const out = row(suggest, shadow, 'jev', null);
+  assert.match(out, /Confianza mínima de board\.triage/);
+  assert.match(out, /<output>0,80<\/output>/);
+  assert.doesNotMatch(out, /Umbral de/);
+  // The CLI gives no confidence, so there is nothing to hold a suggestion to
+  assert.doesNotMatch(row(suggest, settings({ 'board.triage': { mode: 'shadow', threshold: 0.85, consent } }), 'cli', null), /Confianza mínima de/);
+  assert.doesNotMatch(row(suggest, settings(), 'jev', null), /Confianza mínima de/);
+  // Unset, the slider reads the server's floor
+  assert.match(row(suggest, settings({ 'board.triage': { mode: 'shadow', threshold: 0.85, consent } }, { provider: 'jev' }), 'jev', null), /<output>0,70<\/output>/);
+  assert.doesNotMatch(row(info(), shadow, 'jev', null), /Confianza mínima de/);
 });
 
 test('consent shows only on a point that is not off, with its date and a way to withdraw it', () => {
@@ -205,8 +296,8 @@ test("the Supervisor's point can be active on the CLI, and its row says what eac
     row(supervisor, settings({ 'supervisor.intervene': { mode, threshold: 0.85, consent } }), provider, null);
   const cliActive = at('active', 'cli');
   assert.doesNotMatch(cliActive, /aria-disabled="true"/);
-  assert.match(cliActive, /Envía cada pista por su cuenta/);
-  assert.match(at('active', 'jev'), /Envía una pista cuando Jev espera que ayude/);
+  assert.match(cliActive, /Envía por su cuenta los tipos que elijas y propone el resto/);
+  assert.match(at('active', 'jev'), /Envía por su cuenta, cuando Jev espera que ayude, los tipos que elijas/);
   assert.match(at('shadow', 'cli'), /Propone pistas para que las envíes tú/);
   assert.match(at('off', 'cli'), /No vigila/);
 
@@ -217,7 +308,27 @@ test("the Supervisor's point can be active on the CLI, and its row says what eac
   assert.match(unconsented('jev'), /Apagado hasta que tenga consentimiento/);
   // Without consent the engine does nothing: the Supervisor's line says it is off, not that it proposes
   assert.match(unconsented('jev'), /No vigila/);
-  assert.match(unconsented('cli'), /Envía cada pista por su cuenta/);
+  assert.match(unconsented('cli'), /Envía por su cuenta los tipos que elijas y propone el resto/);
+});
+
+test("the Supervisor's Active is never held back for proof, and lists the kinds it sends on its own only while Active", () => {
+  const supervisor = info({ id: 'supervisor.intervene', kind: 'act', scope: 'global' });
+  assert.equal(gateBlocked(supervisor, 'shadow'), false);
+  const consent = { at: '2026-10-17T10:00:00Z', stateVersion: 2, providers: ['cli' as const] };
+  const at = (mode: 'off' | 'shadow' | 'active', autoSignals: Array<'loop' | 'silence'> = []) => {
+    const saved = settings({ 'supervisor.intervene': { mode, threshold: 0.85, consent } }, { supervisor: { autoSignals } });
+    return row(supervisor, saved, 'cli', null);
+  };
+  assert.doesNotMatch(at('shadow'), /aria-disabled="true"/);
+  // Folded to one line with the count, so a phone does not open on a column of checkboxes
+  const active = at('active', ['loop', 'silence']);
+  assert.match(active, /Envía por su cuenta 2 de 9 tipos de señal/);
+  assert.equal(active.match(/role="checkbox"/g)?.length ?? 0, 0);
+  assert.doesNotMatch(at('shadow'), /tipos de señal/);
+  assert.doesNotMatch(at('off'), /tipos de señal/);
+  assert.deepEqual(orderSignals(['silence', 'loop', 'hung-command']), ['hung-command', 'loop', 'silence']);
+  assert.deepEqual(orderSignals(['waiting', 'loop']), ['loop', 'waiting']);
+  assert.equal(AUTO_SIGNAL_KINDS.length, 9);
 });
 
 test('a point that is not off and has no consent says it is off, and offers the way out', () => {
@@ -232,6 +343,8 @@ test('a point that is not off and has no consent says it is off, and offers the 
         stats={null}
         onMode={() => undefined}
         onThreshold={() => undefined}
+        onFloor={() => undefined}
+        onAutoSignals={() => undefined}
         {...(onReview ? { onReviewConsent: () => undefined } : {})}
       />,
     );

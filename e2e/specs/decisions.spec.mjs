@@ -265,6 +265,62 @@ export default async ({ page, api, check, fakeCli, dirs }) => {
       "Active is unavailable for an act point on the cli",
     );
 
+    // Where the point stands, in words: one decision is far from the gate's cases
+    check(
+      (await page.text(onPoint(".dp-evidence"))).includes("Unproven"),
+      "the row says the point is unproven",
+    );
+    // The Supervisor's Active is the owner's own switch, so unlike an ordinary act point it stays
+    // available on the cli, and the row never contradicts the check above
+    check(
+      (await page.eval(
+        `return [...document.querySelectorAll('[data-point="supervisor.intervene"] [role=radio]')][2]?.getAttribute('aria-disabled')`,
+      )) !== "true",
+      "Active stays available for the Supervisor on the cli",
+    );
+
+    // A refusal from the server is shown where the person acted, and the form keeps their change.
+    // The screen never offers what the gate refuses, so the server's 409 is staged in the page
+    await page.click(onPoint("[role=radio]"), "Off", 400);
+    await page.eval(`
+      window.__realFetch = window.fetch;
+      window.fetch = (input, init) => {
+        const url = typeof input === 'string' ? input : input.url;
+        if ((init && init.method) === 'PUT' && url.endsWith('/decisions/settings')) {
+          const reading = { source: 'live', at: null, cases: 12, precision: { n: 0, hits: 0, value: null, lower90: null }, baselinePrecision: { n: 0, hits: 0, value: null, lower90: null }, actRate: { n: 0, hits: 0, value: null, lower90: null }, shortfalls: ['cases'] };
+          const body = { error: 'Not proven', code: 'decision-unproven', points: [{ point: '${POINT}', kind: 'act', standing: 'unproven', live: reading, replay: null, gate: { enforced: true, minCases: 30, breakEven: 0.5, minPrecision: null, maxFlagRate: null } }] };
+          return Promise.resolve(new Response(JSON.stringify(body), { status: 409, headers: { 'content-type': 'application/json' } }));
+        }
+        return window.__realFetch(input, init);
+      };
+      return true`);
+    await page.click(".dp-foot button.dp-save", undefined, 600);
+    await page.waitFor(
+      `return !!document.querySelector('.dp-foot [data-testid="activation-refusal"]')`,
+      { label: "the refusal is shown in the save bar" },
+    );
+    const refusal = (await page.text(".dp-foot [data-testid=activation-refusal]")).replace(/\s+/g, " ");
+    check(
+      refusal.includes("Not saved: 1 point cannot be Active yet") &&
+        refusal.includes("needs 18 more cases with a known outcome") &&
+        refusal.includes("Your changes are still here."),
+      `the refusal names the point and what it lacks (${refusal})`,
+    );
+    check(
+      (await page.eval(
+        `return document.querySelector('[data-point="${POINT}"] [role=radio][aria-checked=true]')?.textContent`,
+      )) === "Off",
+      "the form keeps what the person had after a refusal",
+    );
+    check((await modeOf(api)) === "shadow", "a refused save writes nothing");
+    const refusalViolations = await page.axe({ include: ".dp-foot" });
+    check(
+      refusalViolations.length === 0,
+      `the refusal has accessibility violations: ${JSON.stringify(refusalViolations)}`,
+    );
+    await page.eval(`window.fetch = window.__realFetch; return true`);
+    await page.click(".dp-foot button", "Discard", 400);
+
     // The point's evidence counts the row and opens History filtered by the point
     await page.waitFor(
       `return !!document.querySelector('[data-point="${POINT}"] .dp-evidence a[href*="/settings/decisions/history"]')`,
