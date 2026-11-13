@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-30T12:00:00Z
-updated_at: 2026-10-30T20:00:00Z
+updated_at: 2026-11-13T15:00:00Z
 tags:
     - plan
     - lan
@@ -11,7 +11,8 @@ tags:
 ---
 # Plan: Claudio on the local network
 
-Status: **built on 2026-10-30, not released**; see [Outcome](#outcome). Design settled by the owner
+Status: **landed** in #77 (built 2026-10-30, released in 0.13.0); see [Outcome](#outcome). Was: "built on
+2026-10-30, not released". Design settled by the owner
 the same day. One pull request from `main` at 0.12.0, orchestrated on `claude-opus-5-5` and
 `claude-sonnet-5-5`.
 

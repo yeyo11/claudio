@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-11-08T15:00:00Z
+updated_at: 2026-11-13T15:00:00Z
 tags:
     - status
     - project-state
@@ -76,8 +76,8 @@ The **decision engine** was merged into `main` in #141 on 2026-09-30.
 It gives the small judgments Claudio makes (refine or not, retry or not, which journal entries an
 agent reads, a hint for a stuck worker) one home: three typed questions, two providers (the Claude
 Code CLI by default, TypeSafe's Jev with the owner's own key), a mode per point (`off`, `shadow`,
-`active`) and a Decisions tab in Settings. All 22 points ship `off`; nothing is sent anywhere until
-the owner consents to a point. See [decision-engine.md](decision-engine.md).
+`active`) and a Decisions tab in Settings. The catalogue has 29 points, and they ship `off` as the
+product's default; nothing is sent anywhere until the owner consents to a point. See [decision-engine.md](decision-engine.md).
 
 **Collaborators** were merged into `main` in #7 on 2026-10-17: teammates' Claudios share projects
 read only, peer to peer over iroh, with the follow-ups of R12 and the denied-join fix of R14
@@ -127,6 +127,32 @@ apart; a chat's options show the live MCP state; the Shared tab stays while ther
 ([collaborators.md](collaborators.md)); and Claudio's MCP server is a switch in the "+" of any live
 chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
 
+From 2026-11-07 to 2026-11-11:
+
+- **Servers** (#99, #105): one Claudio, the hub, drives others through a gateway, each server keeping
+  its own accounts, chats and settings. #99 is the engine (pairing, the gateway, the scope of every
+  request); #105 completed it with the selector, the Servers page, the pairing dialogs, five engine
+  gaps and the e2e specs. It is off by default ([servers.md](servers.md),
+  [plans/claudio-servers.md](plans/claudio-servers.md)).
+- **Remote, passwordless updates** (#100): the desktop updates through a systemd unit and a polkit rule
+  instead of a password prompt, a Restart action and a restarting screen, kept asset builds against
+  stale chunks, and an unreachable-server screen ([updates.md](updates.md),
+  [plans/remote-updates.md](plans/remote-updates.md)).
+- **The CI's flaky tests** were fixed at their causes, two real races in the orchestrator among them,
+  inside #105 ([plans/ci-flaky-tests-2026-11-09.md](plans/ci-flaky-tests-2026-11-09.md)), after a
+  duplicate case in the eval matchers and the update helper's times under uutils (#104).
+- **Starting a chat as an agent** (#96, CLD-3): `start_chat` and `POST /chats` take an agent by name
+  without widening the chat's permissions ([plans/start-chat-agent.md](plans/start-chat-agent.md)).
+  A narrowed session no longer flips Claude Code to degraded (#98).
+- **Agent messages** (#106, #108, #110, #111, #113, #114, #116): a program writes to one running
+  subagent through a bridge mod Claudio loads, the subagent drawer has a composer, and a message
+  between agents or from Claudio is drawn as a card or a system row of its own, never as raw tags
+  ([agent-messages.md](agent-messages.md), [plans/agent-messages.md](plans/agent-messages.md)). The
+  pull requests after #106 fixed what it left: the busy-lead shape (#108), the Servers version skew
+  (#110), the relay and Supervisor labels, scrolling tool output and the UI debt (#111), the diff
+  text's contrast (#113), Claude Code's markers in a message (#114) and the transcript rows' overflow
+  (#116).
+
 ## What is open
 
 - **Collaborators, waiting on iroh.** The owner ran it between real machines on 2026-10-17 (three
@@ -140,17 +166,27 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
   `main`'s CI is green again (on 0.14.2, 2026-11-08). What stays open: the four `terminal*` specs are
   refused to agents on this machine (`403 terminal.from-agent`), so they first run in the pull
   request's CI. Dependabot #87 was closed and its updates landed in #90.
-- **The headless image's review findings (#94).** The integration branch of #71 had one commit more
-  than the pull request that was merged, with the fixes of its own review's minor findings (scoped
-  file rules in the `declared-tools` guard, the workspace cap and sweep, every loopback form); #94
-  carries it to `main`. The owner's two headless Claudios run `0.12.0-headless` (pinned in the infra
-  repository); moving them to a newer tag is a change there.
+- **The headless image.** The review findings of its integration branch are merged (#94). The owner's
+  two headless Claudios run `0.12.0-headless` (pinned in the infra repository); moving them to a newer
+  tag is a change there.
+- **Servers, what B left** ([plans/claudio-servers.md](plans/claudio-servers.md#left-open-after-b)). The
+  remote-scope status bar, the More card and the Reconnecting spinner were only covered by unit tests,
+  because no paired remote was running during the review; "Needs an update" and a row's **Update** have
+  no e2e, which needs a non-loopback IPv4 address; `useConfirm` focuses the destructive button
+  app-wide, so Enter twice from a row's "⋯" menu removes a server, a change to every confirmation that
+  is its own decision; and the full `ui-check` of `/chats` under load is still to run.
+- **Remote updates, what the follow-up left**
+  ([plans/remote-updates.md](plans/remote-updates.md#follow-up-after-the-owners-review-2026-11-09)).
+  Nothing of it was run on a real machine (no `.deb` built, no `roundtrip.sh`); Ubuntu 22.04's polkit
+  0.105 ignores `.rules`, apt 3.x is untested, apt cannot tie a pin to a signing key, a bare "Load
+  failed" from an `import()` in Safari is not detected, and a restart scheduled for when idle shows the
+  plain unreachable screen. No e2e covers the restarting state.
+- **Two cards of the board.** CLD-4 (`terminal.spec.mjs` fails on CI, on `main` as well; in review) and
+  CLD-5 (the `workflow-limits` R10 test is flaky on a loaded runner; in the backlog).
 - **The server-side approval of writes and the handoff** of
   [plans/assistant-everything.md](plans/assistant-everything.md) (D1–D6, D9, D19–D21) are not built;
   the rest of that plan landed in #72 and #77. They wait for a design round of their own
   ([decisions/mcp-writes-under-bypass.md](decisions/mcp-writes-under-bypass.md)).
-- **Choosing the agent a chat starts as** (`start_chat` and `POST /chats` with an agent by name;
-  work item CLD-3) landed in #96; see [plans/start-chat-agent.md](plans/start-chat-agent.md).
 - **Two proposals nobody has scheduled:** [plans/agent-test-guards.md](plans/agent-test-guards.md)
   (2026-10-16) and [plans/voice-actions.md](plans/voice-actions.md) (2026-09-28). Nothing of either is
   built; building or dropping them is the owner's call.
@@ -164,7 +200,8 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
   owner. The open items of each built plan are in its Outcome section.
 - **The owner's requests.** None is open: R6 (a full redesign with Stitch) and R8 (WebMCP) were
   dropped on 2026-10-17, and everything else is built and closed in [requests.md](requests.md).
-- **The decision engine's shadow period.** Nothing has been measured yet. All 22 points have a
+- **The decision engine's shadow period.** The owner's own install has run the points on Jev since
+  2026-10-18, and a review of that history is in progress (2026-11-13). All 29 points have a
   resolver (CW-28 added `palette.intent`, `notification.urgency` and `orchestration.model`), and the `cli` provider
   no longer waits on anything: CW-25's effort control landed ([effort.md](effort.md)) and CW-4's quota hold was superseded by phase 4 of multiple providers; see the plan's
   [Outcome](plans/decision-engine.md#outcome).
@@ -202,7 +239,7 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
 | [`plans/tunnel.md`](plans/tunnel.md) | Landed (#110) through localhost.run; moved to Tailscale (`tailscale serve`, tailnet-only) on 2026-10-06 — see [The move to Tailscale](plans/tunnel.md#the-move-to-tailscale-2026-10-06) and [tunnel.md](tunnel.md) |
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
 | [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Landed (#118) — see [Outcome](plans/project-ecosystem.md#outcome) |
-| [`plans/decision-engine.md`](plans/decision-engine.md) | Landed (#141): the engine, both providers, 22 points (all ship off) and the Decisions tab. See [Outcome](plans/decision-engine.md#outcome) and [decision-engine.md](decision-engine.md). The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
+| [`plans/decision-engine.md`](plans/decision-engine.md) | Landed (#141): the engine, both providers, 22 points at the time (29 now; all ship off) and the Decisions tab. See [Outcome](plans/decision-engine.md#outcome) and [decision-engine.md](decision-engine.md). The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
 | [`plans/orchestration-speed.md`](plans/orchestration-speed.md) | Built (epic CW-11): where a graph's time goes is recorded and shown (CW-13, #210); the shorter verification (CW-14); cheaper worker checks and the `e2e-specs` task (CW-15, #213); shorter chains with planner guidance and the longest-chain hint (CW-16, #205). Workstream B (CW-4) was superseded by phase 4 of multiple providers, see [`plans/limit-resume.md`](plans/limit-resume.md#what-replaced-it) |
 | [`plans/agent-wire-format.md`](plans/agent-wire-format.md) | Landed (#221, CW-33, 2026-10-08): the MCP list tools answer only the fields a model needs, as compact JSON (`packages/mcp/src/fields.ts`). TOON was measured with a CLI bench (`scripts/wire-format-bench.mjs`), saved at most 4 % and cost more on three of four tools, and is not adopted; ZON rejected. The UI ↔ API side is built, see [api-wire.md](api-wire.md). See [Outcome](plans/agent-wire-format.md#outcome) and [claudio-mcp-server.md](claudio-mcp-server.md) |
 | [`plans/claudio-assistant.md`](plans/claudio-assistant.md) | Landed (#216, 2026-10-07, umbrella CW-30): the global entry and confined chat (CW-18) and nine write tools, each confirmed by the person (CW-17), on the MCP server (CW-6) and the chat token (CW-10). See [`claudio-assistant.md`](claudio-assistant.md) and [Outcome](plans/claudio-assistant.md#outcome) |
@@ -240,6 +277,12 @@ chat ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)).
 | [`plans/assistant-everything.md`](plans/assistant-everything.md) | Partly built: D10–D13 in #77 ([lan-access.md](lan-access.md)), D7 and D14–D18 in #72; the server-side approval of writes (D1–D6, D9) and the handoff (D19–D21) wait for a design round, see [decisions/mcp-writes-under-bypass.md](decisions/mcp-writes-under-bypass.md) |
 | [`plans/lan-access.md`](plans/lan-access.md) | Built (2026-10-30, one orchestration), released (#77): Claudio listens on the local network itself, a second listener on port 8791 with the guard, the host allowlist and a back-off bucket per device, refused under auth mode `none`, on by default in the desktop app only, with the **On the local network** card in Remote access and `CLAUDIO_LAN*`. The security review fixed three findings and left six. See [lan-access.md](lan-access.md), [reports/lan-access-security.md](reports/lan-access-security.md) and the plan's [Outcome](plans/lan-access.md#outcome) |
 | [`plans/ci-and-regression-open.md`](plans/ci-and-regression-open.md) | Merged in #88 (2026-11-07, orchestration `bee431cc`): `main`'s red `terminal.spec` explained and fixed, and every item of the regression's open checklist closed or decided, with three decisions ([`still-queued`](decisions/still-queued.md), [`chat-token-compact`](decisions/chat-token-compact.md), [`mcp-writes-under-bypass`](decisions/mcp-writes-under-bypass.md)). See its [Outcome](plans/ci-and-regression-open.md#outcome) |
+| [`plans/terminal-menu-schedules-v1-tools.md`](plans/terminal-menu-schedules-v1-tools.md) | Landed (#84): the terminal's context menu and the phone paste sheet, the dock close, the schedule tools in the MCP and the `/v1` client tools named like Claude Code's |
+| [`plans/start-chat-agent.md`](plans/start-chat-agent.md) | Landed (#96, CLD-3): a chat starts as an agent by name, without widening its permissions |
+| [`plans/remote-updates.md`](plans/remote-updates.md) | Landed (#100): remote, passwordless desktop updates, kept asset builds against stale chunks and the unreachable-server screen; nothing of it was run on a real machine, see its [Outcome](plans/remote-updates.md#6-outcome) |
+| [`plans/claudio-servers.md`](plans/claudio-servers.md) | Landed (#99, the engine; #105, the UI and the gaps): one Claudio drives others through a hub gateway, off by default. What stays open is in [Left open (after B)](plans/claudio-servers.md#left-open-after-b) |
+| [`plans/ci-flaky-tests-2026-11-09.md`](plans/ci-flaky-tests-2026-11-09.md) | Landed with #105: the CI's flaky tests fixed at their causes, two real orchestrator races among them |
+| [`plans/agent-messages.md`](plans/agent-messages.md) | Landed (#106), with the follow-ups #108, #110, #111, #113, #114 and #116: messages between agents, a composer for subagents and Claudio's own messages as notes. See [Outcome](plans/agent-messages.md#outcome) |
 
 A plan is the source of truth for the orchestration that executes it: where a task prompt and the
 plan disagree, the plan wins.
