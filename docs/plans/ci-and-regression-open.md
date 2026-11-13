@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-07T00:00:00Z
-updated_at: 2026-11-07T21:00:00Z
+updated_at: 2026-11-13T15:00:00Z
 tags:
     - plan
     - ci
@@ -13,7 +13,8 @@ tags:
 ---
 # CI back to green, and the regression's open checklist closed
 
-Status: **built, not pushed** (orchestration `bee431cc`, 2026-11-07); see the [Outcome](#outcome). One
+Status: **landed** in #88 (orchestration `bee431cc`, merged 2026-11-07); see the [Outcome](#outcome).
+Was: "built, not pushed". One
 branch (`fix/ci-and-regression-open`, from `main` at `db94f2d97`, 0.14.0), one pull request.
 
 This plan closes two things: the `main` CI that has been red since #84 (2026-11-04), and every item

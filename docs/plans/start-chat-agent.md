@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T12:00:00Z
-updated_at: 2026-11-08T12:00:00Z
+updated_at: 2026-11-13T15:00:00Z
 tags:
     - plan
     - mcp
@@ -11,7 +11,8 @@ tags:
 ---
 # Plan: start a chat as an agent, by name, without widening it (CLD-3)
 
-Status: **built** on `feat/start-chat-agent`, not merged yet. Closes the known gap of
+Status: **landed** in #96 (merged 2026-11-08, released in 0.15.0). Was: "built on `feat/start-chat-agent`,
+not merged yet". Closes the known gap of
 [claudio-assistant.md](../claudio-assistant.md): `start_chat` had no `agent` input.
 
 ## The need

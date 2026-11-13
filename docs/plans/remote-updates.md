@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T15:16:33.108454577Z
-updated_at: 2026-11-09T12:00:00Z
+updated_at: 2026-11-13T15:00:00Z
 tags:
     - plan
     - updates
@@ -10,7 +10,8 @@ tags:
 ---
 # Plan: remote, passwordless updates, stale assets and an unreachable server
 
-Status: **built on 2026-11-08, reviewed, follow-up of 2026-11-09 in §6**; orchestration `c1c8c025` on
+Status: **landed** in #100 (built 2026-11-08, reviewed, follow-up of 2026-11-09 in §6; merged 2026-11-09
+and released in 0.15.0). Was: "built on 2026-11-08, reviewed". Orchestration `c1c8c025` on
 branch `fix/remote-updates` from `main` (0.14.2), in parallel with the servers engine
 (`docs/plans/claudio-servers.md` on branch `feat/servers`). Outcome per task in §6; the features are
 documented in [updates.md](../updates.md), [desktop.md](../desktop.md),

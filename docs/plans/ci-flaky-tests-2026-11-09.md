@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-09T15:33:21.022692657Z
-updated_at: 2026-11-09T19:00:00Z
+updated_at: 2026-11-13T15:00:00Z
 tags:
     - plan
     - ci
@@ -9,8 +9,8 @@ tags:
 ---
 # Plan: the CI's flaky tests (2026-11-09)
 
-Status: **planned and launched on 2026-11-09** on branch `feat/servers-complete` (PR #105), which the
-owner will not merge until CI is green.
+Status: **landed** with #105 (planned and launched on 2026-11-09 on branch `feat/servers-complete`,
+merged 2026-11-09 once CI was green). Was: "planned and launched on 2026-11-09".
 
 ## Why
 

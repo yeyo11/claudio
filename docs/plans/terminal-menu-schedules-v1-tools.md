@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-03T00:00:00Z
-updated_at: 2026-11-03T00:00:00Z
+updated_at: 2026-11-13T15:00:00Z
 tags:
     - plan
     - terminal
@@ -12,7 +12,8 @@ tags:
 ---
 # Terminal context menu, phone paste, schedule tools in the MCP, `/v1` client tools named like Claude Code's
 
-Status: **proposed, waiting for the owner's approval** before the orchestration is launched. One
+Status: **landed** in #84 (merged 2026-11-04, released in 0.14.0). Was: "proposed, waiting for the
+owner's approval". One
 branch, one pull request (`feat/terminal-menu-schedules-mcp-v1-tools`), five independent pieces.
 
 ## 1. Findings (verified in the code, 2026-11-03)

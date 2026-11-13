@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-08T14:36:12.21521472Z
-updated_at: 2026-11-09T18:00:00Z
+updated_at: 2026-11-13T15:00:00Z
 tags:
     - plan
     - servers
@@ -11,10 +11,10 @@ tags:
 ---
 # Plan: Servers — one Claudio drives the others
 
-Status: **built, waiting to merge and release.** The engine shipped in #99 (orchestration A and its
-follow-ups, merged 2026-11-09). Orchestration B (§12) completed Servers on branches merged into one:
-the UI, the five engine gaps E1-E5, the two flaky workflow tests and the docs; what is still open
-is in [§12.4](#124-outcome). The release (0.15.0) waits for that merge. The engine and the UI as
+Status: **landed** in #99 (the engine, orchestration A and its follow-ups, merged 2026-11-09) and #105
+(orchestration B, §12: the UI, the five engine gaps E1-E5, the two flaky workflow tests and the docs,
+merged 2026-11-09), both released in 0.15.0; what is still open is in [§12.4](#124-outcome). Was:
+"built, waiting to merge and release". The engine and the UI as
 built are [servers.md](../servers.md); what each task of A delivered is in [Outcome](#10-outcome).
 Requirements gathered from the owner, prior art and pitfalls researched, design validated by the
 owner on 2026-11-08; the UI design is settled in §12.1.
