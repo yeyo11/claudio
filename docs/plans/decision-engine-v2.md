@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T16:30:00Z
-updated_at: 2026-11-13T16:30:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - plan
     - decisions
@@ -11,7 +11,8 @@ tags:
 ---
 # Plan: a decision engine that earns its place
 
-Status: **proposed** (2026-11-13). Nothing here is built. The owner's choices are listed in
+Status: **built** (2026-11-13), on `feat/decision-engine-v2`, not merged yet. See the
+[Outcome](#outcome). Was: **proposed** (2026-11-13). Nothing here is built. The owner's choices are listed in
 [§9](#9-decisions-for-the-owner); the tasks in [§11](#11-tasks) are launched only after them.
 
 The [decision engine](../decision-engine.md) works as built: 29 points, two providers, three modes, a
@@ -396,6 +397,167 @@ Risks of this plan:
 - The review gate's runs that end without structured output (115 USD on 2026-10-29 and 30, all 184
   reviewer runs `invalid`): tracked with the open items of
   [ci-and-regression-open.md](ci-and-regression-open.md#what-stayed-open-and-why).
+
+## Outcome
+
+Built on 2026-11-13 on `feat/decision-engine-v2` by one Claude Code session that launched the tasks
+of [§11](#11-tasks) as subagents, in the waves of [§14](#14-how-this-plan-is-run). The feature page
+is [decision-engine.md](../decision-engine.md), which describes what the code does now.
+
+### What was built
+
+- **`cost-resume` (M1).** The CLI's totals are the session's: a spawn that resumes goes on from the
+  session's last report, which the chat's record keeps (`reported`), a fork starts from its source's,
+  and only a session that starts new starts from zero. An execution's `costUsd` is what its own
+  turns cost. A migration recomputed the stored executions of chats whose costs only grow; the spend
+  ledger was left alone and the `cost_corrections` table dates the fix. The fake CLI reports totals as
+  S1 found them. See [cli-surfaces.md](../cli-surfaces.md#how-a-resumed-or-forked-session-is-billed).
+- **`evidence` (M2, M3, M4, M6).** `decisions.baseline`, `run_effect` and `held_out`; every resolver
+  says `direct` or `proxy`, and `run.continuation`, `health.semantic-loop` and `supervisor.intervene`
+  were rewritten; stats answer runs saved, caused and their net; `pointEvidence` returns the
+  precision with its 90 % lower bound, the baseline comparison, calibration buckets and the act
+  rate; shared types and OpenAPI. A non-acting `run.continuation` row is resolved only when today's
+  rule really sent a continuation.
+- **`lifecycle` (§5).** Standing (`unproven`, `proven`, `failing`) from live outcomes and the latest
+  replay, the write gate and the refusal of bulk activation, the holdout (10 % of the first 100 acts,
+  then 5 %), demotion with its event and notification, the suggestion floor (0.7 by default) and the
+  `limitedBy` reasons. The break-evens are 0.7 for `checks.fix`, `review.depth` and
+  `orchestration.retry`, 0.6 for `flow.refine-needed`, `flow.restart`, `orchestration.fixer` and
+  `run.continuation`, and 0.5 for the rest.
+- **`replay` (M5).** `replayDecisions`, a runner behind `POST /decisions/replays` (consent, one per
+  point, 30 minutes or 1 US$), the golden set's routes and `scripts/decisions-replay.mjs`, which drives
+  the CLI directly and reads the database read-only.
+- **`continuation` (§6).** The three-answer question at state version 2, the effect recorded per
+  continuation (`continuationEffects`, `flow_runs.continuation_effects`) and the code rules:
+  at most one decision-driven continuation per run, none after one that changed nothing, and none
+  unless every earlier effect is on record.
+- **`supervisor` (§6).** The draft is structured (`{ stuck, hint }`) and decides first; a draft that
+  says "not stuck" is kept as the proposal status `not-stuck`; a hung command is timed on its own
+  clock per call, against its kind's history; `supervisor.autoSignals` lists the kinds it may send on
+  its own; `supervisor_proposals.sent_by` records who sent a hint.
+- **`health-points` (§6).** `health.semantic-loop` is asked only when at least 3 of the last 12 calls
+  are near-identical (8 finished calls at least), never twice on the same state, backs off after 3
+  "no" in a row (40 calls), and sends tool name, digest and a target of at most 80 characters, at state
+  version 2. `changes.unexplained-hunk` is not asked about a hunk with no sentence before it. The
+  resolvers' sweep is fair per point, with a cursor. Labels are taken before the prune. A miner that
+  proposes nothing is a `direct` "wrong" for `lesson.mine`. Hung-command durations use the per-call
+  clock.
+- **`silent-points` (§6).** An audit, no code changed: see the table below.
+- **`web` (§7, as D8 left it).** A standing tag and an evidence line on each point's row, the
+  sentence for why a point is limited, the demotion line, Active disabled with its reason, the floor
+  slider for suggest points under Jev, the refusal alert in the save bar, the warning toast, the
+  Usage line with the net, and the Supervisor's signal kinds as a folded list of checkboxes. `en` and
+  `es` copy.
+- **`e2e-gate` (added).** See below.
+- **`docs`.** The feature page, what leaves the machine, the cost pages, the continuations,
+  Settings, the REST table, the e2e helper, the decision record's amendments and this Outcome.
+- **`review`** reads the merged branch against this plan after `docs`; its findings are not in this
+  Outcome yet.
+
+### What differs from the plan
+
+- **The gate applies to act points and to the suggest points that start a run** (`lesson.mine`), as
+  D1 recommended; the other suggest points are switched with a warning. §5 read as if every point
+  needed standing.
+- **The Supervisor is exempt from the write gate and has `autoSignals`.** `supervisor.intervene` is
+  two things in one mode: whether the Supervisor may send on its own, and whether Jev's question may
+  decline a hint. Under the CLI it asks the engine nothing and could never earn evidence, so refusing
+  the write would leave no way to switch it on (`WRITE_EXEMPT` in `standing.ts`). §6 had it send on its
+  own "only for signal kinds that are proven" and Jev's answer used "at the threshold M6 gives the
+  point, per signal kind"; standing is per point, so what was built is an owner's list of kinds, empty
+  by default, and the run-time gate on the Jev question as for any act point.
+- **`run.continuation` is kept, and cannot be promoted after S2.** The three-answer question ships
+  for whoever wants to measure it in shadow, the code rules hold whatever it answers, and its replay
+  over the S2 set is `failing` ([§10](#10-spikes-before-building)).
+- **An extra task, `e2e-gate`.** The gate makes `PUT /decisions/settings` refuse an act point without
+  proof, which broke the specs that switched a point to `active`. The task wrote
+  `e2e/specs/decision-proof.mjs` (consent, import labelled states, replay on the fake CLI, activate),
+  made `lessons.spec` earn the gate (timeout 420 s), and taught the fake CLI to answer a replayed case
+  and the Supervisor's draft. Nothing of it has run.
+- **Calibration is reported, not used.** §4 M6 had an act point's threshold read from its table and a
+  flat table block promotion; the threshold stays the owner's setting and the gate reads the lower
+  bound of the precision.
+- **Retirement (§5) is not built:** no listing of points with "no evidence possible" (D6 said to list
+  them and leave them `off`; nothing is removed).
+- **The tokens of the runs a decision caused (M4)** are not summed; the net counts runs.
+- **The history keeps 30 days.** §3's 90 is the owner's setting and the code's default did not
+  change; what the review needed from the old rows is the golden set, which outlives the history.
+
+### The 19 points that never asked
+
+The audit of `silent-points` read the owner's install. Sixteen of the 19 were silent because the
+feature they hang on was never used there, not because a call site is dead:
+
+| Why | Points |
+| --- | --- |
+| The Team flow was never used: `flow_runs` has no row and no project has a flow or team block | 13 |
+| The planner and the assistant were never used: `plan_drafts` and `assistant_runs` are empty | 3 |
+
+`journal.relevance` is reachable only from the flow and `orchestration.model` only from the planner.
+`notification.urgency` is never asked either, because no push subscription was ever stored. What the
+audit could not determine from the data: whether the palette was used, whether the import dialog was
+opened or Suggest pressed, and whether review threads exist on orchestration pull requests. It found
+`context.compact` documented as shipping `off` with nothing in the code to say so (every point is
+off by default; the page now says that) and proposed that a point that is active without a valid
+consent, which returns without a trace, leave one (a counter or a row), so that a silent point shows
+in the stats: not built.
+
+### The spikes
+
+- **S1** is in [M1](#m1-cost-on-a-resumed-session): totals are cumulative over the session, across
+  processes, and a fork starts from its parent's.
+- **S2** is in [§10](#10-spikes-before-building): no arm beats the base rate of 0.28.
+- **S3, the gate's numbers.** The one-sided 90 % Wilson lower bound, which is what the gate compares
+  with the break-even, by observed precision and number of cases:
+
+  | Cases | 0.60 | 0.70 | 0.75 | 0.80 | 0.90 |
+  | --- | --- | --- | --- | --- | --- |
+  | 20 | 0.46 | 0.56 | 0.61 | 0.66 | 0.78 |
+  | 30 | 0.48 | 0.58 | 0.64 | 0.69 | 0.81 |
+  | 50 | 0.51 | 0.61 | 0.66 | 0.72 | 0.83 |
+  | 100 | 0.54 | 0.64 | 0.69 | 0.74 | 0.85 |
+
+  At the default 30 cases a point with a break-even of 0.5 needs 19 right (0.63), one of 0.6 needs 22
+  (0.73) and one of 0.7 needs 25 (0.83), so 30 is a real bar and not a formality; more cases lower
+  it slowly, and below 20 almost nothing clears. `minCases` stays 30. On its 211 labels,
+  `run.continuation` with the three answers on Jev got 21 of 64 right (0.33, lower bound 0.26), under
+  its 0.6: `failing`.
+
+### Open
+
+- **The feedback surfaces of §7** (a tap on a continuation's row and on a task row, on the
+  Supervisor's hint row and on every flag, and a "label ten" queue) are not built (D8). A person
+  labels a row only through the API.
+- **The floor has no slider on a project's row**, and a project write that activates a point drops
+  the gate's warnings (only the refusal reaches the person); a project's activations are not watched
+  by demotion.
+- **Cost.** A session born outside Claudio has no cost baseline (the CLI writes a `cost-state` line
+  into the transcript that nothing reads), so its first billed turn carries its history; the tokens of
+  the first turn after restoring an old chat count from zero; a fork with `--resume-session-at` and a
+  resume under another account were not checked on the real CLI; the migration could mis-recompute a
+  chat of two executions whose costs grew by chance on an old CLI.
+- **Labels carry no state version.** A label made under a point's earlier state shape is replayed
+  against the current one.
+- **`supervisor.autoSignals` has no row in the settings registry**, and the deprecated
+  `PUT /settings/supervisor` is not gated. A `no-progress` stretch that never ends is asked about once
+  and never again.
+- **Resolvers.** `health.semantic-loop` has no direct "wrong" until the web posts a dismissal; the
+  audit actor `local` counts as a person; `run.continuation` rows where no continuation followed stay
+  unresolved by design. A decision-only continuation needs an earlier effect on record for every
+  continuation, a phrase-only continuation keeps its 3 (nothing to cut it on), and the first turn's
+  `turn.commits` is approximate.
+- **Baselines.** Twelve points pass none ([decision-engine.md](../decision-engine.md#other-points-the-second-plan-changed)),
+  so their rows have no comparison.
+- **No evidence possible (§5, D6)** is not listed, calibration does not set a threshold, and the
+  tokens of caused runs are not summed.
+- **The e2e specs have not run.** Risks: about 40 fake-CLI chats per replay against the run slots and
+  a 60 s deadline, and `e2e/timings.json` was not updated for the new specs.
+- **`claudeRunsSaved`** is a deprecated alias of `runsSaved`, kept for one release.
+- **A point active without a valid consent** leaves no trace and so no row in the stats.
+
+**Verification: by the owner's choice no task ran the test, ci-checks or e2e gates; only lint and
+typecheck ran on each merge. The whole verification and a QA pass are done by the owner and the
+session before the pull request.**
 
 ## 14. How this plan is run
 

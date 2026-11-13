@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-11-03T00:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - api
     - openai
@@ -217,8 +217,9 @@ own would bill the second turn for the first one too. The route needs this turn 
 The smallest sound option is a per-turn delta computed where the cost delta already is, with no
 change to the API contract:
 
-- `LiveChat.lastReportedModelUsage` is the process's last `modelUsage`, reset at every spawn like
-  `lastReportedCostUsd`. Both baselines move on every `result`, whether or not an execution is open,
+- `LiveChat.lastReportedModelUsage` is the session's last `modelUsage`, kept across spawns like
+  `lastReportedCostUsd` (the CLI's totals are the session's, not the process's; both live on the
+  chat's record as `reported`). Both baselines move on every `result`, whether or not an execution is open,
   so the cost and the tokens of a turn always describe the same turn.
 - `foldResult` sets `LiveChat.lastTurn = { tokens, costUsd }` **before** it pushes the `result`
   event: `tokens` is `turnTokens(previous, current)`, the growth per model (a model seen for the first

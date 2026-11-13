@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T19:00:00Z
-updated_at: 2026-09-30T19:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - decision
     - decision-engine
@@ -41,7 +41,11 @@ was reviewed from `GET /decisions` and `/decisions/stats`.
 No point moves to `active`. Re-run this review with one to two weeks of rows, the real Jev cost,
 and, for `run.continuation` and `team.assign`, the `cli` provider as a comparison.
 
+The review this decision asked for was done on 2026-11-13, and what it found and changed is in
+[plans/decision-engine-v2.md](../plans/decision-engine-v2.md).
+
 ## Related
 
 - [[decision-engine.md]]
 - [[plans/decision-engine.md]]
+- [[plans/decision-engine-v2.md]]
