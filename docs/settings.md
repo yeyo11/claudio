@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T20:00:00Z
-updated_at: 2026-11-13T21:00:00Z
+updated_at: 2026-11-13T23:00:00Z
 tags:
     - settings
     - information-architecture
@@ -101,8 +101,9 @@ one), **Advanced** (the CLI model and effort, days of history), then the **decis
 At the head of the points, while any point is Active in your settings and runs as Shadow because it
 has not earned it, a note says how many ("3 points run as Shadow for now"): they stay Active in your
 settings and start acting once their own evidence clears the gate. That is where someone who upgraded
-learns that what was Active now has to earn it. Each point shows its mode and where it **stands**: a tag (Unproven, Proven or Failing) and its
-evidence, in one line: how many decisions, how many have a known outcome, how often it is right when
+learns that what was Active now has to earn it. Each point shows its mode and, once that tells you something (the point is not Off, has evidence or
+was moved back to Shadow), where it **stands**: a tag (Unproven, Proven or Failing) before its
+evidence, in one line (one fact per line on a phone): how many decisions, how many have a known outcome, how often it is right when
 it acts (or flags), how often it differs from today's rule, and how many disagreements (a link to
 History filtered by the point). A Proven or Failing point also says which reading decided ("from its
 history" or "from a replay"). The threshold of an act point and the **floor** of a suggest point,
@@ -110,8 +111,10 @@ the confidence a suggestion needs to be shown (0.70 by default), show only under
 act.
 
 A point has to earn **Active**. On an act point, and on `lesson.mine`, which starts a paid run,
-Active is disabled until the point is Proven, and says what it still needs: "Active is earned: it
-still needs 12 more cases with a known outcome and a precision above 60 %". Active stays available
+Active is disabled until the point is Proven, and the row says in words what it still needs:
+"Active is earned: it still needs 12 more cases with a known outcome and a precision above 60 %".
+An Off point nobody has turned on yet does not repeat that on every row: its area carries one line
+("Active is earned: a point shows what it needs once it is on Shadow"). Active stays available
 to a point that is already saved as Active, since the server judges only a step up from what is saved.
 A point no outcome Claudio can observe could ever prove says so instead ("No outcome Claudio can
 observe proves this point; only your own useful or not useful does"), in the place of what it still
@@ -120,8 +123,10 @@ needs, because more cases would never arrive; only your own useful or not useful
 the others as they are (the note says how many), because the server refuses several unproven points
 at once; each of those is switched on its own row. A save the server refuses
 anyway, because the point is not proven or because several unproven points would turn Active at once
-(one at a time), shows an alert in the save bar naming each point and what it lacks, writes nothing and
-keeps your unsaved changes. In a project, a point that is Active in your global settings and would
+(one at a time), shows a note at the head of the points (or of the project's card) naming each point and what it
+lacks, writes nothing and keeps your unsaved changes. The note takes the focus when it appears, can
+be closed, and goes away by itself once the draft no longer asks for what was refused or a later
+save goes through; the save bar only points to it ("Not saved: see the note above"). In a project, a point that is Active in your global settings and would
 inherit it if you dropped its Shadow override here counts as a new activation too, and the alert says
 so: "<point> is Active in your global settings. Without its Shadow override here it would become
 Active in this project, and it is not proven yet: it needs …". A suggest point can go Active without proof, with a notice that it did. A
