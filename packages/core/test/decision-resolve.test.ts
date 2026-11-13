@@ -4,7 +4,8 @@ import test from 'node:test';
 import type { DecisionAnswer, DecisionPointId, DecisionRecord } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
-import { DecisionResolvers, RESOLVED_POINTS } from '../src/decisions/resolve.ts';
+import { DIRECT_OUTCOMES, DecisionResolvers, evidencePossible, RESOLVED_POINTS, resolverOf } from '../src/decisions/resolve.ts';
+import { DECISION_POINTS } from '../src/decisions/points.ts';
 import { LessonStore } from '../src/lessons/store.ts';
 import { choiceOf, noulOf, scoreOf } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';
@@ -96,6 +97,25 @@ test('flow.bounce: needs-person is right when the card waited for a person', () 
   const needs = s.row('flow.bounce', { subjectId: 'r1', answers: { bounce: choiceOf('needs-person') } });
   s.resolvers.sweep();
   assert.equal(s.get(needs.id)?.agreed, true);
+});
+
+test('flow.bounce: a person moving a card an acted needs-person parked is only a proxy; in shadow or held out it is direct', () => {
+  const s = setup();
+  s.run('r1', { outcome: 'rejected', endedAt: T0 });
+  s.db.connection
+    .prepare("INSERT INTO work_items (id, project_id, number, type, title, description, status, priority, rank, created_at, updated_at, waiting) VALUES ('i1', 'p1', 1, 'task', 't', '', 'in_progress', 'medium', 'a', ?, ?, 'bounces')")
+    .run(T0, T0);
+  s.db.connection
+    .prepare("INSERT INTO work_item_history (id, item_id, change, from_value, to_value, actor_kind, created_at) VALUES ('h1', 'i1', 'status', 'in_review', 'todo', 'person', ?)")
+    .run(T1);
+  // The decision parked the card itself: the person moving it next is what parking asked for
+  const acted = s.row('flow.bounce', { subjectId: 'r1', mode: 'active', acted: true, answers: { bounce: choiceOf('needs-person') } });
+  const shadow = s.row('flow.bounce', { subjectId: 'r1', answers: { bounce: choiceOf('needs-person') } });
+  const heldOut = s.row('flow.bounce', { subjectId: 'r1', mode: 'active', heldOut: true, answers: { bounce: choiceOf('needs-person') } });
+  s.resolvers.sweep();
+  assert.deepEqual([s.get(acted.id)?.agreed, s.get(acted.id)?.outcome?.quality], [true, 'proxy']);
+  assert.deepEqual([s.get(shadow.id)?.agreed, s.get(shadow.id)?.outcome?.quality], [true, 'direct']);
+  assert.deepEqual([s.get(heldOut.id)?.agreed, s.get(heldOut.id)?.outcome?.quality], [true, 'direct']);
 });
 
 test('flow.criteria-precheck: a clearly-unmet criterion is right when QA then rejects', () => {
@@ -387,6 +407,32 @@ test('notification.urgency: only an open within the hour is a signal; a push nob
   assert.equal(s.get(normalIgnored.id)?.resolvedAt, null, 'ignored is no evidence, so it is not scored');
   assert.equal(s.get(openedLate.id)?.resolvedAt, null, 'an open after the window is not opened soon');
   assert.equal(s.get(highOpened.id)?.outcome?.detail?.withinMs, 20 * 60_000);
+});
+
+test('notification.urgency: an open after an acted answer is only a proxy, since the raised push is what made it likely', () => {
+  const s = setup();
+  const base = { kind: 'act' as const, subjectKind: 'notification' as const, subjectId: 'k', openedAt: '2026-09-01T10:20:00.000Z' };
+  const raised = s.row('notification.urgency', { ...base, mode: 'active', acted: true, answers: { urgency: choiceOf('high') } });
+  const shadow = s.row('notification.urgency', { ...base, answers: { urgency: choiceOf('high') } });
+  const heldOut = s.row('notification.urgency', { ...base, mode: 'active', heldOut: true, answers: { urgency: choiceOf('high') } });
+  s.resolvers.sweep();
+  assert.deepEqual([s.get(raised.id)?.agreed, s.get(raised.id)?.outcome?.quality], [true, 'proxy']);
+  assert.deepEqual([s.get(shadow.id)?.agreed, s.get(shadow.id)?.outcome?.quality], [true, 'direct']);
+  assert.deepEqual([s.get(heldOut.id)?.agreed, s.get(heldOut.id)?.outcome?.quality], [true, 'direct']);
+});
+
+test('which points can ever earn direct evidence is declared beside the resolvers, and each resolver keeps to it', () => {
+  // Every resolver is declared, and nothing is declared without a resolver
+  assert.deepEqual(Object.keys(DIRECT_OUTCOMES).sort(), [...RESOLVED_POINTS].sort());
+  for (const point of RESOLVED_POINTS) {
+    // Read from the resolver's own source: a branch that can return direct names the quality literally
+    const source = resolverOf(point)?.toString() ?? '';
+    assert.equal(/'direct'/.test(source), DIRECT_OUTCOMES[point], `${point}: declared ${String(DIRECT_OUTCOMES[point])}, its resolver ${/'direct'/.test(source) ? 'can' : 'cannot'} return direct`);
+  }
+  // A point with no resolver has no evidence the app can infer
+  for (const def of DECISION_POINTS) if (!RESOLVED_POINTS.includes(def.id)) assert.equal(evidencePossible(def.id), false, def.id);
+  assert.equal(evidencePossible('flow.bounce'), true);
+  assert.equal(evidencePossible('flow.criteria-precheck'), false);
 });
 
 test('notification.urgency: before the hour ends with no open there is no outcome yet', () => {

@@ -10,6 +10,7 @@ import type {
   DecisionPointId,
   DecisionPointStanding,
   DecisionPromotion,
+  DecisionProviderId,
   DecisionStanding,
   LocalizedParams,
 } from '@claudio/shared';
@@ -23,10 +24,16 @@ import type { DecisionPointDefinition } from './points.ts';
  * these, so each rule is tested without a database or a clock.
  */
 
-/** A replay over the golden set, as the replay harness stores it; it counts only under the questions it was run with */
+/**
+ * A replay over the golden set, as the replay harness stores it. It counts only under the questions it
+ * was run with, and only for the provider (and, for Jev, the model) the point runs on: a replay on the
+ * CLI's model says nothing about how Jev answers.
+ */
 export interface ReplayEvidence {
   at: string;
   cases: number;
+  provider: DecisionProviderId;
+  model: string;
   /** `questionsHash(point)` when the replay ran; another value means the questions changed since */
   questionsHash: string;
   score: EvidenceScore;
@@ -90,10 +97,27 @@ function reading(source: DecisionGateReading['source'], at: string | null, cases
   };
 }
 
+/** What a point runs on now: a replay counts only when it ran on the same; the model matters only for Jev, whose version is pinned */
+export interface RunsOn {
+  provider: DecisionProviderId;
+  /** The pinned Jev model; ignored for the CLI */
+  model: string | null;
+}
+
+/** Whether a stored replay speaks for the questions in force and for who answers them */
+export function replayCounts(replay: ReplayEvidence, currentHash: string | null, runsOn: RunsOn | null): boolean {
+  if (currentHash === null || replay.questionsHash !== currentHash) return false;
+  if (!runsOn) return true;
+  return replay.provider === runsOn.provider && (runsOn.provider !== 'jev' || replay.model === runsOn.model);
+}
+
 /**
- * A point's standing from its live evidence and its latest replay. Either may prove it; it is
- * `failing` when some source has the cases and none clears, and `unproven` when none has the cases.
- * A replay run under other questions than `currentHash` is ignored.
+ * A point's standing from its live evidence and its latest replay. The replay only bootstraps: once
+ * the live history has the gate's cases it alone decides, so a point that proved itself on stored
+ * states and then goes wrong live is `failing` (and can be demoted). Below that the replay may decide,
+ * proving it or failing it. `unproven` when no source has the cases. A replay run under other
+ * questions than `currentHash`, or on another provider than `runsOn`, is ignored. `decidedBy` names
+ * the reading that settled it, null while unproven.
  */
 export function standingOf(
   def: Pick<DecisionPointDefinition, 'id' | 'kind' | 'effect' | 'breakEven'>,
@@ -101,20 +125,22 @@ export function standingOf(
   live: DecisionPointEvidence,
   replay: ReplayEvidence | null,
   currentHash: string | null,
+  runsOn: RunsOn | null = null,
 ): DecisionPointStanding {
   const gate = gateInForce(def, settings);
   const liveReading = reading('live', null, live.resolvedDirect, live, def.kind, gate);
-  const replayReading = replay && currentHash !== null && replay.questionsHash === currentHash ? reading('replay', replay.at, replay.cases, replay.score, def.kind, gate) : null;
-  const readings = replayReading ? [liveReading, replayReading] : [liveReading];
-  let standing: DecisionStanding = 'unproven';
-  if (readings.some((r) => r.shortfalls.length === 0)) standing = 'proven';
-  else if (readings.some((r) => !r.shortfalls.includes('cases'))) standing = 'failing';
-  return { point: def.id, standing, gate, live: liveReading, replay: replayReading };
+  const replayReading = replay && replayCounts(replay, currentHash, runsOn) ? reading('replay', replay.at, replay.cases, replay.score, def.kind, gate) : null;
+  const hasCases = (r: DecisionGateReading | null): r is DecisionGateReading => r !== null && !r.shortfalls.includes('cases');
+  const decider = hasCases(liveReading) ? liveReading : hasCases(replayReading) ? replayReading : null;
+  const standing: DecisionStanding = decider === null ? 'unproven' : decider.shortfalls.length === 0 ? 'proven' : 'failing';
+  return { point: def.id, standing, decidedBy: decider?.source ?? null, gate, live: liveReading, replay: replayReading };
 }
 
-/** The reading a promotion or a demotion is told by: the one that clears, else the one with more cases */
+/** The reading a promotion or a demotion is told by: the one that decided the standing, else the one with more cases */
 export function bestReading(standing: DecisionPointStanding): DecisionGateReading {
   const { live, replay } = standing;
+  if (standing.decidedBy === 'replay' && replay) return replay;
+  if (standing.decidedBy === 'live') return live;
   if (!replay) return live;
   if (replay.shortfalls.length === 0 && live.shortfalls.length > 0) return replay;
   if (live.shortfalls.length === 0) return live;
@@ -137,6 +163,13 @@ export function holdoutShare(actsInWindow: number): number {
  * never earn evidence: refusing the write would leave the Supervisor with no way to be switched on.
  */
 const WRITE_EXEMPT: ReadonlySet<DecisionPointId> = new Set<DecisionPointId>(['supervisor.intervene']);
+
+/**
+ * Whether the engine may move an active point back to shadow by itself. Not the Supervisor's: its
+ * Active is its owner's switch for sending hints (above), which a demotion would turn off, while the
+ * part that needs evidence (Jev declining a hint) is already held to standing at run time.
+ */
+export const demotable = (point: DecisionPointId): boolean => !WRITE_EXEMPT.has(point);
 
 export interface ActivationVerdict {
   /** Set when the write must be refused, with the points that make it so */
@@ -167,6 +200,7 @@ export function judgeActivation(changes: readonly ActivationChange[]): Activatio
     point: c.def.id,
     kind: c.def.kind,
     standing: c.standing.standing,
+    decidedBy: c.standing.decidedBy,
     live: c.standing.live,
     replay: c.standing.replay,
     gate: c.standing.gate,

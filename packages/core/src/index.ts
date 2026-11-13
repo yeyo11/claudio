@@ -975,10 +975,13 @@ export class Core {
       projectDecisions: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.decisions ?? null,
       emit: (event) => this.events.emit(event),
       // The gate also takes a replay over the golden set, but only one run under the wording in force
-      replayEvidence: (point) => {
+      // and on the provider (for Jev, the model) the point runs on
+      replayEvidence: (point, runsOn) => {
         const hash = questionsHash(point);
-        const replay = hash ? this.db.latestDecisionReplay(point, hash) : null;
-        return replay ? { at: replay.at, cases: replay.cases - replay.unavailable, questionsHash: replay.questionsHash, score: replay.score } : null;
+        const replay = hash ? this.db.latestDecisionReplay(point, hash, runsOn) : null;
+        return replay
+          ? { at: replay.at, cases: replay.cases - replay.unavailable, provider: replay.provider, model: replay.model, questionsHash: replay.questionsHash, score: replay.score }
+          : null;
       },
     });
     this.decisions.register(

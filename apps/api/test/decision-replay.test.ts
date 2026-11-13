@@ -128,6 +128,7 @@ test('stored replays are listed by point, newest first', async () => {
     questions: QUESTIONS as DecisionReplay['questions'],
     questionsHash: 'h',
     cases: 3,
+    fallbackCases: 0,
     unavailable: 0,
     score: { precision: { n: 0, hits: 0, value: null, lower90: null }, baselinePrecision: { n: 0, hits: 0, value: null, lower90: null }, baseline: { rows: 0, differs: 0, decisionRight: 0, baselineRight: 0, unresolved: 0 }, calibration: [], actRate: { n: 0, hits: 0, value: null, lower90: null } },
     confusion: { actedRight: 0, actedWrong: 0, heldRight: 0, heldWrong: 0, unreadable: 0, recall: { n: 0, hits: 0, value: null, lower90: null } },

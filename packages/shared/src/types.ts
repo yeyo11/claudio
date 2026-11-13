@@ -10363,13 +10363,20 @@ export interface DecisionGateInForce {
   maxFlagRate: number | null;
 }
 
+/**
+ * Which reading settled a standing. The live history decides once it has the gate's `minCases`
+ * scored cases; below that a replay may decide (it only bootstraps a point). Null while unproven.
+ */
+export type DecisionStandingSource = 'live' | 'replay' | null;
+
 /** A point's standing with what it was read from */
 export interface DecisionPointStanding {
   point: DecisionPointId;
   standing: DecisionStanding;
+  decidedBy: DecisionStandingSource;
   gate: DecisionGateInForce;
   live: DecisionGateReading;
-  /** Null when no replay counts: none ran, or the point's questions changed since */
+  /** Null when no replay counts: none ran, the point's questions changed since, it ran on another provider than the point runs on (or, for Jev, another model), or some of its cases were asked other questions */
   replay: DecisionGateReading | null;
 }
 
@@ -10405,6 +10412,7 @@ export interface DecisionActivationIssue {
   point: DecisionPointId;
   kind: DecisionPointKind;
   standing: DecisionStanding;
+  decidedBy: DecisionStandingSource;
   /** The best reading it has (live or replay) and what that reading lacks */
   live: DecisionGateReading;
   replay: DecisionGateReading | null;
@@ -10542,6 +10550,15 @@ export interface DecisionPointInfo {
   };
   /** Computed from the window's `direct` outcomes or a replay; never stored */
   standing: DecisionStanding;
+  /** The reading that settled `standing` */
+  decidedBy: DecisionStandingSource;
+  /**
+   * Whether any outcome the app infers for this point can ever be `direct`, the only kind its
+   * evidence counts. False when the point has no resolver, or when every outcome its resolver reads
+   * is a `proxy`: then no outcome the app can observe proves this point, and only a person's own
+   * useful / not useful (always direct) does.
+   */
+  evidencePossible: boolean;
   /** The gate's numbers in force, and the readings the standing came from */
   gate: DecisionGateInForce;
   live: DecisionGateReading;
@@ -10880,6 +10897,11 @@ export interface DecisionReplay {
   questionsHash: string;
   /** Labelled cases put to the provider, answered or not */
   cases: number;
+  /**
+   * Cases whose stored state could not rebuild the point's questions, so they were asked the label's
+   * own; `questionsHash` is then the hash of what was asked, and the run does not count for the gate
+   */
+  fallbackCases: number;
   /** Of those, how many got no answer; they are left out of the score */
   unavailable: number;
   score: DecisionReplayScore;

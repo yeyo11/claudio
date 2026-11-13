@@ -42,9 +42,12 @@ import {
   RATE_MIN_ROWS,
   RATE_WINDOW_DAYS,
   standingOf,
+  demotable,
   type ActivationChange,
   type ReplayEvidence,
+  type RunsOn,
 } from './standing.ts';
+import { evidencePossible } from './resolve.ts';
 
 /** What a provider is asked: the redacted state and the typed questions, one batch, one call */
 export interface DecisionRequest {
@@ -85,8 +88,11 @@ export interface DecisionEngineDeps {
   now?: () => Date;
   /** Where a demotion is told (the event bus, so the web and push both hear it); absent tells no one */
   emit?: (event: ClaudioEventInput) => void;
-  /** The latest replay of a point over the golden set; absent, or null, when there is none */
-  replayEvidence?: (point: DecisionPointId) => ReplayEvidence | null;
+  /**
+   * The latest replay of a point over the golden set under its questions in force, run on what the
+   * point runs on (`runsOn`); absent, or null, when there is none
+   */
+  replayEvidence?: (point: DecisionPointId, runsOn: RunsOn) => ReplayEvidence | null;
   /** The holdout's coin, in [0, 1); tests fix it */
   random?: () => number;
   /**
@@ -229,8 +235,10 @@ export class DecisionEngine {
     const cached = this.standings.get(point);
     if (!fresh && cached && cached.until > Date.now()) return cached.value;
     const live = readPointEvidence(this.deps.db, point, this.window());
-    const replay = this.deps.replayEvidence?.(point) ?? null;
-    const computed = standingOf(def, this.gateSettings(settings), live, replay, questionsHash(point));
+    // The provider the point runs on install-wide; a project's own provider does not change its standing
+    const runsOn: RunsOn = { provider: settings.provider, model: settings.provider === 'jev' ? JEV_MODEL : null };
+    const replay = this.deps.replayEvidence?.(point, runsOn) ?? null;
+    const computed = standingOf(def, this.gateSettings(settings), live, replay, questionsHash(point), runsOn);
     const value = this.deps.standing ? { ...computed, standing: this.deps.standing(point) } : computed;
     this.standings.set(point, { until: Date.now() + STANDING_TTL_MS, value });
     return value;
@@ -247,9 +255,16 @@ export class DecisionEngine {
     return rate.n >= RATE_MIN_ROWS ? rate.value : null;
   }
 
-  /** How many times an active point acted, or would have and was held out, in the window: what the holdout share reads */
-  private actsInWindow(point: DecisionPointId): number {
-    const rows: DecisionEvidenceRow[] = this.deps.db.decisionEvidenceRows({ ...this.window(), point });
+  /**
+   * How many times an active point acted, or would have and was held out, since it was promoted (or,
+   * with no promotion mark, over the window): what the holdout share reads. D3's "first 100 acts" are
+   * those of its current time in Active, not of an earlier one it was demoted from.
+   */
+  private actsInWindow(point: DecisionPointId, settings: DecisionSettings): number {
+    const window = this.window();
+    const promoted = settings.points[point]?.promotion?.at;
+    const since = promoted && promoted > window.since ? promoted : window.since;
+    const rows: DecisionEvidenceRow[] = this.deps.db.decisionEvidenceRows({ ...window, since, point });
     return rows.filter((r) => r.mode === 'active' && (r.acted || r.heldOut)).length;
   }
 
@@ -257,7 +272,7 @@ export class DecisionEngine {
   catalogue(projectId: string | null): DecisionPointInfo[] {
     const settings = this.deps.settings.get();
     return DECISION_POINTS.map((def) => {
-      const { standing, gate, live, replay } = this.standingOfDef(def, settings);
+      const { standing, decidedBy, gate, live, replay } = this.standingOfDef(def, settings);
       return {
         id: def.id,
         kind: def.kind,
@@ -270,6 +285,8 @@ export class DecisionEngine {
         stateVersion: def.stateVersion,
         effective: this.effective(def.id, projectId, settings),
         standing,
+        decidedBy,
+        evidencePossible: evidencePossible(def.id),
         gate,
         live,
         replay,
@@ -399,7 +416,7 @@ export class DecisionEngine {
     // D3: a share of what an active act point would act on runs today's behaviour instead, so the
     // point is judged on cases it did not itself shape
     let heldOut = false;
-    if (act && def.kind === 'act' && this.random() < holdoutShare(this.actsInWindow(point))) {
+    if (act && def.kind === 'act' && this.random() < holdoutShare(this.actsInWindow(point, settings))) {
       act = false;
       heldOut = true;
     }
@@ -524,11 +541,14 @@ export class DecisionEngine {
   }
 
   /**
-   * D2: re-checks every active point that was promoted. One that has the cases and no longer clears
-   * its gate, or that acted (or flagged) over the last seven days more than twice as often as on the
-   * evidence that promoted it, goes back to shadow with the reason, and the person is told. A point
-   * that was already active when its evidence proved it gets its promotion mark here, so its rate has
-   * something to be compared with. Nothing is ever promoted. Returns the demotions it made.
+   * D2: re-checks every active point. One whose standing is `failing` (the reading that decides it has
+   * the gate's cases and does not clear it) goes back to shadow with the reason, and the person is
+   * told, whether or not it carries a promotion mark: an install whose points were switched on before
+   * the gate existed has none, and a failing point there must not keep acting or flagging. One that
+   * was promoted is also demoted when over the last seven days it acted (or flagged) more than twice as
+   * often as on the evidence that promoted it. A point that is active and proven without a mark gets
+   * it here, so its rate has something to be compared with. The Supervisor's point is never demoted
+   * ({@link demotable}). Nothing is ever promoted. Returns the demotions it made.
    */
   async review(): Promise<Array<{ point: DecisionPointId; demotion: DecisionDemotion }>> {
     const made: Array<{ point: DecisionPointId; demotion: DecisionDemotion }> = [];
@@ -540,12 +560,14 @@ export class DecisionEngine {
       const stored = settings.points[def.id];
       if (stored?.mode !== 'active') continue;
       const standing = this.standingOfDef(def, settings, true);
-      if (!stored.promotion) {
-        if (standing.standing === 'proven') await this.deps.settings.markPromotion(def.id, promotionOf(standing, this.shadowRate(def.id), at));
+      if (!stored.promotion && standing.standing === 'proven') {
+        await this.deps.settings.markPromotion(def.id, promotionOf(standing, this.shadowRate(def.id), at));
         continue;
       }
+      if (!demotable(def.id)) continue;
       const recentRows = this.deps.db.decisionEvidenceRows({ since: new Date(now.getTime() - RATE_WINDOW_DAYS * DAY_MS).toISOString(), point: def.id });
-      const demotion = demotionOf(def, standing, pointEvidence(def.id, recentRows), stored.promotion, at);
+      // Without a mark there is no promoted rate to compare with: only `failing` can demote it
+      const demotion = demotionOf(def, standing, pointEvidence(def.id, recentRows), stored.promotion ?? null, at);
       if (!demotion) continue;
       await this.deps.settings.demote(def.id, demotion);
       this.standings.clear();

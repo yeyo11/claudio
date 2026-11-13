@@ -18,12 +18,13 @@ import { tempConfig } from './helpers.ts';
 const T0 = '2026-09-01T10:00:00.000Z';
 const AFTER = (minutes: number): string => new Date(Date.parse(T0) + minutes * 60_000).toISOString();
 
-function setup() {
+/** `now` is the resolvers' clock: a point with a reach (`health.semantic-loop`) is only swept near its rows */
+function setup(now = '2026-09-02T00:00:00.000Z') {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = new Db(config);
   const engine = new DecisionEngine({ settings: { get: () => ({ historyDays: 30 }) } as never, db, projectDecisions: () => null });
-  const resolvers = new DecisionResolvers({ sql: db.connection, db, engine, historyDays: () => 30, now: () => new Date('2026-09-02T00:00:00.000Z') });
+  const resolvers = new DecisionResolvers({ sql: db.connection, db, engine, historyDays: () => 30, now: () => new Date(now) });
   let n = 0;
   const row = (point: DecisionPointId, over: Partial<DecisionRecord> & { answers: Record<string, DecisionAnswer> | null }): DecisionRecord => {
     const record: DecisionRecord = {
@@ -167,8 +168,11 @@ test('run.continuation: an acted hands-off says nothing about a continuation onl
 
 // ---------- health.semantic-loop ----------
 
+/** An hour after the rows: inside the point's reach, and past every action the tests write */
+const LOOP_NOW = AFTER(60);
+
 test("health.semantic-loop: a person's stop after the flag is a direct agreement", () => {
-  const s = setup();
+  const s = setup(LOOP_NOW);
   const r = s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c1', answers: { loop: noulOf(true) } });
   s.audit('local', 'POST /chats/:id/stop', '/api/chats/c1/stop', AFTER(5));
   s.resolvers.sweep();
@@ -176,7 +180,7 @@ test("health.semantic-loop: a person's stop after the flag is a direct agreement
 });
 
 test('health.semantic-loop: a hint on the orchestration task the chat works for counts as stepping in', () => {
-  const s = setup();
+  const s = setup(LOOP_NOW);
   s.db.connection.prepare('INSERT INTO chats (id, created_at, json) VALUES (?, ?, ?)').run('c1', T0, JSON.stringify({ orchestrationId: 'o1', orchestrationTaskId: 't1' }));
   const r = s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c1', answers: { loop: noulOf(true) } });
   s.audit('token:abc', 'POST /orchestrations/:id/tasks/:taskId/hint', '/api/orchestrations/o1/tasks/t1/hint', AFTER(2));
@@ -185,7 +189,7 @@ test('health.semantic-loop: a hint on the orchestration task the chat works for 
 });
 
 test('health.semantic-loop: a Supervisor hint, a chat token, a late action or a plain message leave the flag unresolved', () => {
-  const s = setup();
+  const s = setup(LOOP_NOW);
   // The old resolver read this as agreement: 525 of 525 on the owner's install
   s.db.connection.prepare("INSERT INTO supervisor_proposals (id, chat_id, signal, hint, cost_usd, at, status) VALUES ('sp', 'c1', 'loop', 'h', 0, ?, 'sent')").run(AFTER(1));
   const r = s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c1', answers: { loop: noulOf(true) } });
@@ -193,12 +197,16 @@ test('health.semantic-loop: a Supervisor hint, a chat token, a late action or a 
   s.audit('local', 'POST /chats/:id/messages', '/api/chats/c1/messages', AFTER(4));
   s.audit('local', 'POST /chats/:id/stop', '/api/chats/c1/stop', AFTER(45));
   s.audit('local', 'POST /chats/:id/stop', '/api/chats/c10/stop', AFTER(5));
-  assert.equal(s.resolvers.sweep(), 0);
+  // A flag on another chat that a person did stop: the sweep reads these rows, and resolves only that one
+  const control = s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c2', answers: { loop: noulOf(true) } });
+  s.audit('local', 'POST /chats/:id/stop', '/api/chats/c2/stop', AFTER(6));
+  assert.equal(s.resolvers.sweep(), 1);
+  assert.equal(s.get(control.id)?.agreed, true);
   assert.equal(s.get(r.id)?.resolvedAt, null);
 });
 
 test('health.semantic-loop: a no is never judged, and a person can still say the flag was wrong', () => {
-  const s = setup();
+  const s = setup(LOOP_NOW);
   const no = s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c1', answers: { loop: noulOf(false) } });
   const flagged = s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c2', answers: { loop: noulOf(true) } });
   s.audit('local', 'POST /chats/:id/stop', '/api/chats/c1/stop', AFTER(5));
@@ -206,6 +214,15 @@ test('health.semantic-loop: a no is never judged, and a person can still say the
   s.resolvers.sweep();
   assert.equal(s.get(no.id)?.resolvedAt, null);
   assert.equal(s.get(flagged.id)?.agreed, false);
+});
+
+test('health.semantic-loop: a flag older than the reach of a person\'s answer is not read at all', () => {
+  // Fourteen hours on, past the half hour a person's action counts and the grace for a late sweep
+  const s = setup('2026-09-02T00:00:00.000Z');
+  const r = s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c1', answers: { loop: noulOf(true) } });
+  s.audit('local', 'POST /chats/:id/stop', '/api/chats/c1/stop', AFTER(5));
+  assert.equal(s.resolvers.sweep(), 0);
+  assert.equal(s.get(r.id)?.resolvedAt, null);
 });
 
 // ---------- supervisor.intervene ----------

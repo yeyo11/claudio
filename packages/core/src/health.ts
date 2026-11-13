@@ -68,6 +68,20 @@ export function runningCommands(trace: Trace): ToolCall[] {
 const ms = (iso: string): number => Date.parse(iso);
 
 /**
+ * How long an unanswered earlier call may hold a later one's clock. Far past any command's limit: a
+ * sibling that has run this long is itself the news, and a command queued behind it is timed from here
+ * on rather than hidden for as long as the sibling lasts.
+ */
+export const SERIES_HOLD_MAX_MS = 2 * 60 * 60_000;
+
+/**
+ * Calls Claude Code always runs one at a time, never beside another: an edit waits for every earlier
+ * call of its message. One that answered while an earlier call is still open shows that call was not
+ * of its message, so its own answer was lost on the way (an interrupt, a stream cut short).
+ */
+const SERIAL_TOOLS: ReadonlySet<string> = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+
+/**
  * When a call's own clock started, or null while it may not have started at all. Every call of one
  * message carries the message's time, and Claude Code runs only the calls that change nothing side by
  * side: the fourth shell command of a batch waits while the third runs, and timed from the message
@@ -75,15 +89,27 @@ const ms = (iso: string): number => Date.parse(iso);
  * the call's own time and the end of every earlier call by the same agent that was still running
  * when it was made, and a call with such a sibling still running is not timed yet: the sibling is,
  * on its own clock. The CLI's heartbeat, when there is one, is better than either and is read first.
+ *
+ * Two kinds of open earlier call hold nothing: one whose answer was lost (a serial call made after it
+ * has answered, which the CLI would not have run before it), and one open longer than
+ * {@link SERIES_HOLD_MAX_MS}, after which the later call is timed from that limit.
  */
-export function commandClock(trace: Pick<Trace, 'calls'>, call: ToolCall): string | null {
+export function commandClock(trace: Pick<Trace, 'calls'>, call: ToolCall, nowMs = Date.now()): string | null {
   let start = call.at;
   const agent = call.parentToolUseId ?? '';
-  for (const other of trace.calls) {
-    if (other === call || other.id === call.id) break;
-    if ((other.parentToolUseId ?? '') !== agent) continue;
-    if (other.endedAt === null) return null;
-    if (ms(other.endedAt) > ms(start)) start = other.endedAt;
+  const own = trace.calls.filter((c) => (c.parentToolUseId ?? '') === agent);
+  const index = own.findIndex((c) => c === call || c.id === call.id);
+  const earlier = index < 0 ? own : own.slice(0, index);
+  for (const [i, other] of earlier.entries()) {
+    if (other.endedAt !== null) {
+      if (ms(other.endedAt) > ms(start)) start = other.endedAt;
+      continue;
+    }
+    const lost = earlier.slice(i + 1).some((later) => SERIAL_TOOLS.has(later.name) && later.endedAt !== null && ms(later.endedAt) <= ms(call.at));
+    if (lost) continue;
+    const released = ms(other.at) + SERIES_HOLD_MAX_MS;
+    if (nowMs < released) return null;
+    if (released > ms(start)) start = new Date(released).toISOString();
   }
   return start;
 }
@@ -148,7 +174,7 @@ export function repeatStall(trace: Trace, limits: StallLimits, nowMs: number): H
     const limit = limitFor(kind, limits);
     // On the call's own clock: a command queued behind its batch did not stall while it waited
     const stalled = (call: ToolCall) => {
-      const start = commandClock(trace, call);
+      const start = commandClock(trace, call, nowMs);
       return start !== null && (call.endedAt ? ms(call.endedAt) : nowMs) - ms(start) >= limit;
     };
     const tail: ToolCall[] = [];
@@ -286,6 +312,23 @@ function targetOf(call: ToolCall): string {
   return '';
 }
 
+/** 3 to 5 repeats, 6 to 11, 12 and more: a repetition that grows this much is worth a second look */
+const repeatBucket = (n: number): number => Math.max(0, Math.floor(Math.log2(n / SEMANTIC_LOOP_REPEATS)));
+
+/**
+ * What identifies a repetition for the "not asked twice" rule: each repeated group (agent, tool and
+ * normalised input, from {@link nearKey}) with its count bucket. Not the whole window: every new call
+ * changes the window, and hashing it asked again on every call while the same three calls sat in it.
+ */
+function repetitionHash(repeated: ReadonlyArray<[string, number]>): string {
+  return digestOf(
+    repeated
+      .map(([key, n]) => `${key}\0${String(repeatBucket(n))}`)
+      .sort()
+      .join('\n'),
+  );
+}
+
 /**
  * What the `health.semantic-loop` point sends, or null when it is not worth a question: the exact
  * rule already says loop, the worker has not done enough to judge, or no tool was called on
@@ -294,19 +337,21 @@ function targetOf(call: ToolCall): string {
  * {@link loop} finds.
  *
  * Each call is its tool name, a digest of its input and its target, never the input or the output:
- * the state was 24 M tokens of tool calls. `hash` identifies the state so the same one is not asked twice.
+ * the state was 24 M tokens of tool calls. `hash` identifies the repetition (the repeated groups and how
+ * many times each came), so the same one is not asked about twice however the window moves around it.
  */
 export function semanticLoopState(trace: Trace): { lastCallId: string; firstAt: string; hash: string; calls: Array<Record<string, string>> } | null {
   const recent = trace.calls.filter((c) => c.endedAt && !BOOKKEEPING.has(c.name)).slice(-WINDOW);
   if (recent.length < SEMANTIC_LOOP_MIN_CALLS || loop(trace)) return null;
   const tally = new Map<string, number>();
   for (const call of recent) tally.set(nearKey(call), (tally.get(nearKey(call)) ?? 0) + 1);
-  if (![...tally.values()].some((n) => n >= SEMANTIC_LOOP_REPEATS)) return null;
+  const repeated = [...tally].filter(([, n]) => n >= SEMANTIC_LOOP_REPEATS);
+  if (!repeated.length) return null;
   const calls = recent.map((c) => ({ name: c.name, digest: digestOf(stable(c.input)), target: targetOf(c) }));
   return {
     lastCallId: (recent[recent.length - 1] as ToolCall).id,
     firstAt: (recent[0] as ToolCall).at,
-    hash: digestOf(JSON.stringify(calls)),
+    hash: repetitionHash(repeated),
     calls,
   };
 }
