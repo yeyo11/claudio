@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-13T21:00:00Z
 tags:
     - status
     - project-state
@@ -216,8 +216,7 @@ From 2026-11-07 to 2026-11-11:
   `run.continuation` does not beat the phrase list on the owner's labelled rows, so it cannot be
   promoted. What stays open is in the plan's [Outcome](plans/decision-engine-v2.md#open): the feedback
   surfaces (a tap on a continuation, a hint or a flag; a "label ten" queue), the floor and the gate's
-  warnings on a project's rows, the points that pass no baseline, listing the points with no evidence
-  possible, cost baselines for sessions born outside Claudio, and the whole verification of the build
+  warnings on a project's rows, the points that pass no baseline, cost baselines for sessions born outside Claudio, and the whole verification of the build
   (the test, `ci-checks` and e2e gates and a QA pass, owed before the pull request). The first plan's
   Outcome is [here](plans/decision-engine.md#outcome).
 - **The project ecosystem** was merged into `main` in #118 and is no longer open as a whole; see the

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-13T21:00:00Z
 tags:
     - rest-api
     - api
@@ -483,7 +483,7 @@ The decision engine: a decision point puts typed questions to a provider (the Cl
 | PUT | `/decisions/credentials` | `{ key }` — save the Jev key (mode 600); the answer carries the general privacy notice. Not open to a chat's token |
 | DELETE | `/decisions/credentials` | Remove the key; points on `jev` fall back to off-behaviour. Not open to a chat's token |
 | POST | `/decisions/test` | `{ provider }` — one small fixed question: `{ ok, latencyMs, model, reason }`. Nothing is recorded |
-| GET | `/decisions/points` | The catalogue with the settings in force, optionally for `?projectId=`, and per point its `standing` (`unproven`, `proven`, `failing`), the gate's numbers in force, the live and replay readings, `demoted`, and in `effective` the suggestion `floor` and `limitedBy` (`cli`, `no-consent`, `unproven`, `failing`, `demoted`) |
+| GET | `/decisions/points` | The catalogue with the settings in force, optionally for `?projectId=`, and per point its `standing` (`unproven`, `proven`, `failing`) and `decidedBy` (`live`, `replay` or null: live evidence decides once it has the gate's cases, a replay only before that, and one counts only for the provider the point runs on and, for Jev, its pinned model), `evidencePossible` (false when no outcome the app observes is ever `direct` for the point, so only a person's useful or not useful proves it), the gate's numbers in force, the live and replay readings, `demoted`, and in `effective` the suggestion `floor` and `limitedBy` (`cli`, `no-consent`, `unproven`, `failing`, `demoted`) |
 | GET | `/decisions/points/:point/preview` | The exact state of the point's last request, or the fields it may carry, built locally and not sent |
 | PUT | `/decisions/points/:point/consent` | `{ granted, stateVersion, providers }` — grant or withdraw consent for what was previewed (`409` when the state changed since). Not open to a chat's token |
 | GET | `/decisions` | History, newest first, filtered by `point`, `projectId`, `subjectKind`, `subjectId`, `visible`, `provider`, `mode`, `status`, `since`, `until` and paged with `cursor` and `limit` |
@@ -500,7 +500,7 @@ The decision engine: a decision point puts typed questions to a provider (the Cl
 | POST | `/decisions/labels/import` | `{ labels: [{ point, state, questions, positive, note? }] }` — a set built outside, up to 500, validated whole; states are redacted on the way in: `{ imported }`. Not open to a chat's token |
 | POST | `/decisions/labels/outcomes` | `{ point, days? }` — labels each answered row of the last `days` (30) whose outcome is `direct`; a person's label of the row is kept: `{ saved, keptPerson, unreadable }`. Not open to a chat's token |
 | POST | `/decisions/replays` | `{ point, provider?, questions?, limit?, concurrency?, note? }` — puts the newest labelled states (100) to a provider again, under the point's questions or reworded ones, in the background. Needs the point's consent for that provider and state version (`409` otherwise); one per point at a time; ends after 30 minutes or 1 US$; writes no `decisions` row: `{ point, provider, cases, questionsHash }`. Not open to a chat's token |
-| GET | `/decisions/replays` | The stored results, newest first, optionally of `?point=`: score against the labels, confusion table, unavailable count, cost, consent; with `running` and `failed` |
+| GET | `/decisions/replays` | The stored results, newest first, optionally of `?point=`: score against the labels, confusion table, unavailable count, `fallbackCases` (cases asked the label's own questions because their state could not rebuild the point's: such a run never counts for the gate), cost, consent; with `running` and `failed` |
 | POST | `/decisions/palette` | `{ query, commands: [{ id, title }] }` — the `palette.intent` point: `{ commandId, confidence, decisionId }`, with `commandId` null when the point is off, unavailable or unsure |
 
 ## Push

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-13T21:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -291,8 +291,12 @@ nothing, the report before it stays the task's result, with its one-line answer 
 Asked only when a cheap rule finds repetition worth judging, state version 2 (consent asked again):
 at least 8 finished calls in the chat's last 12 (bookkeeping tools aside), the same tool on
 near-identical input at least 3 times among them, and the exact loop rule of `health.ts` has not
-already fired. The same state (its hash) is never asked twice, and a chat that got "no" three times
-in a row is asked again only after 40 more calls, or at once after a "yes". The state is each call's
+already fired. The same repetition is never asked twice. What identifies it is the repeated group
+(agent, tool and normalised input) with a count bucket (3 to 5 repeats, 6 to 11, 12 and more), not the
+window around it, which changes with every new call; the chat keeps every repetition it has put, so
+one that leaves the window and comes back is still the one that was asked, while a repetition that
+grows into the next bucket is asked about again. A chat that got "no" three times in a row is asked
+again only after 40 more calls, or at once after a "yes". The state is each call's
 tool name, a digest of its input and its target (a path, pattern, URL or query, or a command's first
 word, at most 80 characters): never an input or a result. The baseline is "no flag". Its resolver
 is `direct` only from a person's action on the chat after the flag (a stop, an interrupt, a hint, a
@@ -340,15 +344,28 @@ readable, all in `packages/core/src/decisions/`.
   verdict, or the result of something the decision itself set in motion). A row with no quality is
   `proxy`. Only `direct` outcomes, and a person's own word (useful or not useful), count as
   evidence. The resolvers that are `direct`: `flow.restart`, `orchestration.retry`,
-  `orchestration.fixer`, `run.continuation`, `lesson.mine`, `palette.intent`, `notification.urgency`,
+  `orchestration.fixer`, `run.continuation`, `lesson.mine`, `palette.intent`,
   `memory.triage`, `assistant.rerank`, `account.model-fallback`, `health.semantic-loop` (only from a
   person's action on the chat). The ones that are `proxy`: `flow.criteria-precheck`,
   `review.depth`, `orchestration.model`, `journal.relevance`, `flow.scope-drift`,
-  `health.test-weakening` and `changes.unexplained-hunk` (QA's verdict on the card). Nine are
+  `health.test-weakening` and `changes.unexplained-hunk` (QA's verdict on the card). Ten are
   either, row by row: a person's own edit, a shadow row or a held-out one is `direct`, and a QA
   verdict after the point acted is `proxy` (`flow.refine-needed`, `flow.bounce`,
   `flow.criteria-merge`, `team.assign`, `context.compact`, `assistant.sources`, `board.triage`,
-  `checks.fix`, `supervisor.intervene`). `review.triage` and `issue.triage` have no resolver.
+  `checks.fix`, `supervisor.intervene`, `notification.urgency`). Two of them grade what their own act
+  caused, so a row that acted never counts as `direct`: `flow.bounce` (an acted "needs a person" parked
+  the card itself, and a person then moving it is what parking asks for) and `notification.urgency`
+  (an acted answer set the push's priority, and a raised push is the one that gets opened). A shadow
+  or held-out row of either reads as today's behaviour did, and stays `direct`.
+  `review.triage` and `issue.triage` have no resolver.
+- **Which points can ever be proven by what the app sees.** `DIRECT_OUTCOMES` (`resolve.ts`) says, per
+  resolver, whether it can ever return `direct`, and `GET /decisions/points` serves it as
+  `evidencePossible`. It is `false` for the nine points that cannot: the seven whose resolver is only
+  ever `proxy` (`flow.criteria-precheck`, `review.depth`, `orchestration.model`, `journal.relevance`,
+  `flow.scope-drift`, `health.test-weakening`, `changes.unexplained-hunk`) and the two with no
+  resolver (`review.triage`, `issue.triage`). For them nothing but a person's own useful or not useful
+  (always `direct`) is evidence, so Settings says that instead of asking for cases that cannot arrive.
+  A test reads each resolver's source against the table, so the two move together.
 - **Run effect and net runs.** Acting changes how many agent runs happen against today's behaviour.
   `decisions.run_effect` is `+1` for a run the decision saved, `-1` for one it caused and `0`
   otherwise, written with the row. A point's definition reads it against the baseline when the row
@@ -373,15 +390,25 @@ readable, all in `packages/core/src/decisions/`.
 
 `standingOf` (`standing.ts`) puts every point in one of three standings, shown on its row and served
 by `GET /decisions/points`. Standing is computed, never stored: from the window's `direct` outcomes
-(the last `historyDays`) and from the latest [replay](#labels-and-replays) of the point under the
-questions in force (a replay run under other questions is ignored). The engine caches it for a
-minute and drops the cache when an outcome or a settings write lands.
+(the last `historyDays`) and from the latest [replay](#labels-and-replays) of the point that counts.
+The engine caches it for a minute and drops the cache when an outcome or a settings write lands.
+
+**Live evidence decides, a replay only bootstraps.** Once the live history has the gate's `minCases`
+scored cases it alone settles the standing, so a point that proved itself on stored states and then
+goes wrong live is `failing`, and can be demoted. Below that count a replay that has the cases may
+decide, to prove the point or to fail it. `decidedBy` (`live`, `replay`, or `null` while unproven)
+says which reading settled it, and the row says it too.
+
+**A replay counts only for what the point runs on.** It must have run under the questions in force,
+on the provider the point runs on install-wide (a project's own provider does not change its
+standing) and, for Jev, on the pinned model: a replay on the CLI's model says nothing about how Jev
+answers. A replay with `fallbackCases` above zero never counts ([below](#labels-and-replays)).
 
 | Standing | Meaning |
 | --- | --- |
-| `unproven` | No source has enough cases with a known outcome yet |
-| `proven` | Some source clears the gate |
-| `failing` | A source has the cases and none clears the gate |
+| `unproven` | Neither reading has enough cases with a known outcome yet |
+| `proven` | The deciding reading clears the gate |
+| `failing` | The deciding reading has the cases and does not clear the gate |
 
 The gate, with its numbers in force (`gate` in `decisions.json`, defaults in `DEFAULT_GATE`):
 
@@ -420,26 +447,35 @@ whether the Supervisor may send hints on its own, which the owner bounds by list
 whether a question to the engine may decline a hint, which only happens under Jev and which the
 run-time gate holds to standing like any act point. Under the CLI the point asks the engine nothing,
 so it could never earn evidence, and refusing the write would leave the Supervisor no way to be
-switched on. The exemption covers the write only.
+switched on. The exemption covers the write, and the engine's demotion too ([below](#demotion)): its
+Active is the owner's switch for sending hints, which a demotion would turn off, while the part that
+needs evidence, Jev declining a hint, is already held to standing at run time.
 
 ### Probation: the holdout
 
 An active act point acts on all but a random share of the cases it would act on. The share is 10 %
 while the point has acted (or held back) fewer than 100 times in the window and 5 % after
-(`holdoutShare`). A held-out row is recorded with `held_out = 1` and `acted = 0`, today's behaviour
+(`holdoutShare`), counted since the point's promotion mark when it has one, so the first hundred acts
+are those of its current time in Active, and over the window otherwise. A held-out row is recorded with `held_out = 1` and `acted = 0`, today's behaviour
 runs, and the row resolves like a shadow row: it is the comparison that does not depend on what the
 point itself caused. The price is that a held-out `done` causes a continuation the decision would
 have saved.
 
 ### Demotion
 
-`DecisionEngine.review()` runs hourly and after each sweep of the resolvers. An active point that
-was promoted (its promotion mark records when and its act rate then; a point that was already active
-when it became proven gets the mark at the next review) goes back to shadow when:
+`DecisionEngine.review()` runs hourly and after each sweep of the resolvers. An active point goes
+back to shadow when:
 
-- it has the cases and no longer clears its gate (reason `failing`), or
-- over the last 7 days, with at least 20 answered rows, it acted or flagged more than twice as often
-  as on the evidence it was promoted on (reason `rate`).
+- its standing is `failing`: the reading that decides it has the cases and no longer clears the gate
+  (reason `failing`). This holds **with or without a promotion mark**: an install whose points were
+  switched on before the gate existed has none, and a failing point there must not keep acting or
+  flagging; or
+- it was promoted (its promotion mark records when and its act rate then) and, over the last 7 days,
+  with at least 20 answered rows, it acted or flagged more than twice as often as on the evidence it
+  was promoted on (reason `rate`). Without a mark there is no promoted rate to compare with.
+
+A point that is active and proven without a mark gets the mark at the next review. The Supervisor's
+`supervisor.intervene` is never demoted ([above](#standing-and-the-promotion-gate)).
 
 The engine writes `demoted` (when, why and the figures) into the point's entry in `decisions.json`,
 sets its mode to shadow and emits the `decision.demoted` event, which becomes a notification of kind
@@ -477,8 +513,12 @@ A replay tests a question, a new Jev version or a provider before the point ship
   confusion table. It writes no `decisions` row, never retries, counts an unavailable answer and
   leaves it out of the score, and a provider that reports it cannot answer at all (no key, no quota,
   rate limit, spend cap) ends the run. The result is stored in `decision_replays` with the hash of
-  the questions it ran under, and the gate reads the newest one under the questions in force: a
-  replay that clears the gate proves a point as live rows do.
+  what was actually asked, and the gate reads the newest one that counts ([standing](#standing-and-the-promotion-gate)):
+  under the questions in force and on what the point runs on. A replay rebuilds each case's questions
+  from its stored state; a case whose state cannot rebuild them is asked the label's own questions and
+  counted in `fallbackCases`. The run is then stored under the hash of what was asked (the set's own
+  hash, or a hash of the mix that no point's questions equal) and never counts for the gate, so a
+  replay of stale states cannot prove a point under wording it was not asked with.
 - **From the API** a replay needs the point's own consent for that provider at the current state
   version (`409` otherwise), runs in the background, one per point at a time, and ends by itself
   after 30 minutes or 1 US$.
@@ -486,8 +526,10 @@ A replay tests a question, a new Jev version or a provider before the point ship
   (`--questions`), a labelled set from a file (`--labels`) or a provider before touching the
   install: `pnpm exec tsx scripts/decisions-replay.mjs --point <id> --provider jev`. It says which
   data directory it reads and never picks one silently, opens the database read-only (and read-write
-  only to append the result, which `--no-store` skips), drives the CLI directly as a one-shot with no
-  tool in an empty directory, and reads the Jev key through the credential store without ever
+  only to append the result, which `--no-store` skips), drives the CLI directly as a one-shot in an empty directory, confined like the engine's own
+  chat (`--restricted`, no tools, no setting sources, `--strict-mcp-config`, no slash commands,
+  `dontAsk`, and no Claudio API url, token or chat id in its environment), since the stored states are
+  untrusted text, and reads the Jev key through the credential store without ever
   printing it. `--dry-run` prints what would be sent, to whom and how big, and sends nothing.
   **Its consent rule:** states leave the machine only when the point already has consent for that
   provider at its current state version in `decisions.json`, or when the owner passes
@@ -519,14 +561,29 @@ occurrence:
   repetition, not intent, so a worker waiting on a command or a batch of calls that is doing work, on
   CI or on agents it delegated to, is not stuck. A draft that says so sends nothing and proposes
   nothing: the occurrence is kept with the proposal status `not-stuck` (statuses are `proposed`,
-  `sent`, `dismissed` and `not-stuck`), the unique key stops it being asked again, and the cost of
-  the draft is charged all the same. A person cannot send a `not-stuck` proposal (`409`).
+  `sent`, `dismissed` and `not-stuck`) and the cost of the draft is charged all the same. A person
+  cannot send a `not-stuck` proposal (`409`).
+- **A "not stuck" draft is asked again.** Honest work at minute twenty can hang for hours after, so
+  the answer does not close the occurrence. It is drafted again on the same row (the unique key keeps
+  one answer per occurrence; the new answer replaces the old one, `at` moves to it and the cost adds
+  up) after a back-off (`notStuckDue`): for a running command, once its running time has doubled since
+  the answer (asked at twenty minutes, again at forty, then at eighty), and for anything else after an
+  hour (`NOT_STUCK_RETRY_MS`). The back-off reads the row's `at`, so a restart keeps it. It is bounded:
+  at most four drafts per occurrence, the first included (`NOT_STUCK_MAX_DRAFTS`), after which the
+  worker is left to the person. A later draft that finds the worker stuck is an ordinary proposal. The
+  monitor wakes the Supervisor again every five minutes (`REWAKE_MS`) while a chat stays `bad` with the
+  same signals, because nothing else would give a back-off a later look. An occurrence whose engine
+  question answered "no hint would help" waits an hour as well, in memory, before it is asked again.
 - **A hung command is timed on its own clock, per call.** The CLI runs only the calls that change
   nothing side by side, so the fourth shell command of a batch waits while the third runs, and timed
   from the message it arrived in it looked hung after a minute of honest work by its siblings. A
   call's clock starts at the latest of its own time and the end of every earlier call by the same
   agent that was still running when it was made, and a call with such a sibling still running is
-  not timed (`commandClock`). A kind of command with history is slow after the largest of 30 s, 3
+  not timed (`commandClock`). Two rules keep that wait from hiding a command for good: an earlier call
+  still open holds nothing when a call that Claude Code runs only one at a time (an edit or a write)
+  has answered after it, which shows its own answer was lost on the way (an interrupt, a stream cut
+  short); and an earlier call open longer than two hours (`SERIES_HOLD_MAX_MS`) holds the later one no
+  longer, which is then timed from that limit. A kind of command with history is slow after the largest of 30 s, 3
   times its median and 1.5 times its 90th percentile, and `bad`, which is what wakes the Supervisor,
   after twice that (3 minutes at least); a kind with no history warns at 3 minutes and is `bad` at 10.
   The durations on that same clock are what `command_durations` keeps and the resolver reads: a
@@ -616,6 +673,9 @@ occurrence:
   `PUT /decisions/settings`, `PUT` and `DELETE /decisions/credentials` and `PUT
   /decisions/points/:point/consent`, so an injection in a chat cannot consent to a point or switch
   to Jev. A project override can set a mode or provider, never consent.
+- **Only a person rates.** `POST /decisions/:id/feedback` is a person's too (`403` to a chat's token):
+  useful or not useful is always a `direct` outcome for the gate, so a worker able to rate rows could
+  prove a point or demote it.
 - **Untrusted text is marked.** Every state goes into the question inside a `pasted()` block with
   `PASTED_NOTE`, for both providers.
 
@@ -731,11 +791,17 @@ itself.
   it is right when it acts or flags, how often it differs from today's rule, disagreements), consent,
   the threshold of an act point or the floor of a suggest point under Jev, and, when the point is not
   doing what its mode says, one sentence saying why and what it still needs ("Runs as Shadow: it still
-  needs 12 more cases with a known outcome and a precision above 60 %"). **Active is disabled** on a
-  gated point that is not proven, with that sentence as its reason, and a bulk "Active" for an area
-  leaves such a point in Shadow. A point the engine demoted says "Back to Shadow on <date>: <why>".
+  needs 12 more cases with a known outcome and a precision above 60 %"). A proven or failing point's
+  line says which reading decided ("from its history", "from a replay"), and a point whose
+  `evidencePossible` is false says "No outcome Claudio can observe proves this point; only your own
+  useful or not useful does." where that sentence would be. Above the points, a note counts the points
+  that are Active in the settings and run as Shadow for now. **Active is disabled** on a gated point
+  that is not proven, with what it needs as its reason, unless the point is saved as Active (the gate
+  judges a step up from what is saved, so the form keeps Active available to it), and a bulk "Active"
+  plans only proven points and leaves the others as they are, each to be switched on its own row. A point the engine demoted says "Back to Shadow on <date>: <why>".
   A save the gate refuses shows an alert naming each point and what it lacks, and keeps the person's
-  unsaved changes; a save with a suggest point going Active without proof says so in its toast. The
+  unsaved changes (in a project, a point that is Active globally and would inherit it by dropping its
+  Shadow override says so, since the server counts that as an activation); a save with a suggest point going Active without proof says so in its toast. The
   Supervisor's row lists, folded, the nine signal kinds it may send on its own under Active. History
   (filter, open a row, useful / not useful, delete, clear) is a screen of its own at
   `/settings/decisions/history`. The first-tap feedback surfaces and the "label ten" queue of the plan
@@ -782,12 +848,15 @@ itself.
 - **`decision_labels`**: the golden set, one row per labelled state (point, the row it came from, the
   redacted state, the questions, whether acting was right, `source`, a note). Not pruned with the
   history.
-- **`decision_replays`**: one row per replay (point, provider, model, the questions and their hash,
-  cases, how many got no answer, the score, the confusion table, cost, where the consent came from).
+- **`decision_replays`**: one row per replay (point, provider, model, the questions and the hash of
+  what was asked, cases, **`fallback_cases`** (the cases asked the label's own questions; a run with
+  any never counts for the gate), how many got no answer, the score, the confusion table, cost, where
+  the consent came from).
 - **`flow_runs.continuation_effects`** (JSON) and the task's `continuationEffects` in the
   orchestration's state: the [effect of each continuation](#runcontinuation).
 - **`supervisor_proposals.sent_by`**: `person` or `supervisor`, null while unsent and on rows from
-  before it. Its `status` has a fourth value, `not-stuck`.
+  before it. Its `status` has a fourth value, `not-stuck`, and **`asks`** counts the drafts of the
+  occurrence (1 on rows from before it).
 - **`cost_corrections`**: one row dating the migration that recomputed the stored costs of resumed
   sessions ([cli-surfaces.md](cli-surfaces.md#how-a-resumed-or-forked-session-is-billed)).
 - **Jev's cost is derived, not reported.** TypeSafe answers with input tokens only. `JevProvider`
@@ -798,20 +867,20 @@ itself.
 ## Routes
 
 All under tag `decisions`; the full table is in the [REST API](rest-api.md#decisions). Writes to
-labels, replays, settings, credentials and consent are refused to a chat's token.
+labels, replays, settings, credentials, consent and feedback are refused to a chat's token.
 
 | Method | Route | What |
 | --- | --- | --- |
 | `GET` `PUT` | `/decisions/settings` | The global settings (key masked); replace them whole. The promotion gate refuses a write with `409` (`decision-unproven`, `decision-bulk-activation`); the answer to a `PUT` carries `warnings` |
 | `PUT` `DELETE` | `/decisions/credentials` | Save or remove the Jev key |
 | `POST` | `/decisions/test` | One small fixed request to a provider |
-| `GET` | `/decisions/points` | The catalogue with the settings in force (`?projectId=`): standing, the gate, the live and replay readings, `demoted`, and `limitedBy` and `floor` in `effective` |
+| `GET` | `/decisions/points` | The catalogue with the settings in force (`?projectId=`): standing and `decidedBy`, `evidencePossible`, the gate, the live and replay readings, `demoted`, and `limitedBy` and `floor` in `effective` |
 | `GET` | `/decisions/points/:point/preview` | The exact state a point sends |
 | `PUT` | `/decisions/points/:point/consent` | Grant or withdraw consent |
 | `GET` `DELETE` | `/decisions` | History, filtered and paged; clear a filtered set |
 | `GET` | `/decisions/stats` | Per-point metrics, direct and proxy outcomes, the baseline comparison and the evidence; Jev cost and runs saved, caused and net |
 | `GET` `DELETE` | `/decisions/:id` | One decision; delete it |
-| `POST` | `/decisions/:id/feedback` | Useful or not useful |
+| `POST` | `/decisions/:id/feedback` | Useful or not useful; a chat's token gets `403` |
 | `GET` `POST` | `/decisions/labels` | The golden set; label a history row (a person's) |
 | `DELETE` | `/decisions/labels/:id` | Delete a label |
 | `POST` | `/decisions/labels/import` | Import a labelled set built outside, up to 500, redacted on the way in |
