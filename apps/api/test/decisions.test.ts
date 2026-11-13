@@ -315,7 +315,7 @@ test('an opened notification marks its newest decision once and answers null whe
   assert.equal((await open('')).statusCode, 400);
 });
 
-test("a chat's token cannot change what the engine sends, but can read and rate", async () => {
+test("a chat's token cannot change what the engine sends or rate a decision, but can read", async () => {
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
   const { token } = created.json<{ token: string }>();
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ mode: 'token' }) })).statusCode, 200);
@@ -336,6 +336,8 @@ test("a chat's token cannot change what the engine sends, but can read and rate"
       ['PUT', '/api/decisions/points/flow.bounce/consent', { granted: true, stateVersion: 1, providers: ['jev'] }],
       ['POST', '/api/decisions/some-row/palette-action', { commandId: null }],
       ['POST', '/api/decisions/notification-opened', { key: 'chat:c1:waiting' }],
+      // A rating is a direct outcome for the promotion gate: a worker must not be able to prove or demote a point
+      ['POST', '/api/decisions/some-row/feedback', { feedback: 'useful' }],
       // The deprecated door to the supervisor.intervene point's mode
       ['PUT', '/api/settings/supervisor', { enabled: true, autoSend: true }],
     ];
@@ -345,6 +347,8 @@ test("a chat's token cannot change what the engine sends, but can read and rate"
       assert.equal(answer.json().code, 'chat-forbidden');
     }
     assert.equal(core.decisionCredentials.getKey(), null);
+    const person = await app.inject({ method: 'POST', url: '/api/decisions/some-row/feedback', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, payload: JSON.stringify({ feedback: 'useful' }) });
+    assert.notEqual(person.statusCode, 403, 'the person may rate (404 here: the row does not exist)');
     assert.equal((await app.inject(fromChat('GET', '/api/decisions/settings'))).statusCode, 200);
     assert.equal((await app.inject(fromChat('GET', '/api/decisions/points'))).statusCode, 200);
   } finally {
