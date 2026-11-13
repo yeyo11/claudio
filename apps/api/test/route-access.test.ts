@@ -110,6 +110,8 @@ test('the classes C1 names: what a chat may never do, and what is its work', () 
     'POST /push/subscriptions',
     'POST /tunnel/stop',
     'PUT /decisions/settings',
+    // A rating counts as a direct outcome for the promotion gate: a worker could prove or demote a point by rating rows
+    'POST /decisions/:id/feedback',
     'POST /chats/:id/permissions/:requestId',
     'PUT /chats/:id/mcp/:name',
     'PUT /chats/:id/claudio-mcp',
@@ -152,7 +154,6 @@ test('the classes C1 names: what a chat may never do, and what is its work', () 
     'POST /assistant/proposals/:proposalId/accept',
     'POST /assistant/proposals/:proposalId/discard',
     'POST /flow-runs/:runId/retry',
-    'POST /decisions/:id/feedback',
     'POST /uploads',
     'POST /schedules',
     'PATCH /schedules/:id',
