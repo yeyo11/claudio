@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { ClaudioEvent, DecisionAnswer, DecisionPointId, DecisionRecord, DecisionResolution, ModelFallback } from '@claudio/shared';
+import type { ClaudioEvent, ContinuationEffect, DecisionAnswer, DecisionOutcomeQuality, DecisionPointId, DecisionRecord, DecisionResolution, ModelFallback } from '@claudio/shared';
 import { TTL_SECONDS } from '../push.ts';
 
 /*
@@ -44,7 +44,18 @@ function modelVerdict(suggested: string, launched: string | null, kept: boolean,
   return completed ? null : false;
 }
 
-const verdict = (agreed: boolean, summary: string, detail?: Record<string, unknown>): DecisionResolution => ({ agreed, summary, ...(detail ? { detail } : {}) });
+/**
+ * Every outcome says how far it can be trusted (M3 of docs/plans/decision-engine-v2.md): `direct` is an
+ * effect the decision could not have caused to look right (a person's action, a retry's result, what
+ * a continuation changed); `proxy` is correlated but contaminated (a later QA verdict, or what the
+ * decision itself set in motion). Only `direct` outcomes count as a point's evidence.
+ */
+const verdict = (quality: DecisionOutcomeQuality, agreed: boolean, summary: string, detail?: Record<string, unknown>): DecisionResolution => ({
+  agreed,
+  quality,
+  summary,
+  ...(detail ? { detail } : {}),
+});
 
 const choiceOf = (row: DecisionRecord, id: string): string | null => {
   const answer: DecisionAnswer | undefined = row.answers?.[id];
@@ -106,6 +117,7 @@ interface TaskRef {
   status: string;
   attempts: number;
   continuations: number;
+  continuationEffects: ContinuationEffect[];
   verification: string | null;
 }
 
@@ -119,10 +131,10 @@ function taskOf(sql: Sql, subjectId: string | null): TaskRef | null {
   if (!orch) return null;
   const taskId = subjectId.slice(at + 1);
   const verification = (orch.verification as { status?: string } | null | undefined)?.status ?? null;
-  if (taskId === '__verification__') return { status: String(orch.status ?? ''), attempts: 0, continuations: 0, verification };
+  if (taskId === '__verification__') return { status: String(orch.status ?? ''), attempts: 0, continuations: 0, continuationEffects: [], verification };
   const task = (orch.tasks as Array<Record<string, unknown>> | undefined)?.find((t) => t.id === taskId);
   if (!task) return null;
-  return { status: String(task.status ?? ''), attempts: Number(task.attempts ?? 0), continuations: Number(task.continuations ?? 0), verification };
+  return { status: String(task.status ?? ''), attempts: Number(task.attempts ?? 0), continuations: Number(task.continuations ?? 0), continuationEffects: effectsOf(task.continuationEffects), verification };
 }
 
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth'];
@@ -139,6 +151,94 @@ function itemOfChat(sql: Sql, chatId: string | null): string | null {
   return run?.item_id ?? null;
 }
 
+/** How long after a `supervisor.intervene` question its proposal may arrive: the room wait and the draft */
+const PROPOSAL_WINDOW_MS = 15 * 60_000;
+/** How long after a loop flag a person's action on the chat is still read as an answer to it */
+const PERSON_WINDOW_MS = 30 * 60_000;
+
+/** The continuations a run had when the row was asked: a number, or the words the call sites send */
+const CONTINUATION_WORDS = ['no continuation yet', 'one continuation so far', 'two continuations so far'];
+function continuationsDone(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isInteger(value) && value >= 0) return value;
+  if (typeof value !== 'string') return null;
+  const at = CONTINUATION_WORDS.indexOf(value);
+  return at >= 0 ? at : null;
+}
+
+const effectsOf = (value: unknown): ContinuationEffect[] =>
+  Array.isArray(value)
+    ? value.filter((e): e is ContinuationEffect => typeof e === 'object' && e !== null && typeof (e as ContinuationEffect).n === 'number' && typeof (e as ContinuationEffect).changed === 'boolean')
+    : [];
+
+function flowContinuationEffects(sql: Sql, runId: string | null): ContinuationEffect[] | null {
+  if (!runId) return null;
+  const found = sql.prepare('SELECT continuation_effects FROM flow_runs WHERE id = ?').get(runId) as { continuation_effects: string | null } | undefined;
+  if (!found?.continuation_effects) return null;
+  try {
+    return effectsOf(JSON.parse(found.continuation_effects));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The command a hung-command signal was about: the proposal's call when there is one, else the
+ * command of the chat that was running when the question was asked, the oldest first. Null while it
+ * has not ended (or was never measured). `usualMs` is the median of the same kind's earlier runs.
+ */
+function commandAt(sql: Sql, chatId: string, toolUseId: string | null, at: string): { outcome: string; durationMs: number; usualMs: number | null } | null {
+  type Run = { kind: string; started_at: string; duration_ms: number; outcome: string };
+  let found: Run | undefined;
+  if (toolUseId) {
+    found = sql.prepare('SELECT kind, started_at, duration_ms, outcome FROM command_durations WHERE chat_id = ? AND tool_use_id = ?').get(chatId, toolUseId) as Run | undefined;
+  } else {
+    const asked = Date.parse(at);
+    const runs = sql.prepare('SELECT kind, started_at, duration_ms, outcome FROM command_durations WHERE chat_id = ? AND started_at <= ? ORDER BY started_at').all(chatId, at) as unknown as Run[];
+    found = runs.find((r) => Date.parse(r.started_at) + r.duration_ms >= asked);
+  }
+  if (!found) return null;
+  const earlier = (sql.prepare('SELECT duration_ms FROM command_durations WHERE kind = ? AND started_at < ? ORDER BY started_at DESC LIMIT 50').all(found.kind, found.started_at) as unknown as Array<{ duration_ms: number }>)
+    .map((r) => r.duration_ms)
+    .sort((a, b) => a - b);
+  const usualMs = earlier.length ? (earlier[Math.floor(earlier.length / 2)] ?? null) : null;
+  return { outcome: found.outcome, durationMs: found.duration_ms, usualMs };
+}
+
+/** The routes by which a person steps in on a working chat; a plain message is left out, since it is as often the next prompt */
+const STEP_IN = [
+  'POST /chats/:id/stop',
+  'POST /chats/:id/interrupt',
+  'POST /chats/:id/hint',
+  'POST /chats/:id/commands/:toolUseId/cancel',
+  'POST /chats/:id/supervisor/:proposalId/send',
+  'POST /orchestrations/:id/tasks/:taskId/hint',
+  'POST /orchestrations/:id/tasks/:taskId/skip',
+  'POST /orchestrations/:id/tasks/:taskId/supervisor/:proposalId/send',
+];
+/** Actors that are not a person: a chat's own token, the wrapper itself, webhooks and refusals */
+const NOT_A_PERSON = "actor NOT LIKE 'chat:%' AND actor NOT IN ('anonymous', 'webhook', 'env', 'claudio')";
+
+/** Every key that sorts under `prefix` (which ends in `/`): `0` is the character after `/` */
+const under = (prefix: string): [string, string] => [prefix, `${prefix.slice(0, -1)}0`];
+
+/** The first step-in by a person on the chat, or on the orchestration task it works for, in `(since, until]` */
+function personActedOn(sql: Sql, chatId: string, since: string, until: string): { route: string; at: string } | null {
+  const chat = sql.prepare("SELECT json_extract(json, '$.orchestrationId') AS orch, json_extract(json, '$.orchestrationTaskId') AS task FROM chats WHERE id = ?").get(chatId) as
+    | { orch: string | null; task: string | null }
+    | undefined;
+  const prefixes = [`/api/chats/${chatId}/`];
+  if (chat?.orch && chat.task) prefixes.push(`/api/orchestrations/${chat.orch}/tasks/${chat.task}/`);
+  const routes = STEP_IN.map(() => '?').join(',');
+  for (const prefix of prefixes) {
+    const [from, to] = under(prefix);
+    const found = sql
+      .prepare(`SELECT route, at FROM audit WHERE path >= ? AND path < ? AND at > ? AND at <= ? AND status < 400 AND route IN (${routes}) AND ${NOT_A_PERSON} ORDER BY at LIMIT 1`)
+      .get(from, to, since, until, ...STEP_IN) as { route: string; at: string } | undefined;
+    if (found) return found;
+  }
+  return null;
+}
+
 const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
   'flow.refine-needed': (row, sql) => {
     const itemId = row.subjectId;
@@ -149,13 +249,13 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
       const refine = endedAfter(sql, itemId, 'refine', row.at);
       if (!refine?.ended_at) return null;
       const changed = edits.some((e) => e.created_at <= (refine.ended_at ?? ''));
-      return verdict(changed, changed ? 'The refine changed the description or the criteria' : 'The refine changed nothing', { refine: refine.outcome });
+      return verdict('direct', changed, changed ? 'The refine changed the description or the criteria' : 'The refine changed nothing', { refine: refine.outcome });
     }
     const verify = nextVerify(sql, itemId, row.at);
     if (!verify) return null;
     const editedByPerson = edits.some((e) => e.actor_kind === PERSON);
     const right = verify.outcome === 'passed' && !editedByPerson;
-    return verdict(right, right ? 'The card was built as written and QA passed it' : 'The card was rejected or a person rewrote it', { verify: verify.outcome, editedByPerson });
+    return verdict('proxy', right, right ? 'The card was built as written and QA passed it' : 'The card was rejected or a person rewrote it', { verify: verify.outcome, editedByPerson });
   },
 
   'flow.criteria-precheck': (row, sql) => {
@@ -165,7 +265,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const verify = nextVerify(sql, itemId, row.at);
     if (!verify) return null;
     const rejected = verify.outcome === 'rejected';
-    return verdict(rejected === unmet.length > 0, rejected ? 'QA rejected the card' : 'QA passed the card', { unmet: unmet.length, verify: verify.outcome });
+    return verdict('proxy', rejected === unmet.length > 0, rejected ? 'QA rejected the card' : 'QA passed the card', { unmet: unmet.length, verify: verify.outcome });
   },
 
   'flow.bounce': (row, sql) => {
@@ -176,12 +276,12 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const people = historyAfter(sql, run.item_id, row.at, ['status', 'description', 'criterion', 'waiting']).some((e) => e.actor_kind === PERSON);
     if (answer === 'fixable') {
       if (!next) return null;
-      return verdict(next.outcome === 'passed', next.outcome === 'passed' ? 'The next QA run passed' : 'The next QA run rejected it again', { next: next.outcome });
+      return verdict('proxy', next.outcome === 'passed', next.outcome === 'passed' ? 'The next QA run passed' : 'The next QA run rejected it again', { next: next.outcome });
     }
     const waiting = sql.prepare('SELECT waiting FROM work_items WHERE id = ?').get(run.item_id) as { waiting: string | null } | undefined;
-    if (waiting?.waiting === 'bounces' || people) return verdict(true, 'The card waited for a person', { waiting: waiting?.waiting ?? null, person: people });
+    if (waiting?.waiting === 'bounces' || people) return verdict(people ? 'direct' : 'proxy', true, 'The card waited for a person', { waiting: waiting?.waiting ?? null, person: people });
     if (!next) return null;
-    return verdict(next.outcome !== 'passed', next.outcome === 'passed' ? 'A bounce was enough: the next QA run passed' : 'The next QA run rejected it again', { next: next.outcome });
+    return verdict('proxy', next.outcome !== 'passed', next.outcome === 'passed' ? 'A bounce was enough: the next QA run passed' : 'The next QA run rejected it again', { next: next.outcome });
   },
 
   // The run's own chat, read between its start and end: the CLI compacted it by itself, or the run
@@ -201,7 +301,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     else if (run.outcome === 'passed') needed = false;
     else return null;
     const wanted = answer === 'compact-first';
-    return verdict(wanted === needed, needed ? 'The CLI compacted the chat during the run, or the run ran out of context' : 'The run passed with no compaction', { automatic: auto.n, outcome: run.outcome });
+    return verdict(row.acted ? 'proxy' : 'direct', wanted === needed, needed ? 'The CLI compacted the chat during the run, or the run ran out of context' : 'The run passed with no compaction', { automatic: auto.n, outcome: run.outcome });
   },
 
   'flow.restart': (row, sql) => {
@@ -215,7 +315,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     if (!later) return null;
     const failedAgain = later.outcome === 'failed' || later.outcome === 'rejected';
     const doNotRequeue = requeue.kind === 'noul' && !requeue.value;
-    return verdict(doNotRequeue === failedAgain, failedAgain ? 'The requeued run failed again' : 'The requeued run finished', { outcome: later.outcome });
+    return verdict('direct', doNotRequeue === failedAgain, failedAgain ? 'The requeued run failed again' : 'The requeued run finished', { outcome: later.outcome });
   },
 
   'flow.criteria-merge': (row, sql) => {
@@ -223,9 +323,9 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const run = runById(sql, row.subjectId);
     if (!run || flags.length === 0) return null;
     const removed = historyAfter(sql, run.item_id, row.at, ['criterion']).filter((e) => e.actor_kind === PERSON && e.from_value !== null && (e.to_value === null || (parse(e.to_value)?.text !== parse(e.from_value)?.text)));
-    if (removed.length > 0) return verdict(true, 'A person removed or edited a merged criterion', { removed: removed.length });
+    if (removed.length > 0) return verdict('direct', true, 'A person removed or edited a merged criterion', { removed: removed.length });
     const item = sql.prepare('SELECT status FROM work_items WHERE id = ?').get(run.item_id) as { status: string } | undefined;
-    return item?.status === 'done' ? verdict(false, 'The card was finished with the flagged criteria untouched') : null;
+    return item?.status === 'done' ? verdict('proxy', false, 'The card was finished with the flagged criteria untouched') : null;
   },
 
   'team.assign': (row, sql) => {
@@ -237,32 +337,33 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const last = moves[moves.length - 1];
     if (last) {
       const to = parse(last.to_value)?.role;
-      return verdict(to === proposed, to === proposed ? 'A person reassigned the card to the proposed member' : 'A person reassigned it elsewhere', { to: to ?? null });
+      return verdict('direct', to === proposed, to === proposed ? 'A person reassigned the card to the proposed member' : 'A person reassigned it elsewhere', { to: to ?? null });
     }
     // Same as the column's member: nothing to compare until a person disagrees, so the card's end counts
     const verify = nextVerify(sql, itemId, row.at);
     if (!verify) return null;
-    if (proposed === assigned) return verdict(verify.outcome === 'passed', verify.outcome === 'passed' ? 'The fixed member did the work and QA passed it' : 'The fixed member was rejected', { verify: verify.outcome });
-    return verdict(verify.outcome !== 'passed', verify.outcome === 'passed' ? 'The fixed member succeeded where another was proposed' : 'The fixed member was rejected where another was proposed', { verify: verify.outcome });
+    if (proposed === assigned) return verdict('proxy', verify.outcome === 'passed', verify.outcome === 'passed' ? 'The fixed member did the work and QA passed it' : 'The fixed member was rejected', { verify: verify.outcome });
+    return verdict('proxy', verify.outcome !== 'passed', verify.outcome === 'passed' ? 'The fixed member succeeded where another was proposed' : 'The fixed member was rejected where another was proposed', { verify: verify.outcome });
   },
 
+  // Judged only by what the continuation that followed the row's turn changed (`continuationEffects`),
+  // never by how the task or the stage ended: a worker that finished well after a needless
+  // continuation made `owes-work` look right. An acted `owes-work` caused that continuation; a row
+  // that did not act is judged only when today's rule sent one anyway. No continuation, no effect to
+  // read: the row stays unresolved, `done` included, since scoring it would only agree with the rule
   'run.continuation': (row, sql) => {
     const report = choiceOf(row, 'report');
-    if (!report) return null;
+    if (report !== 'done' && report !== 'owes-work') return null;
+    const done = continuationsDone(row.state.continuations);
+    if (done === null) return null;
+    const effects = row.subjectKind === 'task' ? taskOf(sql, row.subjectId)?.continuationEffects : flowContinuationEffects(sql, row.subjectId);
+    const effect = effects?.find((e) => e.n === done + 1);
+    if (!effect) return null;
+    // A continuation the decision did not send says nothing about an acted `done`, which held one back
+    if (row.acted && report === 'done' && effect.cause === 'decision') return null;
     const owes = report === 'owes-work';
-    if (row.subjectKind === 'task') {
-      const task = taskOf(sql, row.subjectId);
-      if (!task || (task.status !== 'completed' && task.status !== 'failed')) return null;
-      const completed = task.status === 'completed';
-      return verdict(owes !== completed, completed ? 'The task completed' : 'The task failed', { status: task.status, continuations: task.continuations, proxy: 'task-status' });
-    }
-    const run = runById(sql, row.subjectId);
-    if (!run || run.state !== 'ended' || !run.outcome || run.outcome === 'cancelled') return null;
-    // A work run is judged by the QA run after it; another stage by its own outcome
-    const outcome = run.stage === 'work' ? nextVerify(sql, run.item_id, row.at, run.seq)?.outcome : run.outcome;
-    if (!outcome) return null;
-    const good = outcome === 'passed';
-    return verdict(owes !== good, good ? 'Nothing was left undone' : 'Work was left undone', { outcome, proxy: 'stage-outcome' });
+    const detail = { n: effect.n, cause: effect.cause, changed: effect.changed, commits: effect.commits, edits: effect.edits };
+    return verdict('direct', owes === effect.changed, effect.changed ? 'The continuation committed or edited something' : 'The continuation changed nothing', detail);
   },
 
   'orchestration.retry': (row, sql) => {
@@ -273,7 +374,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     // A permanent answer that was acted on left no retry to compare with
     if (asked === 0 || task.attempts <= asked) return null;
     const completed = task.status === 'completed';
-    return verdict(answer === 'permanent' ? !completed : completed, completed ? 'A retry completed' : 'Every retry failed', { attempts: task.attempts });
+    return verdict('direct', answer === 'permanent' ? !completed : completed, completed ? 'A retry completed' : 'Every retry failed', { attempts: task.attempts });
   },
 
   'orchestration.fixer': (row, sql) => {
@@ -282,7 +383,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     // A stop that was acted on ended the verification itself, so there is nothing to compare with
     if (!again || row.acted || !task?.verification || (task.verification !== 'passed' && task.verification !== 'fixed' && task.verification !== 'failed')) return null;
     const passed = task.verification !== 'failed';
-    return verdict(yes(again) === passed, passed ? 'The checks passed after more attempts' : 'The checks still failed', { verification: task.verification });
+    return verdict('direct', yes(again) === passed, passed ? 'The checks passed after more attempts' : 'The checks still failed', { verification: task.verification });
   },
 
   // Judged by what a full review found: a blocking finding from a dimension a light review skips is what a full one earns its cost for
@@ -302,17 +403,38 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
       return dims.includes('tests') || dims.includes('conventions') || (!securityHit && dims.includes('security'));
     });
     const light = depth === 'light';
-    return verdict(light !== skipped, skipped ? 'A full review confirmed a blocking finding a light one skips' : 'A full review found nothing a light one would have missed', { depth });
+    return verdict('proxy', light !== skipped, skipped ? 'A full review confirmed a blocking finding a light one skips' : 'A full review found nothing a light one would have missed', { depth });
   },
 
+  // The question is asked before the hint is drafted, so the proposal that follows is the first one
+  // for that chat and signal within the drafting window. Per signal kind: a hung command is judged by
+  // the command itself (it ended on its own, or a person cancelled it); every kind is judged by a
+  // person's Send or Dismiss on a proposal the Supervisor did not send by itself (shadow). Under
+  // Active a sent proposal was the Supervisor's own doing, so it is only a proxy
   'supervisor.intervene': (row, sql) => {
     const intervene = row.answers?.intervene;
     const signal = typeof row.state.signal === 'string' ? row.state.signal : null;
-    if (!intervene || !row.subjectId || !signal) return null;
-    const proposal = sql.prepare('SELECT status FROM supervisor_proposals WHERE chat_id = ? AND signal = ?').get(row.subjectId, signal) as { status: string } | undefined;
+    if (intervene?.kind !== 'noul' || !row.subjectId || !signal) return null;
+    const stuck = intervene.value;
+    const proposal = sql
+      .prepare('SELECT status, occurrence, at FROM supervisor_proposals WHERE chat_id = ? AND signal = ? AND at >= ? AND at <= ? ORDER BY at LIMIT 1')
+      .get(row.subjectId, signal, row.at, new Date(Date.parse(row.at) + PROPOSAL_WINDOW_MS).toISOString()) as { status: string; occurrence: string; at: string } | undefined;
+    if (signal === 'hung-command') {
+      const command = commandAt(sql, row.subjectId, proposal && proposal.occurrence !== '' ? proposal.occurrence : null, row.at);
+      if (command) {
+        const detail = { signal, command: command.outcome, durationMs: command.durationMs, usualMs: command.usualMs, status: proposal?.status ?? null };
+        // It returned by itself: the worker was waiting on a slow command, and a hint reaches an agent only once its call returns
+        if (command.outcome !== 'cancelled') return verdict('direct', !stuck, 'The command ended by itself', detail);
+        // Cancelled while the Supervisor could not have done it (shadow): a person judged it hung
+        if (row.mode === 'shadow') return verdict('direct', stuck, 'A person cancelled the command', detail);
+        return verdict('proxy', stuck, 'The command was cancelled, by the Supervisor or a person', detail);
+      }
+    }
     if (!proposal || proposal.status === 'proposed') return null;
     const sent = proposal.status === 'sent';
-    return verdict(yes(intervene) === sent, sent ? 'The hint was sent' : 'The hint was dismissed', { status: proposal.status });
+    // A dismissal is always a person's; a send is a person's only when the point did not act by itself
+    const quality: DecisionOutcomeQuality = !sent || row.mode === 'shadow' ? 'direct' : 'proxy';
+    return verdict(quality, stuck === sent, sent ? 'The hint was sent' : 'The hint was dismissed', { signal, status: proposal.status });
   },
 
   'memory.triage': (row, sql) => {
@@ -321,7 +443,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     if (!level || !proposal || proposal.status === 'pending') return null;
     const approved = proposal.status === 'approved';
     const predictedApproved = level === 'high' || level === 'medium';
-    return verdict(predictedApproved === approved, approved ? 'The proposal was approved' : 'The proposal was rejected', { score: level, status: proposal.status });
+    return verdict('direct', predictedApproved === approved, approved ? 'The proposal was approved' : 'The proposal was rejected', { score: level, status: proposal.status });
   },
 
   'assistant.rerank': (row, sql) => {
@@ -337,7 +459,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
       judged += 1;
       if ((level === 'covered') === (p.status === 'discarded')) right += 1;
     }
-    return judged === 0 ? null : verdict(right * 2 >= judged, `${right} of ${judged} proposals went the way they were ranked`, { judged, right });
+    return judged === 0 ? null : verdict('direct', right * 2 >= judged, `${right} of ${judged} proposals went the way they were ranked`, { judged, right });
   },
 
   'assistant.sources': (row, sql) => {
@@ -349,7 +471,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     if (!run) return null;
     const read = new Set(((parse(run.reads)?.files as string[] | undefined) ?? []).map(String));
     const missed = dropped.filter((id) => read.has(id));
-    return verdict(missed.length === 0, missed.length ? `The run read ${missed.length} file(s) judged not needed` : 'No file judged unneeded was read', { missed });
+    return verdict(row.acted ? 'proxy' : 'direct', missed.length === 0, missed.length ? `The run read ${missed.length} file(s) judged not needed` : 'No file judged unneeded was read', { missed });
   },
 
   'journal.relevance': (row, sql) => {
@@ -362,7 +484,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const irrelevant = entries.filter((e) => e.id && e.title && scoreOf(row.answers?.[e.id]) === 'irrelevant');
     const comments = (sql.prepare("SELECT body FROM work_item_comments WHERE item_id = ? AND created_at > ? AND author_kind != 'person'").all(item.id, row.at) as unknown as Array<{ body: string }>).map((c) => c.body.toLowerCase());
     const cited = irrelevant.filter((e) => comments.some((c) => c.includes((e.title ?? '').toLowerCase())));
-    return verdict(cited.length === 0, cited.length ? `${cited.length} entry(ies) judged irrelevant were then cited` : 'No entry judged irrelevant was cited', { cited: cited.map((e) => e.id) });
+    return verdict('proxy', cited.length === 0, cited.length ? `${cited.length} entry(ies) judged irrelevant were then cited` : 'No entry judged irrelevant was cited', { cited: cited.map((e) => e.id) });
   },
 
   'lesson.mine': (row, sql) => {
@@ -376,20 +498,20 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
       .all(job.id, job.started_at ?? '') as unknown as Array<{ id: string; status: string }>;
     if (made.some((l) => l.status === 'proposed')) return null;
     const approved = made.filter((l) => l.status !== 'rejected').length;
-    return verdict(approved > 0, approved > 0 ? 'A proposed lesson was approved' : made.length ? 'Every proposed lesson was rejected' : 'The miner proposed nothing', { proposed: made.length, approved });
+    return verdict(made.length > 0 ? 'direct' : 'proxy', approved > 0, approved > 0 ? 'A proposed lesson was approved' : made.length ? 'Every proposed lesson was rejected' : 'The miner proposed nothing', { proposed: made.length, approved });
   },
 
   'board.triage': (row, sql) => {
     if (!row.subjectId) return null;
     const dup = row.answers?.duplicate;
     const item = sql.prepare('SELECT type, priority, status, created_at FROM work_items WHERE id = ?').get(row.subjectId) as { type: string; priority: string; status: string; created_at: string } | undefined;
-    if (!item) return yes(dup) ? verdict(true, 'The item was removed, as a duplicate would be') : null;
+    if (!item) return yes(dup) ? verdict('direct', true, 'The item was removed, as a duplicate would be') : null;
     // Wait for the item to settle: a person often edits the prefill some minutes after creating
     if (item.status !== 'done' && Date.parse(row.at) + 86_400_000 > Date.now()) return null;
     const type = choiceOf(row, 'type');
     const priority = choiceOf(row, 'priority');
     const kept = (!type || type === item.type) && (!priority || priority === item.priority);
-    return verdict(kept && !yes(dup), kept ? 'The person kept the prefill' : 'The person changed the type or priority', { type: item.type, priority: item.priority });
+    return verdict(kept ? 'proxy' : 'direct', kept && !yes(dup), kept ? 'The person kept the prefill' : 'The person changed the type or priority', { type: item.type, priority: item.priority });
   },
 
   'flow.scope-drift': (row, sql) => {
@@ -397,17 +519,18 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const verify = nextVerify(sql, row.subjectId, row.at);
     if (!verify) return null;
     const rejected = verify.outcome === 'rejected';
-    return verdict(rejected, rejected ? 'QA rejected the card after the drift flag' : 'QA passed the card', { verify: verify.outcome });
+    return verdict('proxy', rejected, rejected ? 'QA rejected the card after the drift flag' : 'QA passed the card', { verify: verify.outcome });
   },
 
+  // Only a person's own action on the chat after the flag says a loop was there: a stop, an
+  // interrupt, a hint, a cancelled command or a Supervisor hint they sent, read from the audit log
+  // (on the chat, or on the orchestration task it works for). A Supervisor hint sent by itself, or the
+  // run's end, says nothing about a loop. A person's not useful on the row is the only "wrong" for now
   'health.semantic-loop': (row, sql) => {
     if (!row.subjectId || flagged(row).length === 0) return null;
-    const hint = sql.prepare("SELECT status FROM supervisor_proposals WHERE chat_id = ? AND at >= ? AND status != 'proposed' ORDER BY at LIMIT 1").get(row.subjectId, row.at) as { status: string } | undefined;
-    if (hint) return verdict(hint.status === 'sent', hint.status === 'sent' ? 'A supervisor hint was sent' : 'The supervisor hint was dismissed', { status: hint.status });
-    const run = sql.prepare("SELECT outcome FROM flow_runs WHERE chat_id = ? AND state = 'ended' AND outcome IS NOT NULL ORDER BY seq DESC LIMIT 1").get(row.subjectId) as { outcome: string } | undefined;
-    if (!run) return null;
-    const bad = run.outcome === 'failed' || run.outcome === 'cancelled';
-    return verdict(bad, bad ? 'The run then failed or was stopped' : 'The run finished', { outcome: run.outcome });
+    const action = personActedOn(sql, row.subjectId, row.at, new Date(Date.parse(row.at) + PERSON_WINDOW_MS).toISOString());
+    if (!action) return null;
+    return verdict('direct', true, 'A person stepped in on the chat after the flag', { route: action.route, at: action.at });
   },
 
   'palette.intent': (row) => {
@@ -417,12 +540,12 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const detail = { action: action.action, commandId: action.commandId };
     if (answer !== 'none') {
       const proposed = action.action === 'proposed';
-      return verdict(proposed, proposed ? 'The person ran the proposed command' : action.action === 'other' ? 'The person ran another command' : 'The person dismissed the palette', detail);
+      return verdict('direct', proposed, proposed ? 'The person ran the proposed command' : action.action === 'other' ? 'The person ran another command' : 'The person dismissed the palette', detail);
     }
     // "No command" is right when nothing listed ran: a dismissal, or a command the palette did not offer
     const listed = Array.isArray(row.state.commands) ? (row.state.commands as Array<{ id?: unknown }>).some((c) => c.id === action.commandId) : false;
     const right = action.action === 'dismissed' || (action.action === 'other' && !listed);
-    return verdict(right, right ? 'No command was proposed and none of the listed ones ran' : 'A listed command ran where none was proposed', detail);
+    return verdict('direct', right, right ? 'No command was proposed and none of the listed ones ran' : 'A listed command ran where none was proposed', detail);
   },
 
   'notification.urgency': (row) => {
@@ -433,7 +556,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
     const withinMs = opened !== null && Number.isFinite(opened) ? opened - start : null;
     const inTime = withinMs !== null && withinMs <= NOTIFICATION_WINDOW_MS;
     const detail = { urgency, openedAt: row.openedAt, withinMs };
-    if (inTime) return verdict(urgency === 'high', urgency === 'high' ? 'A raised notification was opened within the hour' : 'A normal notification was opened within the hour', detail);
+    if (inTime) return verdict('direct', urgency === 'high', urgency === 'high' ? 'A raised notification was opened within the hour' : 'A normal notification was opened within the hour', detail);
     // A push nobody tapped says nothing: people ignore most of them, the app may have been opened some
     // other way, and no push may have reached a device at all. Counting that as "normal was right"
     // made the score mostly the share of normal answers, so only an open is a signal.
@@ -468,7 +591,7 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
       if (verdictOf) right += 1;
     }
     if (judged === 0) return null;
-    return verdict(right * 2 >= judged, `${right} of ${judged} model suggestions matched how the tasks ended`, { judged, right, tasks: detail });
+    return verdict('proxy', right * 2 >= judged, `${right} of ${judged} model suggestions matched how the tasks ended`, { judged, right, tasks: detail });
   },
 };
 
@@ -479,7 +602,7 @@ const viaItemOfChat: Resolver = (row, sql) => {
   const verify = itemId ? nextVerify(sql, itemId, row.at) : null;
   if (!verify) return null;
   const rejected = verify.outcome === 'rejected';
-  return verdict(rejected, rejected ? 'QA rejected the card after the flag' : 'QA passed the card', { verify: verify.outcome });
+  return verdict('proxy', rejected, rejected ? 'QA rejected the card after the flag' : 'QA passed the card', { verify: verify.outcome });
 };
 /**
  * `checks.fix`: judged by what the rollup read after the head the failures were seen on. A new head
@@ -494,9 +617,9 @@ RESOLVERS['checks.fix'] = (row, sql) => {
     .prepare('SELECT s.head_sha, s.rollup FROM change_request_snapshots s JOIN work_item_pull_requests p ON p.id = s.cr_id WHERE p.item_id = ? ORDER BY p.created_at DESC, p.rowid DESC LIMIT 1')
     .get(row.subjectId) as { head_sha: string | null; rollup: string | null } | undefined;
   if (!snapshot || snapshot.rollup !== 'passing') return null;
-  if (snapshot.head_sha === asked) return verdict(answer === 'not-branch', 'The same head turned passing without a change', { rollup: 'passing', pushed: false });
+  if (snapshot.head_sha === asked) return verdict('direct', answer === 'not-branch', 'The same head turned passing without a change', { rollup: 'passing', pushed: false });
   const fixable = answer === 'branch-fixable';
-  return verdict(fixable, 'A new head turned the checks passing', { rollup: 'passing', pushed: true });
+  return verdict(row.acted ? 'proxy' : 'direct', fixable, 'A new head turned the checks passing', { rollup: 'passing', pushed: true });
 };
 
 /**
@@ -512,7 +635,7 @@ RESOLVERS['account.model-fallback'] = (row, _sql, _now, context) => {
   const accepted = context.modelFallbacks().find((f) => f.from === from);
   if (!accepted) return null;
   const right = accepted.to === suggested;
-  return verdict(right, right ? 'The person accepted the suggested model' : 'The person mapped the model to another one', { from, suggested, accepted: accepted.to });
+  return verdict('direct', right, right ? 'The person accepted the suggested model' : 'The person mapped the model to another one', { from, suggested, accepted: accepted.to });
 };
 
 RESOLVERS['health.test-weakening'] = viaItemOfChat;

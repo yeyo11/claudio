@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-10T14:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - rest-api
     - api
@@ -488,7 +488,7 @@ The decision engine: a decision point puts typed questions to a provider (the Cl
 | PUT | `/decisions/points/:point/consent` | `{ granted, stateVersion, providers }` — grant or withdraw consent for what was previewed (`409` when the state changed since). Not open to a chat's token |
 | GET | `/decisions` | History, newest first, filtered by `point`, `projectId`, `subjectKind`, `subjectId`, `visible`, `provider`, `mode`, `status`, `since`, `until` and paged with `cursor` and `limit` |
 | DELETE | `/decisions` | Delete the rows matching the same filter (every row when none) |
-| GET | `/decisions/stats` | Per-point metrics plus Jev cost and Claude runs saved, over `?days=` (30) or `?since=` |
+| GET | `/decisions/stats` | Per-point metrics over `?days=` (30) or `?since=`: outcomes split into `direct` and `proxy`, runs saved, caused and net, the answers against the code rule, and `evidence` (precision of the acting answer with its 90 % lower bound, the code rule's, calibration buckets, act rate) from `direct` outcomes only; totals for Jev cost and runs (`claudeRunsSaved` is a deprecated alias of `runsSaved`) |
 | GET | `/decisions/:id` | One decision: state, questions, answers with probabilities, provider and outcome |
 | POST | `/decisions/:id/feedback` | `{ feedback: "useful" \| "not_useful" }` — the person's word on it |
 | POST | `/decisions/:id/palette-action` | `{ commandId: string \| null }` — what the palette did with a `palette.intent` proposal: the row records `proposed`, `other` or `dismissed`; the first report wins. `404` unknown id, `400` another point's row or a malformed `commandId`. Not open to a chat's token |

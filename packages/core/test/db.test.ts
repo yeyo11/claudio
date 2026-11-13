@@ -367,6 +367,9 @@ function decisionRow(id: string, over: Partial<DecisionRecord> = {}): DecisionRe
     acted: true,
     visible: false,
     savedRun: true,
+    runEffect: 1,
+    baseline: null,
+    heldOut: false,
     latencyMs: 120,
     inputTokens: 40,
     costUsd: 0.01,
@@ -387,8 +390,8 @@ test('decisions round-trip, resolve once, and let feedback outrank the inference
   db.insertDecision(decisionRow('d1'));
   assert.deepEqual(db.decision('d1'), decisionRow('d1'));
 
-  assert.equal(db.resolveDecision('d1', { summary: 'ran', agreed: true }, at(2)), true);
-  assert.equal(db.resolveDecision('d1', { summary: 'again', agreed: false }, at(3)), false);
+  assert.equal(db.resolveDecision('d1', { summary: 'ran', agreed: true, quality: 'proxy' }, at(2)), true);
+  assert.equal(db.resolveDecision('d1', { summary: 'again', agreed: false, quality: 'proxy' }, at(3)), false);
   assert.equal(db.decision('d1')?.agreed, true);
   assert.equal(db.decision('d1')?.outcome?.summary, 'ran');
 
@@ -398,7 +401,7 @@ test('decisions round-trip, resolve once, and let feedback outrank the inference
 
   db.insertDecision(decisionRow('d2'));
   db.setDecisionFeedback('d2', 'useful', at(5));
-  db.resolveDecision('d2', { summary: 'x', agreed: false }, at(6));
+  db.resolveDecision('d2', { summary: 'x', agreed: false, quality: 'proxy' }, at(6));
   assert.equal(db.decision('d2')?.agreed, true);
   // The person's word is a resolution too, so the stats count the row as resolved
   assert.equal(db.decision('d2')?.resolvedAt, at(5));
@@ -450,8 +453,8 @@ test('a notification open marks the newest row for its key once', () => {
 test('decisions page newest first, filter, and report stats', () => {
   const db = new Db(tempConfig());
   db.insertDecision(decisionRow('a', { at: at(1) }));
-  db.insertDecision(decisionRow('b', { at: at(2), provider: 'cli', model: 'haiku', confidence: null, acted: false, costUsd: 0.02, projectId: null }));
-  db.insertDecision(decisionRow('c', { at: at(3), projectId: null, point: 'palette.intent', status: 'unavailable', unavailable: 'timeout', confidence: null, acted: false, savedRun: false, costUsd: null }));
+  db.insertDecision(decisionRow('b', { at: at(2), provider: 'cli', model: 'haiku', confidence: null, acted: false, savedRun: false, runEffect: 0, costUsd: 0.02, projectId: null }));
+  db.insertDecision(decisionRow('c', { at: at(3), projectId: null, point: 'palette.intent', status: 'unavailable', unavailable: 'timeout', confidence: null, acted: false, savedRun: false, runEffect: 0, costUsd: null }));
 
   const first = db.listDecisions({ limit: 2 });
   assert.deepEqual(first.items.map((d) => d.id), ['c', 'b']);

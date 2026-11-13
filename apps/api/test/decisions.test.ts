@@ -65,6 +65,9 @@ const row = (id: string, over: Partial<DecisionRecord> = {}): DecisionRecord => 
   acted: false,
   visible: false,
   savedRun: false,
+  runEffect: 0,
+  baseline: null,
+  heldOut: false,
   latencyMs: 120,
   inputTokens: null,
   costUsd: 0.001,
@@ -212,7 +215,7 @@ test('the history is filtered and paged, rated, and deleted one row or a filtere
 
 test('the metrics count a window, and the window can be moved', async () => {
   core.db.clearDecisions({});
-  core.db.insertDecision(row('s-1', { acted: true, savedRun: true, costUsd: 0.002 }));
+  core.db.insertDecision(row('s-1', { acted: true, savedRun: true, runEffect: 1, costUsd: 0.002 }));
   core.db.insertDecision(row('s-2', { at: '2020-01-01T00:00:00.000Z' }));
   const stats = (await app.inject('/api/decisions/stats')).json<DecisionStats>();
   assert.equal(stats.points.find((p) => p.point === 'flow.bounce')?.count, 1);

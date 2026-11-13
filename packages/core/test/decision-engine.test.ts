@@ -138,7 +138,8 @@ test('active acts only when the confidence clears the threshold, and the lowest 
   assert.equal(above.act, true);
   assert.ok(above.answers?.bounce);
   const row = s.db.decision(above.decisionId ?? '');
-  assert.deepEqual([row?.acted, row?.visible, row?.savedRun, row?.threshold], [true, true, true, 0.85]);
+  // `fixable` is today's behaviour (another Developer run), so acting on it saves nothing
+  assert.deepEqual([row?.acted, row?.visible, row?.savedRun, row?.runEffect, row?.threshold], [true, true, false, 0, 0.85]);
 
   await configure(s, 'flow.bounce', 'active', { threshold: 0.95 });
   const below = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
@@ -298,7 +299,7 @@ test('a batch is one call, secrets are masked in what is sent, and resolve write
   assert.equal(provider.calls.length, 1);
   const sent = JSON.stringify(provider.calls[0]?.state);
   assert.ok(!sent.includes('abcdef123456') && !sent.includes('sk-ant'));
-  s.engine.resolve(out.decisionId ?? '', { summary: 'next QA passed', agreed: true });
+  s.engine.resolve(out.decisionId ?? '', { summary: 'next QA passed', agreed: true, quality: 'proxy' });
   const row = s.db.decision(out.decisionId ?? '');
   assert.equal(row?.agreed, true);
   assert.equal(row?.outcome?.summary, 'next QA passed');

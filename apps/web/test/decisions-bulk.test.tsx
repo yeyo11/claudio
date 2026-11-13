@@ -16,6 +16,7 @@ const info = (id: DecisionPointId, kind: 'act' | 'suggest', over: Partial<Decisi
   primitives: ['choice'],
   defaultThreshold: 0.85,
   savesRun: false,
+  causesRun: false,
   needsLowLatency: false,
   stateVersion: 2,
   effective: { mode: 'off', threshold: 0.85, provider: 'cli', consent: null, limited: false },
