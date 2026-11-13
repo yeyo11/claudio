@@ -56,12 +56,21 @@ test('active on Jev sets every point', () => {
   assert.ok(result.changes.every((change) => change.mode === 'active'));
 });
 
-test('active keeps a point without proof in shadow, but never sends an active one back', () => {
-  const unproven = [info('flow.bounce', 'act', { standing: 'unproven' }), info('team.assign', 'act', { standing: 'failing' }), info('board.triage', 'suggest', { gate: { enforced: false, minCases: 30, breakEven: null, minPrecision: 0.6, maxFlagRate: 0.3 }, standing: 'unproven' })];
-  const result = planBulk(unproven, unproven.map((point) => point.id), 'active', (id) => (id === 'team.assign' ? 'active' : 'off'), () => null, 'jev');
-  assert.deepEqual(result.capped, ['flow.bounce']);
-  assert.deepEqual(result.changes.map((change) => [change.id, change.mode]), [['flow.bounce', 'shadow'], ['board.triage', 'active']]);
-  assert.deepEqual(result.unchanged, ['team.assign']);
+test('a bulk active plans only proven points: the rest stay as they are, and an active one is never sent back', () => {
+  const unproven = [info('flow.bounce', 'act', { standing: 'unproven' }), info('team.assign', 'act', { standing: 'failing' }), info('board.triage', 'suggest', { gate: { enforced: false, minCases: 30, breakEven: null, minPrecision: 0.6, maxFlagRate: 0.3 }, standing: 'unproven' }), info('memory.triage', 'suggest')];
+  const result = planBulk(unproven, unproven.map((point) => point.id), 'active', (id) => (id === 'team.assign' ? 'active' : id === 'flow.bounce' ? 'shadow' : 'off'), () => null, 'jev');
+  // The server refuses more than one unproven step up at once, suggest points included
+  assert.deepEqual(result.unproven, ['flow.bounce', 'board.triage']);
+  assert.deepEqual(result.changes.map((change) => [change.id, change.mode]), [['memory.triage', 'active']]);
+  assert.deepEqual(result.unchanged.sort(), ['board.triage', 'flow.bounce', 'team.assign']);
+  assert.deepEqual(result.capped, []);
+});
+
+test('a point saved as active is not held back by a bulk active even when the form moved it to shadow', () => {
+  const failing = [info('flow.bounce', 'act', { standing: 'failing' })];
+  const result = planBulk(failing, ['flow.bounce'], 'active', () => 'shadow', () => jevConsent, 'jev', () => 'active');
+  assert.deepEqual(result.unproven, []);
+  assert.deepEqual(result.changes.map((change) => [change.id, change.mode]), [['flow.bounce', 'active']]);
 });
 
 test('a point already in the resulting mode does not change nor ask', () => {

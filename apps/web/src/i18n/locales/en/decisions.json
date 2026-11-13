@@ -303,6 +303,7 @@
     "result": "Set to {{mode}}: {{count}}.",
     "unchanged": "Already there: {{count}}.",
     "kept": "Kept at {{mode}}: {{count}} (an acting point needs Jev to be active).",
+    "unproven": "Left as they are: {{count}} (a point not proven yet is switched to Active on its own row).",
     "saveHint": "Save to apply."
   },
   "bulkConsent": {
@@ -340,6 +341,10 @@
     "unproven": "Unproven",
     "proven": "Proven",
     "failing": "Failing",
+    "heldTitle_one": "{{formatted}} point runs as Shadow for now",
+    "heldTitle_other": "{{formatted}} points run as Shadow for now",
+    "heldBody_one": "It was Active before points had to earn it. It stays Active in your settings and starts acting once its own evidence clears the gate; its row says what it still needs.",
+    "heldBody_other": "They were Active before points had to earn it. They stay Active in your settings and start acting once their own evidence clears the gate; each row says what it still needs.",
     "demotedOn": "Back to Shadow on {{date}}: {{why}}.",
     "demotedWhy": {
       "failingAct": "{{hits}} of {{n}} of its answers that acted were right, under the bar",
@@ -363,6 +368,7 @@
     "bulkTitle": "Not saved: activate one point at a time",
     "bulkBody": "Several points without proof would become Active at once. Set one to Active, save, and then the next.",
     "point": "{{point}} needs {{missing}}.",
+    "inherited": "{{point}} is Active in your global settings. Without its Shadow override here it would become Active in this project, and it is not proven yet: it needs {{missing}}.",
     "kept": "Your changes are still here."
   },
   "warnings": {

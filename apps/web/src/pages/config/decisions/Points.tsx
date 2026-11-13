@@ -2,7 +2,7 @@ import type { HealthSignalKind } from '@claudio/shared';
 import type { DecisionMode, DecisionPointId, DecisionPointInfo, DecisionPointStats, DecisionProviderId, DecisionSettings } from '@claudio/shared';
 import { FullText } from '@claudio/ui/components/FullText';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { ChevronRight, TriangleAlert } from 'lucide-react';
+import { ChevronRight, Info, TriangleAlert } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
@@ -44,6 +44,8 @@ export interface BulkNote {
   unchanged: number;
   kept: number;
   keptMode: DecisionMode;
+  /** Points left as they are because they are not proven */
+  unproven: number;
 }
 
 const OPEN_GROUPS_KEY = 'claudio-decision-groups-open';
@@ -148,8 +150,21 @@ export function PointsSection({
 
   if (groups.length === 0) return <p className="dp-field-line">{t('points.none')}</p>;
 
+  // Active in name only: nothing is stored for it, so it is there for as long as it is true. After an upgrade
+  // this is where a person learns that what was Active now has to earn it
+  const held = catalogue.filter((info) => info.effective.mode === 'active' && (info.effective.limitedBy === 'unproven' || info.effective.limitedBy === 'failing')).length;
+
   return (
     <>
+      {held > 0 && (
+        <div className="alert alert-info" role="note" data-testid="held-notice">
+          <Info className="alert-icon" size={14} strokeWidth={2} aria-hidden />
+          <div className="alert-body">
+            <strong>{t('standing.heldTitle', { count: held, formatted: formatNumber(held) })}</strong>
+            <div>{t('standing.heldBody', { count: held })}</div>
+          </div>
+        </div>
+      )}
       <div className="dp-bulk-bar">
         <span className="dp-field-line tnum">{t('points.count', { points: formatNumber(catalogue.length), groups: formatNumber(groups.length) })}</span>
         <BulkMode scope={t('bulk.allScope')} onApply={(mode) => onBulk(catalogue.map((info) => info.id), mode)} />
@@ -161,6 +176,7 @@ export function PointsSection({
             {t('bulk.result', { count: bulkNote.set, mode: t(`points.modes.${bulkNote.mode}`) })}
             {bulkNote.unchanged > 0 && ` ${t('bulk.unchanged', { count: bulkNote.unchanged })}`}
             {bulkNote.kept > 0 && ` ${t('bulk.kept', { count: bulkNote.kept, mode: t(`points.modes.${bulkNote.keptMode}`) })}`}
+            {bulkNote.unproven > 0 && ` ${t('bulk.unproven', { count: bulkNote.unproven })}`}
             {` ${t('bulk.saveHint')}`}
           </p>
         )}
@@ -255,7 +271,7 @@ export function PointRow({
   const showThreshold = provider === 'jev' && info.kind === 'act' && !off;
   // A suggestion's confidence is only there under Jev: the CLI gives none, so it is never held to a floor
   const showFloor = provider === 'jev' && info.kind === 'suggest' && !off;
-  const unproven = !blocked && gateBlocked(info, point.mode);
+  const unproven = !blocked && gateBlocked(info, point.mode, settings.points[info.id]?.mode ?? 'off');
   const missing = gateMissing(t, info.gate, bestReading(info.live, info.replay));
   // What the row says about why a point that is on does not do what its mode names. No consent has its own words in the consent part, and a demotion its own line below
   const limit = info.effective.limitedBy;

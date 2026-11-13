@@ -303,6 +303,7 @@
     "result": "Puestos en {{mode}}: {{count}}.",
     "unchanged": "Ya estaban así: {{count}}.",
     "kept": "Se quedan en {{mode}}: {{count}} (un punto que actúa necesita Jev para estar activo).",
+    "unproven": "Se quedan como estaban: {{count}} (un punto aún sin demostrar se pasa a Activo en su propia fila).",
     "saveHint": "Guarda para aplicar."
   },
   "bulkConsent": {
@@ -340,6 +341,10 @@
     "unproven": "Sin demostrar",
     "proven": "Demostrado",
     "failing": "Fallando",
+    "heldTitle_one": "{{formatted}} punto funciona en Sombra por ahora",
+    "heldTitle_other": "{{formatted}} puntos funcionan en Sombra por ahora",
+    "heldBody_one": "Estaba Activo antes de que los puntos tuvieran que ganárselo. Sigue Activo en tus ajustes y empezará a actuar cuando su propia evidencia supere la barrera; su fila dice qué le falta.",
+    "heldBody_other": "Estaban Activos antes de que los puntos tuvieran que ganárselo. Siguen Activos en tus ajustes y empezarán a actuar cuando su propia evidencia supere la barrera; cada fila dice qué les falta.",
     "demotedOn": "Volvió a Sombra el {{date}}: {{why}}.",
     "demotedWhy": {
       "failingAct": "acertó {{hits}} de {{n}} respuestas que actuaban, por debajo del listón",
@@ -363,6 +368,7 @@
     "bulkTitle": "No se ha guardado: activa los puntos de uno en uno",
     "bulkBody": "Varios puntos sin demostrar pasarían a Activo a la vez. Pon uno en Activo, guarda y luego el siguiente.",
     "point": "{{point}} necesita {{missing}}.",
+    "inherited": "{{point}} está Activo en los ajustes globales. Sin su anulación en Sombra aquí pasaría a Activo en este proyecto y aún no está demostrado: necesita {{missing}}.",
     "kept": "Tus cambios siguen aquí."
   },
   "warnings": {

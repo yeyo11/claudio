@@ -1,4 +1,4 @@
-import type { DecisionActivationIssue } from '@claudio/shared';
+import type { DecisionActivationIssue, DecisionPointId } from '@claudio/shared';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ErrorBox } from '@claudio/ui/components/ui';
 import { formatList } from '@claudio/ui/lib/format';
@@ -13,9 +13,10 @@ import { pointName } from './Points';
 /**
  * A save the promotion gate refused (409): the points it names and what each lacks, where the person
  * acted. Nothing was written and the form keeps what they had, so the line says so. Any other failure
- * keeps the ordinary error box.
+ * keeps the ordinary error box. A project's card passes the points that are Active globally: the
+ * server counts dropping a Shadow override on one of them as an activation, which the line says.
  */
-export function SaveError({ error, title }: { error: unknown; title?: string }) {
+export function SaveError({ error, title, inheritedActive }: { error: unknown; title?: string; inheritedActive?: ReadonlySet<DecisionPointId> }) {
   const { t } = useTranslation('decisions');
   if (!(error instanceof ApiRequestError) || !error.refused) return <ErrorBox error={error} {...(title ? { title } : {})} />;
   const bulk = error.code === 'decision-bulk-activation';
@@ -27,7 +28,7 @@ export function SaveError({ error, title }: { error: unknown; title?: string }) 
         {bulk && <div>{t('refusal.bulkBody')}</div>}
         {error.refused.map((issue) => (
           <div key={issue.point} data-point={issue.point}>
-            {t('refusal.point', { point: pointName(t, issue.point), missing: gateMissing(t, issue.gate, bestReading(issue.live, issue.replay)) })}
+            {t(inheritedActive?.has(issue.point) ? 'refusal.inherited' : 'refusal.point', { point: pointName(t, issue.point), missing: gateMissing(t, issue.gate, bestReading(issue.live, issue.replay)) })}
           </div>
         ))}
         <div>{t('refusal.kept')}</div>
