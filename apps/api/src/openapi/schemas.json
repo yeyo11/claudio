@@ -26066,6 +26066,13 @@
         "type": "number",
         "description": "Times the flow sent it back to its chat because its turn ended with work still owed (no structured result, uncommitted changes, or a last message that offers, asks or announces instead of doing): at most `MAX_CONTINUATIONS`, after which the result it has is judged as it is"
       },
+      "continuationEffects": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/ContinuationEffect"
+        },
+        "description": "What each continuation changed, in order; absent on a run never continued, or stored before it was recorded"
+      },
       "language": {
         "$ref": "#/components/schemas/ClaudioLanguage",
         "description": "The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored before it was kept, which reads as `en`."

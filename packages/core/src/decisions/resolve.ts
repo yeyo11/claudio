@@ -1,6 +1,7 @@
 import type { DatabaseSync } from 'node:sqlite';
 import type { ClaudioEvent, ContinuationEffect, DecisionAnswer, DecisionOutcomeQuality, DecisionPointId, DecisionRecord, DecisionResolution, ModelFallback } from '@claudio/shared';
 import { TTL_SECONDS } from '../push.ts';
+import { CONTINUATION_OWES } from './points.ts';
 
 /*
  * Shadow accuracy (docs/plans/decision-engine.md, "Shadow accuracy"). Each point has a resolver that
@@ -155,6 +156,9 @@ function itemOfChat(sql: Sql, chatId: string | null): string | null {
 const PROPOSAL_WINDOW_MS = 15 * 60_000;
 /** How long after a loop flag a person's action on the chat is still read as an answer to it */
 const PERSON_WINDOW_MS = 30 * 60_000;
+
+/** Every answer `run.continuation` has given, the ids of state version 1 included */
+const CONTINUATION_ANSWERS: ReadonlySet<string> = new Set(['done', 'hands-off', ...CONTINUATION_OWES]);
 
 /** The continuations a run had when the row was asked: a number, or the words the call sites send */
 const CONTINUATION_WORDS = ['no continuation yet', 'one continuation so far', 'two continuations so far'];
@@ -348,20 +352,21 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
 
   // Judged only by what the continuation that followed the row's turn changed (`continuationEffects`),
   // never by how the task or the stage ended: a worker that finished well after a needless
-  // continuation made `owes-work` look right. An acted `owes-work` caused that continuation; a row
-  // that did not act is judged only when today's rule sent one anyway. No continuation, no effect to
-  // read: the row stays unresolved, `done` included, since scoring it would only agree with the rule
+  // continuation made `owes-own-work` look right. An acted `owes-own-work` caused that continuation; a
+  // row that did not act is judged only when today's rule sent one anyway. No continuation, no effect
+  // to read: the row stays unresolved, `done` included, since scoring it would only agree with the
+  // rule. `hands-off` stops the run as `done` does; `owes-work` is the id rows of state version 1 carry
   'run.continuation': (row, sql) => {
     const report = choiceOf(row, 'report');
-    if (report !== 'done' && report !== 'owes-work') return null;
+    if (report === null || !CONTINUATION_ANSWERS.has(report)) return null;
     const done = continuationsDone(row.state.continuations);
     if (done === null) return null;
     const effects = row.subjectKind === 'task' ? taskOf(sql, row.subjectId)?.continuationEffects : flowContinuationEffects(sql, row.subjectId);
     const effect = effects?.find((e) => e.n === done + 1);
     if (!effect) return null;
-    // A continuation the decision did not send says nothing about an acted `done`, which held one back
-    if (row.acted && report === 'done' && effect.cause === 'decision') return null;
-    const owes = report === 'owes-work';
+    const owes = CONTINUATION_OWES.has(report);
+    // A continuation the decision did not send says nothing about an acted stop, which held one back
+    if (row.acted && !owes && effect.cause === 'decision') return null;
     const detail = { n: effect.n, cause: effect.cause, changed: effect.changed, commits: effect.commits, edits: effect.edits };
     return verdict('direct', owes === effect.changed, effect.changed ? 'The continuation committed or edited something' : 'The continuation changed nothing', detail);
   },

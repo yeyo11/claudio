@@ -137,6 +137,34 @@ test("run.continuation: a flow run's continuation effects are read from its row"
   assert.equal(s.get(unknown.id)?.resolvedAt, null, 'a count it cannot read says nothing');
 });
 
+test('run.continuation: the answers of state version 2 resolve as the old ones did, hands-off as a stop', () => {
+  const s = setup();
+  s.orchestration('o1', { continuations: 1, continuationEffects: [effect(1, 'decision', true)] });
+  s.orchestration('o2', { continuations: 1, continuationEffects: [effect(1, 'phrase', false)] });
+  s.orchestration('o3', { continuations: 1, continuationEffects: [effect(1, 'phrase', true)] });
+  const owesRight = s.row('run.continuation', { subjectId: 'o1:t1', mode: 'active', acted: true, state: { continuations: 'no continuation yet' }, answers: { report: choiceOf('owes-own-work') } });
+  const handsOffRight = s.row('run.continuation', { subjectId: 'o2:t1', state: { continuations: 'no continuation yet' }, answers: { report: choiceOf('hands-off') } });
+  const handsOffWrong = s.row('run.continuation', { subjectId: 'o3:t1', state: { continuations: 'no continuation yet' }, answers: { report: choiceOf('hands-off') } });
+  // An old id and a new one on the same facts read the same way
+  const owesOld = s.row('run.continuation', { subjectId: 'o2:t1', state: { continuations: 0 }, answers: { report: choiceOf('owes-work') } });
+  const owesNew = s.row('run.continuation', { subjectId: 'o2:t1', state: { continuations: 0 }, answers: { report: choiceOf('owes-own-work') } });
+  const unknown = s.row('run.continuation', { subjectId: 'o2:t1', state: { continuations: 0 }, answers: { report: choiceOf('maybe') } });
+  s.resolvers.sweep();
+  assert.deepEqual([s.get(owesRight.id)?.agreed, s.get(owesRight.id)?.outcome?.quality], [true, 'direct']);
+  assert.equal(s.get(handsOffRight.id)?.agreed, true);
+  assert.equal(s.get(handsOffWrong.id)?.agreed, false);
+  assert.deepEqual([s.get(owesOld.id)?.agreed, s.get(owesNew.id)?.agreed], [false, false]);
+  assert.equal(s.get(unknown.id)?.resolvedAt, null);
+});
+
+test('run.continuation: an acted hands-off says nothing about a continuation only the decision could have sent', () => {
+  const s = setup();
+  s.orchestration('o1', { continuations: 1, continuationEffects: [effect(1, 'decision', false)] });
+  const r = s.row('run.continuation', { subjectId: 'o1:t1', mode: 'active', acted: true, state: { continuations: 0 }, answers: { report: choiceOf('hands-off') } });
+  s.resolvers.sweep();
+  assert.equal(s.get(r.id)?.resolvedAt, null);
+});
+
 // ---------- health.semantic-loop ----------
 
 test("health.semantic-loop: a person's stop after the flag is a direct agreement", () => {
@@ -267,7 +295,7 @@ test('the engine stores the baseline and counts runs per answer against it', asy
   const rig = decisionRig(db, config);
   await rig.configure('run.continuation', 'active');
   const subject = { kind: 'task' as const, id: 'o1:t1', data: { title: 't', tail: 'I will now run the tests.', continuations: 'no continuation yet' } };
-  rig.provider.script = () => ({ report: choiceOf('owes-work', 0.99) });
+  rig.provider.script = () => ({ report: choiceOf('owes-own-work', 0.99) });
   await rig.engine.ask('run.continuation', subject, { projectId: null, baseline: [] });
   await rig.engine.ask('run.continuation', subject, { projectId: null, baseline: ['run the tests'] });
   await rig.engine.ask('run.continuation', subject, { projectId: null });
@@ -293,7 +321,7 @@ test('the engine stores the baseline and counts runs per answer against it', asy
   assert.deepEqual([stats.runsSaved, stats.runsCaused, stats.netRuns, stats.claudeRunsSaved], [1, 2, -1, 1]);
   const point = stats.points.find((p) => p.point === 'run.continuation');
   assert.deepEqual([point?.runsSaved, point?.runsCaused, point?.netRuns], [1, 2, -1]);
-  // owes-work against [], and done (acted or not) against ['run the tests'], differ from the phrase list
+  // owes-own-work against [], and done (acted or not) against ['run the tests'], differ from the phrase list
   assert.deepEqual(point?.baseline, { rows: 5, differs: 3, decisionRight: 0, baselineRight: 0, unresolved: 3 });
   db.close();
 });

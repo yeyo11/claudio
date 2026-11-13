@@ -3374,6 +3374,8 @@ export interface FlowRun {
    * of doing): at most `MAX_CONTINUATIONS`, after which the result it has is judged as it is
    */
   continuations: number;
+  /** What each continuation changed, in order; absent on a run never continued, or stored before it was recorded */
+  continuationEffects?: ContinuationEffect[];
   /**
    * The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the
    * chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored

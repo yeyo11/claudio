@@ -1435,6 +1435,8 @@ export class Core {
       },
       activity: (chatId) => this.runtime.get(chatId)?.activity ?? null,
       delegates: (chatId) => this.runtime.get(chatId),
+      streamPosition: (chatId) => this.runtime.streamPosition(chatId),
+      events: (chatId, sinceSeq) => this.runtime.events(chatId, sinceSeq),
       language: () => this.language,
       limitHeld: (chatId) => this.rotation.holds(chatId),
       cost: (chatId) => this.runtime.get(chatId)?.costUsd ?? null,

@@ -113,12 +113,13 @@ import { ReviewStore, ReviewStoreError } from './review-store.ts';
 import { openWaitOf } from './rotation.ts';
 import { compileWorkflow, readCompiledResult, workflowName } from './workflow-engine.ts';
 import { isSynthesis, journalError, journalRefusal, type JournalRead, type JournalRefusal, type JournalTask } from './workflow-journal.ts';
-import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
+import { continuationPlan, continuationPrompt, decisionMayContinue, delegatesOf, MAX_TOKENS_ERROR, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf, type ContinuationReading } from './open-items.ts';
+import { callsOfTurn, commitCountSince, continuationEffect, continuationState, headOf, type PendingContinuation } from './continuation-effects.ts';
 import type { DecisionOutcome } from './decisions/engine.ts';
-import type { DecisionSubject } from './decisions/points.ts';
+import { CONTINUATION_OWES, decisionPoint, type DecisionSubject } from './decisions/points.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { DELEGATION, designSources, frontend, pasted, PASTED_NOTE, REAL_VERIFICATION, RETRIEVAL, scopeAndCompletion, taskBlock, thinkThrough, timeSignal, UNATTENDED, unpasted, WORKFLOW_LEAD_WAIT } from './prompt-rules.ts';
-import { MAX_CONTINUATIONS, type LimitWait, type ProviderMove } from '@claudio/shared';
+import { MAX_CONTINUATIONS, type DecisionBaseline, type LimitWait, type ProviderMove, type RunEvent } from '@claudio/shared';
 import { rulesFor } from './tool-policy.ts';
 import { GuardEventStore } from './guards/events.ts';
 import type { OrchestrationPullRequestService } from './orchestration-pull-requests.ts';
@@ -150,6 +151,12 @@ const NO_CLOCK_MS = 2 ** 31 - 1;
 const SAME_ERROR_ATTEMPTS = 3;
 /** How every worker's prompt, and each message that sends it back to its chat, ends */
 const WORKER_CLOSING = 'Finish with a concise report of what you did and found; it is handed to the next workers.';
+/**
+ * The closing of a continuation sent on the decision's word alone, which may answer "nothing is
+ * owed" in one line: the report before it is kept with that line (see `endContinuation`), so the
+ * next workers still get it.
+ */
+const DECISION_CLOSING = 'If you took a step, finish with a concise report of what you did and found; it is handed to the next workers. If nothing was owed, your earlier report stands.';
 const DEFAULT_ATTEMPTS = 2;
 /** The words a decision's state counts attempts in: Jev is weak at numbers, so code keeps the arithmetic */
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth'];
@@ -167,8 +174,8 @@ const MODEL_LABELS: Readonly<Record<string, string>> = {
 interface SettleVerdict {
   /** `orchestration.retry` judged the error permanent: no retry */
   permanent?: boolean;
-  /** `run.continuation`'s reading of the last paragraph, in place of the phrase list */
-  phrases?: string[];
+  /** `run.continuation`'s reading of the last paragraph, acted on: it replaces the phrase list's */
+  reading?: ContinuationReading;
 }
 const MAX_ATTEMPTS = 10;
 const MAX_ERROR_QUOTE = 2000;
@@ -1689,6 +1696,9 @@ ${quoted}
   /** Chats whose next result a task already listens for: a limit and the end of its wait both ask, and one result is settled once. */
   private readonly following = new Set<string>();
 
+  /** Continuations on their way, by `<orchestration>:<task>`: what recording each one's effect needs */
+  private readonly continuing = new Map<string, PendingContinuation & { report: string }>();
+
   private followNextResult(orch: Orchestration, task: OrchestrationTaskState, chatId: string, stamp: number): void {
     if (this.following.has(chatId)) return;
     this.following.add(chatId);
@@ -1722,12 +1732,56 @@ ${quoted}
       this.followNextResult(orch, task, task.runId, stamp);
       return this.persist();
     }
-    const deciding = this.decide(orch, task, result);
-    if (!deciding) return this.settleNow(orch, task, result, {});
+    const ended = this.endContinuation(orch, task, result);
+    const deciding = this.decide(orch, task, ended);
+    if (!deciding) return this.settleNow(orch, task, ended, {});
     void deciding.then((verdict) => {
       // A decision that took its time may have been overtaken by a stop
-      if (this.attemptCurrent(orch, task, stamp)) this.settleNow(orch, task, result, verdict);
+      if (this.attemptCurrent(orch, task, stamp)) this.settleNow(orch, task, ended, verdict);
     });
+  }
+
+  /**
+   * Records what the continuation whose turn just ended changed (`continuationEffects`), which the
+   * code rules over the next one and the `run.continuation` resolver read. A continuation sent on the
+   * decision's word that changed nothing may have answered "nothing is owed" in one line: the report
+   * before it stays the task's result, with that line after it.
+   */
+  private endContinuation(orch: Orchestration, task: OrchestrationTaskState, result: RunResult): RunResult {
+    const key = `${orch.id}:${task.id}`;
+    const pending = this.continuing.get(key);
+    if (!pending) return result;
+    this.continuing.delete(key);
+    if (pending.n !== (task.continuations ?? 0)) return result;
+    const calls = callsOfTurn(this.executionEvents(task.runId));
+    const effect = continuationEffect(pending.n, pending.cause, { commits: commitCountSince(pending.dir, pending.head), ...calls });
+    task.continuationEffects = [...(task.continuationEffects ?? []).filter((e) => e.n !== effect.n), effect];
+    if (pending.cause !== 'decision' || effect.changed || result.isError || !pending.report.trim()) return result;
+    return { ...result, result: [pending.report.trim(), result.result.trim()].filter(Boolean).join('\n\n') };
+  }
+
+  /** The events of the chat's live execution: the turn a result just ended, since each continuation is an execution of its own */
+  private executionEvents(chatId: string | null): RunEvent[] {
+    if (!chatId) return [];
+    const at = this.runs.streamPosition(chatId);
+    return at ? this.runs.events(chatId, at.executionSeq) : [];
+  }
+
+  /**
+   * The commits and edits of the turn that just ended, for the decision's state: a continuation's
+   * from its recorded effect; otherwise the task's commits since its base and the edits of the
+   * execution, which for a first turn is the turn.
+   */
+  private turnOf(task: OrchestrationTaskState): { commits: number; edits: number } {
+    const done = task.continuations ?? 0;
+    const effect = done > 0 ? task.continuationEffects?.find((e) => e.n === done) : undefined;
+    if (effect) return { commits: effect.commits, edits: effect.edits };
+    return { commits: commitCountSince(task.worktree, task.baseCommit), edits: callsOfTurn(this.executionEvents(task.runId)).edits };
+  }
+
+  /** The structural items of a task's turn: Claudio commits what a worker leaves uncommitted, so only delegated work is read */
+  private structuralOf(task: OrchestrationTaskState): string[] {
+    return task.runId ? structuralItems({ schema: false, structured: true, uncommitted: [], delegates: delegatesOf(this.runs.get(task.runId)) }) : [];
   }
 
   /**
@@ -1752,15 +1806,25 @@ ${quoted}
     }
     // A turn that ended as a report with work still owed goes back to its chat, naming what is open.
     // Claudio commits what a worker leaves uncommitted, so only its last message is read here
+    const done = task.continuations ?? 0;
     const open =
-      result.isError || !task.runId || (task.continuations ?? 0) >= MAX_CONTINUATIONS
-        ? []
-        : [...structuralItems({ schema: false, structured: true, uncommitted: [], delegates: delegatesOf(this.runs.get(task.runId)) }), ...(verdict.phrases ?? phraseItems(result.result))];
-    if (open.length && task.runId) {
+      result.isError || !task.runId || done >= MAX_CONTINUATIONS
+        ? null
+        : continuationPlan({
+            structural: this.structuralOf(task),
+            phrases: phraseItems(result.result),
+            reading: verdict.reading ?? null,
+            decisionAllowed: decisionMayContinue(done, task.continuationEffects ?? []),
+          });
+    if (open && task.runId) {
       this.charge(orch, task, result);
-      const count = (task.continuations ?? 0) + 1;
+      const count = done + 1;
       task.continuations = count;
-      this.continueChat(orch, task, task.runId, continuationPrompt(open, count, [WORKER_CLOSING, this.timeOf(orch, task)]));
+      // Only the task's own worktree: in a shared checkout another task's commits would count as this turn's
+      const dir = task.worktree ?? null;
+      this.continuing.set(`${orch.id}:${task.id}`, { n: count, cause: open.cause, dir, head: headOf(dir), report: result.result });
+      const closing = open.cause === 'decision' ? DECISION_CLOSING : WORKER_CLOSING;
+      this.continueChat(orch, task, task.runId, continuationPrompt(open.items, count, [closing, this.timeOf(orch, task)]));
       return this.persist();
     }
     this.record(orch, task, result);
@@ -1781,10 +1845,13 @@ ${quoted}
     }
   }
 
-  /** Never rejects: an engine that fails is an answer that never came */
-  private async ask(point: DecisionPointId, subject: DecisionSubject, projectId: string | null): Promise<DecisionOutcome | null> {
+  /**
+   * Never rejects: an engine that fails is an answer that never came. `baseline` is what today's code
+   * does with the same input, stored with the row so the answer is measured against it (M2).
+   */
+  private async ask(point: DecisionPointId, subject: DecisionSubject, projectId: string | null, baseline: DecisionBaseline): Promise<DecisionOutcome | null> {
     try {
-      return (await this.decisions?.ask(point, subject, { projectId })) ?? null;
+      return (await this.decisions?.ask(point, subject, { projectId, baseline })) ?? null;
     } catch {
       return null;
     }
@@ -1815,7 +1882,8 @@ ${quoted}
       const stance = stanceOf(this.decisions, 'orchestration.retry', projectId);
       if (stance === 'off') return null;
       const attempt = `${ORDINALS[task.attempts - 1] ?? 'a later'} attempt`;
-      const asked = this.ask('orchestration.retry', { kind: 'task', id, data: { error: tail(result.result, MAX_DECISION_TEXT), task: task.name, attempt } }, projectId);
+      // Today's code retries: the point acts only on `permanent`
+      const asked = this.ask('orchestration.retry', { kind: 'task', id, data: { error: tail(result.result, MAX_DECISION_TEXT), task: task.name, attempt } }, projectId, false);
       if (stance === 'watch') {
         this.track(asked);
         return null;
@@ -1831,19 +1899,31 @@ ${quoted}
     if (done >= MAX_CONTINUATIONS || !last) return null;
     const stance = stanceOf(this.decisions, 'run.continuation', projectId);
     if (stance === 'off') return null;
+    const phrases = phraseItems(result.result);
+    // Asked only where the answer could change what happens: with no phrase and nothing structural it
+    // could only send a continuation the code rules no longer allow (D4)
+    if (!phrases.length && !this.structuralOf(task).length && !decisionMayContinue(done, task.continuationEffects ?? [])) return null;
     const words = ['no continuation yet', 'one continuation so far', 'two continuations so far'][done] ?? 'several continuations so far';
-    const asked = this.ask('run.continuation', { kind: 'task', id, data: { title: task.name, tail: last, continuations: words } }, projectId);
+    const data = continuationState({
+      title: task.name,
+      deliverable: task.prompt,
+      tail: last,
+      continuations: words,
+      phraseListMatched: phrases.length > 0,
+      turn: this.turnOf(task),
+      maxBytes: decisionPoint('run.continuation')?.maxStateBytes ?? 4096,
+    });
+    // The baseline is the phrase list's items: empty, it would not continue
+    const asked = this.ask('run.continuation', { kind: 'task', id, data }, projectId, phrases);
     if (stance === 'watch') {
       this.track(asked);
       return null;
     }
-    // Only the phrase part is the decision's; the structural items stay code's (see settleNow)
+    // Only the phrase part is the decision's; the structural items and the code rules stay code's (see settleNow)
     return asked.then((outcome): SettleVerdict => {
       const answer = outcome?.answers?.report;
       if (answer?.kind !== 'choice') return {};
-      if (answer.value === 'done') return { phrases: [] };
-      const phrases = phraseItems(result.result);
-      return { phrases: phrases.length ? phrases : [OWES_WORK_ITEM] };
+      return { reading: CONTINUATION_OWES.has(answer.value) ? 'owes' : 'done' };
     });
   }
 
@@ -2691,6 +2771,8 @@ ${quoted}
         },
       },
       projectId,
+      // Today's code runs the fixer again: the point acts only on "no"
+      false,
     );
     if (stance === 'watch') {
       this.track(asked);
@@ -2882,7 +2964,8 @@ ${quoted}
     } catch {
       return 'full';
     }
-    const asked = this.ask('review.depth', { kind: 'task', id: `${orch.id}:${REVIEW_CHAT_ROLE}`, data }, projectId);
+    // Today's code reviews in full
+    const asked = this.ask('review.depth', { kind: 'task', id: `${orch.id}:${REVIEW_CHAT_ROLE}`, data }, projectId, 'full');
     if (stance === 'watch') {
       this.track(asked);
       return 'full';
@@ -3492,7 +3575,9 @@ ${quoted}
     if (stance === 'off') return;
     const models = [...new Set(['haiku', 'sonnet', 'opus', ...(spec.model ? [spec.model] : [])])].map((id) => ({ id, label: MODEL_LABELS[id] ?? id }));
     const tasks = spec.tasks.map((t) => ({ id: t.id, name: t.name, prompt: t.prompt.split('\n').slice(0, 3).join('\n'), dependsOn: t.dependsOn ?? [] }));
-    const asked = this.ask('orchestration.model', { kind: 'task', id: runId, data: { tasks, models } }, projectId);
+    // Today every task takes the model the plan gave it, or the plan's one model
+    const planned: DecisionBaseline = Object.fromEntries(spec.tasks.map((t) => [t.id, t.model ?? spec.model ?? null]));
+    const asked = this.ask('orchestration.model', { kind: 'task', id: runId, data: { tasks, models } }, projectId, planned);
     if (stance === 'watch') return this.track(asked);
     const outcome = await asked;
     if (!outcome?.act || !outcome.answers) return;
