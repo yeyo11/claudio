@@ -2206,8 +2206,18 @@ test('team.assign: shadow records a proposal and the column still decides who ru
   assert.equal(d.rows()[0]?.baseline, false, 'today the column decides who runs');
 });
 
-test('team.assign: active still only suggests, whatever the confidence, and a merge-resolving run is not asked about', async () => {
+test('team.assign: active under its floor records the row and suggests nothing, and the column decides who runs', async () => {
+  // The suggest floor is 0.7 by default
   const d = await deciding('team.assign', 'active', replying(() => 'developer', 0.5));
+  const s = setup({ db: d.db, decisions: d.engine });
+  await item(s, 'backlog');
+  assert.equal(s.launches[0]?.member.agent, 'product-owner');
+  assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
+});
+
+test('team.assign: active at its floor only suggests, under the act threshold too, and a merge-resolving run is not asked about', async () => {
+  // Over the floor, though under the act threshold of 0.85: a suggestion is held only to its floor
+  const d = await deciding('team.assign', 'active', replying(() => 'developer', 0.75));
   const { hooks } = conflictHooks(['src/cart.ts']);
   const s = setup({ db: d.db, decisions: d.engine, pullRequests: hooks });
   await item(s, 'backlog');

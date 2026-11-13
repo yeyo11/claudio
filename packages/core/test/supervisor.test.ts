@@ -797,7 +797,11 @@ test("a signal about a subagent's call reads that agent's steps and asks the lea
   assert.match(prompt, /a subagent the agent launched \(type Explore\), described as:\n<pasted_content id="([0-9a-f]{8})">\nAudit the CLI bundle\n/);
   assert.match(prompt, /- Bash \{"command":"grep -r x \/usr\/lib\/node_modules"\}/);
   assert.doesNotMatch(prompt, /lead-only-step|another-agent-step/, "only that agent's own steps");
-  assert.match(prompt, /Write a hint for the subagent/);
+  // The draft judges the subagent, from its own branch, and any hint it writes is for the subagent, not the lead
+  assert.match(prompt, /subagent[^\n]*\bbranch\b/, "the steps are named as the subagent's branch");
+  assert.match(prompt, /whether the subagent is stuck/);
+  assert.match(prompt, /addressed to the subagent/);
+  assert.doesNotMatch(prompt, /whether the agent is stuck|addressed to the agent\b/, 'nothing in it is about the lead');
 
   assert.ok(proposal);
   assert.deepEqual(proposal.agent, agent);
