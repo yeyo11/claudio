@@ -3,6 +3,7 @@ import { isClaudioMcpWriteTool } from '@claudio/mcp';
 import { ChatActivityTracker } from './chat-activity.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import { commandKind } from './commands.ts';
+import { commandClock, type ToolCall } from './health.ts';
 import { judge, type NeutralRequest } from './policy-judge.ts';
 import { worktreesChanged } from './git.ts';
 import { grownSince, turnModelCosts, turnTokens } from './usage.ts';
@@ -25,6 +26,33 @@ export function recordEntry(host: ChatHost, chat: LiveChat, entry: Extract<Drive
   } catch {
     // the transcript only loses this entry; the chat goes on
   }
+}
+
+/**
+ * When a command's own clock started (`commandClock`): a call of a parallel batch that waited for a
+ * sibling is timed from the sibling's end, not from the message it arrived in, or its wait would count
+ * as the command's running time and inflate what "usual" means. Null where the clock cannot say, which
+ * leaves the message's time. The calls are read from the live execution's events as the health read does.
+ */
+function ownClock(chat: LiveChat, toolUseId: string): string | null {
+  const since = chat.execution?.startedAt;
+  if (!since) return null;
+  const calls = new Map<string, ToolCall>();
+  for (const event of chat.events) {
+    if (event.ts < since || !event.entry) continue;
+    const parent = event.entry.parentToolUseId ?? null;
+    for (const block of event.entry.blocks) {
+      if (block.type === 'tool_use') {
+        const input = block.input && typeof block.input === 'object' ? (block.input as Record<string, unknown>) : {};
+        calls.set(block.id, { id: block.id, name: block.name, input, at: event.ts, endedAt: null, isError: false, result: '', ...(parent ? { parentToolUseId: parent } : {}) });
+      } else if (block.type === 'tool_result') {
+        const call = calls.get(block.toolUseId);
+        if (call) Object.assign(call, { endedAt: event.ts, isError: block.isError });
+      }
+    }
+  }
+  const call = calls.get(toolUseId);
+  return call ? commandClock({ calls: [...calls.values()] }, call) : null;
 }
 
 /** Read when used, so a test can shorten them */
@@ -179,7 +207,7 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       chat.openCommands.delete(event.toolUseId);
       const outcome = chat.cancelled.delete(event.toolUseId) ? 'cancelled' : event.isError ? 'error' : 'ok';
       try {
-        host.db.recordCommand({ kind: open.kind, chatId: chat.id, toolUseId: event.toolUseId, startedAt: open.startedAt, durationMs: Date.now() - Date.parse(open.startedAt), outcome });
+        host.db.recordCommand({ kind: open.kind, chatId: chat.id, toolUseId: event.toolUseId, startedAt: open.startedAt, durationMs: Date.now() - Date.parse(ownClock(chat, event.toolUseId) ?? open.startedAt), outcome });
       } catch {
         // the history only loses one run of a command
       }
