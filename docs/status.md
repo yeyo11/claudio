@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-11-13T21:00:00Z
+updated_at: 2026-11-14T00:00:00Z
 tags:
     - status
     - project-state
@@ -79,7 +79,7 @@ Code CLI by default, TypeSafe's Jev with the owner's own key), a mode per point 
 `active`) and a Decisions tab in Settings. The catalogue has 29 points, and they ship `off` as the
 product's default; nothing is sent anywhere until the owner consents to a point. See [decision-engine.md](decision-engine.md).
 
-The decision engine's second plan, on `feat/decision-engine-v2` (not merged yet), made a point earn
+The decision engine's second plan, merged in #122 on 2026-11-13, made a point earn
 its place ([plans/decision-engine-v2.md](plans/decision-engine-v2.md)). Every row records what the
 code rule would have done, every resolver says whether its outcome is direct or a proxy, and a point
 has a standing (unproven, proven, failing) that gates `active`: an act point, or a suggestion that
@@ -254,7 +254,7 @@ From 2026-11-07 to 2026-11-11:
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
 | [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Landed (#118) — see [Outcome](plans/project-ecosystem.md#outcome) |
 | [`plans/decision-engine.md`](plans/decision-engine.md) | Landed (#141): the engine, both providers, 22 points at the time (29 now; all ship off) and the Decisions tab. See [Outcome](plans/decision-engine.md#outcome) and [decision-engine.md](decision-engine.md). The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
-| [`plans/decision-engine-v2.md`](plans/decision-engine-v2.md) | Built on `feat/decision-engine-v2` (2026-11-13), not merged yet: evidence on every row (baseline, direct or proxy outcomes, net runs), the promotion gate with standing, holdout, demotion and suggestion floor, golden set and replays, the continuation's rules and effects, the Supervisor's structured draft and per-call clock, and the cost of a resumed session. The build's verification is still owed. See [Outcome](plans/decision-engine-v2.md#outcome) and [decision-engine.md](decision-engine.md) |
+| [`plans/decision-engine-v2.md`](plans/decision-engine-v2.md) | Landed (#122, 2026-11-13): evidence on every row (baseline, direct or proxy outcomes, net runs), the promotion gate with standing, holdout, demotion and suggestion floor, golden set and replays, the continuation's rules and effects, the Supervisor's structured draft and per-call clock, and the cost of a resumed session. The build's verification is still owed. See [Outcome](plans/decision-engine-v2.md#outcome) and [decision-engine.md](decision-engine.md) |
 | [`plans/orchestration-speed.md`](plans/orchestration-speed.md) | Built (epic CW-11): where a graph's time goes is recorded and shown (CW-13, #210); the shorter verification (CW-14); cheaper worker checks and the `e2e-specs` task (CW-15, #213); shorter chains with planner guidance and the longest-chain hint (CW-16, #205). Workstream B (CW-4) was superseded by phase 4 of multiple providers, see [`plans/limit-resume.md`](plans/limit-resume.md#what-replaced-it) |
 | [`plans/agent-wire-format.md`](plans/agent-wire-format.md) | Landed (#221, CW-33, 2026-10-08): the MCP list tools answer only the fields a model needs, as compact JSON (`packages/mcp/src/fields.ts`). TOON was measured with a CLI bench (`scripts/wire-format-bench.mjs`), saved at most 4 % and cost more on three of four tools, and is not adopted; ZON rejected. The UI ↔ API side is built, see [api-wire.md](api-wire.md). See [Outcome](plans/agent-wire-format.md#outcome) and [claudio-mcp-server.md](claudio-mcp-server.md) |
 | [`plans/claudio-assistant.md`](plans/claudio-assistant.md) | Landed (#216, 2026-10-07, umbrella CW-30): the global entry and confined chat (CW-18) and nine write tools, each confirmed by the person (CW-17), on the MCP server (CW-6) and the chat token (CW-10). See [`claudio-assistant.md`](claudio-assistant.md) and [Outcome](plans/claudio-assistant.md#outcome) |

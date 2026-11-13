@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T16:30:00Z
-updated_at: 2026-11-13T22:30:00Z
+updated_at: 2026-11-14T00:00:00Z
 tags:
     - plan
     - decisions
@@ -11,7 +11,7 @@ tags:
 ---
 # Plan: a decision engine that earns its place
 
-Status: **built** (2026-11-13), on `feat/decision-engine-v2`, not merged yet. See the
+Status: **landed** in #122 on 2026-11-13. Was: **built** on `feat/decision-engine-v2`, not merged yet. See the
 [Outcome](#outcome). Was: **proposed** (2026-11-13). Nothing here is built. The owner's choices are listed in
 [§9](#9-decisions-for-the-owner); the tasks in [§11](#11-tasks) are launched only after them.
 
