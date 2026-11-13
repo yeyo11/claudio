@@ -85,11 +85,16 @@
   "decisions": {
     "label": "Decisiones",
     "jev": "Jev {{cost}}",
-    "netSaved_one": "Neto: {{formatted}} ejecución del agente ahorrada ({{saved}} ahorradas, {{caused}} provocadas)",
-    "netSaved_other": "Neto: {{formatted}} ejecuciones del agente ahorradas ({{saved}} ahorradas, {{caused}} provocadas)",
-    "netCaused_one": "Neto: {{formatted}} ejecución del agente de más ({{saved}} ahorradas, {{caused}} provocadas)",
-    "netCaused_other": "Neto: {{formatted}} ejecuciones del agente de más ({{saved}} ahorradas, {{caused}} provocadas)",
-    "netZero": "Neto: ninguna ejecución del agente ahorrada ni añadida ({{saved}} ahorradas, {{caused}} provocadas)",
+    "savedCount_one": "{{formatted}} ahorrada",
+    "savedCount_other": "{{formatted}} ahorradas",
+    "causedCount_one": "{{formatted}} provocada",
+    "causedCount_other": "{{formatted}} provocadas",
+    "detail": "{{saved}}, {{caused}}",
+    "netSaved_one": "Neto: {{formatted}} ejecución del agente ahorrada ({{detail}})",
+    "netSaved_other": "Neto: {{formatted}} ejecuciones del agente ahorradas ({{detail}})",
+    "netCaused_one": "Neto: {{formatted}} ejecución del agente de más ({{detail}})",
+    "netCaused_other": "Neto: {{formatted}} ejecuciones del agente de más ({{detail}})",
+    "netZero": "Neto: ninguna ejecución del agente ahorrada ni añadida ({{detail}})",
     "history": "Ver el historial"
   },
   "cap": {

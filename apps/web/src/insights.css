@@ -972,6 +972,11 @@
   font-weight: var(--fw-regular);
   color: var(--fg);
 }
+.usage-decisions .fact {
+  display: flex;
+  gap: 10px;
+  min-width: 0;
+}
 .usage-decisions .sep {
   color: var(--fg-3);
 }
@@ -989,7 +994,11 @@
   .usage-decisions .lead {
     flex: 1 1 100%;
   }
-  .usage-decisions .lead + .sep,
+  /* One fact to a line: the dots only join facts that share one */
+  .usage-decisions .fact {
+    flex: 1 1 100%;
+  }
+  .usage-decisions .sep,
   .usage-decisions a {
     display: none;
   }

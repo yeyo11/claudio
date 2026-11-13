@@ -13,7 +13,7 @@ import { formatNumber } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { SaveError } from '../config/decisions/ActivationRefusal';
 import { gateMissing } from '../config/decisions/gate';
-import { AREAS, MODES, bestReading, gateBlocked, POINT_KEY, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
+import { AREAS, MODES, bestReading, gateBlocked, POINT_KEY, standingInforms, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
 
 type Provider = 'inherit' | DecisionProviderId;
 type Override = { mode?: DecisionMode; threshold?: number };
@@ -210,6 +210,14 @@ function OverrideRow({
   const activeBlocked = info.kind === 'act' && provider === 'cli';
   // The gate the server enforces on save, told before: Active is earned on the point's evidence
   const unproven = !activeBlocked && gateBlocked(info, mode, savedMode);
+  // A phone has no hover for the segment's title, so the reason Active is out of reach is said on the row
+  // (as on the global screen: only for a point in play, not on every Off point nobody has read)
+  const activeReason =
+    unproven && (standingInforms(info, savedMode) || mode !== 'off')
+      ? info.evidencePossible
+        ? td('gate.activeNeeds', { missing: gateMissing(td, info.gate, bestReading(info.live, info.replay)) })
+        : td('gate.noEvidence')
+      : null;
 
   return (
     <div className="dp-row" data-point={info.id}>
@@ -257,6 +265,7 @@ function OverrideRow({
           t('decisions.inherited')
         )}
       </span>
+      {activeReason && <p className="dp-point-line">{activeReason}</p>}
     </div>
   );
 }

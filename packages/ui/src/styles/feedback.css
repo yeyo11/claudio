@@ -421,6 +421,11 @@ a.badge:hover {
   min-width: 0;
 }
 
+/* A title inside an alert is the strong weight, not the browser's 700 for <strong> */
+.alert-body strong {
+  font-weight: var(--fw-strong);
+}
+
 .alert-bad {
   border-color: transparent;
   background: var(--bad-soft);

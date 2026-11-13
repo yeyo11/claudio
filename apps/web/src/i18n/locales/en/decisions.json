@@ -135,7 +135,7 @@
     },
     "thresholdLine": "Acts when at least this sure",
     "floor": "Suggestion floor of {{point}}",
-    "floorLine": "Suggests when at least this sure"
+    "floorLine": "Below this confidence nothing is flagged"
   },
   "supervisor": {
     "off": "Does not watch for stuck workers",
@@ -351,8 +351,8 @@
     "heldBody_other": "They were Active before points had to earn it. They stay Active in your settings and start acting once their own evidence clears the gate; each row says what it still needs.",
     "demotedOn": "Back to Shadow on {{date}}: {{why}}.",
     "demotedWhy": {
-      "failingAct": "{{hits}} of {{n}} of its answers that acted were right, under the bar",
-      "failingSuggest": "{{hits}} of {{n}} of its flags were right, under the bar",
+      "failingAct": "{{hits}} of {{n}} of its answers that acted were right, below the gate",
+      "failingSuggest": "{{hits}} of {{n}} of its flags were right, below the gate",
       "rate": "it acted on {{acts}} of {{rows}} answers in the last 7 days, more than twice as often as in Shadow"
     }
   },

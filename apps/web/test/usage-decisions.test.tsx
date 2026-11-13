@@ -61,7 +61,7 @@ test('the line says what Jev cost and the net in runs, with a link to the histor
   assert.doesNotMatch(html, /agent runs saved<\/span>/);
   setLanguage('es');
   await i18n.changeLanguage('es');
-  assert.match(render(stats(12, { runsSaved: 1, runsCaused: 0, netRuns: 1 })), /Neto: 1 ejecución del agente ahorrada \(1 ahorradas, 0 provocadas\)/);
+  assert.match(render(stats(12, { runsSaved: 1, runsCaused: 0, netRuns: 1 })), /Neto: 1 ejecución del agente ahorrada \(1 ahorrada, 0 provocadas\)/);
   setLanguage('en');
   await i18n.changeLanguage('en');
 });
@@ -72,6 +72,24 @@ test('the net counts what the decisions caused against what they saved, and says
   assert.match(render(stats(12, { runsSaved: 3, runsCaused: 8, netRuns: -5 })), /Net: 5 agent runs added \(3 saved, 8 caused\)/);
   assert.match(render(stats(12, { runsSaved: 4, runsCaused: 3, netRuns: 1 })), /Net: 1 agent run saved \(4 saved, 3 caused\)/);
   assert.match(render(stats(12, { runsSaved: 2, runsCaused: 2, netRuns: 0 })), /Net: no agent runs saved or added \(2 saved, 2 caused\)/);
+});
+
+test('each count in the net agrees with its noun, in the singular and the plural, in both languages', async () => {
+  setLanguage('es');
+  await i18n.changeLanguage('es');
+  assert.match(render(stats(12, { runsSaved: 1, runsCaused: 1, netRuns: 0 })), /\(1 ahorrada, 1 provocada\)/);
+  assert.match(render(stats(12, { runsSaved: 10, runsCaused: 2, netRuns: 8 })), /Neto: 8 ejecuciones del agente ahorradas \(10 ahorradas, 2 provocadas\)/);
+  assert.match(render(stats(12, { runsSaved: 0, runsCaused: 1, netRuns: -1 })), /Neto: 1 ejecución del agente de más \(0 ahorradas, 1 provocada\)/);
+  setLanguage('en');
+  await i18n.changeLanguage('en');
+  assert.match(render(stats(12, { runsSaved: 1, runsCaused: 1, netRuns: 0 })), /\(1 saved, 1 caused\)/);
+});
+
+test('every dot of the line opens the fact it belongs to, so a wrapped line never ends on one', async () => {
+  await i18n.changeLanguage('en');
+  const html = render(stats(12));
+  assert.equal([...html.matchAll(/<span class="fact[^"]*"><span class="sep" aria-hidden="true">·<\/span>/g)].length, 2);
+  assert.doesNotMatch(html, /<\/span><span class="sep"/);
 });
 
 test('the line is hidden when no decision was recorded in the window', async () => {

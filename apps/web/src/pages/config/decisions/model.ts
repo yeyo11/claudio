@@ -109,6 +109,14 @@ export const gateBlocked = (info: Pick<DecisionPointInfo, 'id' | 'standing' | 'g
   // The server judges a step up from what is saved, so a point saved as active keeps Active whatever the form says
   info.id !== SUPERVISOR_POINT && current !== 'active' && saved !== 'active' && info.gate.enforced && info.standing !== 'proven';
 
+/**
+ * Whether a point's standing says anything the person can act on. A point that is Off and has never
+ * been read would carry "Unproven" on most of the list, which is noise; the standing shows once the
+ * point is on (its saved mode), has cases behind it, or the engine moved it back to Shadow.
+ */
+export const standingInforms = (info: Pick<DecisionPointInfo, 'live' | 'replay' | 'demoted'>, savedMode: DecisionMode): boolean =>
+  savedMode !== 'off' || info.live.cases > 0 || (info.replay?.cases ?? 0) > 0 || Boolean(info.demoted);
+
 /** Of the live reading and the replay, the one that lacks less: the standing is read from the better of the two. */
 export function bestReading(live: DecisionGateReading, replay: DecisionGateReading | null): DecisionGateReading {
   return replay && replay.shortfalls.length < live.shortfalls.length ? replay : live;

@@ -135,7 +135,7 @@
     },
     "thresholdLine": "Actúa con al menos esta confianza",
     "floor": "Confianza mínima de {{point}}",
-    "floorLine": "Sugiere con al menos esta confianza"
+    "floorLine": "Por debajo de esta confianza no se señala nada"
   },
   "supervisor": {
     "off": "No vigila a los workers atascados",
@@ -340,15 +340,15 @@
   "standing": {
     "unproven": "Sin demostrar",
     "proven": "Demostrado",
-    "failing": "Fallando",
+    "failing": "Con fallos",
     "decidedBy": {
       "live": "según su historial",
       "replay": "según una repetición"
     },
     "heldTitle_one": "{{formatted}} punto funciona en Sombra por ahora",
     "heldTitle_other": "{{formatted}} puntos funcionan en Sombra por ahora",
-    "heldBody_one": "Estaba Activo antes de que los puntos tuvieran que ganárselo. Sigue Activo en tus ajustes y empezará a actuar cuando su propia evidencia supere la barrera; su fila dice qué le falta.",
-    "heldBody_other": "Estaban Activos antes de que los puntos tuvieran que ganárselo. Siguen Activos en tus ajustes y empezarán a actuar cuando su propia evidencia supere la barrera; cada fila dice qué les falta.",
+    "heldBody_one": "Estaba Activo antes de que los puntos tuvieran que ganárselo. Sigue Activo en tus ajustes y empezará a actuar cuando su propia evidencia supere el listón; su fila dice qué le falta.",
+    "heldBody_other": "Estaban Activos antes de que los puntos tuvieran que ganárselo. Siguen Activos en tus ajustes y empezarán a actuar cuando su propia evidencia supere el listón; cada fila dice qué les falta.",
     "demotedOn": "Volvió a Sombra el {{date}}: {{why}}.",
     "demotedWhy": {
       "failingAct": "acertó {{hits}} de {{n}} respuestas que actuaban, por debajo del listón",
