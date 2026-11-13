@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T16:30:00Z
-updated_at: 2026-11-13T21:00:00Z
+updated_at: 2026-11-13T22:30:00Z
 tags:
     - plan
     - decisions
@@ -599,14 +599,39 @@ What the review listed and was **not** fixed stays open:
 - **Baselines.** Twelve points pass none ([decision-engine.md](../decision-engine.md#other-points-the-second-plan-changed)),
   so their rows have no comparison.
 - **Calibration does not set a threshold**, and the tokens of caused runs are not summed.
-- **The e2e specs have not run.** Risks: about 40 fake-CLI chats per replay against the run slots and
-  a 60 s deadline, and `e2e/timings.json` was not updated for the new specs.
+- **The Decisions screen against an older remote server.** The draft tolerates settings without the
+  Supervisor's options; the rows read `gate`, `standing` and `effective.limitedBy`, which a server
+  from before this plan does not send.
+- **A test file whose process dies is not a failure.** Across the verification runs the web suite
+  reported 2,212 tests twice and 2,189 once, and core 4,460 once and 4,492 otherwise: a file's output
+  was cut and the runner counted nothing against it. Not shown to be this branch's; it means a green
+  run can have skipped tests.
 - **`claudeRunsSaved`** is a deprecated alias of `runsSaved`, kept for one release.
 - **A point active without a valid consent** leaves no trace and so no row in the stats.
 
-**Verification: by the owner's choice no task ran the test, ci-checks or e2e gates; only lint and
-typecheck ran on each merge. The whole verification and a QA pass are done by the owner and the
-session before the pull request.**
+### Verification
+
+By the owner's choice no task ran the `test`, `ci-checks` or `e2e` gates from the second wave on; only
+`lint` and `typecheck` ran on each merge. The whole verification was done once, on the integrated
+branch, on 2026-11-13:
+
+- **The first full run** stopped in core: 5 failing tests of 4,491, and the api suite, which runs
+  after core, had never run. Of the five, three were tests left behind by a later task's deliberate
+  change (the suggestion floor on `team.assign`, the wording of the Supervisor's prompt, a source
+  check that did not survive the test loader's quoting) and two were defects in
+  `health.semantic-loop` that only a run could show: digits were flattened in file paths, so nine
+  different files read once each counted as one repetition, and the back-off after three "no" never
+  counted answers in shadow or under the floor. The api suite then failed in four places, all seams
+  between tasks: nine label and replay types missing from the OpenAPI components, five new write
+  routes without their audit line, and one test that still listed the feedback route as open to a
+  chat's token. One web test failed on settings without the Supervisor's options.
+- **The final run**, on the tree with those fixes: `lint`, `typecheck`, `ci-checks` and `test` pass
+  (shared 314, accounts 99, ui 53, chat-ui 156, web 2,189, core 4,492 with the 120 known guard
+  bypasses recorded as todo, mcp 70, api 848, desktop 198), and the `e2e` gate with no prefix passes
+  all 105 spec files in 24.6 minutes.
+- **Not verified by a run:** the paths listed under Open as unchecked on the real CLI, and a
+  migration of the owner's own database (the migrations are tested from a database written before
+  them, on fixtures).
 
 ## 14. How this plan is run
 
