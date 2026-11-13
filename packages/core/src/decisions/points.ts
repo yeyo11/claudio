@@ -35,6 +35,12 @@ export interface DecisionPointDefinition {
   primitives: readonly DecisionPrimitive[];
   /** Default confidence an act point needs; ignored by suggest points */
   defaultThreshold: number;
+  /**
+   * Act points: the precision of the acting answer (its lower 90 % bound) must be above this before
+   * the point may act (docs/plans/decision-engine-v2.md, rule 4). 0.5 when a wrong act and a missed
+   * one cost about the same; higher where a wrong act costs more than a right one saves.
+   */
+  breakEven: number;
   /** Bytes of state the point may send, after redaction */
   maxStateBytes: number;
   /** What acting on an answer does, read against today's behaviour; the evidence layer reads it */
@@ -185,11 +191,12 @@ function continuationBaseline(baseline: DecisionBaseline | null): boolean | null
   return booleanBaseline(baseline);
 }
 
-type Base = Pick<DecisionPointDefinition, 'id' | 'kind' | 'scope' | 'primitives' | 'fields'> & Partial<Pick<DecisionPointDefinition, 'maxStateBytes' | 'effect' | 'visible' | 'needsLowLatency' | 'stateVersion'>>;
+type Base = Pick<DecisionPointDefinition, 'id' | 'kind' | 'scope' | 'primitives' | 'fields'> & Partial<Pick<DecisionPointDefinition, 'maxStateBytes' | 'effect' | 'visible' | 'needsLowLatency' | 'stateVersion' | 'breakEven'>>;
 
 function point(base: Base, questions: DecisionPointDefinition['questions']): DecisionPointDefinition {
   return {
     defaultThreshold: 0.85,
+    breakEven: 0.5,
     maxStateBytes: DEFAULT_MAX_STATE_BYTES,
     effect: base.kind === 'suggest' ? FLAGS : SILENT,
     visible: true,
@@ -242,7 +249,7 @@ const MODEL_FALLBACK: DecisionPointEffect = {
 };
 
 export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
-  point({ id: 'flow.refine-needed', kind: 'act', scope: 'project', primitives: ['choice'], effect: choiceEffect('refine', 'ready', 1), fields: ['title', 'description', 'type', 'criteria', 'labels', 'sizeEstimate'] }, () => [
+  point({ id: 'flow.refine-needed', kind: 'act', breakEven: 0.6, scope: 'project', primitives: ['choice'], effect: choiceEffect('refine', 'ready', 1), fields: ['title', 'description', 'type', 'criteria', 'labels', 'sizeEstimate'] }, () => [
     choice('refine', 'Can this card be built as written, or must it be refined first?', [
       ['ready', 'Ready: the description and acceptance criteria are specific enough to build without refining'],
       ['refine', 'Needs refining: the description or acceptance criteria are vague, missing or contradictory'],
@@ -260,7 +267,7 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
       ['continue', 'Continue as it is: there is room, and compacting would lose detail the next round needs'],
     ]),
   ]),
-  point({ id: 'orchestration.retry', kind: 'act', scope: 'project', primitives: ['choice'], effect: choiceEffect('retry', 'permanent', 1), fields: ['error', 'task', 'attempt'] }, () => [
+  point({ id: 'orchestration.retry', kind: 'act', breakEven: 0.7, scope: 'project', primitives: ['choice'], effect: choiceEffect('retry', 'permanent', 1), fields: ['error', 'task', 'attempt'] }, () => [
     choice('retry', 'A task failed with this error. Will trying again in the same chat help?', [
       ['transient', 'Transient: the failure looks temporary and a plain retry will likely work'],
       ['fixable', 'Fixable: a retry can work because the task can adjust to the error'],
@@ -332,10 +339,10 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
   point({ id: 'flow.criteria-merge', kind: 'suggest', scope: 'project', primitives: ['noul'], fields: ['existing', 'proposed'] }, (subject) =>
     items(subject, 'proposed').map((c) => noul(c.id, 'Does this proposed criterion say the same as one of the existing criteria?')),
   ),
-  point({ id: 'flow.restart', kind: 'act', scope: 'project', primitives: ['noul'], effect: noulEffect('requeue', false, 1), visible: false, fields: ['stage', 'cause', 'restarts', 'error'] }, () => [
+  point({ id: 'flow.restart', kind: 'act', breakEven: 0.6, scope: 'project', primitives: ['noul'], effect: noulEffect('requeue', false, 1), visible: false, fields: ['stage', 'cause', 'restarts', 'error'] }, () => [
     noul('requeue', 'Is it worth running this flow run again after the restart cut it?'),
   ]),
-  point({ id: 'run.continuation', kind: 'act', scope: 'project', primitives: ['choice'], effect: CONTINUATION, visible: false, maxStateBytes: 4 * 1024, fields: ['title', 'tail', 'continuations'] }, () => [
+  point({ id: 'run.continuation', kind: 'act', breakEven: 0.6, scope: 'project', primitives: ['choice'], effect: CONTINUATION, visible: false, maxStateBytes: 4 * 1024, fields: ['title', 'tail', 'continuations'] }, () => [
     choice('report', 'Is the last paragraph of this run a final report, or does it say work is still owed?', [
       ['done', 'Done: a report of finished work; nothing is left to do'],
       ['owes-work', 'Owes work: it announces a next step, offers to continue or leaves something undone'],
@@ -346,7 +353,7 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
     if (models.length < 2) return [];
     return items(subject, 'tasks').map((t) => choice(t.id, 'Which model is the cheapest one that can do this task well?', models.map((m): [string, string] => [m.id, text(m.label) || m.id])));
   }),
-  point({ id: 'orchestration.fixer', kind: 'act', scope: 'project', primitives: ['noul'], effect: noulEffect('another-attempt', false, 1), fields: ['checks', 'failedSpecs', 'notes', 'attempt'] }, () => [
+  point({ id: 'orchestration.fixer', kind: 'act', breakEven: 0.6, scope: 'project', primitives: ['noul'], effect: noulEffect('another-attempt', false, 1), fields: ['checks', 'failedSpecs', 'notes', 'attempt'] }, () => [
     noul('another-attempt', 'Is another fixer attempt likely to make these failing checks pass?'),
   ]),
   point({ id: 'health.semantic-loop', kind: 'suggest', scope: 'global', primitives: ['noul'], fields: ['calls'] }, () => [
@@ -371,7 +378,7 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
     ]),
   ]),
   // The tails are the host's CI output, untrusted: they are data for the question and nothing else. `headSha` is what the resolver reads the outcome against
-  point({ id: 'checks.fix', kind: 'act', scope: 'project', primitives: ['choice'], effect: choiceEffect('fix', 'branch-fixable', -1), maxStateBytes: 32 * 1024, fields: ['checks', 'attempt', 'diffStat', 'headSha'] }, () => [
+  point({ id: 'checks.fix', kind: 'act', breakEven: 0.7, scope: 'project', primitives: ['choice'], effect: choiceEffect('fix', 'branch-fixable', -1), maxStateBytes: 32 * 1024, fields: ['checks', 'attempt', 'diffStat', 'headSha'] }, () => [
     choice('fix', 'Did the changes on this branch cause these check failures, in a way the Developer can fix?', [
       ['branch-fixable', 'Branch-fixable: the branch caused the failures and the Developer can fix them by changing code'],
       ['not-branch', 'Not the branch: infrastructure, a flaky test or a change unrelated to this branch'],
@@ -379,7 +386,7 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
     ]),
   ]),
   // Light or full: there is no `skip`, because a model choosing to skip the gate would be a path that fails open. The resolver arrives with the gate runner
-  point({ id: 'review.depth', kind: 'act', scope: 'project', primitives: ['choice'], effect: choiceEffect('depth', 'light'), maxStateBytes: 4 * 1024, fields: ['files', 'added', 'deleted', 'paths', 'securityHit', 'dimensions', 'estimateUsd'] }, () => [
+  point({ id: 'review.depth', kind: 'act', breakEven: 0.7, scope: 'project', primitives: ['choice'], effect: choiceEffect('depth', 'light'), maxStateBytes: 4 * 1024, fields: ['files', 'added', 'deleted', 'paths', 'securityHit', 'dimensions', 'estimateUsd'] }, () => [
     choice('depth', 'How deep should the review of this branch go?', [
       ['light', 'Light: the change is small or mechanical, so correctness (and security when it applies) is enough'],
       ['full', 'Full: the change is large, risky or touches behaviour, so every dimension should review it'],

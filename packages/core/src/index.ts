@@ -245,6 +245,8 @@ import { DEFAULT_SUPERVISOR_PRESET, Supervisor, toolsOfRules, type SupervisorAns
 export { DECISION_POINTS, decisionPoint } from './decisions/points.ts';
 export { maskSecrets, recognizeSecrets, redactState, SECRET_MASK } from './decisions/redact.ts';
 export { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS } from './decisions/settings.ts';
+export { DecisionActivationError } from './decisions/engine.ts';
+export { hashQuestions, questionsHash } from './decisions/questions-hash.ts';
 import { listWorkflowDefinitions } from './workflows.ts';
 import { encodeProjectId, Workspace } from './workspace.ts';
 import { TerminalService } from './terminals/service.ts';
@@ -969,6 +971,7 @@ export class Core {
       settings: this.decisionSettings,
       db: this.db,
       projectDecisions: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.decisions ?? null,
+      emit: (event) => this.events.emit(event),
     });
     this.decisions.register(
       new CliDecisionProvider({
@@ -995,7 +998,11 @@ export class Core {
     this.orchestrator.releaseWait = (chatId) => this.cancelWait(chatId);
     this.orchestrator.workflowLimit = (chatId, refusal) => this.runtime.limitReached(chatId, refusal);
     this.events.observe((event) => this.decisionResolvers.observe(event));
-    this.startSubsystem('decisionResolvers', () => this.decisionResolvers.start());
+    this.startSubsystem('decisionResolvers', () => {
+      this.decisionResolvers.start();
+      // Demotion reads what the resolvers resolve, so it runs where they do, right after each sweep (D2)
+      this.decisions.startReviewing();
+    });
     this.orchestrator.decisions = this.decisions;
     this.orchestrator.projectOf = (cwd) => this.projectOf(resolve(cwd)).project?.id ?? null;
     this.push.decisions = this.decisions;
@@ -2770,6 +2777,8 @@ export class Core {
     const settings = parseProjectSettings(input);
     const active = this.projectStore.list();
     const before = await this.projectSettingsStore.read(record, active);
+    // The promotion gate holds for a project's override as for the global document (D1)
+    this.decisions.checkProjectActivation(before.decisions ?? null, settings.decisions ?? null);
     await this.projectSettingsStore.write(record, settings, active);
     this.projectUpdated(record, settingsChanges(before, settings), settings.modules);
     return settings;
@@ -4043,6 +4052,8 @@ export class Core {
     this.lessonQueue.stop();
     this.decisionResolvers.stop();
     this.decisions.stop();
+    // A demotion under way writes `decisions.json` and reads the database: it ends before the database closes
+    const decisionReviews = this.decisions.settled();
     const evals = this.evals.close();
     this.orchestrator.close();
     this.spend.close();
@@ -4065,7 +4076,7 @@ export class Core {
     // final execution), so the database waits for them; one that hangs does not hold the exit for ever
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([
-      Promise.allSettled([evals, terminals, collaborators, chats, tunnel, lan, servers]),
+      Promise.allSettled([evals, terminals, collaborators, chats, tunnel, lan, servers, decisionReviews]),
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, SHUTDOWN_GRACE_MS);
         timer.unref();

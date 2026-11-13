@@ -1,6 +1,20 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DECISION_POINT_IDS, isRecord, type DecisionMode, type DecisionPointId, type DecisionPointSettings, type DecisionProviderId, type DecisionSettings, type ModelFallback, type ProjectDecisionSettings } from '@claudio/shared';
+import {
+  DECISION_POINT_IDS,
+  isRecord,
+  type DecisionDemotion,
+  type DecisionGateSettings,
+  type DecisionMode,
+  type DecisionPointId,
+  type DecisionPointSettings,
+  type DecisionPromotion,
+  type DecisionProviderId,
+  type DecisionRate,
+  type DecisionSettings,
+  type ModelFallback,
+  type ProjectDecisionSettings,
+} from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
@@ -51,8 +65,21 @@ const MAX_COST_USD = 5;
 /** What `--model` takes: an alias or a full id; nothing a shell or a flag could misread */
 const MODEL_RE = /^[A-Za-z0-9][A-Za-z0-9._:[\]-]{0,99}$/;
 
-/** The part of the settings that is stored; the key's state is added on read */
-export type StoredDecisionSettings = Omit<DecisionSettings, 'jev'>;
+/** A suggestion below this confidence is recorded and not shown (docs/plans/decision-engine-v2.md, rule 5) */
+export const DEFAULT_FLOOR = 0.7;
+
+/**
+ * The promotion gate's starting numbers (docs/plans/decision-engine-v2.md §5). S3 may move them;
+ * an install may too, through `gate` in `decisions.json`.
+ */
+export const DEFAULT_GATE: DecisionGateSettings = { minCases: 30, suggestMinPrecision: 0.6, suggestMaxFlagRate: 0.3 };
+const MAX_MIN_CASES = 10_000;
+
+/**
+ * The part of the settings that is stored; the key's state is added on read. `gate` is absent until
+ * someone sets it, so a document written before it keeps its shape and reads the defaults.
+ */
+export type StoredDecisionSettings = Omit<DecisionSettings, 'jev' | 'gate'> & { gate?: DecisionGateSettings };
 
 /**
  * The Supervisor's chat reads the worker's files with a tool or two before it drafts a line, which a
@@ -94,6 +121,66 @@ function parseThreshold(value: unknown, field: string): number {
   return value;
 }
 
+function parseFloor(value: unknown, field: string): number {
+  // The same band as a threshold: a floor under 0.5 lets through answers the provider itself doubts
+  return parseThreshold(value, field);
+}
+
+function parseShare(value: unknown, field: string, { open }: { open: boolean }): number {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value > 1 || (open ? value <= 0 : value < 0)) {
+    throw new Error(`${field} must be a number ${open ? 'above 0' : 'from 0'} and at most 1`);
+  }
+  return value;
+}
+
+/** The gate's numbers; each is refused on its own when out of range */
+export function parseGate(value: unknown): DecisionGateSettings {
+  if (!isRecord(value)) throw new Error('gate must be an object');
+  const { minCases } = value;
+  if (typeof minCases !== 'number' || !Number.isInteger(minCases) || minCases < 1 || minCases > MAX_MIN_CASES) {
+    throw new Error(`gate.minCases must be a whole number from 1 to ${String(MAX_MIN_CASES)}`);
+  }
+  return {
+    minCases,
+    suggestMinPrecision: parseShare(value.suggestMinPrecision, 'gate.suggestMinPrecision', { open: false }),
+    suggestMaxFlagRate: parseShare(value.suggestMaxFlagRate, 'gate.suggestMaxFlagRate', { open: true }),
+  };
+}
+
+const isRate = (value: unknown): value is DecisionRate =>
+  isRecord(value) && typeof value.n === 'number' && typeof value.hits === 'number' && (value.value === null || typeof value.value === 'number') && (value.lower90 === null || typeof value.lower90 === 'number');
+const numberOrNull = (value: unknown): number | null => (typeof value === 'number' && Number.isFinite(value) ? value : null);
+
+/**
+ * The engine's own marks on a point. They are written by the engine and only read back, so a mark
+ * that went bad by hand is dropped rather than refusing the point: the mode and consent still load.
+ */
+function readDemotion(value: unknown): DecisionDemotion | null {
+  if (!isRecord(value) || typeof value.at !== 'string' || Number.isNaN(Date.parse(value.at))) return null;
+  if (value.reason !== 'failing' && value.reason !== 'rate') return null;
+  const e = isRecord(value.evidence) ? value.evidence : {};
+  const shortfalls = Array.isArray(e.shortfalls) ? e.shortfalls.filter((s): s is DecisionDemotion['evidence']['shortfalls'][number] => s === 'cases' || s === 'break-even' || s === 'baseline' || s === 'precision' || s === 'flag-rate') : [];
+  return {
+    at: value.at,
+    reason: value.reason,
+    evidence: {
+      cases: numberOrNull(e.cases) ?? 0,
+      precision: isRate(e.precision) ? e.precision : { n: 0, hits: 0, value: null, lower90: null },
+      breakEven: numberOrNull(e.breakEven),
+      shortfalls,
+      recentRows: numberOrNull(e.recentRows) ?? 0,
+      recentActs: numberOrNull(e.recentActs) ?? 0,
+      recentRate: numberOrNull(e.recentRate),
+      promotedRate: numberOrNull(e.promotedRate),
+    },
+  };
+}
+
+function readPromotion(value: unknown): DecisionPromotion | null {
+  if (!isRecord(value) || typeof value.at !== 'string' || Number.isNaN(Date.parse(value.at))) return null;
+  return { at: value.at, actRate: numberOrNull(value.actRate) };
+}
+
 function parseConsent(value: unknown, field: string): DecisionPointSettings['consent'] {
   if (value === null || value === undefined) return null;
   if (!isRecord(value)) throw new Error(`${field} must be an object or null`);
@@ -113,11 +200,18 @@ function parsePoints(value: unknown): Partial<Record<DecisionPointId, DecisionPo
   for (const [id, raw] of Object.entries(value)) {
     if (!isPointId(id)) throw new Error(`unknown decision point ${id}`);
     if (!isRecord(raw)) throw new Error(`points.${id} must be an object`);
-    points[id] = {
+    const point: DecisionPointSettings = {
       mode: raw.mode === undefined ? 'off' : parseMode(raw.mode, `points.${id}.mode`),
       threshold: raw.threshold === undefined ? DEFAULT_THRESHOLD : parseThreshold(raw.threshold, `points.${id}.threshold`),
       consent: parseConsent(raw.consent, `points.${id}.consent`),
     };
+    // Only what is there is kept, so a document that never had these fields is written back as it was
+    if (raw.floor !== undefined) point.floor = parseFloor(raw.floor, `points.${id}.floor`);
+    const demoted = readDemotion(raw.demoted);
+    if (demoted) point.demoted = demoted;
+    const promotion = readPromotion(raw.promotion);
+    if (promotion) point.promotion = promotion;
+    points[id] = point;
   }
   return points;
 }
@@ -151,6 +245,7 @@ export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
     cli: { model, effort: cli.effort, maxCostUsd: cost, supervisorMaxCostUsd: supervisorCost },
     points: parsePoints(input.points),
     historyDays: days,
+    ...(input.gate === undefined ? {} : { gate: parseGate(input.gate) }),
   };
 }
 
@@ -323,6 +418,13 @@ export class DecisionSettingsStore {
     // A hand-edited field that went bad falls back on its own, and a bad point on its own, so one
     // typo does not switch every point off (or on)
     const merged = defaults();
+    if (raw.gate !== undefined) {
+      try {
+        merged.gate = parseGate(raw.gate);
+      } catch {
+        // the defaults apply
+      }
+    }
     for (const key of ['provider', 'cli', 'historyDays'] as const) {
       // `cli` is read field by field over its defaults: a reset removes one field and keeps the others
       const value = key === 'cli' && isRecord(raw.cli) ? { ...defaults().cli, ...raw.cli } : raw[key];
@@ -346,26 +448,74 @@ export class DecisionSettingsStore {
   }
 
   get(): DecisionSettings {
-    return { ...this.readStored(), jev: { model: JEV_MODEL, ...this.credentials.status() } };
+    const { gate, ...stored } = this.readStored();
+    return { ...stored, gate: gate ?? { ...DEFAULT_GATE }, jev: { model: JEV_MODEL, ...this.credentials.status() } };
   }
 
   /**
-   * Replaces the document. Consent is not part of it: it arrives only through `setConsent`, so a
-   * settings write cannot grant it, and one that changes a point keeps what the owner consented to.
+   * The document a `set` would write, validated, without writing it: the engine reads it to judge
+   * what the write would activate before anything changes.
    */
-  async set(input: unknown): Promise<DecisionSettings> {
+  parse(input: unknown): StoredDecisionSettings {
     const stored = this.readStored();
     // A body without the Supervisor's cap keeps the stored one, rather than putting the default back
     const body = isRecord(input) && isRecord(input.cli) && input.cli.supervisorMaxCostUsd === undefined
       ? { ...input, cli: { ...input.cli, supervisorMaxCostUsd: stored.cli.supervisorMaxCostUsd } }
       : input;
     const parsed = parseDecisionSettings(body);
+    // A body without the gate keeps the stored one
+    if (parsed.gate === undefined && stored.gate !== undefined) parsed.gate = stored.gate;
     const before = stored.points;
     for (const [id, point] of Object.entries(parsed.points) as Array<[DecisionPointId, DecisionPointSettings]>) {
+      // Consent and the engine's marks are not a settings write's to give or take
       point.consent = before[id]?.consent ?? null;
+      delete point.demoted;
+      delete point.promotion;
+      const old = before[id];
+      if (old?.demoted) point.demoted = old.demoted;
+      if (old?.promotion && point.mode === 'active') point.promotion = old.promotion;
+    }
+    return parsed;
+  }
+
+  /**
+   * Replaces the document. Consent is not part of it: it arrives only through `setConsent`, so a
+   * settings write cannot grant it, and one that changes a point keeps what the owner consented to.
+   * `activated` names the points this write switches to active, which the engine let through: each
+   * loses its demotion, and gets the promotion mark when it was proven (null when it was let through
+   * unproven, a suggestion with a warning). The gate itself is the engine's (`DecisionEngine.saveSettings`).
+   */
+  async set(input: unknown, activated: Partial<Record<DecisionPointId, DecisionPromotion | null>> = {}): Promise<DecisionSettings> {
+    const parsed = this.parse(input);
+    for (const [id, promotion] of Object.entries(activated) as Array<[DecisionPointId, DecisionPromotion | null]>) {
+      const point = parsed.points[id];
+      if (!point || point.mode !== 'active') continue;
+      delete point.demoted;
+      if (promotion) point.promotion = promotion;
     }
     await this.write(parsed);
     return this.get();
+  }
+
+  /** The engine moves an active point back to shadow and says why; consent, threshold and floor stay */
+  async demote(point: DecisionPointId, demotion: DecisionDemotion): Promise<DecisionSettings> {
+    const stored = this.readStored();
+    const current = stored.points[point];
+    if (!current) return this.get();
+    const next: DecisionPointSettings = { ...current, mode: 'shadow', demoted: demotion };
+    delete next.promotion;
+    stored.points[point] = next;
+    await this.write(stored);
+    return this.get();
+  }
+
+  /** The engine's bookkeeping for a point that was already active when it became proven: the rate demotion compares with */
+  async markPromotion(point: DecisionPointId, promotion: DecisionPromotion): Promise<void> {
+    const stored = this.readStored();
+    const current = stored.points[point];
+    if (!current || current.mode !== 'active') return;
+    stored.points[point] = { ...current, promotion };
+    await this.write(stored);
   }
 
   async setConsent(point: string, input: ConsentInput, now: Date = new Date()): Promise<DecisionSettings> {
@@ -413,7 +563,9 @@ export class DecisionSettingsStore {
   async setPointMode(point: DecisionPointId, mode: DecisionMode): Promise<DecisionSettings> {
     const stored = this.readStored();
     const current = stored.points[point];
-    stored.points[point] = { mode, threshold: current?.threshold ?? DEFAULT_THRESHOLD, consent: current?.consent ?? null };
+    const next: DecisionPointSettings = { ...current, mode, threshold: current?.threshold ?? DEFAULT_THRESHOLD, consent: current?.consent ?? null };
+    if (mode !== 'active') delete next.promotion;
+    stored.points[point] = next;
     await this.write(stored);
     return this.get();
   }

@@ -60,7 +60,8 @@ async function engineFor(point: DecisionPointId, mode: 'off' | 'shadow' | 'activ
   const config = tempConfig();
   const db = new Db(config);
   const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
-  const engine = new DecisionEngine({ settings, db, projectDecisions: () => null });
+  // What the call site does once its point may act: proven, and never held out (the gate is tested in decision-lifecycle.test.ts)
+  const engine = new DecisionEngine({ settings, db, projectDecisions: () => null, standing: () => 'proven', random: () => 1 });
   engine.register(provider);
   await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), provider: provider.id, points: { [point]: { mode, threshold, consent: null } } });
   await settings.setConsent(point, { granted: true, stateVersion: decisionPoint(point)?.stateVersion ?? 1, providers: [provider.id] });

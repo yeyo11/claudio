@@ -1,7 +1,7 @@
 import { Readable } from 'node:stream';
 import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
-import { projectExportFilename, REVIEW_ROLES, type ReviewRole, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
+import { DecisionActivationError, projectExportFilename, REVIEW_ROLES, type ReviewRole, projectToJson, projectToMarkdown, WebhooksError, WorkItemError } from '@claudio/core';
 import { refuseWeakerProjectSettings } from './guards.ts';
 import type { CandidateKeyRequest, CreateProjectRequest, ImportProjectRequest, ProjectTrackerSettings, TrackerImportRequest, TrackerImportResult, TrackerIssuesPage, UpdateProjectRequest, ProjectWebhooks, WebhookRegistration } from '@claudio/shared';
 import { NotFoundError } from '@claudio/shared';
@@ -80,16 +80,22 @@ export const projectRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   // - the tracker: its scope, query and status map decide what is imported and written to it;
   // - the providers: their order and what happens at a limit decide which vendor the work spends on;
   // - the lessons: whether approved lessons reach chats, workers and other projects is the person's call.
-  app.put<{ Params: { id: string }; Body: unknown }>('/projects/:id/settings', async (req) => {
+  app.put<{ Params: { id: string }; Body: unknown }>('/projects/:id/settings', async (req, reply) => {
     const body = req.body;
     // A chat may tighten its project's guards but never loosen them
     await refuseWeakerProjectSettings(core, req, req.params.id, body);
-    if (req.actor?.startsWith('chat:') && typeof body === 'object' && body !== null && !Array.isArray(body)) {
-      const { tracker: _tracker, providers: _providers, lessons: _lessons, ...rest } = body as Record<string, unknown>;
-      const { tracker, providers, lessons } = await core.projectSettings(req.params.id);
-      return core.saveProjectSettings(req.params.id, { ...rest, ...(tracker ? { tracker } : {}), ...(providers ? { providers } : {}), ...(lessons ? { lessons } : {}) });
+    try {
+      if (req.actor?.startsWith('chat:') && typeof body === 'object' && body !== null && !Array.isArray(body)) {
+        const { tracker: _tracker, providers: _providers, lessons: _lessons, ...rest } = body as Record<string, unknown>;
+        const { tracker, providers, lessons } = await core.projectSettings(req.params.id);
+        return await core.saveProjectSettings(req.params.id, { ...rest, ...(tracker ? { tracker } : {}), ...(providers ? { providers } : {}), ...(lessons ? { lessons } : {}) });
+      }
+      return await core.saveProjectSettings(req.params.id, body);
+    } catch (error) {
+      // A decision override the promotion gate refuses answers with the evidence it lacks, as `PUT /decisions/settings` does
+      if (error instanceof DecisionActivationError) return reply.status(409).send(error.body);
+      throw error;
     }
-    return core.saveProjectSettings(req.params.id, body);
   });
 
   // A project's tracker lives in its settings document; null when it has none

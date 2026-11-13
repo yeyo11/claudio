@@ -194,7 +194,7 @@ has any; it never sends the work to another vendor.
 | GET | `/projects/:id/review-roles` | The review gate's reviewers for the project: file, `source` (`builtin` or `project`), `sha`, size and `problem`; `404` for an unknown project |
 | POST | `/projects/:id/review-roles/:role` | Write Claudio's default role file where none exists → `ReviewRoleInfo` (`201`); `409` `role-exists`, `404`. `403` to a chat token |
 | GET | `/projects/:id/settings` | The project's settings document (modules, template, key prefix, board). Created on first read with every module off |
-| PUT | `/projects/:id/settings` | Replace the settings document whole, validated. Emits `project.updated` |
+| PUT | `/projects/:id/settings` | Replace the settings document whole, validated. A decision override that newly makes a point `active` without standing `proven` is refused like `PUT /decisions/settings` (409). Emits `project.updated` |
 | GET | `/projects/:id/export?format=markdown\|json` | Download every chat of the project, streamed. `markdown` (default): a header with the dates, models and the cost the CLI reported, then each chat, oldest first, as `/chats/:id/export` renders it. `json`: a `ProjectExport` |
 | DELETE | `/projects/:id` | Remove a project from Claudio. Harmless: nothing on disk changes, and its settings and work items are kept for when it is imported again. Emits `project.removed` |
 | DELETE | `/projects/:id/state` | Purge everything Claude Code keeps about a project (`claude project purge`). Irreversible, and separate from removing the project |
@@ -478,12 +478,12 @@ The decision engine: a decision point puts typed questions to a provider (the Cl
 
 | Method | Route | Description |
 | --- | --- | --- |
-| GET | `/decisions/settings` | The global settings from `decisions.json`; the Jev key is never returned, only `keySet` and `keyHint` |
-| PUT | `/decisions/settings` | Replace them whole, validated; a `cli` without `supervisorMaxCostUsd` keeps the stored one. Consent is kept as it was. Not open to a chat's token |
+| GET | `/decisions/settings` | The global settings from `decisions.json`, with the promotion gate's numbers (`gate`) and each point's suggestion `floor`, `demoted` and `promotion`; the Jev key is never returned, only `keySet` and `keyHint` |
+| PUT | `/decisions/settings` | Replace them whole, validated; a `cli` without `supervisorMaxCostUsd` keeps the stored one, a body without `gate` the stored gate. Consent, `demoted` and `promotion` are kept as they were. The promotion gate: newly activating an act point (or a suggest point that starts a run) without standing `proven` is refused with 409 `decision-unproven`, and more than one unproven point at once with 409 `decision-bulk-activation`, each with the evidence it lacks; another suggest point is activated with a warning in `warnings`. Points already active stay as they are. Not open to a chat's token |
 | PUT | `/decisions/credentials` | `{ key }` — save the Jev key (mode 600); the answer carries the general privacy notice. Not open to a chat's token |
 | DELETE | `/decisions/credentials` | Remove the key; points on `jev` fall back to off-behaviour. Not open to a chat's token |
 | POST | `/decisions/test` | `{ provider }` — one small fixed question: `{ ok, latencyMs, model, reason }`. Nothing is recorded |
-| GET | `/decisions/points` | The catalogue with the settings in force, optionally for `?projectId=` |
+| GET | `/decisions/points` | The catalogue with the settings in force, optionally for `?projectId=`, and per point its `standing` (`unproven`, `proven`, `failing`), the gate's numbers in force, the live and replay readings, `demoted`, and in `effective` the suggestion `floor` and `limitedBy` (`cli`, `no-consent`, `unproven`, `failing`, `demoted`) |
 | GET | `/decisions/points/:point/preview` | The exact state of the point's last request, or the fields it may carry, built locally and not sent |
 | PUT | `/decisions/points/:point/consent` | `{ granted, stateVersion, providers }` — grant or withdraw consent for what was previewed (`409` when the state changed since). Not open to a chat's token |
 | GET | `/decisions` | History, newest first, filtered by `point`, `projectId`, `subjectKind`, `subjectId`, `visible`, `provider`, `mode`, `status`, `since`, `until` and paged with `cursor` and `limit` |

@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS, parseDecisionSettings, parseProjectDecisions } from '../src/decisions/settings.ts';
+import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS, DEFAULT_GATE, parseDecisionSettings, parseProjectDecisions } from '../src/decisions/settings.ts';
 import { loadConfig } from '../src/paths.ts';
 import { defaultProjectSettings, parseProjectSettings } from '../src/project-settings.ts';
 
@@ -18,7 +18,7 @@ const body = () => ({ ...structuredClone(DEFAULT_DECISION_SETTINGS) });
 
 test('an install that saved nothing reads as the defaults: cli, haiku at low effort, nothing on', () => {
   const { settings } = stores();
-  assert.deepEqual(settings.get(), { ...DEFAULT_DECISION_SETTINGS, jev: { model: 'jev-1.13.0', keySet: false, keyHint: null } });
+  assert.deepEqual(settings.get(), { ...DEFAULT_DECISION_SETTINGS, gate: DEFAULT_GATE, jev: { model: 'jev-1.13.0', keySet: false, keyHint: null } });
   assert.equal(settings.get().cli.effort, 'low');
 });
 
