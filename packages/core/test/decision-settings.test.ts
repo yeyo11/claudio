@@ -32,6 +32,22 @@ test('PUT validates the whole document and refuses a bad value', () => {
   assert.throws(() => parseDecisionSettings({ ...body(), points: { 'nope.point': { mode: 'off' } } }), /unknown decision point/);
 });
 
+test('the signal kinds the Supervisor may act on alone are none by default, validated, and kept by a body that leaves them out', async () => {
+  const { settings } = stores();
+  assert.deepEqual(settings.get().supervisor, { autoSignals: [] }, 'a new install proposes every hint');
+  assert.throws(() => parseDecisionSettings({ ...body(), supervisor: { autoSignals: ['hung-command', 'stuck-forever'] } }), /unknown signal kind stuck-forever/);
+  assert.throws(() => parseDecisionSettings({ ...body(), supervisor: { autoSignals: 'hung-command' } }), /autoSignals/);
+  assert.throws(() => parseDecisionSettings({ ...body(), supervisor: [] }), /supervisor must be an object/);
+
+  await settings.set({ ...body(), supervisor: { autoSignals: ['hung-command', 'loop', 'hung-command'] } });
+  assert.deepEqual(settings.get().supervisor.autoSignals, ['hung-command', 'loop']);
+  // A client that predates the field saves the rest without emptying the list
+  const { supervisor: _supervisor, ...older } = body();
+  await settings.set({ ...older, historyDays: 60 });
+  assert.deepEqual(settings.get().supervisor.autoSignals, ['hung-command', 'loop']);
+  assert.equal(settings.get().historyDays, 60);
+});
+
 test('saving keeps the consent already given and ignores one in the body', async () => {
   const { settings } = stores();
   await settings.setConsent('flow.bounce', { granted: true, stateVersion: 2, providers: ['cli'] });

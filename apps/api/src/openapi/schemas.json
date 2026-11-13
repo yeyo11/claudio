@@ -4853,6 +4853,10 @@
       },
       "status": {
         "$ref": "#/components/schemas/SupervisorProposalStatus"
+      },
+      "sentBy": {
+        "$ref": "#/components/schemas/SupervisorProposalSender",
+        "description": "Who sent it, once sent; absent while unsent, and on hints sent before this was kept"
       }
     },
     "required": [
@@ -4871,9 +4875,18 @@
     "enum": [
       "proposed",
       "sent",
-      "dismissed"
+      "dismissed",
+      "not-stuck"
     ],
-    "description": "`sent`: it reached the worker, by hand or through `autoSend`."
+    "description": "`sent`: it reached the worker, by hand or by the Supervisor on its own. `not-stuck`: the Supervisor's own draft judged the worker not stuck, so nothing was proposed or sent; kept so that occurrence is not asked about again."
+  },
+  "SupervisorProposalSender": {
+    "type": "string",
+    "enum": [
+      "supervisor",
+      "person"
+    ],
+    "description": "Who sent a hint: a person from the health panel, or the Supervisor on its own under Active"
   },
   "OrchestrationIntegration": {
     "type": "object",
@@ -33889,6 +33902,10 @@
       "gate": {
         "$ref": "#/components/schemas/DecisionGateSettings",
         "description": "The promotion gate's numbers; the defaults when the document has none"
+      },
+      "supervisor": {
+        "$ref": "#/components/schemas/DecisionSupervisorOptions",
+        "description": "What `supervisor.intervene` may do on its own under Active"
       }
     },
     "required": [
@@ -33897,7 +33914,8 @@
       "jev",
       "points",
       "historyDays",
-      "gate"
+      "gate",
+      "supervisor"
     ]
   },
   "DecisionCliSettings": {
@@ -34043,6 +34061,21 @@
     ],
     "description": "What a point must show before it may act (docs/plans/decision-engine-v2.md §5). Each install may tighten or loosen it; the break-even of an act point is the point's own, not a setting."
   },
+  "DecisionSupervisorOptions": {
+    "type": "object",
+    "properties": {
+      "autoSignals": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/HealthSignalKind"
+        }
+      }
+    },
+    "required": [
+      "autoSignals"
+    ],
+    "description": "The Supervisor's options beside its point. Under Active it sends a hint by itself only for the signal kinds listed here, which have earned it; for every other kind it proposes and a person sends. Empty by default."
+  },
   "DecisionSettingsUpdate": {
     "type": "object",
     "properties": {
@@ -34172,6 +34205,10 @@
       "gate": {
         "$ref": "#/components/schemas/DecisionGateSettings",
         "description": "Absent keeps the stored gate"
+      },
+      "supervisor": {
+        "$ref": "#/components/schemas/DecisionSupervisorOptions",
+        "description": "Absent keeps the stored options"
       }
     },
     "required": [
@@ -35497,6 +35534,10 @@
         "$ref": "#/components/schemas/DecisionGateSettings",
         "description": "The promotion gate's numbers; the defaults when the document has none"
       },
+      "supervisor": {
+        "$ref": "#/components/schemas/DecisionSupervisorOptions",
+        "description": "What `supervisor.intervene` may do on its own under Active"
+      },
       "warnings": {
         "type": "array",
         "items": {
@@ -35511,6 +35552,7 @@
       "jev",
       "points",
       "provider",
+      "supervisor",
       "warnings"
     ],
     "description": "What `PUT /decisions/settings` answers: the settings, and the suggest points activated without standing `proven`"

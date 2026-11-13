@@ -2467,10 +2467,12 @@ export class Core {
       mcp: { servers: [], config: writeMcpConfigSync(this.config.dataDir, {}) },
       toolConfig: { preset, allowedTools, disallowedTools, mcp: null },
       maxBudgetUsd: question.maxCostUsd,
+      // The draft answers `{ stuck, hint }`: whether to say anything is part of the answer, not prose to read
+      jsonSchema: question.jsonSchema,
     });
     try {
       const result = await this.runtime.waitForResult(run.id);
-      return { text: result.result, costUsd: result.costUsd, isError: result.isError };
+      return { structured: result.structuredOutput, costUsd: result.costUsd, isError: result.isError };
     } finally {
       await Promise.race([this.runtime.exited(run.id), new Promise((r) => setTimeout(r, 10_000).unref())]);
       this.runtime.remove(run.id);

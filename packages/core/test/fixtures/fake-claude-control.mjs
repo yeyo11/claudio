@@ -202,6 +202,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return;
     }
     const ask = /^ASK (\S+)/.exec(prompt);
+    // The Supervisor's draft is held to `{ stuck, hint }`: a stuck worker, with its own argv as the hint
+    if (!ask && args.includes('--json-schema') && prompt.startsWith('You are watching an AI coding agent')) {
+      return result('', { structured_output: { stuck: true, hint: `args=${args.join(' ')}` } });
+    }
     if (!ask) return result(`args=${args.join(' ')}`);
     if (!args.includes('--permission-prompt-tool')) return result('denied: nobody to ask');
     pending = randomUUID();

@@ -67,6 +67,27 @@ export function runningCommands(trace: Trace): ToolCall[] {
 const ms = (iso: string): number => Date.parse(iso);
 
 /**
+ * When a call's own clock started, or null while it may not have started at all. Every call of one
+ * message carries the message's time, and Claude Code runs only the calls that change nothing side by
+ * side: the fourth shell command of a batch waits while the third runs, and timed from the message
+ * it looked hung after a minute of honest work by its siblings. So the clock starts at the latest of
+ * the call's own time and the end of every earlier call by the same agent that was still running
+ * when it was made, and a call with such a sibling still running is not timed yet: the sibling is,
+ * on its own clock. The CLI's heartbeat, when there is one, is better than either and is read first.
+ */
+export function commandClock(trace: Pick<Trace, 'calls'>, call: ToolCall): string | null {
+  let start = call.at;
+  const agent = call.parentToolUseId ?? '';
+  for (const other of trace.calls) {
+    if (other === call || other.id === call.id) break;
+    if ((other.parentToolUseId ?? '') !== agent) continue;
+    if (other.endedAt === null) return null;
+    if (ms(other.endedAt) > ms(start)) start = other.endedAt;
+  }
+  return start;
+}
+
+/**
  * The subagent a call belongs to, as a signal names it (C3), or undefined for the lead's own call:
  * a hint about a subagent's command has to reach the lead as one about its agent, since nothing
  * documented writes to a subagent.
@@ -124,7 +145,11 @@ export function repeatStall(trace: Trace, limits: StallLimits, nowMs: number): H
   let worst: { kind: string; stalls: ToolCall[] } | null = null;
   for (const { kind, calls } of byKind.values()) {
     const limit = limitFor(kind, limits);
-    const stalled = (call: ToolCall) => (call.endedAt ? ms(call.endedAt) : nowMs) - ms(call.at) >= limit;
+    // On the call's own clock: a command queued behind its batch did not stall while it waited
+    const stalled = (call: ToolCall) => {
+      const start = commandClock(trace, call);
+      return start !== null && (call.endedAt ? ms(call.endedAt) : nowMs) - ms(start) >= limit;
+    };
     const tail: ToolCall[] = [];
     for (let i = calls.length - 1; i >= 0; i--) {
       const call = calls[i] as ToolCall;

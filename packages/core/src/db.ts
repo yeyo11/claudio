@@ -47,6 +47,7 @@ import type {
   RotationEvent,
   SpendPurpose,
   SupervisorProposal,
+  SupervisorProposalSender,
   SupervisorProposalStatus,
   UsageHistoryPoint,
   SystemSample,
@@ -1682,6 +1683,11 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      note            TEXT
    );
    CREATE INDEX decision_replays_point ON decision_replays (point, questions_hash, at);`,
+
+  // Who sent a Supervisor's hint: a person from the health panel, or the Supervisor on its own under
+  // Active. The `supervisor.intervene` resolver reads a person's send as a direct outcome and the
+  // Supervisor's as a proxy, whatever the point's mode. Null on unsent rows and on rows from before.
+  `ALTER TABLE supervisor_proposals ADD COLUMN sent_by TEXT;`,
 ];
 
 /**
@@ -3091,10 +3097,10 @@ export class Db {
   saveProposal(p: SupervisorProposal): boolean {
     const result = this.db
       .prepare(
-        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, occurrence, agent, hint, cost_usd, at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, occurrence, agent, hint, cost_usd, at, status, sent_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.occurrence ?? '', p.agent ? JSON.stringify(p.agent) : null, p.hint, p.costUsd, p.at, p.status);
+      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.occurrence ?? '', p.agent ? JSON.stringify(p.agent) : null, p.hint, p.costUsd, p.at, p.status, p.sentBy ?? null);
     return Number(result.changes) > 0;
   }
 
@@ -3109,9 +3115,14 @@ export class Db {
     return rows.map(proposalOf);
   }
 
-  /** Moves a proposal on from `proposed`; false when it had already been sent or dismissed. */
-  settleProposal(id: string, status: Exclude<SupervisorProposalStatus, 'proposed'>): boolean {
-    const result = this.db.prepare("UPDATE supervisor_proposals SET status = ? WHERE id = ? AND status = 'proposed'").run(status, id);
+  /**
+   * Moves a proposal on from `proposed`; false when it had already been sent or dismissed. A send
+   * says who sent it (`sentBy`); a dismissal is always a person's and records no sender.
+   */
+  settleProposal(id: string, status: Exclude<SupervisorProposalStatus, 'proposed'>, sentBy: SupervisorProposalSender | null = null): boolean {
+    const result = this.db
+      .prepare("UPDATE supervisor_proposals SET status = ?, sent_by = ? WHERE id = ? AND status = 'proposed'")
+      .run(status, status === 'sent' ? sentBy : null, id);
     return Number(result.changes) > 0;
   }
 
@@ -3547,6 +3558,7 @@ interface ProposalRow {
   cost_usd: number;
   at: string;
   status: string;
+  sent_by: string | null;
 }
 
 /** The agent a proposal named, as stored; a row that does not read as one names none */
@@ -3581,6 +3593,7 @@ function proposalOf(row: ProposalRow): SupervisorProposal {
     costUsd: row.cost_usd,
     at: row.at,
     status: row.status as SupervisorProposalStatus,
+    ...(row.sent_by === 'supervisor' || row.sent_by === 'person' ? { sentBy: row.sent_by } : {}),
   };
 }
 

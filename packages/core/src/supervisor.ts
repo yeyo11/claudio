@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { ChatMessageSource, DecisionMode, HealthSignal, HealthSignalAgent, HealthSignalKind, RelayTarget, SupervisorConfig, SupervisorProposal, ToolPreset, TranscriptEntry } from '@claudio/shared';
+import { isRecord, type ChatMessageSource, type DecisionMode, type HealthSignal, type HealthSignalAgent, type HealthSignalKind, type RelayTarget, type SupervisorConfig, type SupervisorProposal, type SupervisorProposalSender, type ToolPreset, type TranscriptEntry } from '@claudio/shared';
 import { isTransientRefusal } from './chat-errors.ts';
 import { DEFAULT_TOOL_PRESETS } from './chat-tools.ts';
 import type { ChatRuntime } from './chats.ts';
@@ -8,7 +8,7 @@ import { SUPERVISOR_POINT, type DecisionSettingsStore } from './decisions/settin
 import { runRef } from './event-sources.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { occurrenceOf, type TaskContext } from './health-service.ts';
-import { pasted, PASTED_NOTE } from './prompt-rules.ts';
+import { pasted, PASTED_NOTE, thinkThrough } from './prompt-rules.ts';
 import { stanceOf, type DecisionAsker } from './decisions/stance.ts';
 import { NotFoundError } from '@claudio/shared';
 
@@ -17,9 +17,14 @@ import { NotFoundError } from '@claudio/shared';
 // two. It is a housekeeping chat of the CLI like the planner, never a call of its own to a model.
 //
 // Its one control is the `supervisor.intervene` point (docs/plans/settings-ia.md §7.2): Off, it does
-// not watch; Shadow, it proposes hints for a person to send; Active, it acts on its own, and under
-// Jev only when the engine expects a hint to help. The model is the engine's CLI model and the cap
-// its own (`cli.supervisorMaxCostUsd`), since the hint is always drafted by the CLI.
+// not watch; Shadow, it proposes hints for a person to send; Active, it acts on its own for the signal
+// kinds its options list (`supervisor.autoSignals`) and proposes for the rest, and under Jev only when
+// the engine does not decline. The model is the engine's CLI model and the cap its own
+// (`cli.supervisorMaxCostUsd`), since the hint is always drafted by the CLI.
+//
+// The draft decides first whether the worker is stuck at all (docs/plans/decision-engine-v2.md §6):
+// most of what woke it was a worker waiting on a command doing work, on CI or on agents it delegated
+// to, and a hint there only interrupts. A draft that says so sends nothing and proposes nothing.
 //
 // What it answers is one occurrence of a signal (D5 of docs/plans/regression-fixes-2026-10-29.md):
 // the call a signal is about, or when it started. A hint is a message the agent reads only once the
@@ -66,14 +71,33 @@ export interface SupervisorQuestion {
   model: string;
   /** `cli.supervisorMaxCostUsd`, as `--max-budget-usd` */
   maxCostUsd: number;
+  /** What the answer is held to (`--json-schema`): {@link SUPERVISOR_SCHEMA} */
+  jsonSchema: Record<string, unknown>;
 }
 
-/** What it answered, and what the CLI said it cost. */
+/** What it answered (the CLI's `structured_output`), and what the CLI said it cost. */
 export interface SupervisorAnswer {
-  text: string;
+  structured: unknown;
   costUsd: number;
   isError: boolean;
 }
+
+/**
+ * The draft's contract: whether the worker is stuck, and the hint when it is. No field for reasons:
+ * a prompt that asks for written reasoning can be refused (docs/prompts.md, point 1).
+ */
+export const SUPERVISOR_SCHEMA: Record<string, unknown> = {
+  type: 'object',
+  properties: {
+    stuck: { type: 'boolean', description: 'Whether the agent is stuck: true only when it is not getting anywhere by itself' },
+    hint: { type: 'string', description: 'When stuck, one or two short lines addressed to the agent; empty when it is not stuck' },
+  },
+  required: ['stuck', 'hint'],
+  additionalProperties: false,
+};
+
+/** What a draft comes to: nothing to send, or the hint to propose */
+export type SupervisorDraft = { stuck: false } | { stuck: true; hint: string };
 
 /** The signals about one command still running, which Active answers by cancelling it */
 const COMMAND_SIGNALS: ReadonlySet<HealthSignalKind> = new Set(['hung-command', 'repeat-stall']);
@@ -215,8 +239,9 @@ export function callsOf(entries: readonly TranscriptEntry[], agent: string | nul
 /** How a hint names a subagent to its lead: by what the lead's `Agent` call said it was for */
 const agentName = (agent: HealthSignalAgent): string => agent.description?.trim() || agent.subagentType || agent.parentToolUseId;
 
-export function supervisorPrompt(signal: HealthSignal, steps: string, task: TaskContext | null): string {
+export function supervisorPrompt(signal: HealthSignal, steps: string, task: TaskContext | null, model: string | null = null): string {
   const agent = signal.agent;
+  const who = agent ? 'subagent' : 'agent';
   return [
     `You are watching an AI coding agent${task ? ' working on a task of an orchestration' : ''}. Claudio's health checks flagged it:`,
     ...(task ? ['', 'The task, as it is named:', pasted(task.taskName)] : []),
@@ -231,9 +256,25 @@ export function supervisorPrompt(signal: HealthSignal, steps: string, task: Task
     '',
     PASTED_NOTE,
     '',
-    `Write a hint for the ${agent ? 'subagent' : 'agent'}: one or two short lines addressed to it, specific to what it is doing, ` +
-      'saying what to check or do differently. Reply with the hint only, no preamble. Do not change anything yourself.',
+    `First decide whether the ${who} is stuck at all. The health check measures time and repetition, not intent, so it often fires on honest work. ` +
+      `The ${who} is not stuck when it is waiting on something that is doing work: a command or a batch of calls still running ` +
+      'as such work takes (a build, a test suite, an install), CI or a review it is polling, or agents and tasks it delegated and is waiting for. ' +
+      'It is stuck when it repeats something that keeps failing the same way, waits on something that will never answer ' +
+      '(a server that is not running, a prompt nobody will answer, a command in watch mode), or has stopped moving towards its goal.',
+    '',
+    `Answer in the structured result. \`stuck\`: whether it is stuck. \`hint\`: when it is stuck, one or two short lines addressed to the ${who}, ` +
+      'specific to what it is doing, saying what to check or do differently, with no preamble; when it is not stuck, an empty string. ' +
+      'Do not change anything yourself.',
+    ...thinkThrough(model),
   ].join('\n');
+}
+
+/** Reads the structured answer; null when it is not one the contract allows, which counts as a failed question */
+export function draftOf(structured: unknown): SupervisorDraft | null {
+  if (!isRecord(structured) || typeof structured.stuck !== 'boolean') return null;
+  if (!structured.stuck) return { stuck: false };
+  const hint = typeof structured.hint === 'string' ? hintFrom(structured.hint) : '';
+  return hint ? { stuck: true, hint } : null;
 }
 
 /** The answer made fit to send: the first two lines that say something, and no more than a hint needs. */
@@ -266,6 +307,18 @@ function answers(proposal: SupervisorProposal, signal: HealthSignal, occurrence:
   return !!signal.toolUseId && COMMAND_SIGNALS.has(signal.kind) && COMMAND_SIGNALS.has(proposal.signal) && proposal.occurrence === signal.toolUseId;
 }
 
+/** Today's rule for `supervisor.intervene`, as the row's baseline: a hint is drafted, so nothing is declined */
+const DRAFT_BASELINE = false;
+
+/** Who answers the point; a settings read that fails is no provider, and nothing is asked */
+function providerOf(engine: DecisionAsker): string | null {
+  try {
+    return engine.effective(SUPERVISOR_POINT, null).provider;
+  } catch {
+    return null;
+  }
+}
+
 const pause = (ms: number): Promise<void> =>
   new Promise((resolve) => {
     setTimeout(resolve, ms).unref();
@@ -290,6 +343,14 @@ export class Supervisor {
 
   private mode(): DecisionMode {
     return this.deps.settings.get().points[SUPERVISOR_POINT]?.mode ?? 'off';
+  }
+
+  /**
+   * Whether Active may act on this kind of signal by itself. Standing is earned per point, not per
+   * signal kind, so the kinds that have earned it are the owner's list; none by default.
+   */
+  private actsOn(kind: HealthSignalKind): boolean {
+    return this.deps.settings.get().supervisor.autoSignals.includes(kind);
   }
 
   /** The view of the deprecated `GET /settings/supervisor`, derived from the point and the engine */
@@ -341,34 +402,50 @@ export class Supervisor {
     try {
       const entries = await this.deps.steps(chat.id, signal.agent).catch((): TranscriptEntry[] => []);
       // A worker the decision says no hint can help gets none; the signal itself stays on the chat
-      if (settings.provider === 'jev' && (await this.declined(chat, signal, entries))) {
+      if (await this.declined(chat, signal, entries)) {
         this.failed.set(key, this.now());
         return null;
       }
       const steps = lastSteps(entries, agent?.parentToolUseId ?? null);
-      const answer = await this.askForRoom({ prompt: supervisorPrompt(signal, steps, task), cwd: chat.workingDir, model: settings.cli.model, maxCostUsd: settings.cli.supervisorMaxCostUsd });
+      const answer = await this.askForRoom({
+        prompt: supervisorPrompt(signal, steps, task, settings.cli.model),
+        cwd: chat.workingDir,
+        model: settings.cli.model,
+        maxCostUsd: settings.cli.supervisorMaxCostUsd,
+        jsonSchema: SUPERVISOR_SCHEMA,
+      });
       // No room came free in time: nothing was spent and nothing failed
       if (!answer) return null;
       const costUsd = Number.isFinite(answer.costUsd) && answer.costUsd > 0 ? answer.costUsd : 0;
       // Spent whether or not the answer is usable, so it counts either way
       if (task && costUsd > 0) this.deps.charge(task.orchestrationId, costUsd);
-      const hint = answer.isError ? '' : hintFrom(answer.text);
-      if (!hint) {
+      const draft = answer.isError ? null : draftOf(answer.structured);
+      if (!draft) {
         this.failed.set(key, this.now());
         return null;
       }
-      const proposal: SupervisorProposal = {
+      const base = {
         id: randomUUID(),
         chatId: chat.id,
         ...(task ? { taskId: task.taskId, orchestrationId: task.orchestrationId } : {}),
         signal: signal.kind,
         occurrence: occurrenceOf(signal),
         ...(agent ? { agent } : {}),
+        costUsd,
+        at: new Date().toISOString(),
+      };
+      if (!draft.stuck) {
+        // Kept as the occurrence's answer, which the store's unique key holds across restarts: the
+        // same occurrence is not asked about again, and nothing reaches the worker or a person
+        this.deps.db.saveProposal({ ...base, hint: '', status: 'not-stuck' });
+        return null;
+      }
+      const hint = draft.hint;
+      const proposal: SupervisorProposal = {
+        ...base,
         // Stored as the subagent reads it: written to it straight when it can be addressed (D7), else framed
         // for the lead to pass on when it is delivered. Without a relay of its own, the lead's old sentence
         hint: agent && !(agent.agentId && this.deps.messageAgent) && !this.deps.relay ? relayHint(agent, hint) : hint,
-        costUsd,
-        at: new Date().toISOString(),
         status: 'proposed',
       };
       if (!this.deps.db.saveProposal(proposal)) return null;
@@ -381,8 +458,9 @@ export class Supervisor {
         taskName: task?.taskName ?? null,
         proposal,
       });
-      // Read again: a person who switched the point while the hint was being drafted decides
-      if (this.mode() !== 'active') return proposal;
+      // Read again: a person who switched the point while the hint was being drafted decides. Under
+      // Active only the kinds the owner listed are sent on their own; the rest wait for a person
+      if (this.mode() !== 'active' || !this.actsOn(signal.kind)) return proposal;
       try {
         return await this.act(proposal, signal, hint);
       } catch {
@@ -428,8 +506,8 @@ export class Supervisor {
       try {
         // The failed result reaches the agent that ran the command, the subagent too: the hint is its own words
         await cancel({ ...proposal, hint }, signal.toolUseId);
-        if (!this.deps.db.settleProposal(proposal.id, 'sent')) throw new SupervisorConflictError('the proposal was settled in the meantime');
-        return { ...proposal, status: 'sent' };
+        if (!this.deps.db.settleProposal(proposal.id, 'sent', 'supervisor')) throw new SupervisorConflictError('the proposal was settled in the meantime');
+        return { ...proposal, status: 'sent', sentBy: 'supervisor' };
       } catch (error) {
         if (error instanceof SupervisorConflictError) throw error;
         // Refused: the command ended or cannot be told apart, and a message is what is left
@@ -439,20 +517,25 @@ export class Supervisor {
   }
 
   /**
-   * `supervisor.intervene` under Jev: whether the decision, active and above its threshold, says a
-   * hint would not get this worker out. Shadow, and every other outcome, leave the hint to be asked
-   * for. Under the CLI the engine is not asked at all: its answer has no probability to gate on, and
-   * the hint is itself a call to the CLI. Wakes already run in the background, so shadow is not
-   * awaited: nothing here waits for a row.
+   * `supervisor.intervene`: whether the engine declines the hint. It is asked only where its answer
+   * can change something: before the hint is drafted, since a "no" saves the draft (a CLI run) and the
+   * interruption, and only under Jev. Under the CLI the draft is itself a call that judges the case,
+   * and a second CLI answer has no probability to act on. In shadow the row is the point's evidence and
+   * nothing waits for it. The answer is used as the engine gives it: it hands answers back only when
+   * the point acts, and this point acts by saying no. The baseline is today's rule, "a hint is
+   * drafted", which never declines: `false`, as the point's `effect.baselineActs` reads it.
    */
   private async declined(chat: ChatRuntime, signal: HealthSignal, entries: readonly TranscriptEntry[]): Promise<boolean> {
     const engine = this.deps.decisions;
     const stance = stanceOf(engine, SUPERVISOR_POINT, null);
-    if (!engine || stance === 'off') return false;
+    if (!engine || stance === 'off' || providerOf(engine) !== 'jev') return false;
     const calls = callsOf(entries, signal.agent?.parentToolUseId ?? null);
-    const asked = engine.ask(SUPERVISOR_POINT, { kind: 'chat', id: chat.id, data: { signal: signal.kind, detail: signal.detail ?? signal.reason, calls } }, { projectId: null }).catch(() => null);
+    const asked = engine
+      .ask(SUPERVISOR_POINT, { kind: 'chat', id: chat.id, data: { signal: signal.kind, detail: signal.detail ?? signal.reason, calls } }, { projectId: null, baseline: DRAFT_BASELINE })
+      .catch(() => null);
     if (stance === 'watch') return false;
-    const answer = (await asked)?.answers?.intervene;
+    const outcome = await asked;
+    const answer = outcome?.act ? outcome.answers?.intervene : undefined;
     return answer?.kind === 'noul' && !answer.value;
   }
 
@@ -470,11 +553,11 @@ export class Supervisor {
    * Sends the hint to the worker, then marks it sent: a hint that did not arrive stays proposed. A
    * person's Send makes it theirs; one the Supervisor sends on its own is framed as automatic.
    */
-  async send(id: string, owner: ProposalOwner, source: 'person' | 'supervisor' = 'person'): Promise<SupervisorProposal> {
+  async send(id: string, owner: ProposalOwner, source: SupervisorProposalSender = 'person'): Promise<SupervisorProposal> {
     const proposal = this.owned(id, owner);
     await this.deliver(proposal, source);
-    if (!this.deps.db.settleProposal(id, 'sent')) throw new SupervisorConflictError('the proposal was settled in the meantime');
-    return { ...proposal, status: 'sent' };
+    if (!this.deps.db.settleProposal(id, 'sent', source)) throw new SupervisorConflictError('the proposal was settled in the meantime');
+    return { ...proposal, status: 'sent', sentBy: source };
   }
 
   /**

@@ -12,6 +12,8 @@ import {
   type DecisionProviderId,
   type DecisionRate,
   type DecisionSettings,
+  type DecisionSupervisorOptions,
+  type HealthSignalKind,
   type ModelFallback,
   type ProjectDecisionSettings,
 } from '@claudio/shared';
@@ -93,6 +95,7 @@ export const DEFAULT_DECISION_SETTINGS: StoredDecisionSettings = {
   cli: { model: 'haiku', effort: 'low', maxCostUsd: 0.02, supervisorMaxCostUsd: DEFAULT_SUPERVISOR_MAX_COST_USD },
   points: {},
   historyDays: 30,
+  supervisor: { autoSignals: [] },
 };
 
 
@@ -223,6 +226,33 @@ function parseCost(value: unknown, field: string): number {
   return value;
 }
 
+/** Every signal kind, so a listed one is checked against the type the monitor raises */
+const SIGNAL_KINDS: Record<HealthSignalKind, true> = {
+  'hung-command': true,
+  silence: true,
+  'last-execution': true,
+  waiting: true,
+  context: true,
+  branches: true,
+  'repeat-stall': true,
+  'no-progress': true,
+  loop: true,
+  'weakened-test': true,
+  budget: true,
+  'guard-blocked': true,
+  'guard-missing': true,
+};
+
+function parseSupervisorOptions(value: unknown): DecisionSupervisorOptions {
+  if (!isRecord(value)) throw new Error('supervisor must be an object');
+  const kinds = value.autoSignals ?? [];
+  if (!Array.isArray(kinds)) throw new Error('supervisor.autoSignals must be a list of signal kinds');
+  for (const kind of kinds) {
+    if (typeof kind !== 'string' || !Object.hasOwn(SIGNAL_KINDS, kind)) throw new Error(`supervisor.autoSignals: unknown signal kind ${String(kind)}`);
+  }
+  return { autoSignals: [...new Set(kinds as HealthSignalKind[])] };
+}
+
 /** Validates a whole document, since `PUT` replaces it: a bad value is refused, not replaced. */
 export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
   if (!isRecord(input)) throw new Error('the decision settings must be a JSON object');
@@ -246,6 +276,7 @@ export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
     points: parsePoints(input.points),
     historyDays: days,
     ...(input.gate === undefined ? {} : { gate: parseGate(input.gate) }),
+    supervisor: input.supervisor === undefined ? structuredClone(DEFAULT_DECISION_SETTINGS.supervisor) : parseSupervisorOptions(input.supervisor),
   };
 }
 
@@ -425,7 +456,7 @@ export class DecisionSettingsStore {
         // the defaults apply
       }
     }
-    for (const key of ['provider', 'cli', 'historyDays'] as const) {
+    for (const key of ['provider', 'cli', 'historyDays', 'supervisor'] as const) {
       // `cli` is read field by field over its defaults: a reset removes one field and keeps the others
       const value = key === 'cli' && isRecord(raw.cli) ? { ...defaults().cli, ...raw.cli } : raw[key];
       if (value === undefined) continue;
@@ -462,7 +493,8 @@ export class DecisionSettingsStore {
     const body = isRecord(input) && isRecord(input.cli) && input.cli.supervisorMaxCostUsd === undefined
       ? { ...input, cli: { ...input.cli, supervisorMaxCostUsd: stored.cli.supervisorMaxCostUsd } }
       : input;
-    const parsed = parseDecisionSettings(body);
+    // The same for the Supervisor's options: a client that predates them must not empty the list
+    const parsed = parseDecisionSettings(isRecord(body) && body.supervisor === undefined ? { ...body, supervisor: stored.supervisor } : body);
     // A body without the gate keeps the stored one
     if (parsed.gate === undefined && stored.gate !== undefined) parsed.gate = stored.gate;
     const before = stored.points;
