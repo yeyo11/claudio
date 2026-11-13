@@ -408,33 +408,43 @@ const RESOLVERS: Partial<Record<DecisionPointId, Resolver>> = {
 
   // The question is asked before the hint is drafted, so the proposal that follows is the first one
   // for that chat and signal within the drafting window. Per signal kind: a hung command is judged by
-  // the command itself (it ended on its own, or a person cancelled it); every kind is judged by a
-  // person's Send or Dismiss on a proposal the Supervisor did not send by itself (shadow). Under
-  // Active a sent proposal was the Supervisor's own doing, so it is only a proxy
+  // the command itself (it ended on its own, or someone cancelled it). Every kind is judged by what
+  // became of the proposal, and who did it is what makes it direct: a person's Send or Dismiss is, in
+  // any mode; the Supervisor's own send (`sent_by` 'supervisor') is the decision's own doing, so a
+  // proxy; and so is a draft that judged the worker not stuck, which is a model's reading too. A sent
+  // row from before `sent_by` was kept is read by the point's mode, as it was
   'supervisor.intervene': (row, sql) => {
     const intervene = row.answers?.intervene;
     const signal = typeof row.state.signal === 'string' ? row.state.signal : null;
     if (intervene?.kind !== 'noul' || !row.subjectId || !signal) return null;
     const stuck = intervene.value;
     const proposal = sql
-      .prepare('SELECT status, occurrence, at FROM supervisor_proposals WHERE chat_id = ? AND signal = ? AND at >= ? AND at <= ? ORDER BY at LIMIT 1')
-      .get(row.subjectId, signal, row.at, new Date(Date.parse(row.at) + PROPOSAL_WINDOW_MS).toISOString()) as { status: string; occurrence: string; at: string } | undefined;
+      .prepare('SELECT status, occurrence, at, sent_by FROM supervisor_proposals WHERE chat_id = ? AND signal = ? AND at >= ? AND at <= ? ORDER BY at LIMIT 1')
+      .get(row.subjectId, signal, row.at, new Date(Date.parse(row.at) + PROPOSAL_WINDOW_MS).toISOString()) as
+      | { status: string; occurrence: string; at: string; sent_by: string | null }
+      | undefined;
+    const sentBy = proposal?.status !== 'sent' ? null : proposal.sent_by === 'person' || proposal.sent_by === 'supervisor' ? proposal.sent_by : row.mode === 'shadow' ? 'person' : 'supervisor';
     if (signal === 'hung-command') {
       const command = commandAt(sql, row.subjectId, proposal && proposal.occurrence !== '' ? proposal.occurrence : null, row.at);
       if (command) {
         const detail = { signal, command: command.outcome, durationMs: command.durationMs, usualMs: command.usualMs, status: proposal?.status ?? null };
         // It returned by itself: the worker was waiting on a slow command, and a hint reaches an agent only once its call returns
         if (command.outcome !== 'cancelled') return verdict('direct', !stuck, 'The command ended by itself', detail);
-        // Cancelled while the Supervisor could not have done it (shadow): a person judged it hung
-        if (row.mode === 'shadow') return verdict('direct', stuck, 'A person cancelled the command', detail);
-        return verdict('proxy', stuck, 'The command was cancelled, by the Supervisor or a person', detail);
+        // The Supervisor cancels a command only as the way it sends its own hint: any other cancel was a person judging it hung
+        if (sentBy !== 'supervisor') return verdict('direct', stuck, 'A person cancelled the command', detail);
+        return verdict('proxy', stuck, 'The Supervisor cancelled the command', detail);
       }
     }
     if (!proposal || proposal.status === 'proposed') return null;
+    if (proposal.status === 'not-stuck') return verdict('proxy', !stuck, "The Supervisor's draft found the worker not stuck", { signal, status: proposal.status });
     const sent = proposal.status === 'sent';
-    // A dismissal is always a person's; a send is a person's only when the point did not act by itself
-    const quality: DecisionOutcomeQuality = !sent || row.mode === 'shadow' ? 'direct' : 'proxy';
-    return verdict(quality, stuck === sent, sent ? 'The hint was sent' : 'The hint was dismissed', { signal, status: proposal.status });
+    // A dismissal is always a person's; a send is a person's when `sent_by` says so
+    const quality: DecisionOutcomeQuality = !sent || sentBy === 'person' ? 'direct' : 'proxy';
+    return verdict(quality, stuck === sent, sent ? (sentBy === 'person' ? 'A person sent the hint' : 'The Supervisor sent the hint') : 'The hint was dismissed', {
+      signal,
+      status: proposal.status,
+      sentBy,
+    });
   },
 
   'memory.triage': (row, sql) => {

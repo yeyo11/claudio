@@ -7174,8 +7174,15 @@ export interface UpdateSupervisorConfigRequest {
   maxCostUsd?: number;
 }
 
-/** `sent`: it reached the worker, by hand or through `autoSend`. */
-export type SupervisorProposalStatus = 'proposed' | 'sent' | 'dismissed';
+/**
+ * `sent`: it reached the worker, by hand or by the Supervisor on its own. `not-stuck`: the Supervisor's
+ * own draft judged the worker not stuck, so nothing was proposed or sent; kept so that occurrence is
+ * not asked about again.
+ */
+export type SupervisorProposalStatus = 'proposed' | 'sent' | 'dismissed' | 'not-stuck';
+
+/** Who sent a hint: a person from the health panel, or the Supervisor on its own under Active */
+export type SupervisorProposalSender = 'supervisor' | 'person';
 
 /** One answer of the supervisor. A row, because they accumulate; at most one per occurrence of a signal per chat. */
 export interface SupervisorProposal {
@@ -7200,6 +7207,8 @@ export interface SupervisorProposal {
   costUsd: number;
   at: string;
   status: SupervisorProposalStatus;
+  /** Who sent it, once sent; absent while unsent, and on hints sent before this was kept */
+  sentBy?: SupervisorProposalSender;
 }
 
 // ---------- Web Push ----------
@@ -10283,6 +10292,17 @@ export interface DecisionSettings {
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
   /** Days of history kept, 1..365 */
   historyDays: number;
+  /** What `supervisor.intervene` may do on its own under Active */
+  supervisor: DecisionSupervisorOptions;
+}
+
+/**
+ * The Supervisor's options beside its point. Under Active it sends a hint by itself only for the
+ * signal kinds listed here, which have earned it; for every other kind it proposes and a person
+ * sends. Empty by default.
+ */
+export interface DecisionSupervisorOptions {
+  autoSignals: HealthSignalKind[];
 }
 
 /** `PUT /decisions/settings` replaces the whole document; the key travels apart, in the credentials */
@@ -10292,6 +10312,8 @@ export interface DecisionSettingsUpdate {
   cli: Omit<DecisionCliSettings, 'supervisorMaxCostUsd'> & { supervisorMaxCostUsd?: number };
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
   historyDays: number;
+  /** Absent keeps the stored options */
+  supervisor?: DecisionSupervisorOptions;
 }
 
 /** Only points of scope `project` accept an override; consent is never part of it */

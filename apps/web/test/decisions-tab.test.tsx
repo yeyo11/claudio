@@ -37,6 +37,7 @@ const settings = (points: DecisionSettings['points'] = {}, over: Partial<Decisio
   provider: 'cli',
   cli: { model: 'haiku', effort: 'low', maxCostUsd: 0.02, supervisorMaxCostUsd: 0.25 },
   jev: { model: 'jev-1.13.0', keySet: false, keyHint: null },
+  supervisor: { autoSignals: [] },
   points,
   historyDays: 30,
   ...over,

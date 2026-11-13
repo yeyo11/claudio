@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { DECISION_POINT_IDS, isRecord, type DecisionMode, type DecisionPointId, type DecisionPointSettings, type DecisionProviderId, type DecisionSettings, type ModelFallback, type ProjectDecisionSettings } from '@claudio/shared';
+import { DECISION_POINT_IDS, isRecord, type DecisionMode, type DecisionPointId, type DecisionPointSettings, type DecisionProviderId, type DecisionSettings, type DecisionSupervisorOptions, type HealthSignalKind, type ModelFallback, type ProjectDecisionSettings } from '@claudio/shared';
 import { writeAtomic } from '../config/files.ts';
 import { withoutPaths, type SettingPath } from '../config/setting-paths.ts';
 import type { CoreConfig } from '../paths.ts';
@@ -66,6 +66,7 @@ export const DEFAULT_DECISION_SETTINGS: StoredDecisionSettings = {
   cli: { model: 'haiku', effort: 'low', maxCostUsd: 0.02, supervisorMaxCostUsd: DEFAULT_SUPERVISOR_MAX_COST_USD },
   points: {},
   historyDays: 30,
+  supervisor: { autoSignals: [] },
 };
 
 
@@ -129,6 +130,33 @@ function parseCost(value: unknown, field: string): number {
   return value;
 }
 
+/** Every signal kind, so a listed one is checked against the type the monitor raises */
+const SIGNAL_KINDS: Record<HealthSignalKind, true> = {
+  'hung-command': true,
+  silence: true,
+  'last-execution': true,
+  waiting: true,
+  context: true,
+  branches: true,
+  'repeat-stall': true,
+  'no-progress': true,
+  loop: true,
+  'weakened-test': true,
+  budget: true,
+  'guard-blocked': true,
+  'guard-missing': true,
+};
+
+function parseSupervisorOptions(value: unknown): DecisionSupervisorOptions {
+  if (!isRecord(value)) throw new Error('supervisor must be an object');
+  const kinds = value.autoSignals ?? [];
+  if (!Array.isArray(kinds)) throw new Error('supervisor.autoSignals must be a list of signal kinds');
+  for (const kind of kinds) {
+    if (typeof kind !== 'string' || !Object.hasOwn(SIGNAL_KINDS, kind)) throw new Error(`supervisor.autoSignals: unknown signal kind ${String(kind)}`);
+  }
+  return { autoSignals: [...new Set(kinds as HealthSignalKind[])] };
+}
+
 /** Validates a whole document, since `PUT` replaces it: a bad value is refused, not replaced. */
 export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
   if (!isRecord(input)) throw new Error('the decision settings must be a JSON object');
@@ -151,6 +179,7 @@ export function parseDecisionSettings(input: unknown): StoredDecisionSettings {
     cli: { model, effort: cli.effort, maxCostUsd: cost, supervisorMaxCostUsd: supervisorCost },
     points: parsePoints(input.points),
     historyDays: days,
+    supervisor: input.supervisor === undefined ? structuredClone(DEFAULT_DECISION_SETTINGS.supervisor) : parseSupervisorOptions(input.supervisor),
   };
 }
 
@@ -323,7 +352,7 @@ export class DecisionSettingsStore {
     // A hand-edited field that went bad falls back on its own, and a bad point on its own, so one
     // typo does not switch every point off (or on)
     const merged = defaults();
-    for (const key of ['provider', 'cli', 'historyDays'] as const) {
+    for (const key of ['provider', 'cli', 'historyDays', 'supervisor'] as const) {
       // `cli` is read field by field over its defaults: a reset removes one field and keeps the others
       const value = key === 'cli' && isRecord(raw.cli) ? { ...defaults().cli, ...raw.cli } : raw[key];
       if (value === undefined) continue;
@@ -359,7 +388,8 @@ export class DecisionSettingsStore {
     const body = isRecord(input) && isRecord(input.cli) && input.cli.supervisorMaxCostUsd === undefined
       ? { ...input, cli: { ...input.cli, supervisorMaxCostUsd: stored.cli.supervisorMaxCostUsd } }
       : input;
-    const parsed = parseDecisionSettings(body);
+    // The same for the Supervisor's options: a client that predates them must not empty the list
+    const parsed = parseDecisionSettings(isRecord(body) && body.supervisor === undefined ? { ...body, supervisor: stored.supervisor } : body);
     const before = stored.points;
     for (const [id, point] of Object.entries(parsed.points) as Array<[DecisionPointId, DecisionPointSettings]>) {
       point.consent = before[id]?.consent ?? null;

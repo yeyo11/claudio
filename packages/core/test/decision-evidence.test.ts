@@ -182,10 +182,10 @@ test('health.semantic-loop: a no is never judged, and a person can still say the
 
 // ---------- supervisor.intervene ----------
 
-const proposal = (s: ReturnType<typeof setup>, chat: string, signal: string, status: string, occurrence = ''): void => {
+const proposal = (s: ReturnType<typeof setup>, chat: string, signal: string, status: string, occurrence = '', sentBy: 'supervisor' | 'person' | null = null): void => {
   s.db.connection
-    .prepare('INSERT INTO supervisor_proposals (id, chat_id, signal, occurrence, hint, cost_usd, at, status) VALUES (?, ?, ?, ?, ?, 0, ?, ?)')
-    .run(`sp-${chat}-${signal}`, chat, signal, occurrence, 'h', AFTER(1), status);
+    .prepare('INSERT INTO supervisor_proposals (id, chat_id, signal, occurrence, hint, cost_usd, at, status, sent_by) VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?)')
+    .run(`sp-${chat}-${signal}`, chat, signal, occurrence, 'h', AFTER(1), status, sentBy);
 };
 const command = (s: ReturnType<typeof setup>, chat: string, toolUseId: string, startedAt: string, durationMs: number, outcome: string, kind = 'pnpm test'): void => {
   s.db.connection.prepare('INSERT INTO command_durations (kind, chat_id, tool_use_id, started_at, duration_ms, outcome) VALUES (?, ?, ?, ?, ?, ?)').run(kind, chat, toolUseId, startedAt, durationMs, outcome);
@@ -204,16 +204,41 @@ test('supervisor.intervene: a hung command that then ended by itself makes "stuc
   assert.deepEqual([s.get(r.id)?.agreed, out?.quality, out?.detail?.usualMs], [false, 'direct', 60_000]);
 });
 
-test('supervisor.intervene: a hung command a person cancelled in shadow makes "stuck" right; under Active it is only a proxy', () => {
+test('supervisor.intervene: a hung command a person cancelled makes "stuck" right in any mode; one the Supervisor cancelled is only a proxy', () => {
   const s = setup();
   command(s, 'c1', 'tu1', AFTER(-20), 30 * 60_000, 'cancelled');
   command(s, 'c2', 'tu2', AFTER(-20), 30 * 60_000, 'cancelled');
+  command(s, 'c3', 'tu3', AFTER(-20), 30 * 60_000, 'cancelled');
+  command(s, 'c4', 'tu4', AFTER(-20), 30 * 60_000, 'cancelled');
   // No proposal: the command running when the question was asked is the one it was about
   const shadow = intervene(s, 'c1', 'hung-command', true);
+  // Under Active with no hint the Supervisor sent, the cancel can only have been a person's
   const active = intervene(s, 'c2', 'hung-command', true, 'active');
+  proposal(s, 'c3', 'hung-command', 'sent', 'tu3', 'supervisor');
+  const bySupervisor = intervene(s, 'c3', 'hung-command', true, 'active');
+  // A sent row from before `sent_by` was kept is read by the mode, as it was
+  proposal(s, 'c4', 'hung-command', 'sent', 'tu4');
+  const stored = intervene(s, 'c4', 'hung-command', true, 'active');
   s.resolvers.sweep();
   assert.deepEqual([s.get(shadow.id)?.agreed, s.get(shadow.id)?.outcome?.quality], [true, 'direct']);
-  assert.deepEqual([s.get(active.id)?.agreed, s.get(active.id)?.outcome?.quality], [true, 'proxy']);
+  assert.deepEqual([s.get(active.id)?.agreed, s.get(active.id)?.outcome?.quality], [true, 'direct']);
+  assert.deepEqual([s.get(bySupervisor.id)?.agreed, s.get(bySupervisor.id)?.outcome?.quality], [true, 'proxy']);
+  assert.deepEqual([s.get(stored.id)?.agreed, s.get(stored.id)?.outcome?.quality], [true, 'proxy']);
+});
+
+test("supervisor.intervene: a person's send is a direct outcome under Active too; the Supervisor's own send stays a proxy", () => {
+  const s = setup();
+  proposal(s, 'c1', 'no-progress', 'sent', '', 'person');
+  proposal(s, 'c2', 'no-progress', 'sent', '', 'supervisor');
+  proposal(s, 'c3', 'no-progress', 'not-stuck');
+  const person = intervene(s, 'c1', 'no-progress', true, 'active');
+  const itself = intervene(s, 'c2', 'no-progress', true, 'active');
+  // The draft found the worker not stuck: a model's reading, so a proxy for "no hint helps"
+  const notStuck = intervene(s, 'c3', 'no-progress', true, 'shadow');
+  s.resolvers.sweep();
+  assert.deepEqual([s.get(person.id)?.agreed, s.get(person.id)?.outcome?.quality], [true, 'direct']);
+  assert.deepEqual([s.get(itself.id)?.agreed, s.get(itself.id)?.outcome?.quality], [true, 'proxy']);
+  assert.deepEqual([s.get(notStuck.id)?.agreed, s.get(notStuck.id)?.outcome?.quality], [false, 'proxy']);
 });
 
 test("supervisor.intervene: other signals are judged by a person's Send or Dismiss; the Supervisor's own send is a proxy", () => {

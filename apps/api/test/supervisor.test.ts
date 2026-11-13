@@ -121,6 +121,8 @@ test('a proposal is sent to its chat once, dismissed once, and found only under 
   const sent = await app.inject({ method: 'POST', url: `/api/chats/${id}/supervisor/${toSend.id}/send` });
   assert.equal(sent.statusCode, 200);
   assert.equal(sent.json<SupervisorProposal>().status, 'sent');
+  // Served with who sent it: a Send from the panel is a person's
+  assert.equal(sent.json<SupervisorProposal>().sentBy, 'person');
   const said = core.runtime.events(id).flatMap((e) => e.entry?.blocks ?? []).flatMap((b) => (b.type === 'text' ? [b.text] : []));
   assert.ok(said.some((t) => t.startsWith('A hint from the person following this chat') && t.includes('Is a connection left open?')));
 

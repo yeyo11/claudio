@@ -362,7 +362,7 @@ const transcript: TranscriptEntry[] = [
 ];
 
 /** The point is the Supervisor's one switch (docs/plans/settings-ia.md §7.2); `deciding` sets it under Jev, with consent */
-async function supervising(mode: 'off' | 'shadow' | 'active', reply: Reply, opts: { provider?: 'jev' | 'cli' } = {}) {
+async function supervising(mode: 'off' | 'shadow' | 'active', reply: Reply, opts: { provider?: 'jev' | 'cli'; autoSignals?: HealthSignal['kind'][] } = {}) {
   const config = tempConfig();
   const db = new Db(config);
   const d = await deciding('supervisor.intervene', mode, reply, db);
@@ -371,6 +371,11 @@ async function supervising(mode: 'off' | 'shadow' | 'active', reply: Reply, opts
     await d.settings.set({ ...stored, provider: 'cli' });
     await d.settings.setConsent('supervisor.intervene', { granted: true, stateVersion: decisionPoint('supervisor.intervene')?.stateVersion ?? 1, providers: ['cli'] });
   }
+  // Active sends on its own only for the kinds listed; these tests list the hung command unless told otherwise
+  {
+    const { jev: _jev, ...stored } = d.settings.get();
+    await d.settings.set({ ...stored, supervisor: { autoSignals: opts.autoSignals ?? ['hung-command'] } });
+  }
   const asked: string[] = [];
   const sent: string[] = [];
   const supervisor = new Supervisor({
@@ -378,7 +383,7 @@ async function supervising(mode: 'off' | 'shadow' | 'active', reply: Reply, opts
     db,
     ask: (q) => {
       asked.push(q.prompt);
-      return Promise.resolve({ text: 'Check the open socket.', costUsd: 0.002, isError: false });
+      return Promise.resolve({ structured: { stuck: true, hint: 'Check the open socket.' }, costUsd: 0.002, isError: false });
     },
     steps: () => Promise.resolve(transcript),
     hint: (p) => {
@@ -422,6 +427,8 @@ test('supervisor.intervene: active under Jev spares the hint above the threshold
   assert.equal(no.asked.length, 0, 'no housekeeping chat was started');
   assert.equal(no.rows()[0]?.acted, true);
   assert.equal(no.rows()[0]?.savedRun, true);
+  // Today's rule, "a hint is drafted", never declines: the row says so for the comparison
+  assert.equal(no.rows()[0]?.baseline, false);
   // The signal is not asked about again on the next tick
   assert.equal(await no.supervisor.wake(chat, null, [hung]), null);
   assert.equal(no.calls.length, 1);
@@ -431,6 +438,23 @@ test('supervisor.intervene: active under Jev spares the hint above the threshold
   const yes = await supervising('active', replying(() => true));
   assert.equal((await yes.supervisor.wake(chat, null, [hung]))?.status, 'sent');
   assert.equal(yes.sent.length, 1);
+});
+
+test('supervisor.intervene: Active proposes for a signal kind not listed and sends for one that is', async () => {
+  const listed = await supervising('active', replying(() => true), { autoSignals: ['hung-command'] });
+  assert.equal((await listed.supervisor.wake(chat, null, [hung]))?.status, 'sent');
+  assert.equal(listed.db.proposalsOf(chat.id)[0]?.sentBy, 'supervisor');
+
+  const unlisted = await supervising('active', replying(() => true), { autoSignals: ['loop'] });
+  const proposed = await unlisted.supervisor.wake(chat, null, [hung]);
+  assert.equal(proposed?.status, 'proposed', 'a kind that has not earned it waits for a person');
+  assert.equal(unlisted.sent.length, 0);
+  assert.equal(unlisted.db.proposalsOf(chat.id)[0]?.sentBy, undefined);
+
+  // A person's Send records who sent it
+  const sent = await unlisted.supervisor.send(proposed?.id ?? '', { chatId: chat.id });
+  assert.equal(sent.sentBy, 'person');
+  assert.equal(unlisted.db.proposalsOf(chat.id)[0]?.sentBy, 'person');
 });
 
 test('supervisor.intervene: an unavailable provider asks for the hint at once', async () => {

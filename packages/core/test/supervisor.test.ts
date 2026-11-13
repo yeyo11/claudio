@@ -10,7 +10,7 @@ import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTIN
 import type { ClaudioEventInput } from '../src/events.ts';
 import { HealthMonitor, type TaskContext } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';
-import { hintFrom, lastSteps, relayHint, Supervisor, SupervisorConflictError, supervisorModeOf, type SupervisorAnswer, type SupervisorQuestion } from '../src/supervisor.ts';
+import { draftOf, hintFrom, lastSteps, relayHint, Supervisor, SUPERVISOR_SCHEMA, SupervisorConflictError, supervisorModeOf, type SupervisorAnswer, type SupervisorQuestion } from '../src/supervisor.ts';
 import { MemoryRefusal, RunSlotRefusal } from '../src/chat-errors.ts';
 import { tempConfig } from './helpers.ts';
 import { PASTED_NOTE } from '../src/prompt-rules.ts';
@@ -46,7 +46,7 @@ const entry = (role: 'user' | 'assistant', blocks: TranscriptEntry['blocks'], is
   blocks,
 });
 
-function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<SupervisorAnswer> = () => ({ text: 'Check the open socket.', costUsd: 0.002, isError: false })) {
+function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<SupervisorAnswer> = () => ({ structured: { stuck: true, hint: 'Check the open socket.' }, costUsd: 0.002, isError: false })) {
   const config = tempConfig();
   const db = new Db(config);
   const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
@@ -100,8 +100,9 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
     charge: (id, usd) => charged.push([id, usd]),
   });
   /** The point's mode is the Supervisor's switch; the CLI model and cap are the engine's */
-  const enable = async (mode: DecisionMode = 'shadow', cli: Partial<typeof DEFAULT_DECISION_SETTINGS.cli> = {}) => {
-    await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, ...cli } });
+  /** Active sends by itself only for the kinds listed; most tests here list the ones they wake it with */
+  const enable = async (mode: DecisionMode = 'shadow', cli: Partial<typeof DEFAULT_DECISION_SETTINGS.cli> = {}, autoSignals: HealthSignal['kind'][] = ['hung-command', 'repeat-stall', 'loop']) => {
+    await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, ...cli }, supervisor: { autoSignals } });
     await settings.setPointMode('supervisor.intervene', mode);
   };
   return { config, db, settings, supervisor, direct, asked, events, hints, relays, charged, spend, enable, cancelled, cancel, clock, stepsAsked, setSteps: (s: TranscriptEntry[]) => (steps = s) };
@@ -282,7 +283,7 @@ test('two announcements before the answer arrives ask once', async () => {
   const second = await h.supervisor.wake(chatOf('c1'), null, [hung]);
   assert.equal(second, null);
   await new Promise((r) => setImmediate(r));
-  release({ text: 'Look at the port.', costUsd: 0.001, isError: false });
+  release({ structured: { stuck: true, hint: 'Look at the port.' }, costUsd: 0.001, isError: false });
   assert.equal((await first)?.hint, 'Look at the port.');
   assert.equal(h.asked.length, 1);
 });
@@ -333,7 +334,7 @@ test('the question carries the signal, the settings and the worker\'s last steps
 
 test('an answer that is no use records nothing, is not asked again, and still costs what it cost', async () => {
   let call = 0;
-  const h = harness(() => (++call === 1 ? { text: 'budget exceeded', costUsd: 0.05, isError: true } : { text: '  \n ', costUsd: 0.01, isError: false }));
+  const h = harness(() => (++call === 1 ? { structured: null, costUsd: 0.05, isError: true } : { structured: { stuck: true, hint: '  \n ' }, costUsd: 0.01, isError: false }));
   await h.enable();
   assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hung]), null);
   assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hung]), null);
@@ -351,6 +352,59 @@ test('an answer that is no use records nothing, is not asked again, and still co
   assert.equal(await broken.supervisor.wake(chatOf('w1'), null, [hung]), null);
   assert.equal(await broken.supervisor.wake(chatOf('w1'), null, [hung]), null);
   assert.equal(broken.asked.length, 1);
+});
+
+test('a draft that says the worker is not stuck sends nothing, proposes nothing, and is not asked again', async () => {
+  const h = harness(() => ({ structured: { stuck: false, hint: '' }, costUsd: 0.03, isError: false }));
+  // Active, with the kind listed: even where it could send by itself, a worker that is not stuck gets nothing
+  await h.enable('active');
+  assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hungCall('toolu_1')]), null);
+  assert.equal(h.hints.length, 0);
+  assert.equal(h.cancelled.length, 0, 'its command is left to run');
+  assert.equal(h.events.length, 0, 'no proposal for a person to act on');
+  // Recorded as the occurrence's answer: the same command is not asked about on the next tick
+  assert.deepEqual(h.db.proposalsOf('w1').map((p) => p.status), ['not-stuck']);
+  assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hungCall('toolu_1')]), null);
+  assert.equal(h.asked.length, 1);
+  // ...even past the time a failed question is asked again
+  h.clock.now += 20 * 60_000;
+  assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hungCall('toolu_1')]), null);
+  assert.equal(h.asked.length, 1);
+  // It cost what it cost
+  assert.deepEqual(h.charged, [['orch-1', 0.03]]);
+  // A person has nothing to send or dismiss
+  const [row] = h.db.proposalsOf('w1');
+  await assert.rejects(h.supervisor.send(row?.id ?? '', { chatId: 'w1' }), /already not-stuck/);
+});
+
+test('the draft decides first whether the worker is stuck, and answers in a structure with no room for reasons', async () => {
+  const h = harness();
+  await h.enable();
+  await h.supervisor.wake(chatOf('c1'), null, [hung]);
+  const [q] = h.asked;
+  assert.equal(q?.jsonSchema, SUPERVISOR_SCHEMA);
+  assert.deepEqual(Object.keys((SUPERVISOR_SCHEMA.properties ?? {}) as Record<string, unknown>), ['stuck', 'hint']);
+  assert.match(q?.prompt ?? '', /First decide whether the agent is stuck at all/);
+  // Waiting on work that is being done is named as not stuck: a running batch, CI, delegated work
+  assert.match(q?.prompt ?? '', /a batch of calls still running/);
+  assert.match(q?.prompt ?? '', /CI or a review it is polling/);
+  assert.match(q?.prompt ?? '', /agents and tasks it delegated/);
+  assert.doesNotMatch(q?.prompt ?? '', /Think the problem through/, 'Haiku, the default, is told nothing more');
+
+  const sonnet = harness();
+  await sonnet.enable('shadow', { model: 'sonnet' });
+  await sonnet.supervisor.wake(chatOf('c1'), null, [hung]);
+  assert.match(sonnet.asked[0]?.prompt ?? '', /Think the problem through before you answer\.$/);
+});
+
+test('a draft is read by its contract: not stuck, or stuck with a hint, and anything else is a failed question', () => {
+  assert.deepEqual(draftOf({ stuck: false, hint: '' }), { stuck: false });
+  assert.deepEqual(draftOf({ stuck: false, hint: 'Nothing is stalled, keep waiting.' }), { stuck: false }, 'a not-stuck draft is never sent, whatever its hint says');
+  assert.deepEqual(draftOf({ stuck: true, hint: ' Start the database.\nThen rerun.\nThird.' }), { stuck: true, hint: 'Start the database.\nThen rerun.' });
+  assert.equal(draftOf({ stuck: true, hint: '  ' }), null);
+  assert.equal(draftOf({ stuck: 'yes', hint: 'x' }), null);
+  assert.equal(draftOf('Check the port.'), null, 'prose is not the contract');
+  assert.equal(draftOf(undefined), null);
 });
 
 test('a long answer is cut to the two lines a hint is', () => {
@@ -402,7 +456,7 @@ test('send delivers the hint and marks it sent; dismiss marks it dismissed; each
   assert.equal(failing.db.proposal(p.id)?.status, 'proposed');
 });
 
-test('Active under the CLI sends every hint on its own; Shadow leaves each for a person', async () => {
+test('Active under the CLI sends the hint of a listed kind on its own; Shadow leaves each for a person', async () => {
   const h = harness();
   await h.enable('active');
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [hung]);
@@ -424,7 +478,7 @@ test('a person who switches the point while the hint is drafted decides whether 
   const woken = h.supervisor.wake(chatOf('c1'), null, [hung]);
   await new Promise((r) => setImmediate(r));
   await h.settings.setPointMode('supervisor.intervene', 'shadow');
-  release({ text: 'Look at the port.', costUsd: 0.001, isError: false });
+  release({ structured: { stuck: true, hint: 'Look at the port.' }, costUsd: 0.001, isError: false });
   assert.equal((await woken)?.status, 'proposed');
   assert.equal(h.hints.length, 0);
 });
@@ -576,7 +630,7 @@ test('a proposal kept before occurrences were keyed holds its kind for that occu
 
 test('a question that failed is asked again once fifteen minutes have passed, not before', async () => {
   let call = 0;
-  const h = harness(() => (++call === 1 ? { text: '', costUsd: 0.01, isError: true } : { text: 'Kill the stale server.', costUsd: 0.01, isError: false }));
+  const h = harness(() => (++call === 1 ? { structured: null, costUsd: 0.01, isError: true } : { structured: { stuck: true, hint: 'Kill the stale server.' }, costUsd: 0.01, isError: false }));
   await h.enable();
   const signal = hungCall('toolu_1');
   assert.equal(await h.supervisor.wake(chatOf('c1'), null, [signal]), null);
@@ -594,7 +648,7 @@ test('a question refused for room, a full slot or short memory, is retried and n
     call += 1;
     if (call === 1) throw new RunSlotRefusal(4);
     if (call === 2) throw new MemoryRefusal('Not enough memory to start a chat: 300 MB available, below the 512 MB floor');
-    return { text: 'Check the port.', costUsd: 0.01, isError: false };
+    return { structured: { stuck: true, hint: 'Check the port.' }, costUsd: 0.01, isError: false };
   });
   await h.enable();
   // The pause between tries is unref'd, so a wait for room never holds the process on its way out;
@@ -629,7 +683,7 @@ test('a question refused for room, a full slot or short memory, is retried and n
 });
 
 test('Active cancels a hung command with the hint as the reason, and sends the hint only when the cancel is refused', async () => {
-  const h = harness(() => ({ text: 'The suite waits on port 5432; start the database first.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'The suite waits on port 5432; start the database first.' }, costUsd: 0.01, isError: false }));
   await h.enable('active');
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_1')]);
   assert.equal(proposal?.status, 'sent');
@@ -639,6 +693,7 @@ test('Active cancels a hung command with the hint as the reason, and sends the h
   );
   assert.equal(h.hints.length, 0, 'the cancel carried it: no message besides');
   assert.equal(h.db.proposal(proposal?.id ?? '')?.status, 'sent');
+  assert.equal(h.db.proposal(proposal?.id ?? '')?.sentBy, 'supervisor', 'the Supervisor sent it, not a person');
 
   h.cancel.refuse = true;
   const refused = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_2')]);
@@ -660,7 +715,7 @@ test('Active cancels a hung command with the hint as the reason, and sends the h
 });
 
 test("a signal about a subagent's call reads that agent's steps and asks the lead to relay the hint or stop it", async () => {
-  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Run the grep on src/ only.' }, costUsd: 0.01, isError: false }));
   await h.enable('active');
   h.cancel.refuse = true;
   const agent = { parentToolUseId: 'toolu_agent', description: 'Audit the CLI bundle', subagentType: 'Explore' };
@@ -695,7 +750,7 @@ const addressable = { parentToolUseId: 'toolu_agent', agentId: 'a1b2c3', descrip
 const aboutSubagent: HealthSignal = { ...hungCall('s1'), detail: 'grep -r x /usr/lib/node_modules', agent: addressable };
 
 test('a hint about a subagent with an agent id is written to it as it is, and the lead is not asked', async () => {
-  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Run the grep on src/ only.' }, costUsd: 0.01, isError: false }));
   await h.enable('active');
   h.cancel.refuse = true;
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [aboutSubagent]);
@@ -708,7 +763,7 @@ test('a hint about a subagent with an agent id is written to it as it is, and th
 });
 
 test('refused up front, the hint falls back once to the lead as a relay', async () => {
-  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Run the grep on src/ only.' }, costUsd: 0.01, isError: false }));
   await h.enable('active');
   h.cancel.refuse = true;
   h.direct.mode = 'refused';
@@ -720,7 +775,7 @@ test('refused up front, the hint falls back once to the lead as a relay', async 
 });
 
 test('undelivered, a person\'s hint from the health panel falls back once to the lead too', async () => {
-  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Run the grep on src/ only.' }, costUsd: 0.01, isError: false }));
   await h.enable('shadow');
   h.direct.mode = 'undelivered';
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [aboutSubagent]);
