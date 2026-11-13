@@ -277,6 +277,29 @@ provider answers each point after the comparison of M5 is D5.
   `run.continuation` only if the new question clearly beats the phrase list; if none does, the
   point is retired and the phrase list stays. The same replay for a reworded
   `changes.unexplained-hunk`.
+  **Run on 2026-11-13.** The set: 211 rows where Jev acted `owes-work` and the continuation it
+  caused was found in the worker's transcript; the label is "that continuation edited or
+  committed" (59 yes, 152 no, a base rate of 0.28). The CLI arm ran before the harness existed
+  (one-shot `claude -p --json-schema`, 0.34 USD); the Jev arm ran through
+  `scripts/decisions-replay.mjs` with `--no-store` (about one cent).
+
+  | Who answers | Continuations asked for | Productive | Precision | Recall |
+  | --- | --- | --- | --- | --- |
+  | Jev as it ran (current question, threshold 0.85) | 211 | 59 | 0.28 | 1.00 |
+  | Current question, CLI `haiku` | 131 | 35 | 0.27 | 0.59 |
+  | Three answers, CLI `haiku` | 12 | 4 | 0.33 | 0.07 |
+  | Three answers, Jev (any confidence) | 64 | 21 | 0.33 (lower bound 0.26) | 0.36 |
+  | The phrase list | 0 | 0 | – | 0 |
+
+  Every arm's precision sits at the base rate: the last paragraph of a report does not say whether
+  a continuation would change anything, whoever reads it and however it is asked. Jev's confidence
+  on the current question runs backwards (accuracy 0.55 between 0.80 and 0.90, 0.23 at exactly
+  1.00). The three-answer question asks for far fewer continuations and chooses them no better. So
+  the decision does not beat the phrase list: `run.continuation` ships with the three-answer
+  question for whoever wants to measure it in shadow, the code rules of §6 hold regardless, and the
+  gate of §5 keeps it from acting (its replay over this set is `failing`). Limits of the test: the
+  set holds only rows Jev was confident about, and "edited or committed" overstates what was
+  needed.
 - **S3, the gate's numbers.** With the labels of S2, how many outcomes the promotion gate needs
   before it stops flipping, and where the break-even of each act point sits.
 

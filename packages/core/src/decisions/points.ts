@@ -156,23 +156,26 @@ const FLAGS: DecisionPointEffect = anyEffect((a) => a.kind === 'noul' && a.value
 /** A point whose answers neither act nor flag one way: rankings, a model per task, a prefill */
 const SILENT: DecisionPointEffect = { runs: () => 0, acts: () => null, baselineActs: () => null, savesRun: false, causesRun: false };
 
+/** The answers of `run.continuation` that continue the run; `owes-work` is the one rows stored before state version 2 carry */
+export const CONTINUATION_OWES: ReadonlySet<string> = new Set(['owes-own-work', 'owes-work']);
+
 /**
- * `run.continuation` acts by continuing (`owes-work`). Against the phrase list it replaces: a
- * continuation the phrase list would also have sent costs nothing extra, and `done` saves a run only
- * where the phrase list would have continued. With no baseline (rows stored before it), the contract's
- * values: `done` saves one, `owes-work` causes one.
+ * `run.continuation` acts by continuing (`owes-own-work`). Against the phrase list it replaces: a
+ * continuation the phrase list would also have sent costs nothing extra, and `done` or `hands-off`
+ * saves a run only where the phrase list would have continued. With no baseline (rows stored before
+ * it), the contract's values: `done` and `hands-off` save one, `owes-own-work` causes one.
  */
 const CONTINUATION: DecisionPointEffect = {
   runs: (answers, baseline) => {
     const report = choiceValue(answers, 'report');
     const phrased = continuationBaseline(baseline);
-    if (report === 'owes-work') return phrased === true ? 0 : -1;
-    if (report === 'done') return phrased === false ? 0 : 1;
-    return 0;
+    if (report === null) return 0;
+    if (CONTINUATION_OWES.has(report)) return phrased === true ? 0 : -1;
+    return phrased === false ? 0 : 1;
   },
   acts: (answers) => {
     const report = choiceValue(answers, 'report');
-    return report === null ? null : report === 'owes-work';
+    return report === null ? null : CONTINUATION_OWES.has(report);
   },
   baselineActs: (baseline) => continuationBaseline(baseline),
   savesRun: true,
@@ -335,12 +338,27 @@ export const DECISION_POINTS: readonly DecisionPointDefinition[] = [
   point({ id: 'flow.restart', kind: 'act', scope: 'project', primitives: ['noul'], effect: noulEffect('requeue', false, 1), visible: false, fields: ['stage', 'cause', 'restarts', 'error'] }, () => [
     noul('requeue', 'Is it worth running this flow run again after the restart cut it?'),
   ]),
-  point({ id: 'run.continuation', kind: 'act', scope: 'project', primitives: ['choice'], effect: CONTINUATION, visible: false, maxStateBytes: 4 * 1024, fields: ['title', 'tail', 'continuations'] }, () => [
-    choice('report', 'Is the last paragraph of this run a final report, or does it say work is still owed?', [
-      ['done', 'Done: a report of finished work; nothing is left to do'],
-      ['owes-work', 'Owes work: it announces a next step, offers to continue or leaves something undone'],
-    ]),
-  ]),
+  // Version 2 asks of the run's own task in three answers, and adds what it was asked to deliver, whether the phrase list matched and what its turn committed and edited (§6 of docs/plans/decision-engine-v2.md)
+  point(
+    {
+      id: 'run.continuation',
+      kind: 'act',
+      scope: 'project',
+      primitives: ['choice'],
+      effect: CONTINUATION,
+      visible: false,
+      maxStateBytes: 4 * 1024,
+      stateVersion: 2,
+      fields: ['title', 'deliverable', 'tail', 'continuations', 'phraseListMatched', 'turn'],
+    },
+    () => [
+      choice('report', "This is the end of the final message of a worker that runs unattended on one task of a larger plan; nobody will answer it. What does it say about the worker's own task?", [
+        ['done', 'Done: it reports finished work. Caveats, known limitations and checks it says it did not run count as done'],
+        ['hands-off', 'Hands off: it leaves something to another task, a reviewer or the person, by name or by role, and stops there'],
+        ['owes-own-work', 'Owes its own work: it announces a step of its own task and has not taken it, offers to continue, asks a question it could settle itself, or says it is waiting for something it started'],
+      ]),
+    ],
+  ),
   point({ id: 'orchestration.model', kind: 'suggest', scope: 'project', primitives: ['choice'], effect: SILENT, fields: ['tasks', 'models'] }, (subject) => {
     const models = items(subject, 'models');
     if (models.length < 2) return [];

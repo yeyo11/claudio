@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import test from 'node:test';
 import { Worker } from 'node:worker_threads';
-import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type ClaudioEvent, type ClaudioLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type WorkItemStatus } from '@claudio/shared';
+import { flowRunStatus, MAX_CONTINUATIONS, type DecisionAnswer, type DecisionPointId, type ClaudioEvent, type ClaudioLanguage, type FlowRunDocument, type FlowMemoryProposal, type FlowStage, type ProjectModule, type ProjectSettings, type RunEvent, type WorkItemStatus } from '@claudio/shared';
 import { Db, FLOW_CAUSE_SCHEMA_VERSION, FLOW_SCHEMA_VERSION, migrate } from '../src/db.ts';
 import { DecisionEngine, type DecisionProvider, type DecisionRequest, type ProviderResult } from '../src/decisions/engine.ts';
 import { decisionPoint } from '../src/decisions/points.ts';
@@ -42,7 +42,7 @@ function settingsWith(modules: ProjectModule[] = ['board', 'team', 'memory', 'do
   };
 }
 
-function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; spendOpen?: boolean; delegates?: () => { subagents?: SubagentInfo[]; backgroundTasks?: BackgroundTask[] }; contextOf?: FlowDeps['contextOf']; handoff?: FlowDeps['handoff'] } = {}) {
+function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; pullRequests?: FlowPullRequests; path?: string; uncommitted?: (dir: string) => string[]; decisions?: DecisionEngine; spendOpen?: boolean; delegates?: () => { subagents?: SubagentInfo[]; backgroundTasks?: BackgroundTask[] }; contextOf?: FlowDeps['contextOf']; handoff?: FlowDeps['handoff']; turnEvents?: (chatId: string) => RunEvent[] } = {}) {
   const config = tempConfig();
   mkdirSync(config.dataDir, { recursive: true });
   const db = opts.db ?? new Db(config);
@@ -94,6 +94,8 @@ function setup(opts: { db?: Db; settings?: ProjectSettings; recover?: boolean; p
     // No worktree is real here: nothing is uncommitted unless a test says so
     uncommitted: opts.uncommitted ?? (() => []),
     ...(opts.delegates ? { delegates: opts.delegates } : {}),
+    // The events of the chat's live execution, as the runtime would hand them
+    ...(opts.turnEvents ? { streamPosition: () => ({ seq: 0, executionSeq: 0 }), events: (chatId: string) => opts.turnEvents?.(chatId) ?? [] } : {}),
     language: () => state.language,
     stop: (id) => void stopped.push(id),
     emit: (e) => bus.emit(e),
@@ -1920,6 +1922,7 @@ test('flow.refine-needed: shadow records the answer and the refine still runs', 
   assert.equal(d.rows().length, 1);
   assert.deepEqual([row?.mode, row?.acted, row?.subjectKind], ['shadow', false, 'work_item']);
   assert.equal(d.calls[0]?.state.title, 'Fix the cart');
+  assert.equal(row?.baseline, 'refine', 'today every card is refined');
 });
 
 test('flow.refine-needed: active skips the refine only above the threshold', async () => {
@@ -1972,6 +1975,7 @@ test('flow.criteria-precheck: shadow records the answer and QA still runs', asyn
   assert.equal(s.items.find(it.id)?.status, 'in_review');
   assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
   assert.deepEqual(d.calls[0]?.state.paths, ['src/cart.ts']);
+  assert.equal(d.rows()[0]?.baseline, false, 'today no criterion sends a card back before QA');
 });
 
 test('flow.criteria-precheck: active sends the card back before QA only for a criterion clearly unmet, above the threshold', async () => {
@@ -2053,6 +2057,7 @@ test('flow.bounce: shadow records the answer and the card still bounces', async 
   assert.deepEqual([d.rows().length, d.rows()[0]?.acted, d.rows()[0]?.subjectKind], [1, false, 'flow_run']);
   assert.equal(d.calls[0]?.state.rejection, 'The totals are wrong');
   assert.equal(d.calls[0]?.state.bounces, 'this card was bounced never before');
+  assert.equal(d.rows()[0]?.baseline, 'fixable', 'today every rejection goes back to the Developer');
 });
 
 test('flow.bounce: active waits for a person only above the threshold, and never bounces past maxBounces', async () => {
@@ -2113,6 +2118,7 @@ test('flow.restart: shadow records the answer and the run is requeued anyway', a
   assert.equal(second.launches.length, 1);
   assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
   assert.equal(d.calls[0]?.state.stage, 'work');
+  assert.equal(d.rows()[0]?.baseline, false, 'today the run is requeued');
 });
 
 test('flow.restart: active fails a run judged not worth running again only above the threshold', async () => {
@@ -2160,6 +2166,7 @@ test('flow.criteria-merge: shadow records the flag and every criterion is kept',
   assert.equal(s.items.find(it.id)?.acceptanceCriteria.length, 2);
   assert.deepEqual([d.rows().length, d.rows()[0]?.acted, d.rows()[0]?.subjectKind], [1, false, 'flow_run']);
   assert.deepEqual((d.calls[0]?.state.proposed as Array<{ text: string }>).map((c) => c.text), ['Totals are shown in cents']);
+  assert.equal(d.rows()[0]?.baseline, false, 'today nothing is flagged');
 });
 
 test('flow.criteria-merge: active only flags (a suggestion a person decides), so no criterion is dropped', async () => {
@@ -2195,6 +2202,7 @@ test('team.assign: shadow records a proposal and the column still decides who ru
   assert.equal(s.launches[0]?.member.agent, 'product-owner');
   assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
   assert.deepEqual((d.calls[0]?.state.members as Array<{ id: string }>).map((m) => m.id), ['product-owner', 'developer', 'qa']);
+  assert.equal(d.rows()[0]?.baseline, false, 'today the column decides who runs');
 });
 
 test('team.assign: active still only suggests, whatever the confidence, and a merge-resolving run is not asked about', async () => {
@@ -2221,7 +2229,7 @@ test('team.assign: an unavailable provider, no quota included, changes nothing',
 });
 
 const offer = { result: 'The route is in. Let me know if you want me to add the tests too.' };
-const report = (value: 'done' | 'owes-work', confidence = 0.99) => replying(() => value, confidence);
+const report = (value: 'done' | 'hands-off' | 'owes-own-work', confidence = 0.99) => replying(() => value, confidence);
 
 test('run.continuation: off leaves the phrase list in charge and asks nothing', async () => {
   const d = await deciding('run.continuation', 'off', report('done'));
@@ -2258,7 +2266,7 @@ test('run.continuation: active replaces the phrase list only above the threshold
   assert.equal(b.flow.itemRuns(other.id)[0]?.continuations, 1);
 
   // No phrase matches, and the point says work is owed
-  const owes = await deciding('run.continuation', 'active', report('owes-work'));
+  const owes = await deciding('run.continuation', 'active', report('owes-own-work'));
   const c = setup({ db: owes.db, decisions: owes.engine });
   const third = await item(c, 'in_progress');
   await c.answer(third.id, ok('Implemented'), false, { result: 'The route is in for now.' });
@@ -2279,6 +2287,98 @@ test('run.continuation: an unavailable provider, no quota included, leaves the p
   await s.answer(it.id, ok('Implemented'), false, offer);
   assert.equal(s.flow.itemRuns(it.id)[0]?.continuations, 1);
   assert.equal(d.rows()[0]?.unavailable, 'no-quota');
+});
+
+test('run.continuation: hands-off stops a run the phrase list would have sent back', async () => {
+  const d = await deciding('run.continuation', 'active', report('hands-off'));
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await item(s, 'in_progress');
+  await s.answer(it.id, ok('Implemented'), false, offer);
+  const ended = s.flow.itemRuns(it.id).find((r) => r.stage === 'work');
+  assert.deepEqual([ended?.state, ended?.outcome, ended?.continuations], ['ended', 'passed', 0]);
+});
+
+test("run.continuation: the flow's state carries the card's title and criteria, the phrase list's match and the turn, and the baseline is the phrase items", async () => {
+  const d = await deciding('run.continuation', 'shadow', report('done'));
+  const s = setup({ db: d.db, decisions: d.engine, turnEvents: () => [editCall('e1')] });
+  const it = s.items.create('p1', { title: 'Fix the cart', status: 'in_progress', type: 'task', acceptanceCriteria: [{ text: 'Totals are shown in cents' }] });
+  await s.flow.settled();
+  await s.answer(it.id, ok('Implemented'), false, offer);
+  const state = d.calls[0]?.state as { deliverable: string; phraseListMatched: boolean; turn: { commits: number; edits: number } };
+  assert.match(state.deliverable, /^Fix the cart\n\nAcceptance criteria:\n- Totals are shown in cents$/);
+  assert.equal(state.phraseListMatched, true);
+  // Commits from what the card's branch holds; edits from the events of the chat's execution
+  assert.deepEqual(state.turn, { commits: 1, edits: 1 });
+  const baseline = d.rows()[0]?.baseline;
+  assert.ok(Array.isArray(baseline) && baseline.length === 1);
+});
+
+/** One successful Edit call, as the runtime streams it */
+const editCall = (id: string): RunEvent => ({
+  seq: 1,
+  ts: '2026-11-13T10:00:00.000Z',
+  kind: 'message',
+  entry: { uuid: id, role: 'assistant', timestamp: null, model: null, isSidechain: false, parentToolUseId: null, blocks: [{ type: 'tool_use', id, name: 'Edit', input: { file_path: 'src/cart.ts' } }] },
+});
+
+test("a flow run's continuations each record their effect and cause on its row: phrase, then structural", async () => {
+  const edits = { now: [] as RunEvent[] };
+  const s = setup({ turnEvents: () => edits.now });
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  await s.answer(it.id, ok('Implemented'), false, offer);
+  s.flow.chatEnded(chat, null);
+  await s.flow.settled();
+  // The continued turn edits a file and ends with no structured result
+  edits.now = [editCall('e1'), editCall('e2')];
+  await s.answer(it.id, { nonsense: true }, false, { result: 'The tests are added.' });
+  s.flow.chatEnded(chat, null);
+  await s.flow.settled();
+  edits.now = [];
+  await s.answer(it.id, ok('Implemented'), false, { result: 'All done.' });
+  const run = s.flow.itemRuns(it.id).find((r) => r.stage === 'work');
+  assert.equal(run?.continuations, 2);
+  assert.deepEqual(run?.continuationEffects, [
+    { n: 1, cause: 'phrase', changed: true, commits: 0, edits: 2 },
+    { n: 2, cause: 'structural', changed: false, commits: 0, edits: 0 },
+  ]);
+});
+
+test('a flow run the decision reads as owing work is sent back once on its word alone, and not after a continuation that changed nothing', async () => {
+  const d = await deciding('run.continuation', 'active', report('owes-own-work'));
+  const s = setup({ db: d.db, decisions: d.engine });
+  const it = await item(s, 'in_progress');
+  const chat = s.chatOf(it.id);
+  const quiet = { result: 'The route is in for now.' };
+  await s.answer(it.id, ok('Implemented'), false, quiet);
+  assert.equal(s.flow.itemRuns(it.id)[0]?.continuations, 1);
+  s.flow.chatEnded(chat, null);
+  await s.flow.settled();
+  const prompt = s.launches.at(-1)?.prompt ?? '';
+  assert.match(prompt, /If nothing of your task is owed, say so in one line and stop\./);
+  assert.match(prompt, /End with the structured result\./);
+  await s.answer(it.id, ok('Implemented'), false, quiet);
+  const run = s.flow.itemRuns(it.id).find((r) => r.stage === 'work');
+  assert.deepEqual([run?.state, run?.outcome, run?.continuations], ['ended', 'passed', 1]);
+  assert.deepEqual(run?.continuationEffects, [{ n: 1, cause: 'decision', changed: false, commits: 0, edits: 0 }]);
+  // Its second report could only have sent a continuation the code rules hold back: it is not asked
+  assert.equal(d.calls.filter((c) => c.point === 'run.continuation').length, 1);
+});
+
+test('a flow run with no structured result still reaches three continuations, each on record as structural', async () => {
+  const s = setup();
+  const it = await item(s, 'in_progress');
+  await s.answerToEnd(it.id, { nothing: true });
+  const run = s.flow.itemRuns(it.id).find((r) => r.stage === 'work');
+  assert.equal(run?.continuations, MAX_CONTINUATIONS);
+  assert.deepEqual(
+    run?.continuationEffects?.map((e) => [e.n, e.cause]),
+    [
+      [1, 'structural'],
+      [2, 'structural'],
+      [3, 'structural'],
+    ],
+  );
 });
 
 test('a restart leaves a run that waits for a limit to reset where it is: the rotation replays its turn, a second execution would double it', async () => {
@@ -2593,6 +2693,7 @@ test('context.compact: shadow records the answer and the run is not compacted; c
   await s.flow.settled();
   assert.ok(s.launches.every((l) => !l.compactFirst));
   assert.deepEqual([d.rows().length, d.rows()[0]?.acted], [1, false]);
+  assert.equal(d.rows()[0]?.baseline, 'continue', 'today the chat is continued as it is');
   const keep = await deciding('context.compact', 'active', replying(() => 'continue'));
   const k = setup({ db: keep.db, decisions: keep.engine, contextOf: fullChat });
   await rejected(k);

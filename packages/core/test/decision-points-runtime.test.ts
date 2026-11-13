@@ -192,7 +192,7 @@ test('run.continuation: shadow records the answer and the phrase list still deci
   const g = await graph('run.continuation', 'shadow', replying(() => 'done'));
   const orch = await g.run({ tasks: REPORT });
   assert.equal(orch.tasks[0]?.continuations, 1);
-  // The continued turn ends with a report of its own, which is asked about too: none of it acted
+  // A continued turn whose report has no phrase is not asked about: the code rules hold its decision-only continuation back
   assert.ok(g.rows().length >= 1);
   assert.ok(g.rows().every((r) => !r.acted));
   // The last paragraph only, and the count as words
@@ -201,19 +201,23 @@ test('run.continuation: shadow records the answer and the phrase list still deci
   assert.equal(state.continuations, 'no continuation yet');
 });
 
-test('run.continuation: active drops the phrase items on done, adds one on owes-work, and only above the threshold', async () => {
+test('run.continuation: active drops the phrase items on done, adds one on owes-own-work, and only above the threshold', async () => {
   const done = await graph('run.continuation', 'active', replying(() => 'done'));
   const ended = await done.run({ tasks: REPORT });
   assert.equal(ended.tasks[0]?.continuations, undefined, 'a report the decision calls done is the end');
   assert.equal(ended.tasks[0]?.status, 'completed');
   assert.equal(ended.tasks[0]?.result, 'The schema is in place. Next, I will wire the route.');
 
+  const handsOff = await graph('run.continuation', 'active', replying(() => 'hands-off'));
+  assert.equal((await handsOff.run({ tasks: REPORT })).tasks[0]?.continuations, undefined, 'hands-off stops the run as done does');
+
   // No phrase matches this report, so the decision's own item is what the run is told
-  const owes = await graph('run.continuation', 'active', replying(() => 'owes-work'));
+  const owes = await graph('run.continuation', 'active', replying(() => 'owes-own-work'));
   const goes = await owes.run({ tasks: [{ id: 'quiet', prompt: 'FAKE-TEXT-ONCE The schema is in place.' }] });
-  // Every report of the graph is judged owing work, so it stops at the cap of three
-  assert.equal(goes.tasks[0]?.continuations, 3);
-  assert.match(goes.tasks[0]?.result ?? '', /Your last message says work is still owed without doing it/);
+  // Every report of the graph is judged owing work, and the code rules allow one such continuation
+  assert.equal(goes.tasks[0]?.continuations, 1);
+  assert.match(goes.tasks[0]?.result ?? '', /a step of your own task is still to be taken/);
+  assert.match(goes.tasks[0]?.result ?? '', /If nothing was owed, your earlier report stands\./);
 
   const unsure = await graph('run.continuation', 'active', replying(() => 'done', 0.5));
   assert.equal((await unsure.run({ tasks: REPORT })).tasks[0]?.continuations, 1, 'below the threshold, today');
@@ -228,6 +232,95 @@ test('run.continuation: an unavailable provider continues at once, and a result 
   const empty = await graph('run.continuation', 'active', replying(() => 'done'));
   await empty.run({ tasks: [{ id: 'plain', prompt: 'FAKE-WRITE plain.txt yes' }] });
   assert.equal(empty.calls.filter((c) => c.point === 'run.continuation').length, 1, 'the fake worker answers with text, so it is asked once');
+});
+
+test('run.continuation: the state carries the deliverable, whether the phrase list matched and what the turn did, and the baseline is the phrase items', async () => {
+  const g = await graph('run.continuation', 'shadow', replying(() => 'done'));
+  await g.run({ tasks: REPORT });
+  const state = g.calls[0]?.state as { title: string; deliverable: string; tail: string; continuations: string; phraseListMatched: boolean; turn: { commits: number; edits: number } };
+  assert.equal(state.title, 'early');
+  assert.match(state.deliverable, /^FAKE-TEXT-ONCE The schema is in place\./);
+  assert.equal(state.phraseListMatched, true);
+  assert.deepEqual(state.turn, { commits: 0, edits: 0 });
+  const first = g.rows().find((r) => r.state.continuations === 'no continuation yet');
+  assert.ok(Array.isArray(first?.baseline));
+  assert.equal((first?.baseline as unknown[]).length, 1, 'the phrase list found one item');
+  assert.equal(decisionPoint('run.continuation')?.stateVersion, 2);
+});
+
+test('run.continuation: the three answers are done, hands-off and owes-own-work', () => {
+  const def = decisionPoint('run.continuation');
+  const [question] = def?.questions({ kind: 'task', id: 'o:t', data: {} }) ?? [];
+  assert.equal(question?.kind, 'choice');
+  assert.deepEqual(question?.kind === 'choice' ? question.options.map((o) => o.id) : [], ['done', 'hands-off', 'owes-own-work']);
+  assert.deepEqual(def?.fields, ['title', 'deliverable', 'tail', 'continuations', 'phraseListMatched', 'turn']);
+  const report = (value: string) => ({ report: { kind: 'choice' as const, value, probabilities: null, confidence: 0.99 } });
+  assert.deepEqual(['done', 'hands-off', 'owes-own-work', 'owes-work'].map((v) => def?.effect.acts(report(v), {})), [false, false, true, true]);
+  // Against the phrase list it replaces: the run it causes or saves, and none where the list agrees
+  assert.deepEqual(['done', 'hands-off', 'owes-own-work'].map((v) => def?.effect.runs(report(v), [])), [0, 0, -1]);
+  assert.deepEqual(['done', 'hands-off', 'owes-own-work'].map((v) => def?.effect.runs(report(v), ['offer'])), [1, 1, 0]);
+});
+
+// ---------- what each continuation changed (M3, D4) ----------
+
+const effectsOf = (orch: Orchestration) => orch.tasks[0]?.continuationEffects ?? [];
+
+test('a continuation that committed is recorded as a change, with its commits and edits', async () => {
+  const g = await graph('run.continuation', 'off', replying(() => 'done'));
+  const orch = await g.run({ tasks: [{ id: 'commits', prompt: 'FAKE-TEXT-ONCE The schema is in place. Next, I will wire the route.\nFAKE-THEN-COMMIT route.txt' }] });
+  assert.deepEqual(effectsOf(orch), [{ n: 1, cause: 'phrase', changed: true, commits: 1, edits: 1 }]);
+});
+
+test('a continuation that only read is recorded as no change', async () => {
+  const g = await graph('run.continuation', 'off', replying(() => 'done'));
+  const orch = await g.run({ tasks: [{ id: 'reads', prompt: 'FAKE-TEXT-ONCE The schema is in place. Next, I will wire the route.\nFAKE-THEN-READ README.md' }] });
+  assert.deepEqual(effectsOf(orch), [{ n: 1, cause: 'phrase', changed: false, commits: 0, edits: 0 }]);
+});
+
+test('a continuation that used no tool is recorded as no change', async () => {
+  const g = await graph('run.continuation', 'off', replying(() => 'done'));
+  const orch = await g.run({ tasks: REPORT });
+  assert.deepEqual(effectsOf(orch), [{ n: 1, cause: 'phrase', changed: false, commits: 0, edits: 0 }]);
+});
+
+test('a worker that reports the same phrase every turn still reaches three continuations, each on record', async () => {
+  const g = await graph('run.continuation', 'off', replying(() => 'done'));
+  const orch = await g.run({ tasks: [{ id: 'always', prompt: 'FAKE-TEXT-ALWAYS The schema is in place. Next, I will wire the route.' }] });
+  assert.equal(orch.tasks[0]?.continuations, 3);
+  assert.deepEqual(
+    effectsOf(orch).map((e) => [e.n, e.cause, e.changed]),
+    [
+      [1, 'phrase', false],
+      [2, 'phrase', false],
+      [3, 'phrase', false],
+    ],
+  );
+});
+
+test('a worker the decision reads as owing work every turn is sent back once, and its report is kept with the answer', async () => {
+  const g = await graph('run.continuation', 'active', replying(() => 'owes-own-work'));
+  const orch = await g.run({ tasks: [{ id: 'always', prompt: 'FAKE-TEXT-ALWAYS The schema is in place.' }] });
+  assert.equal(orch.tasks[0]?.continuations, 1, 'no second decision-only continuation, and none after one that changed nothing');
+  assert.deepEqual(effectsOf(orch), [{ n: 1, cause: 'decision', changed: false, commits: 0, edits: 0 }]);
+  // The second report could only have sent a continuation the code rules hold back: it is not asked
+  assert.equal(g.calls.filter((c) => c.point === 'run.continuation').length, 1);
+  assert.equal(orch.tasks[0]?.result, 'The schema is in place.\n\nThe schema is in place.');
+  assert.equal(g.rows().at(-1)?.acted, true);
+});
+
+test('a decision-only continuation that changed something does not open a second one', async () => {
+  const g = await graph('run.continuation', 'active', replying(() => 'owes-own-work'));
+  const orch = await g.run({ tasks: [{ id: 'once', prompt: 'FAKE-TEXT-ONCE The schema is in place.\nFAKE-THEN-COMMIT route.txt' }] });
+  assert.equal(orch.tasks[0]?.continuations, 1);
+  assert.deepEqual(effectsOf(orch), [{ n: 1, cause: 'decision', changed: true, commits: 1, edits: 1 }]);
+});
+
+// ---------- the baseline on each call (M2) ----------
+
+test("orchestration.retry: the row's baseline is today's retry, which does not act", async () => {
+  const g = await graph('orchestration.retry', 'shadow', permanent);
+  await g.run({ tasks: FLAKY });
+  assert.equal(g.rows()[0]?.baseline, false);
 });
 
 // ---------- orchestration.fixer ----------
@@ -259,6 +352,8 @@ test('orchestration.fixer: shadow asks once for a group of two failing checks an
   assert.deepEqual([...state.failedSpecs].sort(), ['lint.spec.mjs', 'unit.spec.mjs']);
   assert.equal(state.attempt, 'first attempt');
   assert.equal(g.rows()[0]?.acted, false);
+  // Today the fixer runs again: the code rule does not act
+  assert.equal(g.rows()[0]?.baseline, false);
 });
 
 test('orchestration.fixer: active stops the fixing above the threshold and leaves the checks failed', async () => {
@@ -325,6 +420,9 @@ test('orchestration.model: shadow records the suggestion and the draft is untouc
   assert.deepEqual(state.tasks.map((t) => t.id), ['a', 'b']);
   assert.deepEqual(state.tasks[1]?.dependsOn, ['a']);
   assert.deepEqual(state.models.map((m) => m.id), ['haiku', 'sonnet', 'opus']);
+  // The baseline is the model each task takes today
+  const baseline = p.rows()[0]?.baseline as Record<string, unknown>;
+  assert.deepEqual(Object.keys(baseline), ['a', 'b']);
 });
 
 test('orchestration.model: active prefills the models that differ from the plan model, and the person still edits them', async () => {
@@ -487,6 +585,7 @@ test('review.depth: shadow records the answer and runs the full review', async (
   const state = g.calls[0]?.state as { files: number; paths: string[]; securityHit: boolean; dimensions: string[]; estimateUsd: number };
   assert.deepEqual(Object.keys(state).sort(), ['added', 'deleted', 'dimensions', 'estimateUsd', 'files', 'paths', 'securityHit']);
   assert.deepEqual(state.paths, ['api.txt']);
+  assert.equal(g.rows()[0]?.baseline, 'full', 'today the review is full');
 });
 
 test('review.depth: active acts above the threshold, a graph that fixed its depth is not asked, and an unavailable provider is full', async () => {
