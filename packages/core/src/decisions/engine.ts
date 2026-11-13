@@ -1,19 +1,24 @@
 import { randomUUID } from 'node:crypto';
 import type {
   DecisionAnswer,
+  DecisionBaseline,
   DecisionMode,
   DecisionPointId,
+  DecisionPointEvidence,
   DecisionPointInfo,
   DecisionProviderId,
   DecisionQuestion,
   DecisionRecord,
   DecisionResolution,
+  DecisionRunEffect,
   DecisionSettings,
+  DecisionStats,
   DecisionTestResult,
   DecisionUnavailableReason,
   ProjectDecisionSettings,
 } from '@claudio/shared';
 import type { Db } from '../db.ts';
+import { decisionStats, readPointEvidence, type EvidenceWindow } from './evidence.ts';
 import { decisionPoint, DECISION_POINTS, type DecisionPointDefinition, type DecisionSubject } from './points.ts';
 import { redactState, stateBytes } from './redact.ts';
 import { DEFAULT_THRESHOLD, JEV_MODEL, SUPERVISOR_POINT, type DecisionSettingsStore } from './settings.ts';
@@ -51,7 +56,7 @@ export interface DecisionOutcome {
 
 export interface DecisionEngineDeps {
   settings: DecisionSettingsStore;
-  db: Pick<Db, 'insertDecision' | 'resolveDecision' | 'lastDecisionOf' | 'pruneDecisions'>;
+  db: Pick<Db, 'insertDecision' | 'resolveDecision' | 'lastDecisionOf' | 'pruneDecisions' | 'decisionStats' | 'decisionEvidenceRows'>;
   /** A project's own overrides, read from its settings document */
   projectDecisions: (projectId: string) => ProjectDecisionSettings | null;
   now?: () => Date;
@@ -121,7 +126,8 @@ export class DecisionEngine {
       scope: def.scope,
       primitives: [...def.primitives],
       defaultThreshold: def.defaultThreshold,
-      savesRun: def.savesRun,
+      savesRun: def.effect.savesRun,
+      causesRun: def.effect.causesRun,
       needsLowLatency: def.needsLowLatency,
       stateVersion: def.stateVersion,
       effective: this.effective(def.id, projectId, settings),
@@ -142,16 +148,20 @@ export class DecisionEngine {
     return last ? { state: last.state, bytes: stateBytes(last.state), provider: last.provider } : null;
   }
 
-  async ask(point: DecisionPointId, subject: DecisionSubject, scope: { projectId: string | null }): Promise<DecisionOutcome> {
+  /**
+   * `scope.baseline` is what the call site's own code rule answered for the same input; it is stored
+   * with the row so the answer can be compared with the behaviour it would replace (M2).
+   */
+  async ask(point: DecisionPointId, subject: DecisionSubject, scope: { projectId: string | null; baseline?: DecisionBaseline }): Promise<DecisionOutcome> {
     try {
-      return await this.run(point, subject, scope.projectId);
+      return await this.run(point, subject, scope.projectId, scope.baseline ?? null);
     } catch {
       // A decision is an aid: a bug in one must leave the caller on today's behaviour
       return OUTCOME_OFF();
     }
   }
 
-  private async run(point: DecisionPointId, subject: DecisionSubject, projectId: string | null): Promise<DecisionOutcome> {
+  private async run(point: DecisionPointId, subject: DecisionSubject, projectId: string | null, baseline: DecisionBaseline | null): Promise<DecisionOutcome> {
     const def = decisionPoint(point);
     if (!def) return OUTCOME_OFF();
     const settings = this.deps.settings.get();
@@ -185,6 +195,7 @@ export class DecisionEngine {
     // An act point acts above its threshold, and a null confidence never clears one. A suggestion
     // is prepared for a person to decide, so an answer is enough
     const act = answered && mode === 'active' && (def.kind === 'suggest' || (confidence !== null && confidence >= eff.threshold));
+    const runEffect: DecisionRunEffect = act && answers ? def.effect.runs(answers, baseline) : 0;
 
     const id = randomUUID();
     const row: DecisionRecord = {
@@ -206,7 +217,10 @@ export class DecisionEngine {
       threshold: def.kind === 'act' ? eff.threshold : null,
       acted: act,
       visible: act && def.visible,
-      savedRun: act && def.savesRun,
+      savedRun: runEffect > 0,
+      runEffect,
+      baseline,
+      heldOut: false,
       latencyMs: Math.round(result.latencyMs),
       inputTokens: result.status === 'answered' ? result.inputTokens : null,
       costUsd: result.status === 'answered' ? result.costUsd : null,
@@ -275,6 +289,16 @@ export class DecisionEngine {
     } catch {
       // The database may be closed at shutdown
     }
+  }
+
+  /** What a point has proved over a window, from `direct` outcomes only: what the promotion gate reads (M6) */
+  evidence(point: DecisionPointId, window: EvidenceWindow): DecisionPointEvidence {
+    return readPointEvidence(this.deps.db, point, window);
+  }
+
+  /** `GET /decisions/stats`: the per-point metrics with each point's baseline comparison and evidence */
+  stats(since: string): DecisionStats {
+    return decisionStats(this.deps.db, since);
   }
 
   /** Drops the rows older than `historyDays`; returns how many went */

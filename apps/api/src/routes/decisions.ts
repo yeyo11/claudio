@@ -138,7 +138,7 @@ export const decisionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
     const since = isoOf(req.query.since, 'since');
     const days = req.query.days === undefined || req.query.days === '' ? DEFAULT_STATS_DAYS : Number(req.query.days);
     if (!since && (!Number.isFinite(days) || days <= 0)) throw fail(400, 'days must be a number above 0');
-    return core.db.decisionStats(since ?? new Date(Date.now() - days * DAY_MS).toISOString());
+    return core.decisions.stats(since ?? new Date(Date.now() - days * DAY_MS).toISOString());
   });
 
   app.post<{ Body: { query?: unknown; commands?: unknown } | undefined }>('/decisions/palette', async (req): Promise<DecisionPaletteResult> => {

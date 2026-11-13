@@ -4512,6 +4512,8 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
    * not attempts: nothing failed.
    */
   continuations?: number;
+  /** What each continuation changed, in order; absent on a task that never had one or was stored before it was recorded */
+  continuationEffects?: ContinuationEffect[];
   runId: string | null;
   sessionId: string | null;
   /** The provider its current chat is on; absent on a task written before providers were chosen */
@@ -10212,15 +10214,35 @@ export type DecisionUnavailableReason =
   | 'invalid-answer'
   | 'spend-cap';
 
+/**
+ * How far an outcome can be trusted. `direct`: an effect the decision could not fake (a person
+ * accepted or rejected a proposal, a retry completed, a continuation committed). `proxy`: correlated
+ * but contaminated (a later QA verdict, or something the decision itself caused). Only `direct`
+ * outcomes count as evidence for a point (docs/plans/decision-engine-v2.md, M3).
+ */
+export type DecisionOutcomeQuality = 'direct' | 'proxy';
+
 /** What a point tells the engine once what really happened is known (shadow accuracy) */
 export interface DecisionResolution {
   /** What happened, in words the History row shows; the point's resolver writes it */
   summary: string;
   /** True when the answer matched what happened; the person's feedback overrides the inference */
   agreed: boolean;
+  /** How far the outcome can be trusted; a row stored before it was recorded reads as `proxy` */
+  quality: DecisionOutcomeQuality;
   /** Point-specific facts (a status, a count), for the row's detail */
   detail?: Record<string, unknown>;
 }
+
+/**
+ * What today's code rule answered for the same input, as the call site computes it: a small JSON
+ * value whose shape each point reads (for `run.continuation`, the phrase list's items; for a suggest
+ * point, `false` for "no flag"). It lets every row be compared with the behaviour it would replace.
+ */
+export type DecisionBaseline = string | number | boolean | null | DecisionBaseline[] | { [key: string]: DecisionBaseline };
+
+/** Runs a decision changed against today's behaviour: 1 saved one, -1 caused one, 0 neither */
+export type DecisionRunEffect = -1 | 0 | 1;
 
 /** The person's word on a decision (D13) */
 export type DecisionFeedback = 'useful' | 'not_useful';
@@ -10311,8 +10333,10 @@ export interface DecisionPointInfo {
   scope: DecisionScope;
   primitives: DecisionPrimitive[];
   defaultThreshold: number;
-  /** True when acting on it avoids a Claude run (feeds "Claude runs saved") */
+  /** True when acting on one of its answers can avoid a Claude run */
   savesRun: boolean;
+  /** True when acting on one of its answers can cause a Claude run today's behaviour would not have */
+  causesRun: boolean;
   /** The provider must be fast enough for the call site (the palette needs Jev) */
   needsLowLatency: boolean;
   /** Bumps when the shape of the state changes, which clears the consent given for an older one */
@@ -10362,8 +10386,14 @@ export interface DecisionRecord {
   acted: boolean;
   /** True when it changed something a person sees (shows the mark) */
   visible: boolean;
-  /** True when acting avoided a Claude run */
+  /** True when acting avoided a Claude run (`runEffect` is 1) */
   savedRun: boolean;
+  /** Runs acting changed against today's behaviour; 0 when it did not act */
+  runEffect: DecisionRunEffect;
+  /** What today's code rule answered for the same input; null when the call site gave none */
+  baseline: DecisionBaseline | null;
+  /** True when an active point would have acted and was held out at random, so today's behaviour ran */
+  heldOut: boolean;
   latencyMs: number;
   inputTokens: number | null;
   costUsd: number | null;
@@ -10449,7 +10479,80 @@ export interface DecisionPointStats {
   useful: number;
   notUseful: number;
   costUsd: number;
+  /** Runs acting avoided against today's behaviour */
   runsSaved: number;
+  /** Runs acting caused that today's behaviour would not have run */
+  runsCaused: number;
+  /** `runsSaved - runsCaused` */
+  netRuns: number;
+  /** Resolved rows whose outcome is `direct`, or carries the person's word */
+  resolvedDirect: number;
+  /** Resolved rows whose outcome is only `proxy` */
+  resolvedProxy: number;
+  /** The rows against their baseline: how often the answer differed from the code rule, and who was right */
+  baseline: DecisionBaselineComparison;
+  /** What the point has proved, from `direct` outcomes only: what the promotion gate reads */
+  evidence: DecisionPointEvidence;
+}
+
+/** A proportion with its one-sided 90 % lower bound (Wilson); both null when nothing was counted */
+export interface DecisionRate {
+  /** How many rows the proportion is over */
+  n: number;
+  /** How many of them count for it */
+  hits: number;
+  value: number | null;
+  lower90: number | null;
+}
+
+/** Answered rows against what the code rule answered for the same input */
+export interface DecisionBaselineComparison {
+  /** Answered rows that carry a baseline the point can read */
+  rows: number;
+  /** Of those, how many the decision answered otherwise than the code rule */
+  differs: number;
+  /** Differing rows with a `direct` outcome where the decision was right, so the code rule was wrong */
+  decisionRight: number;
+  /** Differing rows with a `direct` outcome where the code rule was right */
+  baselineRight: number;
+  /** Differing rows with no `direct` outcome yet */
+  unresolved: number;
+}
+
+/** One confidence bucket of a point's calibration, over rows with a `direct` outcome */
+export interface DecisionCalibrationBucket {
+  /** Inclusive lower edge */
+  from: number;
+  /** Exclusive upper edge, except the last bucket, which holds exactly 1 */
+  to: number;
+  /** Every answer in the bucket: how often it was right */
+  all: DecisionRate;
+  /** Only the answers that act (or flag): what a threshold is read from */
+  acting: DecisionRate;
+}
+
+/**
+ * What a point has proved over a window (docs/plans/decision-engine-v2.md, M6). Precision, baseline
+ * and calibration read only `direct` outcomes (a person's word counts as direct); a point whose
+ * answers say nothing about acting (a ranking, a model per task) has null precisions.
+ */
+export interface DecisionPointEvidence {
+  point: DecisionPointId;
+  /** Rows the provider answered in the window */
+  answered: number;
+  resolvedDirect: number;
+  resolvedProxy: number;
+  unresolved: number;
+  /** Precision of the answer that acts (act points) or flags (suggest points) */
+  precision: DecisionRate;
+  /** The same for the code rule, over rows that carry a baseline and a `direct` outcome */
+  baselinePrecision: DecisionRate;
+  /** The answer against the code rule, row by row */
+  baseline: DecisionBaselineComparison;
+  /** Confidence in buckets against observed accuracy; rows without a confidence (the CLI) are left out */
+  calibration: DecisionCalibrationBucket[];
+  /** How often an answered row acts (or flags) */
+  actRate: DecisionRate;
 }
 
 export interface DecisionStats {
@@ -10457,7 +10560,51 @@ export interface DecisionStats {
   since: string;
   points: DecisionPointStats[];
   jevCostUsd: number;
+  runsSaved: number;
+  runsCaused: number;
+  /** `runsSaved - runsCaused` */
+  netRuns: number;
+  /** @deprecated The same as `runsSaved`; kept for one release while the web moves to the net */
   claudeRunsSaved: number;
+}
+
+/**
+ * The effect of one continuation of a worker's turn, recorded when the continued turn ends
+ * (docs/plans/decision-engine-v2.md, M3). `n` counts continuations of the run from 1; `cause` is what
+ * sent it back: the decision's own reading, the phrase list, or a structural item (a delegate, no
+ * structured result). `changed` is true when the turn committed, edited or delegated anything.
+ */
+export interface ContinuationEffect {
+  n: number;
+  cause: 'decision' | 'phrase' | 'structural';
+  changed: boolean;
+  commits: number;
+  edits: number;
+}
+
+/** Where a golden-set label came from: a `direct` outcome, or a person */
+export type DecisionLabelSource = 'outcome' | 'person';
+
+/**
+ * One row of the golden set (docs/plans/decision-engine-v2.md, M5): a stored state and its questions
+ * with the truth about it, kept past `historyDays` so a reworded question or another provider can be
+ * replayed against it.
+ */
+export interface DecisionLabel {
+  id: string;
+  point: DecisionPointId;
+  /** The history row it was taken from; null for a label written without one, or once that row is pruned */
+  decisionId: string | null;
+  state: Record<string, unknown>;
+  questions: DecisionQuestion[];
+  /** True when the answer that acts (or flags) was the right one for this state */
+  positive: boolean;
+  /** Per question, the right answer when the source says more than `positive`; null otherwise */
+  answers: Record<string, string | boolean> | null;
+  source: DecisionLabelSource;
+  /** Why, in a line: the outcome's summary or the person's note */
+  note: string | null;
+  at: string;
 }
 
 /** The state a point would send, or sent last, and where it would go */

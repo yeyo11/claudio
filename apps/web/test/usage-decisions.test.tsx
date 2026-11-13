@@ -22,8 +22,25 @@ const stat = (count: number): DecisionPointStats => ({
   notUseful: 0,
   costUsd: 0,
   runsSaved: 0,
+  runsCaused: 0,
+  netRuns: 0,
+  resolvedDirect: 0,
+  resolvedProxy: 0,
+  baseline: { rows: 0, differs: 0, decisionRight: 0, baselineRight: 0, unresolved: 0 },
+  evidence: {
+    point: 'board.triage',
+    answered: 0,
+    resolvedDirect: 0,
+    resolvedProxy: 0,
+    unresolved: 0,
+    precision: { n: 0, hits: 0, value: null, lower90: null },
+    baselinePrecision: { n: 0, hits: 0, value: null, lower90: null },
+    baseline: { rows: 0, differs: 0, decisionRight: 0, baselineRight: 0, unresolved: 0 },
+    calibration: [],
+    actRate: { n: 0, hits: 0, value: null, lower90: null },
+  },
 });
-const stats = (count: number, over: Partial<DecisionStats> = {}): DecisionStats => ({ since: '2026-09-01T00:00:00.000Z', points: [stat(count)], jevCostUsd: 0.38, claudeRunsSaved: 37, ...over });
+const stats = (count: number, over: Partial<DecisionStats> = {}): DecisionStats => ({ since: '2026-09-01T00:00:00.000Z', points: [stat(count)], jevCostUsd: 0.38, runsSaved: 37, runsCaused: 0, netRuns: 37, claudeRunsSaved: 37, ...over });
 const render = (value: DecisionStats) =>
   renderToStaticMarkup(
     <MemoryRouter>
