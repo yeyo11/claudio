@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-13T21:00:00Z
 tags:
     - plan
     - study
@@ -395,6 +395,23 @@ Each task owns its files; a task that needs another's file depends on it. Models
   - what happened to the deleted chats of C4–C6;
   - why C2's wait named 16:20;
   - what `-p` does at the credits cap, and whether `autoContinueAtUsageLimit` reaches `-p` (S2, S3).
+
+## The owner's decisions (2026-11-13)
+
+Taken the day the study was written, each the recommended option unless said otherwise.
+
+- **What "credits" means.** The owner means the usage credits of a Claude account (promotional ones spent before purchased ones), as this study does. He confirmed that none of his three accounts shows available credits today, which agrees with what the CLI reports, so the readings are taken as reliable for whether an account has credits to spend. The CLI still gives no balance.
+- **D1.** A person's chat waits and resumes by itself.
+- **D2.** A wait for a known reset holds however far away the reset is.
+- **D3.** Credits: never by default. An account's credits are spent only where the person switched that on for the account.
+- **D4.** Under "never", a turn that crosses into credits is stopped at once, and the chat waits or moves to another account.
+- **D5.** A credits cap inside Claudio.
+- **D6.** Housekeeping chats end at a limit; they are not replayed.
+- **D7.** Graph steps that are not tasks wait like tasks.
+- **Spikes.** S3 (whether the CLI's own continuation at a usage limit applies to the mode Claudio runs it in) is authorised. S2 (a paid turn on credits) is not, for now.
+- **Order.** The first task of this plan and the first task of [account-configuration-and-project-rules.md](account-configuration-and-project-rules.md) are built at the same time, after the decision engine's pull request; the rest follows in each plan's order.
+- **Also in this batch of work:** each subagent's card in a chat shows the model it runs on and its reasoning effort (the owner's request of the same day; a small change of the web through the design system).
+- The plan stays on its branch until it is built; it travels with the pull request that implements it.
 
 ## Related
 
