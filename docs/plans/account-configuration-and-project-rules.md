@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-13T21:00:00Z
+updated_at: 2026-11-13T23:30:00Z
 tags:
     - plan
     - study
@@ -12,8 +12,10 @@ tags:
 ---
 # Plan: account configuration (shared or independent) and project rules
 
-Status: **proposed** (2026-11-13). A study: nothing here is built. It holds the evidence, the
-options, a recommended end state and the decisions the owner must take before anything is built.
+Status: **T0b and T1 are built** on branch `fix/account-links-reconcile` (2026-11-13); the rest is
+proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
+options, a recommended end state and the decisions the owner took (the last section). See
+[Outcome](#outcome).
 
 Every claim below is marked **[V]** when it was verified on this machine (read-only on the owner's
 dirs, or by a spike in a scratch `CLAUDE_CONFIG_DIR` under `/tmp`), **[D]** when it comes from the
@@ -566,6 +568,47 @@ touch the same file are sequential (stated in "Depends on").
 
 Nothing is launched by this plan.
 
+## Outcome
+
+Built on `fix/account-links-reconcile`: T0b, then T1.
+
+**T0b** ([reports/test-writes-real-dirs.md](../reports/test-writes-real-dirs.md)). The cause was
+`envFor`: the default account kept the base environment's `CLAUDE_CONFIG_DIR` even when it named
+another account's dir, which a test run from a chat on a non-default account inherits
+(`apps/api/test/accounts.test.ts` signs the default account in with the accounts fake). Fixed in
+`envFor` (the default keeps the variable only when it names its own dir), in the test preload
+(`scripts/test-tmp-preload.mjs` drops `CLAUDE_CONFIG_DIR`, `CLAUDIO_DATA_DIR` and
+`CLAUDIO_WORKSPACE_DIR` when they point outside the run's tmp) and guarded by
+`packages/accounts/test/test-isolation.test.ts`.
+
+**T1.**
+- `reconcileAccountDir` (`packages/accounts/src/dirs.ts`): a plan from `lstat` calls, an apply that
+  only makes links. Lists: configuration `settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`,
+  `commands`, `skills`, `rules`, `output-styles`, `workflows`, `themes`, `hooks`; history `projects`,
+  `agent-memory`, `file-history`, `tasks`, `plans`. Hand-made links (absolute or relative) are
+  adopted and recorded in `links`; a real file or dir or a link elsewhere is a conflict, logged once
+  and left.
+- Called from the store's constructor (every account), `add`, and `ref()` (the seam every launcher
+  uses before a spawn, so `chats.ts` is untouched).
+- `writeAtomic` writes through links in `packages/accounts/src/fs.ts` and
+  `packages/core/src/config/files.ts` (shared helper `throughLinks`).
+- Orphan dirs are logged at start-up and left; `AccountStore.orphans()` lists them.
+- `docs/accounts.md` corrected.
+
+**Differs from the plan.**
+- No moves yet: the plan's "empty or byte-identical real item moves to `.claudio-own/`" belongs to
+  the mode switch (T4); T1 reports every non-link as a conflict, as the task asked.
+- The default dir gets no new empty directories: only `projects/` is created when missing (as
+  before), so a history dir that the account's CLI creates before the default one has it is a
+  conflict that stays reported (open below).
+- `ref()` does the before-spawn pass, with no throttle, and records new links with a fire-and-forget
+  save.
+
+**Stays open.** The owner's two accounts have a real `agent-memory/` (and `plugins/`): `agent-memory`
+is now a reported conflict until T4's "use shared" moves it aside. The race above for history dirs.
+`HOME` is not redirected in tests. The two stray fixture files in the owner's dirs and the orphan
+`acc-79ffec12` are left for the owner.
+
 ## The owner's decisions (2026-11-13)
 
 Taken the day the study was written. Every decision of the table in section 11 is the recommended option:
@@ -579,4 +622,4 @@ Taken the day the study was written. Every decision of the table in section 11 i
 [[accounts.md]] · [[providers.md]] · [[cli-surfaces.md]] · [[plans/claude-only-fork.md]] ·
 [[reports/accounts-a0.md]] · [[pinned-chat-rotation.md]] · [[plans/chat-account-switch.md]] ·
 [[plans/models-per-account.md]] · [[plans/process-isolation.md]] · [[rest-api.md]] ·
-[[configuration.md]] · [[orchestrations.md]] · [[team-and-flow.md]] · [[guards.md]]
+[[reports/test-writes-real-dirs.md]] · [[configuration.md]] · [[orchestrations.md]] · [[team-and-flow.md]] · [[guards.md]]
