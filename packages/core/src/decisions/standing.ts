@@ -129,6 +129,15 @@ export function holdoutShare(actsInWindow: number): number {
   return actsInWindow < 100 ? 0.1 : 0.05;
 }
 
+/**
+ * The Supervisor's mode is two things at once: whether it may act on its own hints, which its owner
+ * bounds by listing signal kinds (`supervisor.autoSignals`, empty by default), and whether its question
+ * to the engine may decline a hint, which the run-time gate holds to standing like any act point. A
+ * settings write only sets the first, and under the CLI the point asks the engine nothing, so it could
+ * never earn evidence: refusing the write would leave the Supervisor with no way to be switched on.
+ */
+const WRITE_EXEMPT: ReadonlySet<DecisionPointId> = new Set<DecisionPointId>(['supervisor.intervene']);
+
 export interface ActivationVerdict {
   /** Set when the write must be refused, with the points that make it so */
   refusal: { code: 'decision-unproven' | 'decision-bulk-activation'; points: DecisionActivationIssue[] } | null;
@@ -162,7 +171,7 @@ export function judgeActivation(changes: readonly ActivationChange[]): Activatio
     replay: c.standing.replay,
     gate: c.standing.gate,
   });
-  const unproven = newly.filter((c) => c.standing.standing !== 'proven');
+  const unproven = newly.filter((c) => c.standing.standing !== 'proven' && !WRITE_EXEMPT.has(c.def.id));
   if (unproven.length > 1) return { refusal: { code: 'decision-bulk-activation', points: unproven.map(issue) }, warnings: [], activated: [] };
   const refused = unproven.filter((c) => gateEnforced(c.def));
   if (refused.length > 0) return { refusal: { code: 'decision-unproven', points: refused.map(issue) }, warnings: [], activated: [] };

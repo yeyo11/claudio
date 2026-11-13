@@ -592,6 +592,10 @@ test('the activation rules, read alone', () => {
   assert.equal(judgeActivation([change('flow.bounce', 'unproven', 'active'), change('checks.fix', 'failing', 'active')]).refusal, null, 'already active is not an activation');
   assert.equal(judgeActivation([change('flow.bounce', 'proven'), change('memory.triage', 'unproven')]).warnings.length, 1);
   assert.equal(judgeActivation([change('flow.bounce', 'failing')]).refusal?.code, 'decision-unproven');
+  // The Supervisor's Active is its owner's switch (bounded by autoSignals), and under the CLI it can earn no evidence
+  const supervisor = judgeActivation([change('supervisor.intervene', 'unproven')]);
+  assert.equal(supervisor.refusal, null, 'the Supervisor may be switched to active without standing');
+  assert.deepEqual(supervisor.warnings, []);
 });
 
 // ---------- what is told, and in which words ----------
