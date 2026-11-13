@@ -7,6 +7,7 @@ import { ChatManager } from '../src/chats.ts';
 import { Core } from '../src/index.ts';
 import { Db } from '../src/db.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
+import { RunSlotRefusal } from '../src/chat-errors.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { defaultProvidersSettings, defaultRotationSettings } from '../src/providers/settings.ts';
 import { ProviderRotation, effectiveOnLimit, openWaitOf, type WaitEnd } from '../src/rotation.ts';
@@ -25,6 +26,8 @@ interface Options {
   evalSample?: boolean;
   /** Goes on with the chat's work instead of its last turn, as a workflow's lead does */
   replay?: (chatId: string, account?: string) => Promise<boolean> | null;
+  pollMs?: number;
+  claimMs?: number;
 }
 
 function settingsOf(): ProvidersSettings {
@@ -53,8 +56,9 @@ function rig(o: Options = {}) {
     ...(o.replay ? { replay: o.replay } : {}),
     ended: (m, end, reason) => ended.push({ move: m, end, reason }),
     now: () => Date.now() + offset,
-    pollMs: 20,
+    pollMs: o.pollMs ?? 20,
     slackMs: 0,
+    ...(o.claimMs ? { claimMs: o.claimMs } : {}),
   });
   rotation.start();
   const limited = async (extra: Partial<Parameters<ChatManager['start']>[0]> = {}) => {
@@ -263,6 +267,12 @@ test('a wait survives a restart: the chat is restored and its turn goes on', asy
   }
 });
 
+/** The wait a person's chat opens by itself at a limit (the Core has an account store): these tests insert a due row of their own instead */
+const dropOpenWait = async (core: Core, chatId: string): Promise<void> => {
+  await waitFor(() => core.db.providerMoves({ chatId }).some((m) => m.state === 'waiting'));
+  for (const m of core.db.providerMoves({ chatId })) if (m.state === 'waiting') core.rotation.cancel(m.id);
+};
+
 test('two Cores on one data directory replay a wait once', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
   const one = new Core(config);
@@ -270,7 +280,7 @@ test('two Cores on one data directory replay a wait once', async () => {
   try {
     const chat = one.runtime.start({ prompt: 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false });
     await one.runtime.exited(chat.id);
-    await new Promise((r) => setTimeout(r, 30));
+    await dropOpenWait(one, chat.id);
     // The second process boots on the same data directory and restores the same chat from its transcript
     two = new Core(config);
     const second = two;
@@ -301,6 +311,7 @@ test('a wait replayed by a process that restored the chat ends the process after
   try {
     const chat = one.runtime.start({ prompt: 'FAKE-LIMIT-ONCE', name: 'limited', keepAlive: false });
     await one.runtime.exited(chat.id);
+    await dropOpenWait(one, chat.id);
     two = new Core(config);
     const second = two;
     await waitFor(() => second.runtime.get(chat.id) !== undefined);
@@ -414,4 +425,168 @@ test('the effective setting is the project override on the global one', () => {
   assert.equal(effectiveOnLimit(settings, null).action, 'wait');
   assert.equal(effectiveOnLimit(settings, { onLimit: { maxWaitHours: 12 } }).maxWaitHours, 12);
   assert.equal(effectiveOnLimit({}, null).action, 'wait', 'a file written before rotation reads as the defaults');
+});
+
+// ---------- the waits that stranded work (docs/plans/limit-resume-and-credits.md, t1) ----------
+
+const HOUR = 3_600_000;
+
+test('a wait for a weekly reset days away arms one timer per poll, however long it has waited', async () => {
+  const { db, limited, rotation, skip, close } = rig({ pollMs: 50 });
+  try {
+    const id = await limited();
+    // The cap on unknown resets passed long ago; the reset itself is three days off
+    skip(7 * HOUR);
+    const row = pastMove(id, 'claude-code', new Date(Date.now() + 7 * HOUR + 72 * HOUR).toISOString());
+    assert.equal(db.insertProviderMove(row), true);
+    const reads = { n: 0 };
+    const read = db.providerMove.bind(db);
+    db.providerMove = (moveId: string) => (reads.n++, read(moveId));
+    rotation.recover();
+    await new Promise((r) => setTimeout(r, 400));
+    // A timer at 0 ms would read the row hundreds of times in this window
+    assert.ok(reads.n <= 12, `the wait looked ${String(reads.n)} times in 400 ms`);
+    assert.equal(db.providerMove(row.id)?.state, 'waiting', 'a known reset is waited for, not given up on');
+  } finally {
+    close();
+  }
+});
+
+test('a wait whose resume is refused for a full runtime looks again and goes on', async () => {
+  const { chats, db, ended, limited, rotation, close } = rig({ claimMs: 150 });
+  try {
+    const id = await limited();
+    const replay = chats.replayLastTurn.bind(chats);
+    let refusals = 0;
+    chats.replayLastTurn = (chatId: string, account?: string) => {
+      if (refusals++ === 0) throw new RunSlotRefusal(8);
+      return replay(chatId, account);
+    };
+    const row = pastMove(id, 'claude-code');
+    assert.equal(db.insertProviderMove(row), true);
+    rotation.recover();
+    await waitFor(() => refusals >= 1);
+    await new Promise((r) => setTimeout(r, 30));
+    assert.notEqual(db.providerMove(row.id)?.state, 'failed', 'a full runtime is no reason to end the wait');
+    assert.equal(ended.length, 0);
+    assert.equal(rotation.holds(id), true);
+    await waitFor(() => db.providerMove(row.id)?.state === 'resumed');
+    assert.ok(refusals >= 2, 'it tried again');
+    assert.deepEqual(ended.map((e) => e.end), ['resumed']);
+  } finally {
+    close();
+  }
+});
+
+test('a wait whose resume is refused for longer than maxWaitHours ends failed with the refusal', async () => {
+  const { chats, db, ended, limited, rotation, skip, close } = rig({ claimMs: 100 });
+  try {
+    const id = await limited();
+    chats.replayLastTurn = () => {
+      throw new RunSlotRefusal(8);
+    };
+    const row = pastMove(id, 'claude-code');
+    assert.equal(db.insertProviderMove(row), true);
+    rotation.recover();
+    await waitFor(() => db.providerMove(row.id)?.state === 'resuming');
+    skip(7 * HOUR);
+    await waitFor(() => db.providerMove(row.id)?.state === 'failed');
+    assert.match(db.providerMove(row.id)?.reason ?? '', /Concurrent run limit reached/);
+    assert.deepEqual(ended.map((e) => e.end), ['failed']);
+  } finally {
+    close();
+  }
+});
+
+test('a wait whose chat no process has any more is closed failed, and a later wait for that chat can open', async () => {
+  const { db, ended, rotation, close } = rig();
+  try {
+    const row = pastMove('chat-deleted', 'claude-code');
+    assert.equal(db.insertProviderMove(row), true);
+    rotation.recover();
+    assert.equal(db.providerMove(row.id)?.state, 'failed');
+    assert.equal(db.providerMove(row.id)?.reason, 'its chat is gone');
+    assert.deepEqual(ended.map((e) => e.end), ['failed']);
+    assert.equal(db.insertProviderMove(pastMove('chat-deleted', 'claude-code')), true, 'the unique index no longer refuses it');
+  } finally {
+    close();
+  }
+});
+
+test("a wait whose chat another process holds is left open for that process", async () => {
+  const first = rig();
+  let id = '';
+  try {
+    id = await first.limited();
+  } finally {
+    first.rotation.close();
+    first.chats.stopAll();
+  }
+  // A second process on the same data directory that has not restored the chat
+  const db = new Db(first.config);
+  const chats = new ChatManager(first.config, db, [new ClaudeCodeDriver(FAKE_CLAUDE)]);
+  const settings = settingsOf();
+  const rotation = new ProviderRotation({ db, runtime: chats, settings: () => settings, projectProviders: () => null, projectOf: () => null, emit: () => undefined, pollMs: 20, slackMs: 0 });
+  try {
+    const row = pastMove(id, 'claude-code', new Date(Date.now() + HOUR).toISOString());
+    assert.equal(db.insertProviderMove(row), true);
+    rotation.recover();
+    assert.equal(db.providerMove(row.id)?.state, 'waiting');
+  } finally {
+    rotation.close();
+    chats.stopAll();
+    db.close();
+    first.db.close();
+  }
+});
+
+test("a person's wait ends when they send a message, and the turn that died is not replayed over it", async () => {
+  const { chats, db, ended, limited, rotation, close } = rig();
+  try {
+    const id = await limited();
+    const wait = rotation.waitFor(id);
+    assert.ok(wait);
+    chats.send(id, 'actually, do this instead');
+    await waitFor(() => db.providerMove(wait.id)?.state === 'cancelled');
+    assert.equal(db.providerMove(wait.id)?.reason, 'a person took over the chat');
+    assert.deepEqual(ended.map((e) => e.end), ['cancelled']);
+    await chats.exited(id);
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(chats.get(id)?.executions.length, 2, 'the limited turn and the person\'s own, nothing replayed');
+    assert.equal(rotation.holds(id), false);
+  } finally {
+    close();
+  }
+});
+
+test('a wait of automated work is not ended by a message: the person did not take over a task', async () => {
+  const { chats, db, limited, rotation, close } = rig({ work });
+  try {
+    const id = await limited();
+    await waitFor(() => rotation.waitOf(id) !== null);
+    const wait = db.providerMoves({ chatId: id })[0];
+    chats.send(id, 'a note');
+    await chats.exited(id);
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(db.providerMove(wait?.id ?? '')?.state, 'waiting');
+  } finally {
+    close();
+  }
+});
+
+test('closing the rotation clears its timers and settles what they started', async () => {
+  const { db, limited, rotation, close } = rig({ pollMs: 10 });
+  try {
+    const id = await limited();
+    const wait = rotation.waitFor(id);
+    assert.ok(wait);
+    await rotation.close();
+    const reads = { n: 0 };
+    const read = db.providerMove.bind(db);
+    db.providerMove = (moveId: string) => (reads.n++, read(moveId));
+    await new Promise((r) => setTimeout(r, 100));
+    assert.equal(reads.n, 0, 'no timer looks at a wait after close');
+  } finally {
+    close();
+  }
 });

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-07T00:00:00Z
+updated_at: 2026-11-14T09:00:00Z
 tags:
     - accounts
     - rotation
@@ -245,7 +245,13 @@ tell a refused credential from an unreachable network. The four raw answers are 
   default); automated work always does. With no account left, the work waits for a reset: the
   earliest among the accounts that can run the turn (`chooseNext(...).waitUntil`), else the reset
   the turn's own account or refusal gave. An account that cannot run the model the chat asked for
-  does not shorten the wait.
+  does not shorten the wait. A person's chat and a schedule's chat wait like automated work when
+  `rotateOnLimit` is on, and go on by themselves; with it off they keep the banner. A person's
+  wait ends when they write to the chat. A wait for a known reset holds however far away it is;
+  `maxWaitHours` bounds only a wait with no reset. A housekeeping (`internal`) chat is never moved,
+  replayed or waited: it runs with no persisted session, so it ends at a limit and its owner runs
+  it again. A resume the runtime refuses for run slots or memory keeps the wait and tries again
+  when the claim lapses (2 min). A wait whose chat no process has any more is closed `failed`.
 - **The replay count** (`MAX_LIMIT_REPLAYS`, one per execution) counts replays that landed on no new
   account, between two turns that went through. A turn that completes without error resets it, and a
   move to another account is never counted nor held back by it: `chooseNext` passes over every

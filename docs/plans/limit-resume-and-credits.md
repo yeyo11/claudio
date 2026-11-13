@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-13T21:00:00Z
+updated_at: 2026-11-14T09:00:00Z
 tags:
     - plan
     - study
@@ -12,7 +12,7 @@ tags:
 ---
 # Study: work that does not resume after a usage limit, and the credits Claudio ignores
 
-Status: **proposed**
+Status: **proposed**; `t1` is built on `fix/chat-waits-at-limit` (see [Outcome](#outcome)). Was: **proposed** for every task.
 
 On 2026-11-13 the owner reported two problems:
 
@@ -395,6 +395,28 @@ Each task owns its files; a task that needs another's file depends on it. Models
   - what happened to the deleted chats of C4–C6;
   - why C2's wait named 16:20;
   - what `-p` does at the credits cap, and whether `autoContinueAtUsageLimit` reaches `-p` (S2, S3).
+
+## Outcome
+
+### t1, stop the bleeding (branch `fix/chat-waits-at-limit`)
+
+Built in `packages/core/src/rotation.ts`; tests in `packages/core/test/rotation.test.ts` and `rotation-person-wait.test.ts`.
+
+- **Cause 1, D1.** With `rotateOnLimit` on and no account with room, a person's chat and a schedule's chat open a wait (`decidedBy: 'setting'`) like automated work, and the rotation resumes it. With `rotateOnLimit` off the banner stays, as today.
+- **Cause 3.** A resume refused for run slots, memory or a queue yield (`isTransientRefusal`) keeps the wait. The claim it took is the back-off (`claimMs`, 2 min): the wait looks again when the claim lapses. It ends `failed` only after the refusals last `maxWaitHours`. A person's Run now gets the refusal back as the error, and the wait stays.
+- **Cause 6, D2.** `maxWaitHours` bounds a wait with no known reset, and a refused resume. A known reset gets a normal timer, at most one poll away.
+- **Cause 7, D6.** An `internal` chat is announced (`run.rateLimited`) and never moved, replayed or waited, whether or not it has work.
+- **Cause 8, second part.** `recover()` and `resume()` close a row whose chat is not stored by any process as `failed` ("its chat is gone"), through `storedChats`. A chat another process has stored but this one has not restored is left to that process.
+- **A person took over.** A person's wait ends `cancelled` when the chat has run a turn or started working since the wait began (checked at every look, and before every replay). The next limit of that chat opens a fresh wait.
+- **Shutdown.** `close()` returns a promise that settles when what the timers started has; `Core.shutdown` awaits it with the other closers (one line in `index.ts`).
+
+What differs from the plan:
+
+- A `/v1` client's chat (`origin: 'api'`) opens no wait; it is still moved when an account has room. t4 settles it.
+- "A person took over" is found by looking (the chat's executions and turns, the poll and every account change), not by an event on `send`: `chats.ts` is not this task's. A wait can outlive a person's message by up to one poll, and never causes a replay over it.
+- After a refused resume the runtime has cleared the chat's limit flags (`replayLastTurn` does it before it sends), so the banner is gone while the wait row stays; the retry sends the nudge, because that replay already counted. Moving the clearing after admission is `t2`'s file.
+
+Still open: a restart (`t2`, `t8`), a `resuming` row whose claim is live at a restart (`t8`), a wait with no known reset and no reading (cause 5, `t8`).
 
 ## The owner's decisions (2026-11-13)
 

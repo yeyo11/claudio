@@ -4055,7 +4055,7 @@ export class Core {
     if (this.accountsChangedTimer) clearTimeout(this.accountsChangedTimer);
     this.stopGuardSweep?.();
     this.sampler?.stop();
-    this.rotation.close();
+    const rotation = this.rotation.close();
     this.retention?.stop();
     const terminals = this.terminals.shutdown();
     const collaborators = this.collaborators.dispose();
@@ -4065,7 +4065,7 @@ export class Core {
     // final execution), so the database waits for them; one that hangs does not hold the exit for ever
     let timer: NodeJS.Timeout | undefined;
     await Promise.race([
-      Promise.allSettled([evals, terminals, collaborators, chats, tunnel, lan, servers]),
+      Promise.allSettled([evals, rotation, terminals, collaborators, chats, tunnel, lan, servers]),
       new Promise<void>((resolve) => {
         timer = setTimeout(resolve, SHUTDOWN_GRACE_MS);
         timer.unref();

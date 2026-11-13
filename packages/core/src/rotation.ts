@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { ChatNotFoundError } from './chat-errors.ts';
+import { ChatNotFoundError, isTransientRefusal } from './chat-errors.ts';
 import type { LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import type { ChatManager, ChatRuntime } from './chats.ts';
@@ -21,14 +21,23 @@ import { LIMIT_CONTINUE_TEXT, errorMessage } from '@claudio/shared';
  *   it as the limit is read), the next one is chosen, and the turn is replayed in the same chat,
  *   resumed on it. Automated work always does; a person's chat does when `rotateOnLimit` is on.
  *   A pinned chat moves only within its policy.
- * - With no account left, a person's chat is left alone: it gets a banner, and `waitFor` and
- *   `cancel` are what a click on it calls.
- * - Automated work then waits for the earliest reset on its own (plan decision 4 of
- *   docs/plans/claude-only-fork.md), and gives up after the effective `maxWaitHours` (the project's,
- *   else the global one) when no reset is known.
+ * - With no account left, a chat waits for the earliest reset on its own (plan decision 4 of
+ *   docs/plans/claude-only-fork.md; docs/plans/limit-resume-and-credits.md D1): automated work always,
+ *   and a person's or a schedule's chat when `rotateOnLimit` is on. With it off a person's chat is
+ *   left alone: it gets a banner, and `waitFor` and `cancel` are what a click on it calls.
+ * - A wait for a known reset holds however far away it is (D2). The effective `maxWaitHours` (the
+ *   project's, else the global one) bounds only a wait with no reset known, and a resume the runtime
+ *   keeps refusing for room.
+ * - A person's wait ends when the person takes the chat over: a turn started on it since the wait
+ *   began would otherwise be followed by the replay of the one that died.
+ * - A chat of housekeeping (`internal`) runs with no persisted session, so there is nothing to
+ *   resume: it ends at a limit and its owner runs it again (D6). A `/v1` client's chat is moved,
+ *   never held: its request was answered already.
  * - A wait is a row in `provider_moves`. A timer in the process that owns the chat claims it at the
  *   reset with a guarded update, so two processes on one data directory replay the turn once, and
- *   `recover()` re-arms the timers of a restarted process.
+ *   `recover()` re-arms the timers of a restarted process and closes the row of a chat that is gone.
+ * - A resume the runtime refuses for run slots or memory keeps its claim, which is the back-off: the
+ *   wait looks again when the claim lapses instead of ending failed.
  * - A wait is not tied to the reset it began with. Whenever an account's reading or state changes
  *   (`accountsChanged`), at the earliest reset any account now gives, and on every look, each open
  *   wait asks the accounts again (`roomFor`) and goes on with the first one that has room (R10).
@@ -45,6 +54,8 @@ const MAX_TIMER_MS = 2 ** 31 - 1;
 const HOUR_MS = 3_600_000;
 /** The reason a wait carries when it began on a sign-in failure: it ends when an account can take the turn, not at a reset */
 const AUTH_WAIT = 'sign-in expired';
+const CHAT_GONE = 'its chat is gone';
+const TOOK_OVER = 'a person took over the chat';
 
 export type WaitEnd = 'resumed' | 'failed' | 'cancelled';
 
@@ -62,7 +73,7 @@ export class RunNowRefusal extends Error {
 }
 
 export interface RotationDeps {
-  db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves' | 'appendRotationEvent'>;
+  db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves' | 'appendRotationEvent' | 'storedChats'>;
   runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'providers' | 'limitResetOf' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'roomFor' | 'warmModels' | 'accountOf' | 'rotatesOnLimit' | 'signInFailed'>;
   /** `providers.json`, as it stands now */
   settings: () => ProvidersSettings;
@@ -95,6 +106,8 @@ export interface RotationDeps {
   pollMs?: number;
   /** How long after a reset the turn is replayed; five seconds by default */
   slackMs?: number;
+  /** How long a claim holds a wait, which is also how long a resume the runtime refused for room waits to try again; two minutes by default */
+  claimMs?: number;
 }
 
 /** What the rotation settings say for one project: its overrides on the global block. */
@@ -113,6 +126,9 @@ export function openWaitOf(db: { providerMoves(filter: { chatId?: string; limit?
   return open ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id } : null;
 }
 
+/** How far a chat has got: the turns its executions ran, and whether one is running now */
+const progressOf = (run: ChatRuntime): { turns: number; busy: boolean } => ({ turns: run.executions.length + run.turns, busy: run.status === 'busy' });
+
 export class ProviderRotation {
   /** Move id → its timer */
   private readonly timers = new Map<string, NodeJS.Timeout>();
@@ -125,6 +141,7 @@ export class ProviderRotation {
   private readonly now: () => number;
   private readonly pollMs: number;
   private readonly slackMs: number;
+  private readonly claimMs: number;
   private readonly listener = (run: ChatRuntime, limitResetsAt: string | null): void => {
     void this.onLimitHit(run, limitResetsAt);
   };
@@ -132,29 +149,51 @@ export class ProviderRotation {
   private unsubscribe: (() => void) | null = null;
   /** A look at every wait is queued for the next turn of the loop: a burst of readings costs one */
   private recheckQueued = false;
+  /** What a timer or a reading started and has not finished: shutdown waits for it, so no replay begins on a chat that is being stopped */
+  private readonly inflight = new Set<Promise<void>>();
+  private closing = false;
+  /** A resume the runtime refused for room: when it first was, and when the claim that keeps the row lapses and it may be tried again */
+  private readonly refused = new Map<string, { since: number; until: number }>();
+  /** The chat's progress when its wait began: a person's wait ends when the chat moves past it */
+  private readonly progress = new Map<string, { turns: number; busy: boolean }>();
 
   constructor(private readonly deps: RotationDeps) {
     this.now = deps.now ?? Date.now;
     this.pollMs = deps.pollMs ?? POLL_MS;
     this.slackMs = deps.slackMs ?? RESET_SLACK_MS;
+    this.claimMs = deps.claimMs ?? CLAIM_MS;
   }
 
   /** Starts listening for `limit-hit`. */
   start(): void {
     if (this.started) return;
     this.started = true;
+    this.closing = false;
     this.deps.runtime.on('limit-hit', this.listener);
     this.unsubscribe = this.deps.accountsChanged?.(() => this.recheckSoon()) ?? null;
   }
 
-  close(): void {
+  /**
+   * Stops listening and clears every timer at once; the promise settles when what they had started
+   * has, so a shutdown does not close the database under a replay.
+   */
+  close(): Promise<void> {
     if (this.started) this.deps.runtime.off('limit-hit', this.listener);
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.started = false;
+    this.closing = true;
     for (const timer of this.timers.values()) clearTimeout(timer);
     this.timers.clear();
     this.waits.clear();
+    this.refused.clear();
+    this.progress.clear();
+    return Promise.allSettled([...this.inflight]).then(() => undefined);
+  }
+
+  private track(work: Promise<void>): void {
+    this.inflight.add(work);
+    void work.finally(() => this.inflight.delete(work));
   }
 
   /**
@@ -176,8 +215,8 @@ export class ProviderRotation {
 
   /** A person's chat is not automated work: it asks (P4-2). The decision engine's own chats never move. */
   private isAutomated(run: ChatRuntime, work: ChatWork | null): boolean {
-    if (work) return true;
     if (run.origin === 'internal') return false;
+    if (work) return true;
     if (run.orchestrationId) return true;
     return this.deps.runtime.heldToSchema(run.id);
   }
@@ -190,6 +229,9 @@ export class ProviderRotation {
     if (!auth) this.deps.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run), provider, resetsAt: limitResetsAt });
     // A sample is run again from scratch on whichever account has room: replaying it would mix two accounts' behaviour
     if (this.deps.evalSample?.(run.id)) return;
+    // Housekeeping runs with no persisted session, so its `--resume` always fails (case C7 of
+    // docs/plans/limit-resume-and-credits.md): it ends here, and whoever started it runs it again
+    if (run.origin === 'internal') return;
     const work = this.deps.work?.(run.id) ?? null;
     const automated = this.isAutomated(run, work);
     // A person's chat moves to another account only when they asked for it; otherwise it has its banner
@@ -197,8 +239,14 @@ export class ProviderRotation {
       if (auth) this.deps.runtime.notice(run.id, 'The sign-in of the chat\'s account expired; sign in to it again, or move the chat to another account.');
       return;
     }
+    // With rotation on, a person's or a schedule's chat waits like automated work. An API client's
+    // request was answered with its 429 already: a wait would spend a turn for nobody (t4 settles it)
+    const waits = automated || run.origin !== 'api';
     this.handling.add(run.id);
     try {
+      // A person who wrote to the chat since its last wait took it over: that wait is over, and the
+      // limit this turn hit is a new one. The unique open row would refuse its wait otherwise
+      this.releaseIfTakenOver(run.id);
       // A run held to a schema that nobody waits for already handed its result over: replaying the
       // turn would spend for nobody. The flow registers its wait just after the limit is announced.
       if (automated && !work && (run.orchestrationId || this.deps.runtime.heldToSchema(run.id))) {
@@ -209,7 +257,7 @@ export class ProviderRotation {
         }
       }
       const moved = await this.moveToAccount(run, auth);
-      if (moved.moved || !automated) return;
+      if (moved.moved || !waits) return;
       // The accounts know when the first of them that can take the turn is back (`chooseNext`); else
       // the reset the account the turn died on gave (`limitResetOf`: that account's reading, or the refusal),
       // which may have passed by now: the wait then goes on at once
@@ -220,7 +268,7 @@ export class ProviderRotation {
       this.deps.runtime.notice(run.id, `Handling the ${auth ? 'sign-in failure' : 'usage limit'} failed: ${why}`);
       // Flows and tasks keep the run open while the rotation holds it: with neither a move nor a
       // wait behind it, nothing would ever end it. Waiting is all there is to fall back to.
-      if (automated && !this.waits.has(run.id)) {
+      if (waits && !this.waits.has(run.id)) {
         try {
           this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : `handling the limit failed: ${why}`, resetsAt: limitResetsAt, projectId: null });
         } catch {
@@ -310,6 +358,7 @@ export class ProviderRotation {
     };
     if (!this.deps.db.insertProviderMove(move)) return null;
     this.waits.set(run.id, move.id);
+    this.progress.set(move.id, progressOf(run));
     this.arm(move);
     const label = this.deps.runtime.providers.list().find((m) => m.id === provider)?.label ?? provider;
     this.deps.runtime.notice(
@@ -345,10 +394,14 @@ export class ProviderRotation {
     if (existing) clearTimeout(existing);
     const now = this.now();
     const reset = this.resetOf(move);
-    const cap = Date.parse(move.at) + this.maxWaitHours(move) * HOUR_MS;
-    const look = Math.min(now + this.pollMs, cap);
-    const due = reset ? Math.min(Date.parse(reset) + this.slackMs, look) : look;
-    const timer = setTimeout(() => void this.tick(move.id), Math.min(Math.max(0, due - now), MAX_TIMER_MS));
+    const look = now + this.pollMs;
+    // The cap bounds a wait that knows no reset. A known one holds however far off it is (D2): capping
+    // it made `due` fall behind `now` for good once the cap passed, and the timer fired at 0 ms in a loop
+    let due = reset ? Math.min(Date.parse(reset) + this.slackMs, look) : Math.min(look, Date.parse(move.at) + this.maxWaitHours(move) * HOUR_MS);
+    // A refused resume keeps its claim, which no other claim can take before it lapses
+    const hold = this.refused.get(move.id);
+    if (hold) due = Math.max(due, hold.until);
+    const timer = setTimeout(() => this.track(this.tick(move.id)), Math.min(Math.max(0, due - now), MAX_TIMER_MS));
     timer.unref();
     this.timers.set(move.id, timer);
   }
@@ -358,16 +411,20 @@ export class ProviderRotation {
     if (timer) clearTimeout(timer);
     this.timers.delete(move.id);
     this.learned.delete(move.id);
+    this.refused.delete(move.id);
+    this.progress.delete(move.id);
     if (this.waits.get(move.fromChat) === move.id) this.waits.delete(move.fromChat);
   }
 
   private async tick(id: string): Promise<void> {
+    if (this.closing) return;
     try {
       const row = this.deps.db.providerMove(id);
       if (!row || (row.state !== 'waiting' && row.state !== 'resuming')) {
         this.drop(row ?? { id, fromChat: '' });
         return;
       }
+      if (this.endIfTakenOver(row)) return;
       const now = this.now();
       // An account with room ends any wait, whatever reset it began with; a sign-in failure has no
       // other way to end
@@ -411,7 +468,7 @@ export class ProviderRotation {
     this.recheckQueued = true;
     setImmediate(() => {
       this.recheckQueued = false;
-      void this.recheck();
+      this.track(this.recheck());
     });
   }
 
@@ -420,7 +477,9 @@ export class ProviderRotation {
     for (const [chatId, id] of [...this.waits]) {
       try {
         const row = this.deps.db.providerMove(id);
+        if (this.closing) return;
         if (!row || (row.state !== 'waiting' && row.state !== 'resuming') || row.fromChat !== chatId) continue;
+        if (this.endIfTakenOver(row)) continue;
         if (!(await this.goOnIfRoom(row))) this.arm(row);
       } catch {
         // A closed database (shutting down) is not the wait's to report
@@ -460,13 +519,19 @@ export class ProviderRotation {
   private async resume(row: ProviderMove, account?: string, decidedBy: 'rotation' | 'person' = 'rotation'): Promise<boolean> {
     const run = this.deps.runtime.get(row.fromChat);
     if (!run) {
-      // Not this process's chat: whoever owns it arms its own timer
-      this.drop(row);
+      // A chat no process has any more can never be resumed, and its open row would refuse every
+      // later wait for it (the unique index). One another process holds is that process's to arm
+      if (!this.deps.db.storedChats([row.fromChat]).has(row.fromChat)) this.end(row, 'failed', CHAT_GONE);
+      else this.drop(row);
       return false;
     }
+    // The person decides for their own click; the rotation never replays a turn over one they started
+    if (decidedBy === 'rotation' && this.endIfTakenOver(row, run)) return false;
     const claimedAt = this.now();
-    if (!this.deps.db.claimProviderMove(row.id, new Date(claimedAt).toISOString(), new Date(claimedAt + CLAIM_MS).toISOString())) {
-      this.drop(row);
+    if (!this.deps.db.claimProviderMove(row.id, new Date(claimedAt).toISOString(), new Date(claimedAt + this.claimMs).toISOString())) {
+      // Our own refused claim has not lapsed yet: the wait is still ours and looks again then
+      if (this.refused.has(row.id)) this.arm(row);
+      else this.drop(row);
       return false;
     }
     const from = this.deps.runtime.accountOf(run.id);
@@ -486,6 +551,12 @@ export class ProviderRotation {
         }
       }
     } catch (error) {
+      // A full run table or a short memory clears within moments: the wait looks again instead of ending
+      // failed with the person's turn lost (case C8)
+      if (isTransientRefusal(error) && this.holdOff(row, run, error)) {
+        if (decidedBy === 'person') throw error;
+        return false;
+      }
       reason = `its turn could not be resumed: ${errorMessage(error)}`;
     }
     const moved = replayed && account && from && account !== from ? { from, to: account } : null;
@@ -497,6 +568,49 @@ export class ProviderRotation {
     if (moved) this.deps.emit({ type: 'run.accountRotated', title: `${run.name} moved from account ${moved.from} to ${moved.to}`, ...runRef(run), from: moved.from, to: moved.to, resumed: true });
     this.end(row, replayed ? 'resumed' : 'failed', replayed ? null : reason);
     return true;
+  }
+
+  /**
+   * Keeps a wait whose resume the runtime refused for room. The claim the resume took stays: it is
+   * the back-off, and no other process can take the row before it lapses. False once the refusals
+   * have lasted `maxWaitHours`, when the wait ends failed as before.
+   */
+  private holdOff(row: ProviderMove, run: ChatRuntime, error: Error): boolean {
+    const now = this.now();
+    const first = !this.refused.has(row.id);
+    const since = this.refused.get(row.id)?.since ?? now;
+    if (now - since >= this.maxWaitHours(row) * HOUR_MS) return false;
+    this.refused.set(row.id, { since, until: now + this.claimMs });
+    this.waits.set(row.fromChat, row.id);
+    this.arm(row);
+    if (first) this.deps.runtime.notice(run.id, `The usage limit reset, but Claudio cannot start the turn yet (${errorMessage(error)}); it looks again in ${String(Math.max(1, Math.round(this.claimMs / 60_000)))} min.`);
+    return true;
+  }
+
+  /** Whether a person took a person's chat over since its wait began: a turn started on it, or one is running. */
+  private tookOver(row: ProviderMove, run: ChatRuntime): boolean {
+    if (this.isAutomated(run, this.deps.work?.(run.id) ?? null)) return false;
+    const base = this.progress.get(row.id);
+    if (!base) {
+      // A wait this process did not begin (a restart): from here on is what counts
+      this.progress.set(row.id, progressOf(run));
+      return false;
+    }
+    const now = progressOf(run);
+    return now.turns > base.turns || (now.busy && !base.busy);
+  }
+
+  /** Ends the wait of a person's chat the person took over. True when it did. */
+  private endIfTakenOver(row: ProviderMove, run = this.deps.runtime.get(row.fromChat)): boolean {
+    if (!run || !this.tookOver(row, run)) return false;
+    this.end(row, 'cancelled', TOOK_OVER);
+    return true;
+  }
+
+  private releaseIfTakenOver(chatId: string): void {
+    const id = this.waits.get(chatId);
+    const row = id ? this.deps.db.providerMove(id) : null;
+    if (row && (row.state === 'waiting' || row.state === 'resuming')) this.endIfTakenOver(row);
   }
 
   private end(row: ProviderMove, end: WaitEnd, reason: string | null): boolean {
@@ -523,8 +637,15 @@ export class ProviderRotation {
   recover(): void {
     const nowIso = new Date(this.now()).toISOString();
     for (const row of this.deps.db.openProviderMoves(nowIso)) {
-      if (!this.deps.runtime.get(row.fromChat) || this.timers.has(row.id)) continue;
+      if (this.timers.has(row.id)) continue;
+      const run = this.deps.runtime.get(row.fromChat);
+      if (!run) {
+        // Another process on this data directory restores its own chats; a chat no process has left a row that blocks its waits for ever
+        if (!this.deps.db.storedChats([row.fromChat]).has(row.fromChat)) this.end(row, 'failed', CHAT_GONE);
+        continue;
+      }
       this.waits.set(row.fromChat, row.id);
+      this.progress.set(row.id, progressOf(run));
       this.arm(row);
     }
   }
