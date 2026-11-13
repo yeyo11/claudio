@@ -30,7 +30,8 @@ export const choiceOf = (value: string, confidence: number | null = 0.95): Decis
 
 export function decisionRig(db: Db, config: CoreConfig) {
   const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
-  const engine = new DecisionEngine({ settings, db, projectDecisions: () => null });
+  // The call sites are tested as their points behave once they may act: proven, and never held out
+  const engine = new DecisionEngine({ settings, db, projectDecisions: () => null, standing: () => 'proven', random: () => 1 });
   const provider = new ScriptedProvider('jev');
   engine.register(provider);
   /** Puts a point in a mode with the consent the engine needs before it asks anything */

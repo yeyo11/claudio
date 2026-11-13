@@ -10,10 +10,12 @@
 // environment, so the chat is stopped through the API, which also ends its run.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { seedProject } from './memory-seed.mjs';
+import { activate, earnStanding, forgetProof } from './decision-proof.mjs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 export const fakeCli = true;
-export const timeout = 240_000;
+// The replay that earns the promotion gate asks the CLI once per labelled case, and comes before the rest
+export const timeout = 420_000;
 
 const POINT = 'lesson.mine';
 const KEY = 'LESSON-E2E-INSTALL';
@@ -69,9 +71,10 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     pointBefore = settings.points?.[POINT] ?? null;
     const consent = await api.put(`/decisions/points/${POINT}/consent`, { granted: true, stateVersion: info.stateVersion, providers: ['cli'] });
     check(consent.status === 200, `consent was given (${consent.status} ${JSON.stringify(consent.body)})`);
-    const { jev, ...update } = (await api.get('/decisions/settings')).body;
-    const active = await api.put('/decisions/settings', { ...update, points: { ...update.points, [POINT]: { mode: 'active', threshold: info.defaultThreshold, consent: null } } });
-    check(active.status === 200, `${POINT} is active (${active.status} ${JSON.stringify(active.body)})`);
+    // lesson.mine starts a paid run, so it is gated: it acts only once its standing is proven, which a
+    // person gets from a replay over labelled states. Most cases hold, as a point under its flag-rate limit does.
+    await earnStanding({ api, check }, POINT, { field: 'signals', acting: { mine: true }, holding: { mine: false }, flagging: true, limit: 150_000 });
+    await activate({ api, check }, POINT, info.defaultThreshold);
 
     // ---- 2. a chat asks to run npm install and is denied with a reason ----
     // Prompts reach a person only when the chat asks for it; the API's default answers them with a deny
@@ -191,6 +194,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       const { jev, ...update } = (await api.get('/decisions/settings')).body;
       await api.put('/decisions/settings', { ...update, points: { ...update.points, [POINT]: { ...pointBefore, consent: null } } }).catch(() => {});
     }
+    await forgetProof({ api }, POINT).catch(() => {});
     if (savedScripts === null) writeFileSync(fake.scripts, '{}');
     else writeFileSync(fake.scripts, savedScripts);
   }

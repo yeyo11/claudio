@@ -63,7 +63,7 @@ export default async ({ page, api, check }) => {
       'Active is available for the Supervisor on the cli',
     );
     await page.click(`${ROW} [role=radio]`, 'Active', 600);
-    check((await line(page)) === 'Sends each hint on its own', `Active on the CLI says what it does (${await line(page)})`);
+    check((await line(page)) === 'Sends on its own for the kinds you choose, and proposes the rest', `Active on the CLI says what it does (${await line(page)})`);
     await save(page);
     check((await modeOf(api)) === 'active', 'the point is stored as active');
     check((await api.get('/settings/supervisor')).body.autoSend === true, 'the deprecated view says it sends on its own');

@@ -3,10 +3,11 @@ import { test } from 'node:test';
 import { Core } from '../src/index.ts';
 import { GuardEventStore } from '../src/guards/events.ts';
 import { tempConfig } from './helpers.ts';
-import { chatHealth, HUNG_COMMAND_MS, type HealthFacts } from '../src/chat-model.ts';
+import { chatHealth, HUNG_COMMAND_BAD_MS, HUNG_COMMAND_MS, type HealthFacts } from '../src/chat-model.ts';
 import { usualDuration } from '../src/commands.ts';
 import {
   budget,
+  commandClock,
   GUARD_BAD_BLOCKS,
   GUARD_WINDOW_MS,
   guardSignals,
@@ -15,6 +16,8 @@ import {
   NO_PROGRESS_BAD_MS,
   NO_PROGRESS_MS,
   repeatStall,
+  runningCommands,
+  SERIES_HOLD_MAX_MS,
   weakenedTests,
   weakening,
   type GuardTraceEntry,
@@ -266,6 +269,91 @@ test('the CLI heartbeat says how long a command has run, without the time it wai
   assert.deepEqual(chatHealth(facts({ live: { lastEventAt: at(0), commands: [waited] } }), T0 + 6 * 60_000).signals, []);
   // The same heartbeat, four minutes later, is a command that has run six
   assert.equal(chatHealth(facts({ live: { lastEventAt: at(0), commands: [waited] } }), T0 + 10 * 60_000).signals[0]?.kind, 'hung-command');
+});
+
+test('a command inside its usual time is not hung, and one that usually takes a second is not a problem at a minute', () => {
+  const usual = usualDuration([900, 1000, 1100, 950, 1050]);
+  const ls = (age: number) => chatHealth(facts({ live: { lastEventAt: at(0), commands: [{ command: 'ls -la', startedAt: at(0), usual }] } }), T0 + age);
+  assert.deepEqual(ls(20_000).signals, [], 'inside its first look, whatever its median');
+  // Worth a look past the floor of thirty seconds, but only a warning: nothing wakes the Supervisor
+  assert.equal(ls(90_000).level, 'warn');
+  assert.equal(ls(HUNG_COMMAND_MS - 1).level, 'warn', 'the doubling alone would have made it a problem at one minute');
+  assert.equal(ls(HUNG_COMMAND_MS).level, 'bad');
+  // A slow kind (a median of 5⅓ min, so a first look at 16) is a problem only at twice that
+  const slowKind = usualDuration([300_000, 310_000, 320_000, 330_000, 340_000]);
+  const build = (age: number) => chatHealth(facts({ live: { lastEventAt: at(0), commands: [{ command: 'pnpm build', startedAt: at(0), usual: slowKind }] } }), T0 + age);
+  assert.deepEqual(build(15 * 60_000).signals, []);
+  assert.equal(build(17 * 60_000).level, 'warn');
+  assert.equal(build(31 * 60_000).level, 'warn');
+  assert.equal(build(32 * 60_000).level, 'bad');
+  // With no history the fixed limits stay
+  const bare = (age: number) => chatHealth(facts({ live: { lastEventAt: at(0), commands: [{ command: 'pnpm e2e', startedAt: at(0) }] } }), T0 + age);
+  assert.equal(bare(HUNG_COMMAND_BAD_MS - 1).level, 'warn');
+  assert.equal(bare(HUNG_COMMAND_BAD_MS).level, 'bad');
+});
+
+test('a parallel batch is not hung: each call is timed on its own clock, and one queued behind its siblings is not timed yet', () => {
+  // Four shell calls of one message: they carry the message's time, and the CLI runs them one after another
+  const first = bash('ls', 0, 20_000);
+  const second = bash('git status', 0, 45_000);
+  const third = bash('pnpm lint', 0, null);
+  const fourth = bash('pnpm test', 0, null);
+  const batch = trace([first, second, third, fourth]);
+  assert.equal(commandClock(batch, first, T0 + 90_000), at(0));
+  assert.equal(commandClock(batch, second, T0 + 90_000), at(20_000), 'it started when the call before it returned');
+  assert.equal(commandClock(batch, third, T0 + 90_000), at(45_000));
+  assert.equal(commandClock(batch, fourth, T0 + 90_000), null, 'still waiting for the third');
+
+  // A minute and a half after the message, the running one has run 45 s: nothing to say, even for a kind that usually takes a second
+  const usual = usualDuration([900, 1000, 1100, 950, 1050]);
+  const commands = [
+    { command: 'pnpm lint', startedAt: commandClock(batch, third, T0 + 90_000) ?? at(0), usual },
+    { command: 'pnpm test', startedAt: at(0), usual, queued: true },
+  ];
+  const health = chatHealth(facts({ live: { lastEventAt: at(0), commands } }), T0 + 90_000);
+  assert.notEqual(health.level, 'bad');
+  assert.equal(health.signals.some((s) => s.detail === 'pnpm test'), false, 'the queued call is not timed');
+  // A queued call is never called hung, however long its siblings take, and still keeps the chat from reading as silent
+  const late = chatHealth(facts({ live: { lastEventAt: at(0), commands: [{ command: 'pnpm test', startedAt: at(0), queued: true }] } }), T0 + 30 * 60_000);
+  assert.deepEqual(late.signals, []);
+
+  // An earlier call that ended before this one was made does not move its clock; another agent's calls never do
+  const before = bash('ls', 0, 1000);
+  const own = bash('pnpm e2e', 5000, null);
+  const theirs = bash('sleep 600', 0, null, { parentToolUseId: 'toolu_agent' });
+  assert.equal(commandClock(trace([before, theirs, own]), own, T0 + 90_000), at(5000));
+});
+
+test('a call whose answer was lost does not hold the next commands, and a sibling past the hold limit stops hiding them', () => {
+  // The lead's Agent call never got its result into the trace, and the worker went on: an edit it made later has answered
+  const lost = call('Agent', { description: 'Review', prompt: 'review it' }, { at: at(0), endedAt: null });
+  const later = edit('src/a.ts', 'a', 'b', { at: at(60_000), endedAt: at(61_000) });
+  const hung = bash('pnpm e2e', 120_000, null);
+  assert.equal(commandClock(trace([lost, later, hung]), hung, T0 + 30 * 60_000), at(120_000), 'timed from its own call, not queued for ever');
+
+  // A foreground subagent of the same message really runs before the command: it is queued while the subagent works...
+  const agent = call('Agent', { description: 'Build', prompt: 'build it' }, { at: at(0), endedAt: null });
+  const queued = bash('pnpm test', 0, null);
+  const batch = trace([agent, queued]);
+  assert.equal(commandClock(batch, queued, T0 + 60 * 60_000), null);
+  // ...but not past the hold limit: from there the command is timed, so a hang beside a subagent that never ends is still seen
+  assert.equal(commandClock(batch, queued, T0 + SERIES_HOLD_MAX_MS + 1000), at(SERIES_HOLD_MAX_MS));
+  const commands = [{ command: 'pnpm test', startedAt: commandClock(batch, queued, T0 + SERIES_HOLD_MAX_MS + 20 * 60_000) ?? at(0) }];
+  const health = chatHealth(facts({ live: { lastEventAt: at(0), commands } }), T0 + SERIES_HOLD_MAX_MS + 20 * 60_000);
+  assert.equal(health.signals.find((s) => s.kind === 'hung-command')?.level, 'bad');
+});
+
+test('an MCP call, a subagent or a search still running is not a hung command', () => {
+  const running = trace([
+    call('mcp__claudio__get_board', {}, { endedAt: null }),
+    call('Agent', { description: 'Review', prompt: 'review it' }, { endedAt: null }),
+    call('Grep', { pattern: 'x' }, { endedAt: null }),
+    call('WebFetch', { url: 'https://example.com' }, { endedAt: null }),
+    bash('pnpm dev', 0, null, { input: { command: 'pnpm dev', run_in_background: true } }),
+  ]);
+  assert.deepEqual(runningCommands(running), []);
+  const shell = bash('pnpm e2e', 0, null);
+  assert.deepEqual(runningCommands(trace([...running.calls, shell])).map((c) => c.id), [shell.id]);
 });
 
 test('signals that mean something only while working are dropped for a chat that waits, and standing ones are not', () => {

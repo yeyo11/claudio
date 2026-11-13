@@ -1,4 +1,4 @@
-import { CONTINUATION_PREFIX, MAX_CONTINUATIONS } from '@claudio/shared';
+import { CONTINUATION_PREFIX, MAX_CONTINUATIONS, type ContinuationEffect } from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo } from './cli-facts.ts';
 
 /**
@@ -139,8 +139,62 @@ export function phraseItems(finalText: string): string[] {
   return items;
 }
 
-/** The item a decision adds when it says work is owed and no phrase of the list caught it */
-export const OWES_WORK_ITEM = 'Your last message says work is still owed without doing it. Do it now.';
+/**
+ * The item a decision adds when it reads a step of the run's own task as owed and no phrase of the
+ * list caught it. It is a reading, not a fact, so the run may answer that nothing is owed: a worker
+ * told flatly to "do it" re-did finished work or wrote its report again (164 of 226 such turns on the
+ * owner's install changed nothing, docs/plans/decision-engine-v2.md).
+ */
+export const OWES_WORK_ITEM =
+  'Your last message reads as if a step of your own task is still to be taken. If one is, take it now. If nothing of your task is owed, say so in one line and stop.';
+
+/** Why a continuation was sent, as its effect records it */
+export type ContinuationCause = ContinuationEffect['cause'];
+
+/**
+ * What `run.continuation` said about the end of a turn, once acted on: `owes` continues, `done` (its
+ * `done` and `hands-off` answers) waives the phrase list. Null when no answer was acted on, and the
+ * phrase list decides as it always did.
+ */
+export type ContinuationReading = 'done' | 'owes' | null;
+
+export interface ContinuationPlanInput {
+  /** {@link structuralItems}: facts, which always continue */
+  structural: readonly string[];
+  /** {@link phraseItems} of the turn's final text */
+  phrases: readonly string[];
+  reading: ContinuationReading;
+  /** {@link decisionMayContinue}: whether the code rules allow one more continuation on the decision's word alone */
+  decisionAllowed: boolean;
+}
+
+/** What the run is sent back with, and why; null when nothing sends it back. */
+export function continuationPlan(input: ContinuationPlanInput): { items: string[]; cause: ContinuationCause } | null {
+  const phrases = input.reading === 'done' ? [] : [...input.phrases];
+  const owedByDecision = input.reading === 'owes' && input.phrases.length === 0;
+  if (input.structural.length) return { items: [...input.structural, ...phrases, ...(owedByDecision ? [OWES_WORK_ITEM] : [])], cause: 'structural' };
+  if (phrases.length) return { items: phrases, cause: 'phrase' };
+  if (owedByDecision && input.decisionAllowed) return { items: [OWES_WORK_ITEM], cause: 'decision' };
+  return null;
+}
+
+/**
+ * The code rules over a decision-driven continuation (D4 of docs/plans/decision-engine-v2.md), which
+ * hold whatever the decision says: at most one per run, and none after a continuation that changed
+ * nothing. A worker that wrote the same report again after being sent back reads the same way to the
+ * decision the next time, so without these it was sent back until the cap. Every continuation sent
+ * so far must be on record: one whose effect is unknown (a restart lost it, a run stored before
+ * effects were kept) could be either, and a continuation not sent is the cheap side to err on.
+ *
+ * Structural and phrase continuations are not held to this: they keep `MAX_CONTINUATIONS`.
+ */
+export function decisionMayContinue(continuations: number, effects: readonly ContinuationEffect[]): boolean {
+  for (let n = 1; n <= continuations; n++) {
+    const effect = effects.find((e) => e.n === n);
+    if (!effect || effect.cause === 'decision' || !effect.changed) return false;
+  }
+  return true;
+}
 
 /** Each thing the run still owes, as a sentence addressed to it; empty when nothing is open. */
 export function openItems(input: OpenItemsInput): string[] {

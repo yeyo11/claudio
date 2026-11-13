@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Stands in for `claude -p` under the OpenAI-compatible routes: a stream-json process that takes
 // several turns, streams each answer as text deltas and then as the whole assistant message, and
-// reports `total_cost_usd` and `modelUsage` cumulative over the process, as the CLI does.
+// reports `total_cost_usd` and `modelUsage` cumulative over the session, as the CLI does: a resume
+// goes on from the session's totals and a fork starts from its parent's (fake-session-totals.mjs).
 //
 // The answer is `echo: <the prompt's last line>`, unless that line is a directive:
 //   HANG          never answers; an interrupt ends the turn as the CLI does (an error result)
@@ -48,6 +49,7 @@
 import { appendFileSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
+import { forkedFrom, sessionTotals } from '../../../../packages/core/test/fixtures/fake-session-totals.mjs';
 
 const args = process.argv.slice(2);
 if (args[0] === 'agents') {
@@ -71,6 +73,8 @@ const out = (msg) => process.stdout.write(`${JSON.stringify({ session_id: sessio
 out({ type: 'system', subtype: 'hook_response', hook_event: 'SessionStart', hook_name: 'SessionStart:startup', stderr: 'claudio-guard/1 armed - 0000000000000000', exit_code: 0 });
 
 let turns = 0;
+/** The session's totals, which a result reports (fake-session-totals.mjs) */
+let totals = null;
 let initialised = false;
 /** The turn waiting for an interrupt, when one hangs */
 let hanging = null;
@@ -228,14 +232,17 @@ function callTools(kind, calls) {
 
 function result(isError, text, structured, subtype) {
   turns++;
-  const usage = { inputTokens: 10 * turns, outputTokens: 5 * turns, cacheReadInputTokens: 100 * turns, cacheCreationInputTokens: 20 * turns, costUSD: 0.01 * turns, contextWindow: 200000 };
+  // Each turn costs 0.01 and reads 10 in, 5 out, 100 from the cache and 20 into it
+  const turn = { inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 100, cacheCreationInputTokens: 20, costUSD: 0.01, contextWindow: 200000 };
+  totals ??= sessionTotals(sessionId, forkedFrom(args));
+  const { totalCostUsd, modelUsage } = totals.add(0.01, { 'claude-sonnet-5-5': turn });
   out({
     type: 'result',
     subtype: subtype ?? (isError ? 'error_during_execution' : 'success'),
     is_error: isError,
     num_turns: 1,
-    total_cost_usd: 0.01 * turns,
-    modelUsage: { 'claude-sonnet-5-5': usage },
+    total_cost_usd: totalCostUsd,
+    modelUsage,
     result: text,
     ...(structured !== undefined ? { structured_output: structured } : {}),
   });

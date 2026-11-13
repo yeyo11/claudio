@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { GuardEventStore } from './guards/events.ts';
 import type { DatabaseSync } from 'node:sqlite';
-import { FLOW_RESTART_PREFIX, CLAUDIO_LANGUAGES, DEFAULT_FLOW_MAX_PARALLEL, DOCUMENT_KINDS, errorMessage, FLOW_COMPACT_MIN_SHARE, FLOW_RUN_CAUSES, FLOW_RUN_STATUSES, FLOW_RUNS_PAGE, FLOW_RUNS_PAGE_MAX, FLOW_STAGE_OF_COLUMN, flowStepOf, isEffort, isRecord, MAX_CONTINUATIONS, MAX_FLOW_RESTARTS, WORK_ITEM_STATUSES, type ChatActivity, type ClaudioEvent, type ClaudioLanguage, type CommandRule, type DecisionPointId, type DocumentKind, type Effort, type FixStopKind, type FlowCheckVerdict, type FlowCriterionResult, type FlowMemoryProposal, type FlowPlateauMode, type FlowRun, type FlowRunAction, type FlowRunCause, type FlowRunDocument, type FlowRunOutcome, type FlowRunPage, type FlowRunQuery, type FlowRunQueuedBy, type FlowRunRef, type FlowRunState, type FlowRunStatus, type FlowStage, type FlowStartWaitingResult, type FlowStep, type FlowVerdict, type FlowWaiting, type FlowWaitingColumn, type LimitWait, type MemoryProposalTargetKind, type PermissionMode, type ProjectFlow, type ProjectSettings, type ProjectTeamMember, type ProviderId, type ProviderMove, type ToolPolicy, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemChange, type WorkItemRef, type WorkItemSource, type WorkItemStatus } from '@claudio/shared';
+import { FLOW_RESTART_PREFIX, CLAUDIO_LANGUAGES, DEFAULT_FLOW_MAX_PARALLEL, DOCUMENT_KINDS, errorMessage, FLOW_COMPACT_MIN_SHARE, FLOW_RUN_CAUSES, FLOW_RUN_STATUSES, FLOW_RUNS_PAGE, FLOW_RUNS_PAGE_MAX, FLOW_STAGE_OF_COLUMN, flowStepOf, isEffort, isRecord, MAX_CONTINUATIONS, MAX_FLOW_RESTARTS, WORK_ITEM_STATUSES, type ChatActivity, type ClaudioEvent, type ContinuationEffect, type DecisionBaseline, type ClaudioLanguage, type CommandRule, type DecisionPointId, type DocumentKind, type Effort, type FixStopKind, type FlowCheckVerdict, type FlowCriterionResult, type FlowMemoryProposal, type FlowPlateauMode, type FlowRun, type FlowRunAction, type FlowRunCause, type FlowRunDocument, type FlowRunOutcome, type FlowRunPage, type FlowRunQuery, type FlowRunQueuedBy, type FlowRunRef, type FlowRunState, type FlowRunStatus, type FlowStage, type FlowStartWaitingResult, type FlowStep, type FlowVerdict, type FlowWaiting, type FlowWaitingColumn, type LimitWait, type MemoryProposalTargetKind, type PermissionMode, type ProjectFlow, type ProjectSettings, type ProjectTeamMember, type ProviderId, type ProviderMove, type RunEvent, type ToolPolicy, type WorkItem, type WorkItemActor, type WorkItemCause, type WorkItemChange, type WorkItemRef, type WorkItemSource, type WorkItemStatus } from '@claudio/shared';
 import type { RunResult } from './chats.ts';
 import type { ChatWork } from './chat-service.ts';
 import type { Db } from './db.ts';
@@ -15,9 +15,10 @@ import { isTransientRefusal } from './chat-errors.ts';
 import { ItemDocumentsError } from './item-documents.ts';
 import { openWaitOf } from './rotation.ts';
 import { workItemPrompt } from './work-links.ts';
-import { continuationPrompt, delegatesOf, MAX_TOKENS_ERROR, OWES_WORK_ITEM, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf } from './open-items.ts';
+import { continuationPlan, continuationPrompt, decisionMayContinue, delegatesOf, MAX_TOKENS_ERROR, phraseItems, stoppedOnMaxTokens, structuralItems, tailOf, type ContinuationReading } from './open-items.ts';
+import { callsOfTurn, commitCountSince, continuationEffect, continuationState, headOf, type PendingContinuation } from './continuation-effects.ts';
 import type { DecisionEngine, DecisionOutcome } from './decisions/engine.ts';
-import type { DecisionSubject } from './decisions/points.ts';
+import { CONTINUATION_OWES, decisionPoint, type DecisionSubject } from './decisions/points.ts';
 import { DELEGATION, designSources, FIX_ONE_AT_A_TIME, FIX_STOP_WHEN, frontend, pasted, PASTED_NOTE, PATTERN_GROUNDING, REAL_VERIFICATION, scopeAndCompletion, thinkThrough, UNATTENDED, type DesignSources } from './prompt-rules.ts';
 import { gitRaw } from './git.ts';
 import { translateClaudePolicy } from './providers/claude-code/policy.ts';
@@ -74,6 +75,8 @@ const DOCUMENTS_MAX = 20;
 const CRITERIA_MAX = 30;
 const CRITERION_MAX = 500;
 const DESCRIPTION_MAX = 50_000;
+/** `flow.restart`'s baseline: today's code runs a run a restart cut off again, so the code rule never acts (the point acts on "not worth it") */
+const RESTART_BASELINE = false;
 
 /** A request the flow refuses, with the status the API answers it with. */
 export class FlowError extends Error {
@@ -208,6 +211,12 @@ export interface FlowDeps {
   stop: (chatId: string) => void;
   /** The chat's background subagents and tasks, for the delegation item of a continuation */
   delegates?: (chatId: string) => Parameters<typeof delegatesOf>[0];
+  /**
+   * Where the chat's event buffer stands, and its events after a point: what a turn edited is
+   * counted from the events of its execution. Without them a turn is counted as editing nothing
+   */
+  streamPosition?: (chatId: string) => { seq: number; executionSeq: number } | null;
+  events?: (chatId: string, sinceSeq: number) => readonly RunEvent[];
   activity?: (chatId: string) => ChatActivity | null;
   /**
    * The paths with uncommitted changes in a directory: what a work run left undone in the item's
@@ -282,6 +291,8 @@ interface RunRow {
   restarts: number;
   /** Null on a database the migration has not reached (never in practice): read as 0 */
   continuations: number | null;
+  /** What each continuation changed, as JSON; null on a run never continued and on rows stored before the column */
+  continuation_effects: string | null;
   /** Null on a run stored before it was kept */
   language: string | null;
   cause: string | null;
@@ -810,6 +821,8 @@ export class FlowService {
    * continues the run in its chat anyway (`recover`).
    */
   private readonly nudges = new Map<string, string>();
+  /** Continuations on their way, by run: what recording each one's effect needs */
+  private readonly continuing = new Map<string, PendingContinuation>();
   /** Decisions being asked, so `settled` can wait for them */
   private readonly deciding = new Set<Promise<unknown>>();
 
@@ -1194,10 +1207,13 @@ export class FlowService {
     }
   }
 
-  /** Never rejects: an engine that fails is an answer that never came */
-  private async ask(point: DecisionPointId, subject: DecisionSubject, projectId: string): Promise<DecisionOutcome | null> {
+  /**
+   * Never rejects: an engine that fails is an answer that never came. `baseline` is what today's code
+   * does with the same input, stored with the row so the answer is measured against it (M2).
+   */
+  private async ask(point: DecisionPointId, subject: DecisionSubject, projectId: string, baseline: DecisionBaseline): Promise<DecisionOutcome | null> {
     try {
-      return (await this.deps.decisions?.ask(point, subject, { projectId })) ?? null;
+      return (await this.deps.decisions?.ask(point, subject, { projectId, baseline })) ?? null;
     } catch {
       return null;
     }
@@ -1209,15 +1225,16 @@ export class FlowService {
   }
 
   /** Asks in the background: the answer is recorded and nothing waits for it */
-  private watch(point: DecisionPointId, subject: DecisionSubject, projectId: string): void {
+  private watch(point: DecisionPointId, subject: DecisionSubject, projectId: string, baseline: DecisionBaseline): void {
     if (this.stance(point, projectId) === 'off') return;
-    this.track(this.ask(point, subject, projectId));
+    this.track(this.ask(point, subject, projectId, baseline));
   }
 
   /** `team.assign` suggests a member for the card; who runs is still the column's role */
   private watchAssignment(item: WorkItem, project: FlowProject, column: ProjectTeamMember): void {
     const members = (project.settings.team?.members ?? []).map((m) => ({ id: m.role, role: m.role, responsibilities: m.responsibility }));
-    this.watch('team.assign', { kind: 'work_item', id: item.id, data: { ...itemState(item), members, assigned: column.role } }, item.projectId);
+    // Today the column's own role runs: no other member is proposed
+    this.watch('team.assign', { kind: 'work_item', id: item.id, data: { ...itemState(item), members, assigned: column.role } }, item.projectId, false);
   }
 
   /**
@@ -1228,11 +1245,15 @@ export class FlowService {
     let point: DecisionPointId;
     // Built only once the point is known to act: reading what the branch changed takes git a moment
     let subjectOf: () => Promise<DecisionSubject>;
+    // What today's code does: every card is refined, and no criterion sends a card back before QA
+    let baseline: DecisionBaseline;
     if (stage === 'refine') {
       point = 'flow.refine-needed';
+      baseline = 'refine';
       subjectOf = async () => ({ kind: 'work_item', id: item.id, data: itemState(item) });
     } else if (stage === 'verify') {
       point = 'flow.criteria-precheck';
+      baseline = false;
       // The Developer only resolved a merge and QA re-verifies it: there is no new work to pre-check
       if (!item.acceptanceCriteria.length || this.deps.pullRequests?.awaitingVerify?.(item.id)) return null;
       subjectOf = async () => {
@@ -1245,7 +1266,7 @@ export class FlowService {
     }
     const stance = this.stance(point, item.projectId);
     if (stance === 'off') return null;
-    const asked = subjectOf().then((subject) => this.ask(point, subject, item.projectId));
+    const asked = subjectOf().then((subject) => this.ask(point, subject, item.projectId, baseline));
     if (stance === 'watch') {
       this.track(asked);
       return null;
@@ -1543,7 +1564,8 @@ export class FlowService {
       bounces: item.bounces ?? 0,
       rejectionChars: settings ? (this.rejection(item.id, settings)?.length ?? 0) : 0,
     };
-    const asked = this.ask('context.compact', { kind: 'flow_run', id: row.id, data }, row.project_id);
+    // Today the chat is continued as it is
+    const asked = this.ask('context.compact', { kind: 'flow_run', id: row.id, data }, row.project_id, 'continue');
     if (stance === 'watch') {
       this.track(asked);
       return false;
@@ -1651,6 +1673,7 @@ export class FlowService {
   private async finish(row: RunRow, result: FlowChatResult): Promise<void> {
     // A turn the usage limit cut is the rotation's: it waits for the reset
     if (result.isError && result.cause === 'rate-limit' && row.chat_id && this.deps.limitHeld?.(row.chat_id)) return;
+    this.endContinuation(row);
     // A turn cut by the token limit can still end with JSON that parses: it is not the run's answer
     const cut = !result.isError && stoppedOnMaxTokens(result);
     const parsed = result.isError || cut ? null : parseResult(result.structuredOutput, row.stage as FlowStage);
@@ -1745,41 +1768,114 @@ export class FlowService {
   private async continues(row: RunRow, result: FlowChatResult, structured: boolean): Promise<boolean> {
     const done = row.continuations ?? 0;
     if (!row.chat_id || done >= MAX_CONTINUATIONS) return false;
-    let uncommitted: string[] = [];
-    if (row.stage === 'work') {
-      const worktree = this.deps.items.find(row.item_id)?.worktree;
-      if (worktree) uncommitted = (this.deps.uncommitted ?? uncommittedPaths)(worktree);
-    }
+    const worktree = row.stage === 'work' ? (this.deps.items.find(row.item_id)?.worktree ?? null) : null;
+    const uncommitted = worktree ? (this.deps.uncommitted ?? uncommittedPaths)(worktree) : [];
     // A missing structured result and uncommitted paths are facts: code always decides them
     const delegates = delegatesOf(this.deps.delegates?.(row.chat_id));
-    const open = [...structuralItems({ schema: true, structured, uncommitted, delegates }), ...(await this.phraseOwed(row, result.result, done))];
-    if (!open.length) return false;
+    const structural = structuralItems({ schema: true, structured, uncommitted, delegates });
+    const phrases = phraseItems(result.result);
+    const effects = this.effectsOf(row.id);
+    const decisionAllowed = decisionMayContinue(done, effects);
+    const reading = await this.reading(row, result.result, done, { phrases, structural, decisionAllowed, effects, worktree });
+    const open = continuationPlan({ structural, phrases, reading, decisionAllowed });
+    if (!open) return false;
     const changed = this.sql.prepare("UPDATE flow_runs SET continuations = ? WHERE id = ? AND state = 'running' AND continuations = ?").run(done + 1, row.id, done).changes;
     if (changed !== 1) return false;
-    this.nudges.set(row.chat_id, flowContinuation(open, done + 1));
+    // Only a work run's own worktree: refining and verifying work where other commits land too
+    this.continuing.set(row.id, { n: done + 1, cause: open.cause, dir: worktree, head: headOf(worktree) });
+    this.nudges.set(row.chat_id, flowContinuation(open.items, done + 1));
     return true;
   }
 
   /**
-   * What the last paragraph says is owed: the phrase list, unless `run.continuation` is active, above
-   * its threshold, and replaces it with its own reading of the paragraph.
+   * `run.continuation`'s reading of the last paragraph, when it is active, above its threshold, and
+   * acted on; null leaves the phrase list in charge. It is asked only where its answer could change
+   * what happens: with no phrase and nothing structural it could only send a continuation the code
+   * rules no longer allow (D4).
    */
-  private async phraseOwed(row: RunRow, finalText: string, done: number): Promise<string[]> {
-    const phrases = phraseItems(finalText);
+  private async reading(
+    row: RunRow,
+    finalText: string,
+    done: number,
+    turn: { phrases: string[]; structural: string[]; decisionAllowed: boolean; effects: ContinuationEffect[]; worktree: string | null },
+  ): Promise<ContinuationReading> {
     const tail = tailOf(finalText);
     const stance = tail ? this.stance('run.continuation', row.project_id) : 'off';
-    if (stance === 'off') return phrases;
+    if (stance === 'off') return null;
+    if (!turn.phrases.length && !turn.structural.length && !turn.decisionAllowed) return null;
     const words = ['no continuation yet', 'one continuation so far', 'two continuations so far'][done] ?? 'several continuations so far';
-    const title = this.deps.items.find(row.item_id)?.title ?? '';
-    const asked = this.ask('run.continuation', { kind: 'flow_run', id: row.id, data: { title, tail, continuations: words } }, row.project_id);
+    const item = this.deps.items.find(row.item_id);
+    const title = item?.title ?? '';
+    const criteria = item?.acceptanceCriteria.map((c) => `- ${c.text}`) ?? [];
+    const data = continuationState({
+      title,
+      deliverable: [title, ...(criteria.length ? ['', 'Acceptance criteria:', ...criteria] : [])].join('\n'),
+      tail,
+      continuations: words,
+      phraseListMatched: turn.phrases.length > 0,
+      turn: await this.turnOf(row, done, turn.effects, item ?? null),
+      maxBytes: decisionPoint('run.continuation')?.maxStateBytes ?? 4096,
+    });
+    // The baseline is the phrase list's items: empty, it would not continue
+    const asked = this.ask('run.continuation', { kind: 'flow_run', id: row.id, data }, row.project_id, turn.phrases);
     if (stance === 'watch') {
       this.track(asked);
-      return phrases;
+      return null;
     }
     const answer = (await asked)?.answers?.report;
-    if (answer?.kind !== 'choice') return phrases;
-    if (answer.value === 'done') return [];
-    return phrases.length ? phrases : [OWES_WORK_ITEM];
+    if (answer?.kind !== 'choice') return null;
+    return CONTINUATION_OWES.has(answer.value) ? 'owes' : 'done';
+  }
+
+  /**
+   * The commits and edits of the turn that just ended, for the decision's state: a continuation's
+   * from its recorded effect; otherwise what the card's branch holds and the edits of the execution,
+   * which for a first turn is the turn.
+   */
+  private async turnOf(row: RunRow, done: number, effects: readonly ContinuationEffect[], item: WorkItem | null): Promise<{ commits: number; edits: number }> {
+    const effect = done > 0 ? effects.find((e) => e.n === done) : undefined;
+    if (effect) return { commits: effect.commits, edits: effect.edits };
+    let commits = 0;
+    if (row.stage === 'work' && item) {
+      try {
+        commits = (await this.deps.workDone?.(item))?.commits.length ?? 0;
+      } catch {
+        // a fact for the question, not a reason to ask nothing
+      }
+    }
+    return { commits, edits: callsOfTurn(this.executionEvents(row.chat_id)).edits };
+  }
+
+  /** The events of the chat's live execution: the turn a result just ended, since each continuation is an execution of its own */
+  private executionEvents(chatId: string | null): readonly RunEvent[] {
+    if (!chatId) return [];
+    const at = this.deps.streamPosition?.(chatId);
+    return at ? (this.deps.events?.(chatId, at.executionSeq) ?? []) : [];
+  }
+
+  /** What each continuation of a run changed, as stored on its row */
+  private effectsOf(runId: string): ContinuationEffect[] {
+    const row = this.sql.prepare('SELECT continuation_effects FROM flow_runs WHERE id = ?').get(runId) as { continuation_effects: string | null } | undefined;
+    return effectsOf(row?.continuation_effects ?? null);
+  }
+
+  /**
+   * Records what the continuation whose turn just ended changed, on the run's row: the code rules over
+   * the next continuation and the `run.continuation` resolver read it.
+   */
+  private endContinuation(row: RunRow): void {
+    const pending = this.continuing.get(row.id);
+    if (!pending) return;
+    this.continuing.delete(row.id);
+    if (pending.n !== (row.continuations ?? 0)) return;
+    const effect = continuationEffect(pending.n, pending.cause, { commits: commitCountSince(pending.dir, pending.head), ...callsOfTurn(this.executionEvents(row.chat_id)) });
+    const effects = [...effectsOf(row.continuation_effects).filter((e) => e.n !== effect.n), effect];
+    try {
+      this.sql.prepare('UPDATE flow_runs SET continuation_effects = ? WHERE id = ?').run(JSON.stringify(effects), row.id);
+      row.continuation_effects = JSON.stringify(effects);
+    } catch {
+      // A record for the decision's evidence: losing it leaves the next decision-only continuation unsent, the cheap side
+    }
   }
 
   /** Sends a run back to its own chat with what it still owes; a chat that cannot be continued fails it. */
@@ -1916,7 +2012,8 @@ export class FlowService {
     // A criterion only a person can check is not a reason to bounce, so it is not sent either
     const unmet = result.criteria.filter((c) => !c.met && !c.needsPerson).map((c) => ({ id: c.id, note: c.note }));
     const words = ['never before', 'once before', 'twice before', 'three times before'][bounces] ?? 'many times before';
-    const asked = this.ask('flow.bounce', { kind: 'flow_run', id: row.id, data: { rejection: result.summary, criteria: unmet, bounces: `this card was bounced ${words}` } }, row.project_id);
+    // Today every rejection goes back to the Developer
+    const asked = this.ask('flow.bounce', { kind: 'flow_run', id: row.id, data: { rejection: result.summary, criteria: unmet, bounces: `this card was bounced ${words}` } }, row.project_id, 'fixable');
     if (stance === 'watch') {
       this.track(asked);
       return false;
@@ -1958,7 +2055,8 @@ export class FlowService {
   private watchMerge(row: RunRow, before: WorkItem, added: readonly string[]): void {
     if (!added.length) return;
     const data = { existing: before.acceptanceCriteria.map((c) => ({ id: c.id, text: c.text })), proposed: added.map((text, i) => ({ id: `proposed-${String(i + 1)}`, text })) };
-    this.watch('flow.criteria-merge', { kind: 'flow_run', id: row.id, data }, row.project_id);
+    // Today no criterion is flagged
+    this.watch('flow.criteria-merge', { kind: 'flow_run', id: row.id, data }, row.project_id, false);
   }
 
   /**
@@ -2028,7 +2126,7 @@ export class FlowService {
         this.track(this.restartDecided(row));
         continue;
       }
-      if (stance === 'watch') this.track(this.ask('flow.restart', this.restartSubject(row), row.project_id));
+      if (stance === 'watch') this.track(this.ask('flow.restart', this.restartSubject(row), row.project_id, RESTART_BASELINE));
       this.requeue(row);
     }
     this.recovered = true;
@@ -2058,7 +2156,7 @@ export class FlowService {
 
   /** `flow.restart`, active: a run judged not worth running again fails like one past `MAX_FLOW_RESTARTS` does */
   private async restartDecided(row: RunRow): Promise<void> {
-    const answer = (await this.ask('flow.restart', this.restartSubject(row), row.project_id))?.answers?.requeue;
+    const answer = (await this.ask('flow.restart', this.restartSubject(row), row.project_id, RESTART_BASELINE))?.answers?.requeue;
     const current = this.row(row.id);
     if (current?.state === 'running') {
       if (answer?.kind === 'noul' && !answer.value) this.end(row.id, 'failed', null, 'Claudio restarted while this run worked, and it was judged not worth running again; move the item again to start it over', 'restarts');
@@ -2143,6 +2241,7 @@ export class FlowService {
     const next = failed ? this.nextRun(row) : null;
     const waiting = this.waitingOf(row);
     const checks = checksOf(row.checks);
+    const continuationEffects = effectsOf(row.continuation_effects ?? null);
     const guardBlocks = this.guardBlocks(row.id);
     return {
       id: row.id,
@@ -2173,6 +2272,7 @@ export class FlowService {
       retryable: failed && this.retryRefusal(row, item, next) === null,
       restarts: row.restarts ?? 0,
       continuations: row.continuations ?? 0,
+      ...(continuationEffects.length ? { continuationEffects } : {}),
       ...(row.language ? { language: runLanguage(row) } : {}),
       queuedAt: row.queued_at,
       startedAt: row.started_at,
@@ -2401,6 +2501,18 @@ const criteriaOf = (json: string | null): FlowCriterionResult[] => {
   if (!json) return [];
   const parsed = safeJson(json);
   return Array.isArray(parsed) ? parsed.filter((c): c is FlowCriterionResult => isRecord(c) && typeof c.id === 'string' && typeof c.met === 'boolean') : [];
+};
+
+/** A run's continuation effects as its row stores them; anything unreadable is left out */
+const effectsOf = (json: string | null): ContinuationEffect[] => {
+  if (!json) return [];
+  const parsed = safeJson(json);
+  return Array.isArray(parsed)
+    ? parsed.filter(
+        (e): e is ContinuationEffect =>
+          isRecord(e) && typeof e.n === 'number' && typeof e.changed === 'boolean' && typeof e.commits === 'number' && typeof e.edits === 'number' && (e.cause === 'decision' || e.cause === 'phrase' || e.cause === 'structural'),
+      )
+    : [];
 };
 
 const checksOf = (json: string | null): FlowCheckVerdict[] => {

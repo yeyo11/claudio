@@ -262,7 +262,7 @@ test('checks.fix resolves against the head the rollup reads after the failing on
   let n = 0;
   const row = (value: string): DecisionRecord => {
     const answers: Record<string, DecisionAnswer> = { fix: choiceOf(value) };
-    const record = { id: `d${String(++n)}`, point: 'checks.fix', kind: 'act', projectId: 'p1', subjectKind: 'work_item', subjectId: 'i1', provider: 'jev', model: 'm', mode: 'shadow', status: 'answered', unavailable: null, state: { headSha: 'aaa' }, questions: [], answers, confidence: 0.9, threshold: 0.85, acted: false, visible: false, savedRun: false, latencyMs: 1, inputTokens: 1, costUsd: 0, outcome: null, agreed: null, resolvedAt: null, feedback: null, feedbackAt: null, openedAt: null, paletteAction: null, at: T } as DecisionRecord;
+    const record = { id: `d${String(++n)}`, point: 'checks.fix', kind: 'act', projectId: 'p1', subjectKind: 'work_item', subjectId: 'i1', provider: 'jev', model: 'm', mode: 'shadow', status: 'answered', unavailable: null, state: { headSha: 'aaa' }, questions: [], answers, confidence: 0.9, threshold: 0.85, acted: false, visible: false, savedRun: false, runEffect: 0, baseline: null, heldOut: false, latencyMs: 1, inputTokens: 1, costUsd: 0, outcome: null, agreed: null, resolvedAt: null, feedback: null, feedbackAt: null, openedAt: null, paletteAction: null, at: T } as DecisionRecord;
     db.insertDecision(record);
     return record;
   };

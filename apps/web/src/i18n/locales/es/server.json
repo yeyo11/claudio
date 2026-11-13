@@ -119,5 +119,12 @@
       "forbidden": "El propietario ya no comparte este proyecto con esta instalación: se dejó de compartir o se quitó esta instalación del grupo",
       "failed": "La última descarga ha fallado"
     }
+  },
+  "decisions": {
+    "demoted": {
+      "title": "{{point}} ha vuelto a Sombra",
+      "failing": "Sus resultados ya no superan el listón: acertaron {{hits}} de {{n}} respuestas que actuaban. Vuelve el comportamiento de siempre hasta que lo pongas en Activo.",
+      "rate": "En los últimos 7 días actuó en {{acts}} de {{rows}} respuestas, más del doble que en Sombra. Vuelve el comportamiento de siempre hasta que lo pongas en Activo."
+    }
   }
 }

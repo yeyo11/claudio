@@ -195,6 +195,8 @@ export const chatHref = (chatId: string, promptId?: string): string =>
   `/chats/${encodeURIComponent(chatId)}${promptId ? `?${PROMPT_PARAM}=${encodeURIComponent(promptId)}` : ''}`;
 /** Where the daily spend cap is set: Settings → Runs & spend (the web's `settingsHref('runs', { section: 'spend-cap' })`) */
 export const SPEND_CAP_HREF = '/settings/runs#spend-cap';
+/** Where a decision point's mode is set: Settings → Decisions (the web's `settingsHref('decisions')`) */
+export const DECISIONS_HREF = '/settings/decisions';
 export const orchestrationHref = (id: string): string => `/orchestration/${encodeURIComponent(id)}`;
 /** Where an owner accepts or denies a join */
 export const COLLABORATORS_HREF = '/collaborators';
@@ -367,6 +369,21 @@ export function notificationsFor(event: ClaudioEvent, text: NotificationText = e
         }),
       ];
     }
+
+    case 'decision.demoted':
+      return [
+        draft(event, {
+          key: `decision-demoted:${event.point}:${event.demotion.at}`,
+          // What Claudio does on its own changed without the person: worth knowing, never urgent,
+          // since it fell back to today's behaviour
+          kind: 'health',
+          priority: 'normal',
+          tone: 'warn',
+          title: text.serverText(event.titleCode, event.params, event.title),
+          body: text.serverText(event.reasonCode, event.params, event.reason),
+          href: DECISIONS_HREF,
+        }),
+      ];
 
     case 'orchestration.updated': {
       if (event.previousStatus === null || event.previousStatus === event.status) return [];

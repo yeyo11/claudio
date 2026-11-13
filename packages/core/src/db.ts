@@ -18,7 +18,9 @@ import type {
   CompactionOrigin,
   CompactionState,
   DecisionAnswer,
+  DecisionBaseline,
   DecisionFeedback,
+  DecisionLabel,
   DecisionPaletteAction,
   DecisionFilter,
   DecisionPage,
@@ -29,8 +31,9 @@ import type {
   DecisionProviderId,
   DecisionQuestion,
   DecisionRecord,
+  DecisionReplay,
   DecisionResolution,
-  DecisionStats,
+  DecisionRunEffect,
   DecisionSubjectKind,
   DecisionUnavailableReason,
   EffectiveEnvironment,
@@ -44,12 +47,15 @@ import type {
   RotationEvent,
   SpendPurpose,
   SupervisorProposal,
+  SupervisorProposalSender,
   SupervisorProposalStatus,
   UsageHistoryPoint,
   SystemSample,
 } from '@claudio/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
+import { recomputeResumedCosts } from './session-totals.ts';
 import type { CoreConfig } from './paths.ts';
+import { insertDecisionReplay, readDecisionLabels, readDecisionReplays, readLatestDecisionReplay } from './decisions/replay-rows.ts';
 import { pruneWebhookDeliveries } from './webhook-store.ts';
 
 /**
@@ -1612,6 +1618,85 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      dismissed    INTEGER NOT NULL DEFAULT 0
    );
    CREATE INDEX agent_messages_chat ON agent_messages (chat_id, state);`,
+
+  // An execution of a resumed session was billed the session's history again: the CLI's totals are
+  // the session's, and Claudio took them to restart with every process (M1 and D7 of
+  // docs/plans/decision-engine-v2.md). The stored executions of each chat whose costs only grow are
+  // billed their own turns; the spend ledger stays as it was, and `cost_corrections` dates the fix
+  recomputeResumedCosts,
+  // The decision engine's evidence (docs/plans/decision-engine-v2.md, M2 to M5). `baseline` is what
+  // the code rule answered for the same input; `run_effect` is +1 for a run saved, -1 for one caused,
+  // 0 otherwise, so "runs saved" stops counting the continuations a decision added; `held_out` marks
+  // an act the lifecycle withheld at random. The backfill is written out in SQL, not read from the
+  // point definitions, so this migration means the same thing whatever the points become: acted
+  // rows only, by each point's acting answer. `saved_run` follows it, and so stops being true for
+  // every acted row of a point that merely could save a run.
+  `ALTER TABLE decisions ADD COLUMN baseline TEXT;
+   ALTER TABLE decisions ADD COLUMN run_effect INTEGER NOT NULL DEFAULT 0;
+   ALTER TABLE decisions ADD COLUMN held_out INTEGER NOT NULL DEFAULT 0;
+   UPDATE decisions SET run_effect = CASE
+       WHEN point = 'run.continuation' AND json_extract(answers, '$.report.value') = 'done' THEN 1
+       WHEN point = 'run.continuation' AND json_extract(answers, '$.report.value') = 'owes-work' THEN -1
+       WHEN point = 'flow.refine-needed' AND json_extract(answers, '$.refine.value') = 'ready' THEN 1
+       WHEN point = 'flow.bounce' AND json_extract(answers, '$.bounce.value') = 'needs-person' THEN 1
+       WHEN point = 'orchestration.retry' AND json_extract(answers, '$.retry.value') = 'permanent' THEN 1
+       WHEN point = 'flow.restart' AND json_extract(answers, '$.requeue.value') = 0 THEN 1
+       WHEN point = 'orchestration.fixer' AND json_extract(answers, '$."another-attempt".value') = 0 THEN 1
+       WHEN point = 'supervisor.intervene' AND json_extract(answers, '$.intervene.value') = 0 THEN 1
+       WHEN point = 'flow.criteria-precheck' AND EXISTS (SELECT 1 FROM json_each(decisions.answers) WHERE json_extract(json_each.value, '$.value') = 'clearly-unmet') THEN 1
+       WHEN point = 'lesson.mine' AND json_extract(answers, '$.mine.value') = 1 THEN -1
+       WHEN point = 'checks.fix' AND json_extract(answers, '$.fix.value') = 'branch-fixable' THEN -1
+       ELSE 0 END
+     WHERE acted = 1 AND answers IS NOT NULL;
+   UPDATE decisions SET saved_run = CASE WHEN run_effect > 0 THEN 1 ELSE 0 END;
+   CREATE TABLE decision_labels (
+     id           TEXT PRIMARY KEY,
+     point        TEXT NOT NULL,
+     decision_id  TEXT,
+     state        TEXT NOT NULL,
+     questions    TEXT NOT NULL,
+     positive     INTEGER NOT NULL,
+     answers      TEXT,
+     source       TEXT NOT NULL,
+     note         TEXT,
+     at           TEXT NOT NULL
+   );
+   CREATE INDEX decision_labels_point ON decision_labels (point, at);
+   CREATE UNIQUE INDEX decision_labels_decision ON decision_labels (decision_id) WHERE decision_id IS NOT NULL;
+   ALTER TABLE flow_runs ADD COLUMN continuation_effects TEXT;`,
+  // Replays of the golden set (docs/plans/decision-engine-v2.md, M5): one row per run, so the promotion
+  // gate can read the newest result under the questions a point ships with
+  `CREATE TABLE decision_replays (
+     id              TEXT PRIMARY KEY,
+     point           TEXT NOT NULL,
+     at              TEXT NOT NULL,
+     provider        TEXT NOT NULL,
+     model           TEXT NOT NULL,
+     questions       TEXT NOT NULL,
+     questions_hash  TEXT NOT NULL,
+     cases           INTEGER NOT NULL,
+     unavailable     INTEGER NOT NULL,
+     score           TEXT NOT NULL,
+     confusion       TEXT NOT NULL,
+     cost_usd        REAL NOT NULL,
+     consent         TEXT NOT NULL,
+     note            TEXT
+   );
+   CREATE INDEX decision_replays_point ON decision_replays (point, questions_hash, at);`,
+
+  // Who sent a Supervisor's hint: a person from the health panel, or the Supervisor on its own under
+  // Active. The `supervisor.intervene` resolver reads a person's send as a direct outcome and the
+  // Supervisor's as a proxy, whatever the point's mode. Null on unsent rows and on rows from before.
+  `ALTER TABLE supervisor_proposals ADD COLUMN sent_by TEXT;`,
+
+  // How many times the Supervisor drafted for an occurrence. A "not stuck" draft no longer closes the
+  // occurrence: it is asked again after a back-off, a bounded number of times, on the same row (so the
+  // unique key keeps one answer per occurrence) with `at` moved to the latest answer.
+  `ALTER TABLE supervisor_proposals ADD COLUMN asks INTEGER NOT NULL DEFAULT 1;`,
+
+  // Replay cases whose stored state could not rebuild the point's questions and were asked the
+  // label's own: such a run is stored under the hash of what was asked and never counts for the gate
+  `ALTER TABLE decision_replays ADD COLUMN fallback_cases INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 /**
@@ -1635,6 +1720,11 @@ export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ===
 
 /** The version that added the decisions' opened_at and palette_action, for the test that upgrades into it */
 export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN palette_action')) + 1;
+
+/** The version that bills the stored executions of resumed sessions their own turns, for the test that upgrades into it */
+export const RESUMED_COSTS_SCHEMA_VERSION = MIGRATIONS.indexOf(recomputeResumedCosts) + 1;
+/** The version that added the decisions' baseline, run effect, holdout and golden set, for the test that upgrades into it */
+export const DECISION_EVIDENCE_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE decision_labels')) + 1;
 
 /** The version that added the guards' event table, for the test that upgrades a database from the one before */
 export const GUARD_EVENTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE guard_events')) + 1;
@@ -3016,11 +3106,29 @@ export class Db {
   saveProposal(p: SupervisorProposal): boolean {
     const result = this.db
       .prepare(
-        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, occurrence, agent, hint, cost_usd, at, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT OR IGNORE INTO supervisor_proposals (id, chat_id, task_id, orchestration_id, signal, occurrence, agent, hint, cost_usd, at, status, sent_by)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
-      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.occurrence ?? '', p.agent ? JSON.stringify(p.agent) : null, p.hint, p.costUsd, p.at, p.status);
+      .run(p.id, p.chatId, p.taskId ?? null, p.orchestrationId ?? null, p.signal, p.occurrence ?? '', p.agent ? JSON.stringify(p.agent) : null, p.hint, p.costUsd, p.at, p.status, p.sentBy ?? null);
     return Number(result.changes) > 0;
+  }
+
+  /**
+   * Drafts the occurrence of a `not-stuck` row again: its new answer (still not stuck, or a hint to
+   * propose) replaces the old one on the same row, its cost is added and its draft counted. False when
+   * the row is gone or is no longer `not-stuck`.
+   */
+  redraftProposal(id: string, next: Pick<SupervisorProposal, 'hint' | 'costUsd' | 'at'> & { status: 'proposed' | 'not-stuck'; agent: HealthSignalAgent | null }): boolean {
+    const result = this.db
+      .prepare("UPDATE supervisor_proposals SET hint = ?, status = ?, cost_usd = cost_usd + ?, at = ?, agent = ?, asks = asks + 1 WHERE id = ? AND status = 'not-stuck'")
+      .run(next.hint, next.status, next.costUsd, next.at, next.agent ? JSON.stringify(next.agent) : null, id);
+    return Number(result.changes) > 0;
+  }
+
+  /** How many times the Supervisor drafted for a proposal's occurrence; 0 for an unknown id */
+  proposalAsks(id: string): number {
+    const row = this.db.prepare('SELECT asks FROM supervisor_proposals WHERE id = ?').get(id) as { asks: number } | undefined;
+    return row?.asks ?? 0;
   }
 
   proposal(id: string): SupervisorProposal | null {
@@ -3034,9 +3142,14 @@ export class Db {
     return rows.map(proposalOf);
   }
 
-  /** Moves a proposal on from `proposed`; false when it had already been sent or dismissed. */
-  settleProposal(id: string, status: Exclude<SupervisorProposalStatus, 'proposed'>): boolean {
-    const result = this.db.prepare("UPDATE supervisor_proposals SET status = ? WHERE id = ? AND status = 'proposed'").run(status, id);
+  /**
+   * Moves a proposal on from `proposed`; false when it had already been sent or dismissed. A send
+   * says who sent it (`sentBy`); a dismissal is always a person's and records no sender.
+   */
+  settleProposal(id: string, status: Exclude<SupervisorProposalStatus, 'proposed'>, sentBy: SupervisorProposalSender | null = null): boolean {
+    const result = this.db
+      .prepare("UPDATE supervisor_proposals SET status = ?, sent_by = ? WHERE id = ? AND status = 'proposed'")
+      .run(status, status === 'sent' ? sentBy : null, id);
     return Number(result.changes) > 0;
   }
 
@@ -3048,8 +3161,8 @@ export class Db {
       .prepare(
         `INSERT INTO decisions (id, point, kind, project_id, subject_kind, subject_id, provider, model, mode, status, unavailable,
            state, questions, answers, confidence, threshold, acted, visible, saved_run, latency_ms, input_tokens, cost_usd,
-           outcome, agreed, resolved_at, feedback, feedback_at, opened_at, palette_action, at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           outcome, agreed, resolved_at, feedback, feedback_at, opened_at, palette_action, at, baseline, run_effect, held_out)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         d.id,
@@ -3082,6 +3195,9 @@ export class Db {
         d.openedAt,
         d.paletteAction ? JSON.stringify(d.paletteAction) : null,
         d.at,
+        d.baseline === null ? null : JSON.stringify(d.baseline),
+        d.runEffect,
+        d.heldOut ? 1 : 0,
       );
   }
 
@@ -3161,8 +3277,12 @@ export class Db {
     return { items: page.map(decisionOf), nextCursor: rows.length > limit && last ? String(last.seq) : null };
   }
 
-  /** Per point, over the rows since `since`; points with no row in the window are absent. */
-  decisionStats(since: string): DecisionStats {
+  /**
+   * Per point, over the rows since `since`; points with no row in the window are absent. The counts
+   * SQL can sum; the baseline comparison and the evidence are added by `decisions/evidence.ts`, which
+   * reads the points' definitions.
+   */
+  decisionStats(since: string): DecisionCounts {
     const rows = this.db
       .prepare(
         `SELECT point,
@@ -3175,7 +3295,8 @@ export class Db {
            COALESCE(SUM(feedback = 'useful'), 0) AS useful,
            COALESCE(SUM(feedback = 'not_useful'), 0) AS not_useful,
            COALESCE(SUM(cost_usd), 0) AS cost_usd,
-           COALESCE(SUM(acted = 1 AND saved_run = 1), 0) AS runs_saved
+           COALESCE(SUM(CASE WHEN run_effect > 0 THEN run_effect ELSE 0 END), 0) AS runs_saved,
+           COALESCE(SUM(CASE WHEN run_effect < 0 THEN -run_effect ELSE 0 END), 0) AS runs_caused
          FROM decisions WHERE at >= ? GROUP BY point ORDER BY point`,
       )
       .all(since) as unknown as Array<{
@@ -3190,8 +3311,9 @@ export class Db {
       not_useful: number;
       cost_usd: number;
       runs_saved: number;
+      runs_caused: number;
     }>;
-    const points: DecisionPointStats[] = rows.map((r) => ({
+    const points: DecisionPointCounts[] = rows.map((r) => ({
       point: r.point as DecisionPointId,
       count: r.count,
       acted: r.acted,
@@ -3203,14 +3325,118 @@ export class Db {
       notUseful: r.not_useful,
       costUsd: r.cost_usd,
       runsSaved: r.runs_saved,
+      runsCaused: r.runs_caused,
+      netRuns: r.runs_saved - r.runs_caused,
     }));
     const jev = this.db.prepare("SELECT COALESCE(SUM(cost_usd), 0) AS n FROM decisions WHERE at >= ? AND provider = 'jev'").get(since) as { n: number } | undefined;
-    return {
-      since,
-      points,
-      jevCostUsd: jev?.n ?? 0,
-      claudeRunsSaved: points.reduce((sum, p) => sum + p.runsSaved, 0),
-    };
+    const runsSaved = points.reduce((sum, p) => sum + p.runsSaved, 0);
+    const runsCaused = points.reduce((sum, p) => sum + p.runsCaused, 0);
+    return { since, points, jevCostUsd: jev?.n ?? 0, runsSaved, runsCaused, netRuns: runsSaved - runsCaused, claudeRunsSaved: runsSaved };
+  }
+
+  /**
+   * The answered rows the evidence is computed from, oldest first, without the state sent (the one
+   * heavy column). `point` absent reads every point.
+   */
+  decisionEvidenceRows(window: { since: string; until?: string; point?: DecisionPointId }): DecisionEvidenceRow[] {
+    const where = ["status = 'answered'", 'answers IS NOT NULL', 'at >= ?'];
+    const params: SQLInputValue[] = [window.since];
+    if (window.until !== undefined) {
+      where.push('at <= ?');
+      params.push(window.until);
+    }
+    if (window.point !== undefined) {
+      where.push('point = ?');
+      params.push(window.point);
+    }
+    const rows = this.db
+      .prepare(`SELECT point, answers, confidence, acted, held_out, baseline, outcome, agreed, feedback, mode, at, json_extract(state, '$.assigned') AS assigned FROM decisions WHERE ${where.join(' AND ')} ORDER BY seq`)
+      .all(...params) as unknown as Array<{
+      point: string;
+      answers: string;
+      confidence: number | null;
+      acted: number;
+      held_out: number;
+      baseline: string | null;
+      outcome: string | null;
+      agreed: number | null;
+      feedback: string | null;
+      mode: string;
+      at: string;
+      assigned: unknown;
+    }>;
+    return rows.map((r) => ({
+      point: r.point as DecisionPointId,
+      answers: JSON.parse(r.answers) as Record<string, DecisionAnswer>,
+      // Only what a point's `acts` reads of the state: the full state stays on disk
+      state: typeof r.assigned === 'string' ? { assigned: r.assigned } : {},
+      confidence: r.confidence,
+      acted: r.acted === 1,
+      heldOut: r.held_out === 1,
+      baseline: r.baseline === null ? null : (JSON.parse(r.baseline) as DecisionBaseline),
+      outcome: outcomeOf(r.outcome),
+      agreed: r.agreed === null ? null : r.agreed === 1,
+      feedback: r.feedback as DecisionFeedback | null,
+      mode: r.mode as DecisionRecord['mode'],
+      at: r.at,
+    }));
+  }
+
+  // ---------- decision labels (the golden set) ----------
+
+  /**
+   * Writes a label; one taken from a history row replaces that row's earlier label, so a person's word
+   * can overrule a label an outcome wrote. Labels are not pruned with the history.
+   */
+  saveDecisionLabel(label: DecisionLabel): void {
+    const values = [
+      label.point,
+      JSON.stringify(label.state),
+      JSON.stringify(label.questions),
+      label.positive ? 1 : 0,
+      label.answers ? JSON.stringify(label.answers) : null,
+      label.source,
+      label.note,
+      label.at,
+    ];
+    if (label.decisionId !== null) {
+      const updated = this.db
+        .prepare('UPDATE decision_labels SET point = ?, state = ?, questions = ?, positive = ?, answers = ?, source = ?, note = ?, at = ? WHERE decision_id = ?')
+        .run(...values, label.decisionId);
+      if (Number(updated.changes) > 0) return;
+    }
+    this.db
+      .prepare('INSERT INTO decision_labels (point, state, questions, positive, answers, source, note, at, id, decision_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+      .run(...values, label.id, label.decisionId);
+  }
+
+  /** The labels of a point, or of every point, oldest first */
+  decisionLabels(point?: DecisionPointId): DecisionLabel[] {
+    return readDecisionLabels(this.db, point);
+  }
+
+  deleteDecisionLabel(id: string): boolean {
+    return Number(this.db.prepare('DELETE FROM decision_labels WHERE id = ?').run(id).changes) > 0;
+  }
+
+  // ---------- decision replays ----------
+
+  saveDecisionReplay(replay: DecisionReplay): void {
+    insertDecisionReplay(this.db, replay);
+  }
+
+  /** Stored replays, newest first; `point` absent reads every point */
+  decisionReplays(point?: DecisionPointId): DecisionReplay[] {
+    return readDecisionReplays(this.db, point);
+  }
+
+  /**
+   * The newest replay of a point under exactly these questions, which the promotion gate reads: with
+   * `runsOn`, only one run on that provider (and, for Jev, that model), and never one whose cases were
+   * asked other questions
+   */
+  latestDecisionReplay(point: DecisionPointId, questionsHash: string, runsOn?: { provider: DecisionProviderId; model: string | null }): DecisionReplay | null {
+    return readLatestDecisionReplay(this.db, point, questionsHash, runsOn);
   }
 
   /** The newest row of a point, for the consent preview's "what was sent last" (D12). */
@@ -3363,6 +3589,7 @@ interface ProposalRow {
   cost_usd: number;
   at: string;
   status: string;
+  sent_by: string | null;
 }
 
 /** The agent a proposal named, as stored; a row that does not read as one names none */
@@ -3397,7 +3624,37 @@ function proposalOf(row: ProposalRow): SupervisorProposal {
     costUsd: row.cost_usd,
     at: row.at,
     status: row.status as SupervisorProposalStatus,
+    ...(row.sent_by === 'supervisor' || row.sent_by === 'person' ? { sentBy: row.sent_by } : {}),
   };
+}
+
+/** A point's counts as SQL sums them; `decisions/evidence.ts` adds the baseline comparison and the evidence */
+export type DecisionPointCounts = Omit<DecisionPointStats, 'resolvedDirect' | 'resolvedProxy' | 'baseline' | 'evidence'>;
+
+export interface DecisionCounts {
+  since: string;
+  points: DecisionPointCounts[];
+  jevCostUsd: number;
+  runsSaved: number;
+  runsCaused: number;
+  netRuns: number;
+  claudeRunsSaved: number;
+}
+
+/** An answered history row as the evidence reads it: no state but what a point's `acts` needs */
+export interface DecisionEvidenceRow {
+  point: DecisionPointId;
+  answers: Record<string, DecisionAnswer>;
+  state: Record<string, unknown>;
+  confidence: number | null;
+  acted: boolean;
+  heldOut: boolean;
+  baseline: DecisionBaseline | null;
+  outcome: DecisionResolution | null;
+  agreed: boolean | null;
+  feedback: DecisionFeedback | null;
+  mode: DecisionRecord['mode'];
+  at: string;
 }
 
 interface DecisionRow {
@@ -3432,7 +3689,19 @@ interface DecisionRow {
   opened_at: string | null;
   palette_action: string | null;
   at: string;
+  baseline: string | null;
+  run_effect: number;
+  held_out: number;
 }
+
+/** A stored outcome as the API serves it: one written before outcomes carried a quality reads as `proxy` */
+function outcomeOf(raw: string | null): DecisionResolution | null {
+  if (!raw) return null;
+  const parsed = JSON.parse(raw) as Omit<DecisionResolution, 'quality'> & { quality?: DecisionResolution['quality'] };
+  return { ...parsed, quality: parsed.quality === 'direct' ? 'direct' : 'proxy' };
+}
+
+const runEffectOf = (n: number): DecisionRunEffect => (n > 0 ? 1 : n < 0 ? -1 : 0);
 
 function decisionOf(row: DecisionRow): DecisionRecord {
   return {
@@ -3455,10 +3724,13 @@ function decisionOf(row: DecisionRow): DecisionRecord {
     acted: row.acted === 1,
     visible: row.visible === 1,
     savedRun: row.saved_run === 1,
+    runEffect: runEffectOf(row.run_effect),
+    baseline: row.baseline === null ? null : (JSON.parse(row.baseline) as DecisionBaseline),
+    heldOut: row.held_out === 1,
     latencyMs: row.latency_ms,
     inputTokens: row.input_tokens,
     costUsd: row.cost_usd,
-    outcome: row.outcome ? (JSON.parse(row.outcome) as DecisionResolution) : null,
+    outcome: outcomeOf(row.outcome),
     agreed: row.agreed === null ? null : row.agreed === 1,
     resolvedAt: row.resolved_at,
     feedback: row.feedback as DecisionFeedback | null,

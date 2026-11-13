@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-10T20:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - development
     - e2e
@@ -81,6 +81,18 @@ palette and the chats list. The health actions need a live CLI process, so the s
 in `e2e/fake-cli` — an executable that speaks just enough stream-json to hang a command, take a hint
 and be interrupted; every other spec keeps the real CLI. `E2E_LIVE=1 pnpm e2e chat` additionally
 holds a real conversation with Claude (streamed reply, follow-up turn, stop) using your login.
+
+**A spec that needs a decision point to really act** cannot just switch it to `active`: since the
+promotion gate, `PUT /decisions/settings` refuses an act point (or `lesson.mine`) that has not proven
+itself ([decision-engine.md](decision-engine.md#standing-and-the-promotion-gate)). The helper
+`e2e/specs/decision-proof.mjs` earns the standing the way a person would, through the API the product
+ships: `earnStanding` consents to the point for the CLI, imports enough labelled states to clear the
+gate (`POST /decisions/labels/import`, each carrying an `E2E-REPLAY:<id>=<value>` marker the fake CLI
+answers from), starts a replay on the CLI provider and waits for the stored result the gate reads;
+`activate` then sets the point `active`, and `forgetProof` deletes the labels again (the stored
+replay stays, so the point stays proven for the rest of the sandbox). It is for fake-CLI specs
+only (`export const fakeCli = true`): a replay asks the CLI once per case, and the real one would
+spend tokens. The fake CLI also answers the Supervisor's structured draft (`{ stuck, hint }`).
 
 `pnpm media` re-records the README's GIFs, stills and the social preview through the same fake CLI
 and one headless Chrome; what it seeds, its targets and its limits are in CONTRIBUTING's

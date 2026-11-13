@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T18:30:00Z
-updated_at: 2026-10-16T18:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - notifications
     - push
@@ -33,7 +33,7 @@ That was the "too invasive" complaint.
 
 `low` never interrupts at any level, as it never did for toasts.
 
-## Spend alerts, and urgency with risk
+## Spend alerts, urgency with risk and a point sent back to shadow
 
 Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
 
@@ -47,6 +47,12 @@ Plan: [plans/agent-run-improvements.md](plans/agent-run-improvements.md).
   notification more urgent; the score never blocks anything. The point is at `stateVersion` 2, so a
   consent given for version 1 is asked again. See
   [decision-engine.md](decision-engine.md) for the consent this changed.
+- **A point the engine demoted.** `decision.demoted` is emitted when an active decision point goes
+  back to shadow because its evidence no longer clears its gate, or because it acted more than twice
+  as often as when it was promoted. The web turns it into a notification of kind `health`, normal
+  priority, whose text says which point, why, and that today's behaviour runs again until the person
+  sets it to Active; it opens Settings → Decisions
+  ([decision-engine.md](decision-engine.md#demotion)).
 
 ## Join requests
 

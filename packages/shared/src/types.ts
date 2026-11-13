@@ -3374,6 +3374,8 @@ export interface FlowRun {
    * of doing): at most `MAX_CONTINUATIONS`, after which the result it has is judged as it is
    */
   continuations: number;
+  /** What each continuation changed, in order; absent on a run never continued, or stored before it was recorded */
+  continuationEffects?: ContinuationEffect[];
   /**
    * The person's language, which the first line of its chat's prompt (`<Role> · <KEY>`, the title the
    * chat is listed by) is written in, kept so a restart words it the same. Absent on a run stored
@@ -4512,6 +4514,8 @@ export interface OrchestrationTaskState extends OrchestrationTaskSpec {
    * not attempts: nothing failed.
    */
   continuations?: number;
+  /** What each continuation changed, in order; absent on a task that never had one or was stored before it was recorded */
+  continuationEffects?: ContinuationEffect[];
   runId: string | null;
   sessionId: string | null;
   /** The provider its current chat is on; absent on a task written before providers were chosen */
@@ -7172,8 +7176,15 @@ export interface UpdateSupervisorConfigRequest {
   maxCostUsd?: number;
 }
 
-/** `sent`: it reached the worker, by hand or through `autoSend`. */
-export type SupervisorProposalStatus = 'proposed' | 'sent' | 'dismissed';
+/**
+ * `sent`: it reached the worker, by hand or by the Supervisor on its own. `not-stuck`: the Supervisor's
+ * own draft judged the worker not stuck, so nothing was proposed or sent; kept so that occurrence is
+ * not asked about again.
+ */
+export type SupervisorProposalStatus = 'proposed' | 'sent' | 'dismissed' | 'not-stuck';
+
+/** Who sent a hint: a person from the health panel, or the Supervisor on its own under Active */
+export type SupervisorProposalSender = 'supervisor' | 'person';
 
 /** One answer of the supervisor. A row, because they accumulate; at most one per occurrence of a signal per chat. */
 export interface SupervisorProposal {
@@ -7198,6 +7209,8 @@ export interface SupervisorProposal {
   costUsd: number;
   at: string;
   status: SupervisorProposalStatus;
+  /** Who sent it, once sent; absent while unsent, and on hints sent before this was kept */
+  sentBy?: SupervisorProposalSender;
 }
 
 // ---------- Web Push ----------
@@ -9502,6 +9515,21 @@ export interface SpendAlertEvent extends ClaudioEventBase {
   spend: SpendState;
 }
 
+/**
+ * The decision engine moved an active point back to shadow (docs/plans/decision-engine-v2.md §5, D2):
+ * today's behaviour runs again until a person promotes it. `reasonCode` and `params` let a client say
+ * `reason` in its own language; `title` and `reason` are the server's English.
+ */
+export interface DecisionDemotedEvent extends ClaudioEventBase {
+  type: 'decision.demoted';
+  point: DecisionPointId;
+  demotion: DecisionDemotion;
+  titleCode: string;
+  reason: string;
+  reasonCode: string;
+  params: LocalizedParams;
+}
+
 /** The global guard settings changed (`PUT /settings/guards`); applies to the next process spawned. */
 export interface GuardsChangedEvent extends ClaudioEventBase {
   type: 'guards.changed';
@@ -10055,6 +10083,7 @@ export type ClaudioEvent =
   | LoginUpdatedEvent
   | SpendChangedEvent
   | SpendAlertEvent
+  | DecisionDemotedEvent
   | GuardsChangedEvent
   | EvalRunEvent
   | EvalSampleEvent
@@ -10212,15 +10241,35 @@ export type DecisionUnavailableReason =
   | 'invalid-answer'
   | 'spend-cap';
 
+/**
+ * How far an outcome can be trusted. `direct`: an effect the decision could not fake (a person
+ * accepted or rejected a proposal, a retry completed, a continuation committed). `proxy`: correlated
+ * but contaminated (a later QA verdict, or something the decision itself caused). Only `direct`
+ * outcomes count as evidence for a point (docs/plans/decision-engine-v2.md, M3).
+ */
+export type DecisionOutcomeQuality = 'direct' | 'proxy';
+
 /** What a point tells the engine once what really happened is known (shadow accuracy) */
 export interface DecisionResolution {
   /** What happened, in words the History row shows; the point's resolver writes it */
   summary: string;
   /** True when the answer matched what happened; the person's feedback overrides the inference */
   agreed: boolean;
+  /** How far the outcome can be trusted; a row stored before it was recorded reads as `proxy` */
+  quality: DecisionOutcomeQuality;
   /** Point-specific facts (a status, a count), for the row's detail */
   detail?: Record<string, unknown>;
 }
+
+/**
+ * What today's code rule answered for the same input, as the call site computes it: a small JSON
+ * value whose shape each point reads (for `run.continuation`, the phrase list's items; for a suggest
+ * point, `false` for "no flag"). It lets every row be compared with the behaviour it would replace.
+ */
+export type DecisionBaseline = string | number | boolean | null | DecisionBaseline[] | { [key: string]: DecisionBaseline };
+
+/** Runs a decision changed against today's behaviour: 1 saved one, -1 caused one, 0 neither */
+export type DecisionRunEffect = -1 | 0 | 1;
 
 /** The person's word on a decision (D13) */
 export type DecisionFeedback = 'useful' | 'not_useful';
@@ -10236,6 +10285,155 @@ export interface DecisionPointSettings {
    * cover `jev`.
    */
   consent: { at: string; stateVersion: number; providers: DecisionProviderId[] } | null;
+  /**
+   * Suggest points only, 0.5..0.99: the confidence a suggestion needs before it is shown. Absent
+   * reads as 0.7. A null confidence (the CLI) is not held to it.
+   */
+  floor?: number;
+  /** Set by the engine when it moved an active point back to shadow; cleared when a person promotes it again. A settings write cannot set it */
+  demoted?: DecisionDemotion | null;
+  /** Set by the engine when the point started to act on proven evidence: the rate demotion compares against. A settings write cannot set it */
+  promotion?: DecisionPromotion | null;
+}
+
+/**
+ * What a point must show before it may act (docs/plans/decision-engine-v2.md §5). Each install may
+ * tighten or loosen it; the break-even of an act point is the point's own, not a setting.
+ */
+export interface DecisionGateSettings {
+  /** Scored cases (outcomes that are `direct`, or labels in a replay) a point needs before it is judged; 1..10000, default 30 */
+  minCases: number;
+  /** The flag precision a suggest point needs; 0..1, default 0.6 */
+  suggestMinPrecision: number;
+  /** The highest share of answers a suggest point may flag; (0, 1], default 0.3 */
+  suggestMaxFlagRate: number;
+}
+
+/**
+ * Where a point stands against its gate, computed and never stored: `unproven` has too few scored
+ * cases, `proven` clears the gate, `failing` has the cases and does not clear it.
+ */
+export type DecisionStanding = 'unproven' | 'proven' | 'failing';
+
+/**
+ * Why a point that is switched on does not do what its mode says. `cli`: an act point on the CLI,
+ * which gives no confidence to clear a threshold (or the palette, which needs Jev). `no-consent`:
+ * no consent for this state version and provider, so nothing is asked. `unproven` and `failing`:
+ * an active point whose standing does not allow acting (act points, and suggest points that start a
+ * run). `demoted`: the engine moved it back to shadow and a project still sets it active.
+ */
+export type DecisionLimitReason = 'cli' | 'no-consent' | 'unproven' | 'failing' | 'demoted';
+
+/** What a gate reading lacks; empty when it clears */
+export type DecisionGateShortfall =
+  /** Fewer scored cases than `minCases` */
+  | 'cases'
+  /** Act points: the lower 90 % bound of the acting answer's precision is not above the point's break-even (or there is none) */
+  | 'break-even'
+  /** Act points: that bound is not above the code rule's precision on the same rows */
+  | 'baseline'
+  /** Suggest points: flag precision under `suggestMinPrecision` (or none) */
+  | 'precision'
+  /** Suggest points: flags more often than `suggestMaxFlagRate` */
+  | 'flag-rate';
+
+/** One source of evidence read against the gate: the live history of the window, or the latest replay over the golden set */
+export interface DecisionGateReading {
+  source: 'live' | 'replay';
+  /** For a replay, when it ran; null for the live history */
+  at: string | null;
+  /** Scored cases: rows with a `direct` outcome or a person's word, or labelled cases replayed */
+  cases: number;
+  precision: DecisionRate;
+  baselinePrecision: DecisionRate;
+  actRate: DecisionRate;
+  shortfalls: DecisionGateShortfall[];
+}
+
+/** The gate's numbers in force for one point */
+export interface DecisionGateInForce {
+  /** True when acting without standing `proven` is refused (act points, and suggest points that start a run) */
+  enforced: boolean;
+  minCases: number;
+  /** Act points: what the precision's lower bound must be above; null for suggest points */
+  breakEven: number | null;
+  /** Suggest points: the flag precision needed; null for act points */
+  minPrecision: number | null;
+  /** Suggest points: the highest flag rate; null for act points */
+  maxFlagRate: number | null;
+}
+
+/**
+ * Which reading settled a standing. The live history decides once it has the gate's `minCases`
+ * scored cases; below that a replay may decide (it only bootstraps a point). Null while unproven.
+ */
+export type DecisionStandingSource = 'live' | 'replay' | null;
+
+/** A point's standing with what it was read from */
+export interface DecisionPointStanding {
+  point: DecisionPointId;
+  standing: DecisionStanding;
+  decidedBy: DecisionStandingSource;
+  gate: DecisionGateInForce;
+  live: DecisionGateReading;
+  /** Null when no replay counts: none ran, the point's questions changed since, it ran on another provider than the point runs on (or, for Jev, another model), or some of its cases were asked other questions */
+  replay: DecisionGateReading | null;
+}
+
+/** When and on what rate a point started to act; demotion compares the last seven days with it */
+export interface DecisionPromotion {
+  at: string;
+  /** The act (or flag) rate of the shadow evidence that proved it; null when it had none to read */
+  actRate: number | null;
+}
+
+/** Why the engine moved an active point back to shadow, and what it read */
+export interface DecisionDemotion {
+  at: string;
+  /** `failing`: it no longer clears its gate; `rate`: it acted (or flagged) more than twice as often as in shadow */
+  reason: 'failing' | 'rate';
+  evidence: {
+    cases: number;
+    precision: DecisionRate;
+    /** Act points only */
+    breakEven: number | null;
+    shortfalls: DecisionGateShortfall[];
+    /** Answered rows of the last seven days, and how many acted (or flagged) */
+    recentRows: number;
+    recentActs: number;
+    recentRate: number | null;
+    /** The rate it was promoted on */
+    promotedRate: number | null;
+  };
+}
+
+/** A point a settings write would switch to `active` without standing `proven` */
+export interface DecisionActivationIssue {
+  point: DecisionPointId;
+  kind: DecisionPointKind;
+  standing: DecisionStanding;
+  decidedBy: DecisionStandingSource;
+  /** The best reading it has (live or replay) and what that reading lacks */
+  live: DecisionGateReading;
+  replay: DecisionGateReading | null;
+  gate: DecisionGateInForce;
+}
+
+/**
+ * The 409 of a settings write the promotion gate refuses. `decision-unproven`: an act point, or a
+ * suggest point that starts a run, would become active without standing `proven`.
+ * `decision-bulk-activation`: more than one point without standing `proven` would become active at
+ * once, whatever their kind. Nothing is written.
+ */
+export interface DecisionActivationRefusal {
+  error: string;
+  code: 'decision-unproven' | 'decision-bulk-activation';
+  points: DecisionActivationIssue[];
+}
+
+/** What `PUT /decisions/settings` answers: the settings, and the suggest points activated without standing `proven` */
+export interface DecisionSettingsSaveResult extends DecisionSettings {
+  warnings: DecisionActivationIssue[];
 }
 
 /** How the CLI answers: the model and effort of every question, and the two caps. */
@@ -10261,6 +10459,19 @@ export interface DecisionSettings {
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
   /** Days of history kept, 1..365 */
   historyDays: number;
+  /** The promotion gate's numbers; the defaults when the document has none */
+  gate: DecisionGateSettings;
+  /** What `supervisor.intervene` may do on its own under Active */
+  supervisor: DecisionSupervisorOptions;
+}
+
+/**
+ * The Supervisor's options beside its point. Under Active it sends a hint by itself only for the
+ * signal kinds listed here, which have earned it; for every other kind it proposes and a person
+ * sends. Empty by default.
+ */
+export interface DecisionSupervisorOptions {
+  autoSignals: HealthSignalKind[];
 }
 
 /** `PUT /decisions/settings` replaces the whole document; the key travels apart, in the credentials */
@@ -10268,8 +10479,13 @@ export interface DecisionSettingsUpdate {
   provider: DecisionProviderId;
   /** `supervisorMaxCostUsd` absent reads as its default (0.25) */
   cli: Omit<DecisionCliSettings, 'supervisorMaxCostUsd'> & { supervisorMaxCostUsd?: number };
+  /** A point's `demoted` and `promotion` are the engine's and are ignored here, as `consent` is */
   points: Partial<Record<DecisionPointId, DecisionPointSettings>>;
   historyDays: number;
+  /** Absent keeps the stored gate */
+  gate?: DecisionGateSettings;
+  /** Absent keeps the stored options */
+  supervisor?: DecisionSupervisorOptions;
 }
 
 /** Only points of scope `project` accept an override; consent is never part of it */
@@ -10311,8 +10527,10 @@ export interface DecisionPointInfo {
   scope: DecisionScope;
   primitives: DecisionPrimitive[];
   defaultThreshold: number;
-  /** True when acting on it avoids a Claude run (feeds "Claude runs saved") */
+  /** True when acting on one of its answers can avoid a Claude run */
   savesRun: boolean;
+  /** True when acting on one of its answers can cause a Claude run today's behaviour would not have */
+  causesRun: boolean;
   /** The provider must be fast enough for the call site (the palette needs Jev) */
   needsLowLatency: boolean;
   /** Bumps when the shape of the state changes, which clears the consent given for an older one */
@@ -10323,9 +10541,30 @@ export interface DecisionPointInfo {
     threshold: number;
     provider: DecisionProviderId;
     consent: DecisionPointSettings['consent'];
-    /** True when the mode is `active` but the point behaves as `shadow` (act point on `cli` other than `supervisor.intervene`, or no consent) */
+    /** True when the mode is `active` but the point behaves as `shadow` (or, without consent, as `off`); `limitedBy` says why */
     limited: boolean;
+    /** Why a point that is not `off` does not do what its mode says; null when it does. Set in shadow too when the point asks nothing (no consent) */
+    limitedBy: DecisionLimitReason | null;
+    /** Suggest points: the confidence a suggestion needs to be shown; null for act points */
+    floor: number | null;
   };
+  /** Computed from the window's `direct` outcomes or a replay; never stored */
+  standing: DecisionStanding;
+  /** The reading that settled `standing` */
+  decidedBy: DecisionStandingSource;
+  /**
+   * Whether any outcome the app infers for this point can ever be `direct`, the only kind its
+   * evidence counts. False when the point has no resolver, or when every outcome its resolver reads
+   * is a `proxy`: then no outcome the app can observe proves this point, and only a person's own
+   * useful / not useful (always direct) does.
+   */
+  evidencePossible: boolean;
+  /** The gate's numbers in force, and the readings the standing came from */
+  gate: DecisionGateInForce;
+  live: DecisionGateReading;
+  replay: DecisionGateReading | null;
+  /** Set when the engine moved the point back to shadow and no one promoted it since */
+  demoted: DecisionDemotion | null;
 }
 
 /** What the palette's person did with the proposal, classified against the row's `command` answer */
@@ -10362,8 +10601,14 @@ export interface DecisionRecord {
   acted: boolean;
   /** True when it changed something a person sees (shows the mark) */
   visible: boolean;
-  /** True when acting avoided a Claude run */
+  /** True when acting avoided a Claude run (`runEffect` is 1) */
   savedRun: boolean;
+  /** Runs acting changed against today's behaviour; 0 when it did not act */
+  runEffect: DecisionRunEffect;
+  /** What today's code rule answered for the same input; null when the call site gave none */
+  baseline: DecisionBaseline | null;
+  /** True when an active point would have acted and was held out at random, so today's behaviour ran */
+  heldOut: boolean;
   latencyMs: number;
   inputTokens: number | null;
   costUsd: number | null;
@@ -10449,7 +10694,80 @@ export interface DecisionPointStats {
   useful: number;
   notUseful: number;
   costUsd: number;
+  /** Runs acting avoided against today's behaviour */
   runsSaved: number;
+  /** Runs acting caused that today's behaviour would not have run */
+  runsCaused: number;
+  /** `runsSaved - runsCaused` */
+  netRuns: number;
+  /** Resolved rows whose outcome is `direct`, or carries the person's word */
+  resolvedDirect: number;
+  /** Resolved rows whose outcome is only `proxy` */
+  resolvedProxy: number;
+  /** The rows against their baseline: how often the answer differed from the code rule, and who was right */
+  baseline: DecisionBaselineComparison;
+  /** What the point has proved, from `direct` outcomes only: what the promotion gate reads */
+  evidence: DecisionPointEvidence;
+}
+
+/** A proportion with its one-sided 90 % lower bound (Wilson); both null when nothing was counted */
+export interface DecisionRate {
+  /** How many rows the proportion is over */
+  n: number;
+  /** How many of them count for it */
+  hits: number;
+  value: number | null;
+  lower90: number | null;
+}
+
+/** Answered rows against what the code rule answered for the same input */
+export interface DecisionBaselineComparison {
+  /** Answered rows that carry a baseline the point can read */
+  rows: number;
+  /** Of those, how many the decision answered otherwise than the code rule */
+  differs: number;
+  /** Differing rows with a `direct` outcome where the decision was right, so the code rule was wrong */
+  decisionRight: number;
+  /** Differing rows with a `direct` outcome where the code rule was right */
+  baselineRight: number;
+  /** Differing rows with no `direct` outcome yet */
+  unresolved: number;
+}
+
+/** One confidence bucket of a point's calibration, over rows with a `direct` outcome */
+export interface DecisionCalibrationBucket {
+  /** Inclusive lower edge */
+  from: number;
+  /** Exclusive upper edge, except the last bucket, which holds exactly 1 */
+  to: number;
+  /** Every answer in the bucket: how often it was right */
+  all: DecisionRate;
+  /** Only the answers that act (or flag): what a threshold is read from */
+  acting: DecisionRate;
+}
+
+/**
+ * What a point has proved over a window (docs/plans/decision-engine-v2.md, M6). Precision, baseline
+ * and calibration read only `direct` outcomes (a person's word counts as direct); a point whose
+ * answers say nothing about acting (a ranking, a model per task) has null precisions.
+ */
+export interface DecisionPointEvidence {
+  point: DecisionPointId;
+  /** Rows the provider answered in the window */
+  answered: number;
+  resolvedDirect: number;
+  resolvedProxy: number;
+  unresolved: number;
+  /** Precision of the answer that acts (act points) or flags (suggest points) */
+  precision: DecisionRate;
+  /** The same for the code rule, over rows that carry a baseline and a `direct` outcome */
+  baselinePrecision: DecisionRate;
+  /** The answer against the code rule, row by row */
+  baseline: DecisionBaselineComparison;
+  /** Confidence in buckets against observed accuracy; rows without a confidence (the CLI) are left out */
+  calibration: DecisionCalibrationBucket[];
+  /** How often an answered row acts (or flags) */
+  actRate: DecisionRate;
 }
 
 export interface DecisionStats {
@@ -10457,7 +10775,184 @@ export interface DecisionStats {
   since: string;
   points: DecisionPointStats[];
   jevCostUsd: number;
+  runsSaved: number;
+  runsCaused: number;
+  /** `runsSaved - runsCaused` */
+  netRuns: number;
+  /** @deprecated The same as `runsSaved`; kept for one release while the web moves to the net */
   claudeRunsSaved: number;
+}
+
+/**
+ * The effect of one continuation of a worker's turn, recorded when the continued turn ends
+ * (docs/plans/decision-engine-v2.md, M3). `n` counts continuations of the run from 1; `cause` is what
+ * sent it back: the decision's own reading, the phrase list, or a structural item (a delegate, no
+ * structured result). `changed` is true when the turn committed, edited or delegated anything.
+ */
+export interface ContinuationEffect {
+  n: number;
+  cause: 'decision' | 'phrase' | 'structural';
+  changed: boolean;
+  commits: number;
+  edits: number;
+}
+
+/** Where a golden-set label came from: a `direct` outcome, or a person */
+export type DecisionLabelSource = 'outcome' | 'person';
+
+/**
+ * One row of the golden set (docs/plans/decision-engine-v2.md, M5): a stored state and its questions
+ * with the truth about it, kept past `historyDays` so a reworded question or another provider can be
+ * replayed against it.
+ */
+export interface DecisionLabel {
+  id: string;
+  point: DecisionPointId;
+  /** The history row it was taken from; null for a label written without one, or once that row is pruned */
+  decisionId: string | null;
+  state: Record<string, unknown>;
+  questions: DecisionQuestion[];
+  /** True when the answer that acts (or flags) was the right one for this state */
+  positive: boolean;
+  /** Per question, the right answer when the source says more than `positive`; null otherwise */
+  answers: Record<string, string | boolean> | null;
+  source: DecisionLabelSource;
+  /** Why, in a line: the outcome's summary or the person's note */
+  note: string | null;
+  at: string;
+}
+
+/** A person labels a history row: the answer that acts was right (`positive`) or wrong for its state */
+export interface DecisionLabelRequest {
+  decisionId: string;
+  positive: boolean;
+  note?: string;
+}
+
+/** One state of a set built outside Claudio (the review's labelled reports): redacted on the way in */
+export interface DecisionLabelImportItem {
+  point: DecisionPointId;
+  state: Record<string, unknown>;
+  questions: DecisionQuestion[];
+  positive: boolean;
+  note?: string;
+}
+
+export interface DecisionLabelImportRequest {
+  labels: DecisionLabelImportItem[];
+}
+
+export interface DecisionLabelImportResult {
+  imported: number;
+}
+
+/** Turns a point's resolved history into labels (`direct` outcomes only), before the history is pruned */
+export interface DecisionLabelOutcomesRequest {
+  point: DecisionPointId;
+  /** How far back to read; default 30 */
+  days?: number;
+}
+
+export interface DecisionLabelOutcomesResult {
+  /** Labels written or refreshed */
+  saved: number;
+  /** Rows a person had already labelled: their word stands */
+  keptPerson: number;
+  /** Rows whose answers say neither acting nor holding, so they cannot be labelled */
+  unreadable: number;
+}
+
+/** Where a replay's right to send the states came from: the point's own consent, or the owner's word for one run */
+export type DecisionReplayConsent = 'point' | 'owner-flag';
+
+/** The scorer's output for a replay: the same structure the promotion gate reads from live history */
+export type DecisionReplayScore = Pick<DecisionPointEvidence, 'precision' | 'baselinePrecision' | 'baseline' | 'calibration' | 'actRate'>;
+
+/** Answers against labels. "Acted" is the answer that acts or flags; "right" is the label's `positive` */
+export interface DecisionReplayConfusion {
+  /** Acted, and acting was right */
+  actedRight: number;
+  /** Acted, and acting was wrong */
+  actedWrong: number;
+  /** Held, and acting would have been wrong */
+  heldRight: number;
+  /** Held, and acting would have been right */
+  heldWrong: number;
+  /** Answered, but its answers say neither acting nor holding */
+  unreadable: number;
+  /** Of the cases where acting was right, how many the answer acted on */
+  recall: DecisionRate;
+}
+
+/** One stored replay: a point's labelled states put to a provider again */
+export interface DecisionReplay {
+  id: string;
+  point: DecisionPointId;
+  at: string;
+  provider: DecisionProviderId;
+  model: string;
+  /** The questions asked: the point's own, or the reworded ones that were being tried */
+  questions: DecisionQuestion[];
+  /** Stable hash of `questions`; the promotion gate looks a replay up by it */
+  questionsHash: string;
+  /** Labelled cases put to the provider, answered or not */
+  cases: number;
+  /**
+   * Cases whose stored state could not rebuild the point's questions, so they were asked the label's
+   * own; `questionsHash` is then the hash of what was asked, and the run does not count for the gate
+   */
+  fallbackCases: number;
+  /** Of those, how many got no answer; they are left out of the score */
+  unavailable: number;
+  score: DecisionReplayScore;
+  confusion: DecisionReplayConfusion;
+  costUsd: number;
+  consent: DecisionReplayConsent;
+  note: string | null;
+}
+
+export interface DecisionReplayRequest {
+  point: DecisionPointId;
+  /** Defaults to the provider the point runs on */
+  provider?: DecisionProviderId;
+  /** Reworded questions to try instead of the point's own */
+  questions?: DecisionQuestion[];
+  /** The newest labels to use; default 100, at most 500 */
+  limit?: number;
+  /** Calls at once; default 2, at most 8 */
+  concurrency?: number;
+  note?: string;
+}
+
+export interface DecisionReplayRunning {
+  point: DecisionPointId;
+  provider: DecisionProviderId;
+  startedAt: string;
+  cases: number;
+  /** Cases that have an answer or a refusal so far */
+  done: number;
+}
+
+export interface DecisionReplayFailure {
+  point: DecisionPointId;
+  at: string;
+  message: string;
+}
+
+/** `POST /decisions/replays`: the run goes on in the background; read it from `GET /decisions/replays` */
+export interface DecisionReplayStarted {
+  point: DecisionPointId;
+  provider: DecisionProviderId;
+  cases: number;
+  questionsHash: string;
+}
+
+export interface DecisionReplayList {
+  /** Newest first */
+  items: DecisionReplay[];
+  running: DecisionReplayRunning[];
+  /** The last run of each point that ended without a result */
+  failed: DecisionReplayFailure[];
 }
 
 /** The state a point would send, or sent last, and where it would go */

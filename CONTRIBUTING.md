@@ -37,7 +37,9 @@ that only answers small typed questions (a choice, a score, a yes/no) for its de
 Today there is exactly one, TypeSafe's Jev. It is allowed only while all of this holds: it is off
 by default and used with the owner's own key; it never replaces or reaches Claude Code (it writes
 no text or code, runs no agent and makes no call to Anthropic); it receives only the state a
-decision point declares, after the owner has consented to that point having seen a preview of it;
+decision point declares, which can hold text or code and is listed per point in
+[docs/decision-engine.md](docs/decision-engine.md#what-leaves-the-machine), after the owner has
+consented to that point having seen a preview of it;
 and Claudio works in full with the `cli` provider alone, which asks the same questions through the
 Claude Code CLI (`--json-schema`). See
 [docs/decisions/decision-engine.md](docs/decisions/decision-engine.md).

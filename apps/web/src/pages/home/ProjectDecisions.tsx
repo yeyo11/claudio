@@ -7,11 +7,13 @@ import { api, keys, useProjectSettings } from '../../api';
 import { Collapsible, Sheet, Slider } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
-import { ErrorBox, Segmented, Skeleton } from '@claudio/ui/components/ui';
+import { Segmented, Skeleton, ErrorBox } from '@claudio/ui/components/ui';
 import { useDirty } from '../../lib/dirty';
 import { formatNumber } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
-import { AREAS, MODES, POINT_KEY, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
+import { SaveError, useSaveFailure } from '../config/decisions/ActivationRefusal';
+import { gateMissing } from '../config/decisions/gate';
+import { AREAS, MODES, activeUnseen, bestReading, gateBlocked, POINT_KEY, standingInforms, THRESHOLD_MAX, THRESHOLD_MIN, type AreaId } from '../config/decisions/model';
 
 type Provider = 'inherit' | DecisionProviderId;
 type Override = { mode?: DecisionMode; threshold?: number };
@@ -58,14 +60,20 @@ export function ProjectDecisions({ project }: { project: Project }) {
   useDirty('project-decisions', dirty);
   const [open, setOpen] = useState(false);
 
+  // The refusal heads the card or the sheet and goes when the form stops asking for what was refused. A point with no
+  // override of its own is the global's: dropping a Shadow override is what the server counted as an activation
+  const askedOf = (form: { points: Overrides }) => (id: DecisionPointId) => form.points[id]?.mode ?? 'inherit';
+  const failure = useSaveFailure(askedOf(draft));
   const save = useMutation({
-    mutationFn: async () => {
+    mutationFn: async (sent: { provider: Provider; points: Overrides }) => {
       // The document is replaced whole: read it again right before writing
       const fresh = await api.projectSettings(project.id);
       const { decisions: _previous, ...rest } = fresh;
-      const decisions = decisionsOf(draft.provider, draft.points);
+      const decisions = decisionsOf(sent.provider, sent.points);
       return api.putProjectSettings(project.id, decisions ? { ...rest, decisions } : rest);
     },
+    onMutate: () => failure.clear(),
+    onError: (error, sent) => failure.hold(error, askedOf(sent)),
     onSuccess: () => {
       setEdit(null);
       toast.success(t('decisions.saved'));
@@ -87,6 +95,14 @@ export function ProjectDecisions({ project }: { project: Project }) {
     change({ points: rest });
   };
 
+  // As on the global screen: one line for an area where some point's Active is out of reach and says nothing on its row
+  const unseen = (ids: readonly DecisionPointId[]) =>
+    ids.some((id) => {
+      const info = byId.get(id);
+      return info !== undefined && activeUnseen(info, draft.points[id]?.mode ?? info.effective.mode, saved.points[id]?.mode ?? global.data?.points[id]?.mode ?? 'off', provider);
+    });
+  const earned = (ids: readonly DecisionPointId[]) => unseen(ids) && <p className="dp-area-note">{t('decisions:points.activeEarned')}</p>;
+
   const groups = AREAS.map((area) => ({ id: area.id, ids: area.points.filter((id) => byId.has(id)) })).filter((g) => g.ids.length > 0);
 
   const groupHead = (id: AreaId, ids: readonly DecisionPointId[]) => (
@@ -101,7 +117,7 @@ export function ProjectDecisions({ project }: { project: Project }) {
     const info = byId.get(id);
     return (
       info && (
-        <OverrideRow key={id} info={info} override={draft.points[id]} provider={provider} onChange={(patch) => setPoint(id, patch)} onReset={() => reset(id)} />
+        <OverrideRow key={id} info={info} override={draft.points[id]} savedMode={saved.points[id]?.mode ?? global.data?.points[id]?.mode ?? 'off'} provider={provider} onChange={(patch) => setPoint(id, patch)} onReset={() => reset(id)} />
       )
     );
   };
@@ -113,7 +129,7 @@ export function ProjectDecisions({ project }: { project: Project }) {
           {t('general.discard')}
         </button>
       )}
-      <button type="button" className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate()}>
+      <button type="button" className="btn btn-primary" disabled={!dirty || save.isPending} onClick={() => save.mutate(draft)}>
         {save.isPending ? t('general.saving') : t('general.save')}
       </button>
     </div>
@@ -121,6 +137,9 @@ export function ProjectDecisions({ project }: { project: Project }) {
 
   const body = (
     <>
+      {failure.error !== null && (
+        <SaveError error={failure.error} title={t('general.saveFailed')} onClose={failure.clear} inheritedActive={new Set(catalogue.data.filter((info) => global.data?.points[info.id]?.mode === 'active').map((info) => info.id))} />
+      )}
       <div className="dp-block">
         <span className="section-label">{t('decisions.provider')}</span>
         <Segmented
@@ -138,16 +157,17 @@ export function ProjectDecisions({ project }: { project: Project }) {
       {groups.map((group, index) =>
         narrow ? (
           <Collapsible key={group.id} className="dp-fold" defaultOpen={index === 0} title={groupHead(group.id, group.ids)}>
+            {earned(group.ids)}
             {group.ids.map(row)}
           </Collapsible>
         ) : (
           <div key={group.id} className="dp-group" role="group" aria-label={t(`decisions:points.areas.${group.id}`)}>
             <div className="dp-group-head">{groupHead(group.id, group.ids)}</div>
+            {earned(group.ids)}
             {group.ids.map(row)}
           </div>
         ),
       )}
-      <ErrorBox error={save.error} title={t('general.saveFailed')} />
     </>
   );
 
@@ -183,17 +203,22 @@ export function ProjectDecisions({ project }: { project: Project }) {
 function OverrideRow({
   info,
   override,
+  savedMode,
   provider,
   onChange,
   onReset,
 }: {
   info: DecisionPointInfo;
   override: Override | undefined;
+  /** The mode in force in this project as saved: a point already Active there keeps Active whatever the form says */
+  savedMode: DecisionMode;
   provider: DecisionProviderId;
   onChange: (patch: Override) => void;
   onReset: () => void;
 }) {
   const { t } = useTranslation(['projects', 'decisions']);
+  // The gate's wording lives in `decisions`; `t` above would look in `projects` first
+  const { t: td } = useTranslation('decisions');
   const name = t(`decisions:points.names.${POINT_KEY[info.id] ?? info.id}`, { defaultValue: info.id });
   const modeSet = override?.mode !== undefined;
   const thresholdSet = override?.threshold !== undefined;
@@ -201,6 +226,16 @@ function OverrideRow({
   const threshold = override?.threshold ?? info.effective.threshold;
   // An act point on the CLI has no calibrated confidence to compare with its threshold
   const activeBlocked = info.kind === 'act' && provider === 'cli';
+  // The gate the server enforces on save, told before: Active is earned on the point's evidence
+  const unproven = !activeBlocked && gateBlocked(info, mode, savedMode);
+  // A phone has no hover for the segment's title, so the reason Active is out of reach is said on the row
+  // (as on the global screen: only for a point in play, not on every Off point nobody has read)
+  const activeReason =
+    unproven && (standingInforms(info, savedMode) || mode !== 'off')
+      ? info.evidencePossible
+        ? td('gate.activeNeeds', { missing: gateMissing(td, info.gate, bestReading(info.live, info.replay)) })
+        : td('gate.noEvidence')
+      : null;
 
   return (
     <div className="dp-row" data-point={info.id}>
@@ -218,6 +253,7 @@ function OverrideRow({
           value: m,
           label: t(`decisions:points.modes.${m}`),
           ...(m === 'active' && activeBlocked ? { disabled: true, title: t('decisions:points.activeNeedsJev') } : {}),
+          ...(m === 'active' && unproven ? { disabled: true, title: td('gate.activeNeeds', { missing: gateMissing(td, info.gate, bestReading(info.live, info.replay)) }) } : {}),
         }))}
       />
       {info.kind === 'act' ? (
@@ -247,6 +283,7 @@ function OverrideRow({
           t('decisions.inherited')
         )}
       </span>
+      {activeReason && <p className="dp-point-line">{activeReason}</p>}
     </div>
   );
 }

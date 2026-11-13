@@ -8,9 +8,9 @@ import type { ChatRuntime } from '../src/chats.ts';
 import { Db } from '../src/db.ts';
 import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS, DEFAULT_THRESHOLD } from '../src/decisions/settings.ts';
 import type { ClaudioEventInput } from '../src/events.ts';
-import { HealthMonitor, type TaskContext } from '../src/health-service.ts';
+import { HealthMonitor, REWAKE_MS, type TaskContext } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';
-import { hintFrom, lastSteps, relayHint, Supervisor, SupervisorConflictError, supervisorModeOf, type SupervisorAnswer, type SupervisorQuestion } from '../src/supervisor.ts';
+import { draftOf, hintFrom, lastSteps, relayHint, Supervisor, SUPERVISOR_SCHEMA, SupervisorConflictError, supervisorModeOf, NOT_STUCK_MAX_DRAFTS, NOT_STUCK_RETRY_MS, type SupervisorAnswer, type SupervisorDeps, type SupervisorQuestion } from '../src/supervisor.ts';
 import { MemoryRefusal, RunSlotRefusal } from '../src/chat-errors.ts';
 import { tempConfig } from './helpers.ts';
 import { PASTED_NOTE } from '../src/prompt-rules.ts';
@@ -46,7 +46,7 @@ const entry = (role: 'user' | 'assistant', blocks: TranscriptEntry['blocks'], is
   blocks,
 });
 
-function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<SupervisorAnswer> = () => ({ text: 'Check the open socket.', costUsd: 0.002, isError: false })) {
+function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<SupervisorAnswer> = () => ({ structured: { stuck: true, hint: 'Check the open socket.' }, costUsd: 0.002, isError: false })) {
   const config = tempConfig();
   const db = new Db(config);
   const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
@@ -64,7 +64,7 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
   const stepsAsked: Array<HealthSignal['agent']> = [];
   let steps: TranscriptEntry[] = [];
   const spend = { open: true };
-  const supervisor = new Supervisor({
+  const deps: SupervisorDeps = {
     spendOpen: () => spend.open,
     now: () => clock.now,
     roomRetryMs: 5,
@@ -98,13 +98,15 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
     },
     emit: (e) => events.push(e),
     charge: (id, usd) => charged.push([id, usd]),
-  });
+  };
+  const supervisor = new Supervisor(deps);
   /** The point's mode is the Supervisor's switch; the CLI model and cap are the engine's */
-  const enable = async (mode: DecisionMode = 'shadow', cli: Partial<typeof DEFAULT_DECISION_SETTINGS.cli> = {}) => {
-    await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, ...cli } });
+  /** Active sends by itself only for the kinds listed; most tests here list the ones they wake it with */
+  const enable = async (mode: DecisionMode = 'shadow', cli: Partial<typeof DEFAULT_DECISION_SETTINGS.cli> = {}, autoSignals: HealthSignal['kind'][] = ['hung-command', 'repeat-stall', 'loop']) => {
+    await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, ...cli }, supervisor: { autoSignals } });
     await settings.setPointMode('supervisor.intervene', mode);
   };
-  return { config, db, settings, supervisor, direct, asked, events, hints, relays, charged, spend, enable, cancelled, cancel, clock, stepsAsked, setSteps: (s: TranscriptEntry[]) => (steps = s) };
+  return { config, db, settings, supervisor, restarted: () => new Supervisor(deps), direct, asked, events, hints, relays, charged, spend, enable, cancelled, cancel, clock, stepsAsked, setSteps: (s: TranscriptEntry[]) => (steps = s) };
 }
 
 test('the deprecated body maps onto the point\'s mode, and the view is derived from the point and the engine', async () => {
@@ -282,7 +284,7 @@ test('two announcements before the answer arrives ask once', async () => {
   const second = await h.supervisor.wake(chatOf('c1'), null, [hung]);
   assert.equal(second, null);
   await new Promise((r) => setImmediate(r));
-  release({ text: 'Look at the port.', costUsd: 0.001, isError: false });
+  release({ structured: { stuck: true, hint: 'Look at the port.' }, costUsd: 0.001, isError: false });
   assert.equal((await first)?.hint, 'Look at the port.');
   assert.equal(h.asked.length, 1);
 });
@@ -333,7 +335,7 @@ test('the question carries the signal, the settings and the worker\'s last steps
 
 test('an answer that is no use records nothing, is not asked again, and still costs what it cost', async () => {
   let call = 0;
-  const h = harness(() => (++call === 1 ? { text: 'budget exceeded', costUsd: 0.05, isError: true } : { text: '  \n ', costUsd: 0.01, isError: false }));
+  const h = harness(() => (++call === 1 ? { structured: null, costUsd: 0.05, isError: true } : { structured: { stuck: true, hint: '  \n ' }, costUsd: 0.01, isError: false }));
   await h.enable();
   assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hung]), null);
   assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hung]), null);
@@ -351,6 +353,122 @@ test('an answer that is no use records nothing, is not asked again, and still co
   assert.equal(await broken.supervisor.wake(chatOf('w1'), null, [hung]), null);
   assert.equal(await broken.supervisor.wake(chatOf('w1'), null, [hung]), null);
   assert.equal(broken.asked.length, 1);
+});
+
+test('a draft that says the worker is not stuck sends nothing, proposes nothing, and is not asked again before its back-off', async () => {
+  const h = harness(() => ({ structured: { stuck: false, hint: '' }, costUsd: 0.03, isError: false }));
+  // Active, with the kind listed: even where it could send by itself, a worker that is not stuck gets nothing
+  await h.enable('active');
+  assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hungCall('toolu_1')]), null);
+  assert.equal(h.hints.length, 0);
+  assert.equal(h.cancelled.length, 0, 'its command is left to run');
+  assert.equal(h.events.length, 0, 'no proposal for a person to act on');
+  // Recorded as the occurrence's answer: the same command is not asked about on the next tick
+  assert.deepEqual(h.db.proposalsOf('w1').map((p) => p.status), ['not-stuck']);
+  assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hungCall('toolu_1')]), null);
+  assert.equal(h.asked.length, 1);
+  // ...nor past the time a failed question is asked again, while the command has not run twice as long
+  h.clock.now += 16 * 60_000;
+  assert.equal(await h.supervisor.wake(chatOf('w1'), task, [hungCall('toolu_1')]), null);
+  assert.equal(h.asked.length, 1);
+  // It cost what it cost
+  assert.deepEqual(h.charged, [['orch-1', 0.03]]);
+  // A person has nothing to send or dismiss
+  const [row] = h.db.proposalsOf('w1');
+  await assert.rejects(h.supervisor.send(row?.id ?? '', { chatId: 'w1' }), /already not-stuck/);
+});
+
+test('a hung command judged not stuck is drafted again each time its running time doubles, and a later stuck draft is an ordinary proposal on the same row', async () => {
+  let stuck = false;
+  const h = harness(() => ({ structured: stuck ? { stuck: true, hint: 'The build waits on a lock file.' } : { stuck: false, hint: '' }, costUsd: 0.03, isError: false }));
+  await h.enable('shadow');
+  const chat = chatOf('w1');
+  // Running since 09:40, first drafted at 10:00: twenty minutes in
+  const wake = () => h.supervisor.wake(chat, task, [hungCall('toolu_1')]);
+  assert.equal(await wake(), null);
+  h.clock.now += 19 * 60_000;
+  assert.equal(await wake(), null);
+  assert.equal(h.asked.length, 1, 'thirty-nine minutes in is not yet twice twenty');
+  h.clock.now += 60_000;
+  assert.equal(await wake(), null);
+  assert.equal(h.asked.length, 2, 'forty minutes in: asked again');
+  const [again] = h.db.proposalsOf('w1');
+  assert.deepEqual([h.db.proposalsOf('w1').length, again?.status, again?.at], [1, 'not-stuck', '2026-10-30T10:20:00.000Z'], 'one row, moved to its latest answer');
+  // The next look waits for eighty minutes in, twice the forty of the last answer
+  h.clock.now += 39 * 60_000;
+  assert.equal(await wake(), null);
+  assert.equal(h.asked.length, 2);
+  h.clock.now += 60_000;
+  assert.equal(await wake(), null);
+  assert.equal(h.asked.length, 3);
+  // Hours later the command still hangs, and the draft now finds it stuck: a proposal like any other
+  stuck = true;
+  h.clock.now += 80 * 60_000;
+  const proposal = await wake();
+  assert.equal(h.asked.length, 4);
+  assert.deepEqual([proposal?.status, proposal?.hint, proposal?.id, proposal?.signal, proposal?.occurrence], ['proposed', 'The build waits on a lock file.', again?.id, 'hung-command', 'toolu_1']);
+  assert.ok(Math.abs((proposal?.costUsd ?? 0) - 0.12) < 1e-9, 'the occurrence carries every draft it cost');
+  assert.deepEqual(h.db.proposalsOf('w1'), [proposal]);
+  assert.equal(h.events.filter((e) => e.type === 'supervisor.proposed').length, 1);
+  // A proposal is never drafted again
+  h.clock.now += 24 * 60 * 60_000;
+  assert.equal(await wake(), null);
+  assert.equal(h.asked.length, 4);
+});
+
+test('an occurrence judged not stuck is drafted again after a fixed wait, a bounded number of times, and the back-off survives a restart', async () => {
+  const h = harness(() => ({ structured: { stuck: false, hint: '' }, costUsd: 0.01, isError: false }));
+  await h.enable('shadow');
+  const chat = chatOf('w1');
+  // Not a running command: no running time to double, so the fixed wait
+  const stalled: HealthSignal = { kind: 'no-progress', level: 'bad', reason: 'No change in 50 min.', since: '2026-10-30T09:10:00.000Z' };
+  assert.equal(await h.supervisor.wake(chat, null, [stalled]), null);
+  // A restart forgets nothing the back-off needs: the row keeps when it was answered and how often
+  const after = h.restarted();
+  h.clock.now += NOT_STUCK_RETRY_MS - 60_000;
+  assert.equal(await after.wake(chat, null, [stalled]), null);
+  assert.equal(h.asked.length, 1);
+  h.clock.now += 60_000;
+  for (let n = 2; n <= NOT_STUCK_MAX_DRAFTS; n++) {
+    assert.equal(await after.wake(chat, null, [stalled]), null);
+    assert.equal(h.asked.length, n);
+    h.clock.now += NOT_STUCK_RETRY_MS;
+  }
+  assert.equal(h.db.proposalAsks(h.db.proposalsOf('w1')[0]?.id ?? ''), NOT_STUCK_MAX_DRAFTS);
+  // Past the cap the occurrence is left to the person
+  h.clock.now += 10 * NOT_STUCK_RETRY_MS;
+  assert.equal(await after.wake(chat, null, [stalled]), null);
+  assert.equal(h.asked.length, NOT_STUCK_MAX_DRAFTS);
+});
+
+test('the draft decides first whether the worker is stuck, and answers in a structure with no room for reasons', async () => {
+  const h = harness();
+  await h.enable();
+  await h.supervisor.wake(chatOf('c1'), null, [hung]);
+  const [q] = h.asked;
+  assert.equal(q?.jsonSchema, SUPERVISOR_SCHEMA);
+  assert.deepEqual(Object.keys((SUPERVISOR_SCHEMA.properties ?? {}) as Record<string, unknown>), ['stuck', 'hint']);
+  assert.match(q?.prompt ?? '', /First decide whether the agent is stuck at all/);
+  // Waiting on work that is being done is named as not stuck: a running batch, CI, delegated work
+  assert.match(q?.prompt ?? '', /a batch of calls still running/);
+  assert.match(q?.prompt ?? '', /CI or a review it is polling/);
+  assert.match(q?.prompt ?? '', /agents and tasks it delegated/);
+  assert.doesNotMatch(q?.prompt ?? '', /Think the problem through/, 'Haiku, the default, is told nothing more');
+
+  const sonnet = harness();
+  await sonnet.enable('shadow', { model: 'sonnet' });
+  await sonnet.supervisor.wake(chatOf('c1'), null, [hung]);
+  assert.match(sonnet.asked[0]?.prompt ?? '', /Think the problem through before you answer\.$/);
+});
+
+test('a draft is read by its contract: not stuck, or stuck with a hint, and anything else is a failed question', () => {
+  assert.deepEqual(draftOf({ stuck: false, hint: '' }), { stuck: false });
+  assert.deepEqual(draftOf({ stuck: false, hint: 'Nothing is stalled, keep waiting.' }), { stuck: false }, 'a not-stuck draft is never sent, whatever its hint says');
+  assert.deepEqual(draftOf({ stuck: true, hint: ' Start the database.\nThen rerun.\nThird.' }), { stuck: true, hint: 'Start the database.\nThen rerun.' });
+  assert.equal(draftOf({ stuck: true, hint: '  ' }), null);
+  assert.equal(draftOf({ stuck: 'yes', hint: 'x' }), null);
+  assert.equal(draftOf('Check the port.'), null, 'prose is not the contract');
+  assert.equal(draftOf(undefined), null);
 });
 
 test('a long answer is cut to the two lines a hint is', () => {
@@ -402,7 +520,7 @@ test('send delivers the hint and marks it sent; dismiss marks it dismissed; each
   assert.equal(failing.db.proposal(p.id)?.status, 'proposed');
 });
 
-test('Active under the CLI sends every hint on its own; Shadow leaves each for a person', async () => {
+test('Active under the CLI sends the hint of a listed kind on its own; Shadow leaves each for a person', async () => {
   const h = harness();
   await h.enable('active');
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [hung]);
@@ -424,7 +542,7 @@ test('a person who switches the point while the hint is drafted decides whether 
   const woken = h.supervisor.wake(chatOf('c1'), null, [hung]);
   await new Promise((r) => setImmediate(r));
   await h.settings.setPointMode('supervisor.intervene', 'shadow');
-  release({ text: 'Look at the port.', costUsd: 0.001, isError: false });
+  release({ structured: { stuck: true, hint: 'Look at the port.' }, costUsd: 0.001, isError: false });
   assert.equal((await woken)?.status, 'proposed');
   assert.equal(h.hints.length, 0);
 });
@@ -576,7 +694,7 @@ test('a proposal kept before occurrences were keyed holds its kind for that occu
 
 test('a question that failed is asked again once fifteen minutes have passed, not before', async () => {
   let call = 0;
-  const h = harness(() => (++call === 1 ? { text: '', costUsd: 0.01, isError: true } : { text: 'Kill the stale server.', costUsd: 0.01, isError: false }));
+  const h = harness(() => (++call === 1 ? { structured: null, costUsd: 0.01, isError: true } : { structured: { stuck: true, hint: 'Kill the stale server.' }, costUsd: 0.01, isError: false }));
   await h.enable();
   const signal = hungCall('toolu_1');
   assert.equal(await h.supervisor.wake(chatOf('c1'), null, [signal]), null);
@@ -594,7 +712,7 @@ test('a question refused for room, a full slot or short memory, is retried and n
     call += 1;
     if (call === 1) throw new RunSlotRefusal(4);
     if (call === 2) throw new MemoryRefusal('Not enough memory to start a chat: 300 MB available, below the 512 MB floor');
-    return { text: 'Check the port.', costUsd: 0.01, isError: false };
+    return { structured: { stuck: true, hint: 'Check the port.' }, costUsd: 0.01, isError: false };
   });
   await h.enable();
   // The pause between tries is unref'd, so a wait for room never holds the process on its way out;
@@ -629,7 +747,7 @@ test('a question refused for room, a full slot or short memory, is retried and n
 });
 
 test('Active cancels a hung command with the hint as the reason, and sends the hint only when the cancel is refused', async () => {
-  const h = harness(() => ({ text: 'The suite waits on port 5432; start the database first.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'The suite waits on port 5432; start the database first.' }, costUsd: 0.01, isError: false }));
   await h.enable('active');
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_1')]);
   assert.equal(proposal?.status, 'sent');
@@ -639,6 +757,7 @@ test('Active cancels a hung command with the hint as the reason, and sends the h
   );
   assert.equal(h.hints.length, 0, 'the cancel carried it: no message besides');
   assert.equal(h.db.proposal(proposal?.id ?? '')?.status, 'sent');
+  assert.equal(h.db.proposal(proposal?.id ?? '')?.sentBy, 'supervisor', 'the Supervisor sent it, not a person');
 
   h.cancel.refuse = true;
   const refused = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_2')]);
@@ -660,7 +779,7 @@ test('Active cancels a hung command with the hint as the reason, and sends the h
 });
 
 test("a signal about a subagent's call reads that agent's steps and asks the lead to relay the hint or stop it", async () => {
-  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Run the grep on src/ only.' }, costUsd: 0.01, isError: false }));
   await h.enable('active');
   h.cancel.refuse = true;
   const agent = { parentToolUseId: 'toolu_agent', description: 'Audit the CLI bundle', subagentType: 'Explore' };
@@ -678,7 +797,11 @@ test("a signal about a subagent's call reads that agent's steps and asks the lea
   assert.match(prompt, /a subagent the agent launched \(type Explore\), described as:\n<pasted_content id="([0-9a-f]{8})">\nAudit the CLI bundle\n/);
   assert.match(prompt, /- Bash \{"command":"grep -r x \/usr\/lib\/node_modules"\}/);
   assert.doesNotMatch(prompt, /lead-only-step|another-agent-step/, "only that agent's own steps");
-  assert.match(prompt, /Write a hint for the subagent/);
+  // The draft judges the subagent, from its own branch, and any hint it writes is for the subagent, not the lead
+  assert.match(prompt, /subagent[^\n]*\bbranch\b/, "the steps are named as the subagent's branch");
+  assert.match(prompt, /whether the subagent is stuck/);
+  assert.match(prompt, /addressed to the subagent/);
+  assert.doesNotMatch(prompt, /whether the agent is stuck|addressed to the agent\b/, 'nothing in it is about the lead');
 
   assert.ok(proposal);
   assert.deepEqual(proposal.agent, agent);
@@ -695,7 +818,7 @@ const addressable = { parentToolUseId: 'toolu_agent', agentId: 'a1b2c3', descrip
 const aboutSubagent: HealthSignal = { ...hungCall('s1'), detail: 'grep -r x /usr/lib/node_modules', agent: addressable };
 
 test('a hint about a subagent with an agent id is written to it as it is, and the lead is not asked', async () => {
-  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Run the grep on src/ only.' }, costUsd: 0.01, isError: false }));
   await h.enable('active');
   h.cancel.refuse = true;
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [aboutSubagent]);
@@ -708,7 +831,7 @@ test('a hint about a subagent with an agent id is written to it as it is, and th
 });
 
 test('refused up front, the hint falls back once to the lead as a relay', async () => {
-  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Run the grep on src/ only.' }, costUsd: 0.01, isError: false }));
   await h.enable('active');
   h.cancel.refuse = true;
   h.direct.mode = 'refused';
@@ -720,7 +843,7 @@ test('refused up front, the hint falls back once to the lead as a relay', async 
 });
 
 test('undelivered, a person\'s hint from the health panel falls back once to the lead too', async () => {
-  const h = harness(() => ({ text: 'Run the grep on src/ only.', costUsd: 0.01, isError: false }));
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Run the grep on src/ only.' }, costUsd: 0.01, isError: false }));
   await h.enable('shadow');
   h.direct.mode = 'undelivered';
   const proposal = await h.supervisor.wake(chatOf('c1'), null, [aboutSubagent]);
@@ -760,4 +883,28 @@ test('the store keeps one row per occurrence of a signal per chat', () => {
   assert.equal(h.db.saveProposal(row('a', 'toolu_1')), true);
   assert.equal(h.db.saveProposal(row('b', 'toolu_1')), false);
   assert.equal(h.db.saveProposal(row('c', 'toolu_2')), true);
+});
+
+test('a chat that stays bad wakes the Supervisor again every few minutes, so a back-off can come due', () => {
+  const chat = chatOf('w1', { pid: 42, status: 'busy', pendingPrompts: 0 } as Partial<ChatRuntime>);
+  const woken: number[] = [];
+  const monitor = new HealthMonitor(
+    {
+      runtime: { list: () => [chat], get: () => chat } as never,
+      health: { read: () => ({ level: 'bad', reason: hung.reason, signals: [hung], proposal: null }), forget: () => undefined } as never,
+      emit: () => undefined,
+      taskOf: () => null,
+      onBad: () => woken.push(woken.length),
+    },
+    0,
+  );
+  const t0 = Date.parse('2026-10-30T10:00:00Z');
+  monitor.check(t0);
+  // The same signals a minute later: nothing new to announce, and too soon to look again
+  monitor.check(t0 + 60_000);
+  assert.equal(woken.length, 1);
+  monitor.check(t0 + REWAKE_MS);
+  assert.equal(woken.length, 2, 'still bad: the Supervisor looks again');
+  monitor.check(t0 + REWAKE_MS + 60_000);
+  assert.equal(woken.length, 2);
 });

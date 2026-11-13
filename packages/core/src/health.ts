@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { GuardOutcome, HealthSignal, HealthSignalAgent, TaskLimits } from '@claudio/shared';
 import { commandKind, slowAfterMs, type UsualDuration } from './commands.ts';
 import { oneLine, said, wholeMinutes } from './health-strings.ts';
@@ -67,6 +68,53 @@ export function runningCommands(trace: Trace): ToolCall[] {
 const ms = (iso: string): number => Date.parse(iso);
 
 /**
+ * How long an unanswered earlier call may hold a later one's clock. Far past any command's limit: a
+ * sibling that has run this long is itself the news, and a command queued behind it is timed from here
+ * on rather than hidden for as long as the sibling lasts.
+ */
+export const SERIES_HOLD_MAX_MS = 2 * 60 * 60_000;
+
+/**
+ * Calls Claude Code always runs one at a time, never beside another: an edit waits for every earlier
+ * call of its message. One that answered while an earlier call is still open shows that call was not
+ * of its message, so its own answer was lost on the way (an interrupt, a stream cut short).
+ */
+const SERIAL_TOOLS: ReadonlySet<string> = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit']);
+
+/**
+ * When a call's own clock started, or null while it may not have started at all. Every call of one
+ * message carries the message's time, and Claude Code runs only the calls that change nothing side by
+ * side: the fourth shell command of a batch waits while the third runs, and timed from the message
+ * it looked hung after a minute of honest work by its siblings. So the clock starts at the latest of
+ * the call's own time and the end of every earlier call by the same agent that was still running
+ * when it was made, and a call with such a sibling still running is not timed yet: the sibling is,
+ * on its own clock. The CLI's heartbeat, when there is one, is better than either and is read first.
+ *
+ * Two kinds of open earlier call hold nothing: one whose answer was lost (a serial call made after it
+ * has answered, which the CLI would not have run before it), and one open longer than
+ * {@link SERIES_HOLD_MAX_MS}, after which the later call is timed from that limit.
+ */
+export function commandClock(trace: Pick<Trace, 'calls'>, call: ToolCall, nowMs = Date.now()): string | null {
+  let start = call.at;
+  const agent = call.parentToolUseId ?? '';
+  const own = trace.calls.filter((c) => (c.parentToolUseId ?? '') === agent);
+  const index = own.findIndex((c) => c === call || c.id === call.id);
+  const earlier = index < 0 ? own : own.slice(0, index);
+  for (const [i, other] of earlier.entries()) {
+    if (other.endedAt !== null) {
+      if (ms(other.endedAt) > ms(start)) start = other.endedAt;
+      continue;
+    }
+    const lost = earlier.slice(i + 1).some((later) => SERIAL_TOOLS.has(later.name) && later.endedAt !== null && ms(later.endedAt) <= ms(call.at));
+    if (lost) continue;
+    const released = ms(other.at) + SERIES_HOLD_MAX_MS;
+    if (nowMs < released) return null;
+    if (released > ms(start)) start = new Date(released).toISOString();
+  }
+  return start;
+}
+
+/**
  * The subagent a call belongs to, as a signal names it (C3), or undefined for the lead's own call:
  * a hint about a subagent's command has to reach the lead as one about its agent, since nothing
  * documented writes to a subagent.
@@ -124,7 +172,11 @@ export function repeatStall(trace: Trace, limits: StallLimits, nowMs: number): H
   let worst: { kind: string; stalls: ToolCall[] } | null = null;
   for (const { kind, calls } of byKind.values()) {
     const limit = limitFor(kind, limits);
-    const stalled = (call: ToolCall) => (call.endedAt ? ms(call.endedAt) : nowMs) - ms(call.at) >= limit;
+    // On the call's own clock: a command queued behind its batch did not stall while it waited
+    const stalled = (call: ToolCall) => {
+      const start = commandClock(trace, call, nowMs);
+      return start !== null && (call.endedAt ? ms(call.endedAt) : nowMs) - ms(start) >= limit;
+    };
     const tail: ToolCall[] = [];
     for (let i = calls.length - 1; i >= 0; i--) {
       const call = calls[i] as ToolCall;
@@ -217,18 +269,100 @@ export function loop(trace: Trace): HealthSignal | null {
 
 /** Calls the semantic loop point needs in its window before it is worth asking about. */
 export const SEMANTIC_LOOP_MIN_CALLS = 8;
+/** The same tool on near-identical input this many times in the window is repetition worth a judgment. */
+export const SEMANTIC_LOOP_REPEATS = 3;
+/** Longest target (a path, or a command's first word) the point is sent */
+const TARGET_CHARS = 80;
+/** Input fields that change from one call to the next without changing what the call does */
+const VOLATILE_INPUT = new Set(['description', 'timeout', 'run_in_background']);
+
+/** Sorted-key JSON, so the same input always serialises the same. */
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (typeof value === 'object' && value !== null) {
+    return `{${Object.entries(value as Record<string, unknown>)
+      .filter(([k]) => !VOLATILE_INPUT.has(k))
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${stable(v)}`)
+      .join(',')}}`;
+  }
+  return JSON.stringify(value) ?? 'null';
+}
+
+const digestOf = (text: string): string => createHash('sha256').update(text).digest('hex').slice(0, 10);
+
+/** Input fields that name what a call acts on: a path, a pattern, a URL or a query */
+const TARGET_INPUT = ['file_path', 'path', 'notebook_path', 'pattern', 'url', 'query'] as const;
 
 /**
- * What the `health.semantic-loop` point sends, or null when the exact rule already says loop or the
- * worker has not done enough to judge. The point only ever adds a signal to what {@link loop} finds.
+ * "Near-identical": the same tool whose input, with digits and runs of whitespace flattened and the
+ * volatile fields dropped, is equal. Retrying a command with another port, line number or timeout is
+ * the same step; a different file or a different pattern is not, so the fields that name what the
+ * call acts on keep their digits (`file-1.ts` and `file-2.ts` are two files, and reading nine of
+ * them is exploring, not repeating). Cheap on purpose: it only decides whether a question is worth
+ * its call.
  */
-export function semanticLoopState(trace: Trace): { lastCallId: string; firstAt: string; calls: Array<Record<string, string>> } | null {
+function nearKey(call: ToolCall): string {
+  const flat = (value: unknown): string => stable(value).replace(/\d+/g, '#').replace(/\s+/g, ' ');
+  const isTarget = ([key, value]: [string, unknown]): boolean => typeof value === 'string' && (TARGET_INPUT as readonly string[]).includes(key);
+  const entries = Object.entries(call.input);
+  const kept = entries.filter(isTarget).map(([key, value]) => `${key}=${String(value)}`).sort();
+  const rest = Object.fromEntries(entries.filter((entry) => !isTarget(entry)));
+  return `${call.parentToolUseId ?? ''}\0${call.name}\0${digestOf(`${kept.join('\0')}\0${flat(rest)}`)}`;
+}
+
+/** What a call acts on, cut short: a path or a pattern, or the first word of a command. Never the whole input. */
+function targetOf(call: ToolCall): string {
+  const input = call.input;
+  if (typeof input.command === 'string') return (input.command.trim().split(/\s+/)[0] ?? '').slice(0, TARGET_CHARS);
+  for (const key of TARGET_INPUT) {
+    const value = input[key];
+    if (typeof value === 'string') return value.slice(0, TARGET_CHARS);
+  }
+  return '';
+}
+
+/** 3 to 5 repeats, 6 to 11, 12 and more: a repetition that grows this much is worth a second look */
+const repeatBucket = (n: number): number => Math.max(0, Math.floor(Math.log2(n / SEMANTIC_LOOP_REPEATS)));
+
+/**
+ * What identifies a repetition for the "not asked twice" rule: each repeated group (agent, tool and
+ * normalised input, from {@link nearKey}) with its count bucket. Not the whole window: every new call
+ * changes the window, and hashing it asked again on every call while the same three calls sat in it.
+ */
+function repetitionHash(repeated: ReadonlyArray<[string, number]>): string {
+  return digestOf(
+    repeated
+      .map(([key, n]) => `${key}\0${String(repeatBucket(n))}`)
+      .sort()
+      .join('\n'),
+  );
+}
+
+/**
+ * What the `health.semantic-loop` point sends, or null when it is not worth a question: the exact
+ * rule already says loop, the worker has not done enough to judge, or no tool was called on
+ * near-identical input {@link SEMANTIC_LOOP_REPEATS} times (the cheap rule; without it the point was
+ * asked every four calls and was 87 % of all decisions). The point only ever adds a signal to what
+ * {@link loop} finds.
+ *
+ * Each call is its tool name, a digest of its input and its target, never the input or the output:
+ * the state was 24 M tokens of tool calls. `hash` identifies the repetition (the repeated groups and how
+ * many times each came), so the same one is not asked about twice however the window moves around it.
+ */
+export function semanticLoopState(trace: Trace): { lastCallId: string; firstAt: string; hash: string; calls: Array<Record<string, string>> } | null {
   const recent = trace.calls.filter((c) => c.endedAt && !BOOKKEEPING.has(c.name)).slice(-WINDOW);
   if (recent.length < SEMANTIC_LOOP_MIN_CALLS || loop(trace)) return null;
+  const tally = new Map<string, number>();
+  for (const call of recent) tally.set(nearKey(call), (tally.get(nearKey(call)) ?? 0) + 1);
+  const repeated = [...tally].filter(([, n]) => n >= SEMANTIC_LOOP_REPEATS);
+  if (!repeated.length) return null;
+  const calls = recent.map((c) => ({ name: c.name, digest: digestOf(stable(c.input)), target: targetOf(c) }));
   return {
     lastCallId: (recent[recent.length - 1] as ToolCall).id,
     firstAt: (recent[0] as ToolCall).at,
-    calls: recent.map((c) => ({ name: c.name, input: JSON.stringify(c.input).slice(0, 200), result: oneLine(c.result, 160) })),
+    hash: repetitionHash(repeated),
+    calls,
   };
 }
 
