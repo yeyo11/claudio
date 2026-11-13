@@ -93,10 +93,17 @@ the first result of the new process in full. On `--resume` the CLI's total alrea
 session's earlier turns, so every resumed execution is billed its history again, into
 `execution.costUsd`, `recordSpend` and the task's and the graph's cost.
 
-- Spike S1 first ([§10](#10-spikes-before-building)): what `total_cost_usd` and `modelUsage` report
-  after `--resume`, after a fork and after an account switch, on the real CLI.
-- Then: the baseline survives a spawn that resumes the same native session and is reset only for a
-  new session; `turnTokens` gets the same treatment if S1 shows `modelUsage` behaves alike.
+- **Spike S1, run on 2026-11-13** on Claude Code 2.1.322 (`claude -p … --model haiku
+  --output-format json`, one account's `CLAUDE_CONFIG_DIR`, an empty directory): the result of a
+  first turn reported `total_cost_usd` 0.00354; the same session after `--resume`, 0.00386; after a
+  second `--resume`, 0.00416; and `--resume --fork-session`, under a new session id, 0.00447.
+  `modelUsage` grew the same way (cache read 11,873 → 40,675 → 69,605 → 98,600 tokens). So both
+  figures are cumulative over the session, across processes, and a fork starts from its parent's
+  totals. Not run: a resume under another account's directory (the review's data shows totals
+  that only grow across three accounts).
+- So: the baseline (`lastReportedCostUsd`, `lastReportedModelUsage`) survives a spawn that resumes
+  a native session, starts from the parent's last totals for a fork, and is zero only for a session
+  that starts new. A total that comes back lower than the baseline counts from zero, as today.
 - The stored figures: recomputing them is the owner's choice (D7).
 
 ### M2. The baseline on every row
@@ -293,6 +300,26 @@ task reads what an earlier one decided here.
 | `web` | sonnet, high | §7, after D8's design round; `claudio-ui` skill and `/ui-review` | `lifecycle`, `replay` | `apps/web/src/pages/config/decisions/`, `components/DecisionMark.tsx`, `DecisionsLine.tsx`, i18n `en`/`es` |
 | `docs` | sonnet, medium | `decision-engine.md`, `settings.md`, `rest-api.md`, `orchestrations.md`, §8's per-field table, an amendment to the decision record, this plan's Outcome | all | `docs/` |
 | `review` | opus, high | The merged branch against this plan, and the full e2e suite | all | – |
+
+### Contracts between tasks
+
+Fixed here so tasks of different waves meet:
+
+- **The baseline** travels with the question: `ask(point, subject, { projectId, baseline })`, where
+  `baseline` is a small JSON value the call site computes from its code rule (`evidence` adds the
+  option and the column; each call site's own task passes it).
+- **A continuation's effect** is recorded by `continuation` on the task state as
+  `continuationEffects: Array<{ n, cause: 'decision' | 'phrase' | 'structural', changed, commits,
+  edits }>` (type added by `evidence`), and on a flow run in a `continuation_effects` JSON column
+  (migration by `evidence`). The `run.continuation` resolver reads only these.
+- **An outcome's quality** is `outcome.quality: 'direct' | 'proxy'`; a row without it is `proxy`.
+- **Runs.** `decisions.run_effect` is +1 for a run saved, -1 for a run caused, 0 otherwise, written
+  when the row is, and backfilled for stored rows. Stats answer `runsSaved`, `runsCaused` and their
+  net; `claudeRunsSaved` stays one release as an alias of `runsSaved` so the web compiles until its
+  own task.
+- **Standing and the gate** read only `direct` outcomes, through one function of `evidence`
+  (`pointEvidence(point, window)`: counts, precision of the acting answer with its lower bound, the
+  baseline comparison, the calibration buckets, the act or flag rate).
 
 Verification: `typecheck`, `test`, `build` and the OpenAPI schemas, then the `e2e` gate with no
 prefix, through Sluice. `decisions.spec.mjs` gains the gate (an unproven act point cannot be made
