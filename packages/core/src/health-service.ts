@@ -8,7 +8,7 @@ import type { ClaudioEventInput } from './events.ts';
 import { gitAsyncText, headCommitAsync, isGitRepoAsync } from './git.ts';
 import { HEALTH_REASONS, said } from './health-strings.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
-import { agentOf, budget, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
+import { agentOf, budget, commandClock, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
 
 /** What a chat's health needs beyond what its process shows: the parts only the chat service knows. */
 export interface HealthBase {
@@ -203,11 +203,22 @@ export class HealthService {
     };
     facts.live = {
       lastEventAt: trace.lastEventAt,
+      // Each on its own clock (`commandClock`): one queued behind a sibling of its batch is not timed
+      // until it starts, unless the CLI's heartbeat says it is running already
       commands: runningCommands(trace).map((call) => {
         const command = typeof call.input.command === 'string' ? call.input.command : 'a command';
         const heartbeat = trace.heartbeats.get(call.id);
+        const clock = commandClock(trace, call);
         const agent = agentOf(trace, call);
-        return { command, startedAt: call.at, toolUseId: call.id, usual: usualOf(commandKind(command)), ...(heartbeat ? { heartbeat } : {}), ...(agent ? { agent } : {}) };
+        return {
+          command,
+          startedAt: clock ?? call.at,
+          toolUseId: call.id,
+          usual: usualOf(commandKind(command)),
+          ...(clock === null && !heartbeat ? { queued: true } : {}),
+          ...(heartbeat ? { heartbeat } : {}),
+          ...(agent ? { agent } : {}),
+        };
       }),
     };
 
