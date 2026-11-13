@@ -49,6 +49,7 @@ import type {
   SystemSample,
 } from '@claudio/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
+import { recomputeResumedCosts } from './session-totals.ts';
 import type { CoreConfig } from './paths.ts';
 import { pruneWebhookDeliveries } from './webhook-store.ts';
 
@@ -1612,6 +1613,12 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      dismissed    INTEGER NOT NULL DEFAULT 0
    );
    CREATE INDEX agent_messages_chat ON agent_messages (chat_id, state);`,
+
+  // An execution of a resumed session was billed the session's history again: the CLI's totals are
+  // the session's, and Claudio took them to restart with every process (M1 and D7 of
+  // docs/plans/decision-engine-v2.md). The stored executions of each chat whose costs only grow are
+  // billed their own turns; the spend ledger stays as it was, and `cost_corrections` dates the fix
+  recomputeResumedCosts,
 ];
 
 /**
@@ -1635,6 +1642,9 @@ export const ASSISTANT_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m ===
 
 /** The version that added the decisions' opened_at and palette_action, for the test that upgrades into it */
 export const DECISION_SIGNALS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN palette_action')) + 1;
+
+/** The version that bills the stored executions of resumed sessions their own turns, for the test that upgrades into it */
+export const RESUMED_COSTS_SCHEMA_VERSION = MIGRATIONS.indexOf(recomputeResumedCosts) + 1;
 
 /** The version that added the guards' event table, for the test that upgrades a database from the one before */
 export const GUARD_EVENTS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE guard_events')) + 1;

@@ -45,6 +45,7 @@ import { appendFileSync, existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { createInterface } from 'node:readline';
+import { forkedFrom, sessionTotals } from './fake-session-totals.mjs';
 
 const args = process.argv.slice(2);
 if (args[0] === 'agents') {
@@ -62,6 +63,10 @@ if (args[0] === 'auth') {
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
 const sessionId = flag('--session-id') ?? flag('--resume') ?? randomUUID();
 const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
+// Each turn costs 0.01, and a result reports the session's total after it, as the CLI does
+// (fake-session-totals.mjs)
+const totals = sessionTotals(sessionId, forkedFrom(args));
+const turnCost = () => totals.add(0.01).totalCostUsd;
 const log = (entry) => {
   if (process.env.FAKE_QUEUE_LOG) appendFileSync(process.env.FAKE_QUEUE_LOG, `${JSON.stringify(entry)}\n`);
 };
@@ -101,10 +106,10 @@ function startTurn(prompt, ids = []) {
     running = null;
     if (interrupted) {
       out({ type: 'user', session_id: sessionId, message: { role: 'user', content: [{ type: 'text', text: '[Request interrupted by user]' }] } });
-      out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, total_cost_usd: 0.01 });
+      out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, total_cost_usd: turnCost() });
     } else {
       out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'text', text: `answered: ${prompt}` }] } });
-      out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `answered: ${prompt}` });
+      out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: turnCost(), result: `answered: ${prompt}` });
     }
     next();
   };

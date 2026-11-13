@@ -15,7 +15,7 @@ import { turnTokens } from '../src/usage.ts';
 
 // ---------- a turn's tokens ----------
 
-test("a turn's tokens are the growth of the process's cumulative counts since its previous result", () => {
+test("a turn's tokens are the growth of the session's cumulative counts since its previous result", () => {
   const first = [{ model: 'claude-sonnet-5-5', inputTokens: 10, outputTokens: 5, cacheReadInputTokens: 100, cacheCreationInputTokens: 20 }];
   assert.deepEqual(turnTokens([], first), { input: 10, output: 5, cacheRead: 100, cacheCreation: 20, total: 135 });
   const second = [

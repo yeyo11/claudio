@@ -51,6 +51,7 @@ import { cliProcessOf, commandRoots, descendantsOf, processTable, terminateTree,
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { BranchTracker, DriverEvent, InterruptReceipt, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
 import { providerLimitOf } from './providers/limits.ts';
+import { noTotals } from './session-totals.ts';
 import { classOfChat, classOfStart, InteractiveHold, QUEUE_YIELD_PREFIX, type StartClass } from './admission-queue.ts';
 import { admissionLimitsFrom, readSystemLoad } from './system-load.ts';
 import { PROVIDER_MANIFESTS, ProviderRegistry } from './providers/registry.ts';
@@ -393,11 +394,10 @@ export class ChatManager extends EventEmitter {
     return driver;
   }
 
-  /** The CLI's per-model cost, cumulative over its process like the total, so it only ever grows. */
-  private learnModelCosts(execution: Execution, modelUsage: ModelUsage[]): void {
-    for (const { model, costUsd: usd } of modelUsage) {
-      if (usd === undefined) continue;
-      execution.modelCosts = { ...execution.modelCosts, [model]: Math.max(execution.modelCosts?.[model] ?? 0, usd) };
+  /** Adds one turn's cost per model to the execution's split, which then sums to its `costUsd`. */
+  private learnModelCosts(execution: Execution, turnCosts: Record<string, number>): void {
+    for (const [model, usd] of Object.entries(turnCosts)) {
+      execution.modelCosts = { ...execution.modelCosts, [model]: (execution.modelCosts?.[model] ?? 0) + usd };
     }
   }
 
@@ -1076,6 +1076,8 @@ export class ChatManager extends EventEmitter {
     if (known) {
       chat.account = known.account;
       if (known.opts.account) chat.opts.account = known.opts.account;
+      // The copy's first result reports the source's totals plus its own turn: only the turn is its
+      chat.reported = known.reported;
     }
     this.applyStartOptions(chat, request);
     return this.begin(chat, request.prompt, attachments, room);
@@ -2402,9 +2404,10 @@ export class ChatManager extends EventEmitter {
     // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
     const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));
     if (account) chat.account = account.id;
-    // The CLI's total is cumulative over its process, so a new process counts from zero again
-    chat.lastReportedCostUsd = 0;
-    chat.lastReportedModelUsage = [];
+    // The CLI's totals are the session's, not the process's: one that resumes the session goes on
+    // from its last report and a fork from its parent's (set by `fork`). Only a session that starts
+    // new starts from zero (spike S1 of docs/plans/decision-engine-v2.md)
+    if (!chat.created && !chat.forkFrom) chat.reported = noTotals();
     chat.stopRequested = false;
     chat.endedAt = null;
     chat.error = null;

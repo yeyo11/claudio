@@ -68,7 +68,7 @@ async function liveChat(config: ReturnType<typeof tempConfig>, core: Core) {
 
 // ---------- the button, end to end ----------
 
-test('compacting an idle live chat records the boundary, the divider, the cost-free row and the note kept from the summary', async () => {
+test('compacting an idle live chat records the boundary, the divider, the row with what its turn cost and the note kept from the summary', async () => {
   const { config, core } = setup();
   try {
     const chat = await liveChat(config, core);
@@ -82,7 +82,8 @@ test('compacting an idle live chat records the boundary, the divider, the cost-f
     assert.equal(done.focus, 'the plan and the failing test');
     assert.ok(done.preTokens && done.postTokens && done.preTokens > done.postTokens, 'the CLI\'s own figures');
     assert.ok(done.boundaryUuid);
-    assert.equal(done.costUsd, null, 'a cost is only what the CLI reported over the process, never an estimate');
+    // What the session's total grew by over the compaction's turn (the recording's 0.0066), never an estimate
+    assert.ok(done.costUsd !== null && Math.abs(done.costUsd - 0.006597625) < 1e-6, String(done.costUsd));
     // The divider is in the live stream at once, and the summary beside it became a note
     assert.equal(boundaries(core.runtime.events(chat.id)).length, 1);
     const kept = await until(() => core.notes.list(chat.id)[0], 'the note of the compaction');

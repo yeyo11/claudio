@@ -462,6 +462,14 @@ Each of these is checked with a command, not assumed:
   they run in CI.
 - The owner gets a short status in Spanish after each wave: what merged, what failed, what is next.
 
+### Amended by the owner on 2026-11-13, during wave 1
+
+From wave 2 on, agents do not run a verification phase: no `test`, `ci-checks` or `e2e` gate. They
+run only what the commit hook demands (`lint` and `typecheck`, about half a minute). The session
+integrates each wave the same way. Once everything is implemented, the owner and the session do the
+whole verification together (every gate, the full e2e suite and a QA pass) before the pull request
+is opened. Wave 1 (`cost-resume`, `evidence`) had already started under the earlier rule.
+
 ### When the session stops and asks
 
 Only when a decision outside D1 to D8 would change what the product does for the person; when S1 or
