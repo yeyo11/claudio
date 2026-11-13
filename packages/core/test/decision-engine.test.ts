@@ -317,6 +317,30 @@ test('pruning keeps historyDays of rows', async () => {
   assert.equal(s.db.decision(out.decisionId ?? ''), null);
 });
 
+test('an outcome becomes a label before its row is pruned, and never overrules a person\'s label', async () => {
+  const s = setup();
+  s.engine.register(new FakeProvider('jev', answering(0.9)));
+  await configure(s, 'flow.bounce', 'shadow');
+  const direct = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
+  const proxy = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
+  const person = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
+  s.engine.resolve(direct.decisionId ?? '', { summary: 'the next QA run passed', agreed: true, quality: 'direct' });
+  s.engine.resolve(proxy.decisionId ?? '', { summary: 'a guess', agreed: true, quality: 'proxy' });
+  s.engine.resolve(person.decisionId ?? '', { summary: 'the next QA run passed', agreed: true, quality: 'direct' });
+  s.db.saveDecisionLabel({ id: 'mine', point: 'flow.bounce', decisionId: person.decisionId, state: {}, questions: [], positive: false, answers: null, source: 'person', note: 'my call', at: new Date().toISOString() });
+
+  const later = new DecisionEngine({ settings: s.settings, db: s.db, projectDecisions: () => null, now: () => new Date(Date.now() + 31 * 86_400_000), standing: () => 'proven' });
+  assert.equal(later.prune(), 3);
+  assert.equal(s.db.decision(direct.decisionId ?? ''), null);
+  const labels = new Map(s.db.decisionLabels('flow.bounce').map((l) => [l.decisionId, l]));
+  assert.equal(labels.get(direct.decisionId ?? '')?.source, 'outcome');
+  assert.equal(labels.has(proxy.decisionId ?? ''), false, 'only a direct outcome is a label');
+  assert.deepEqual([labels.get(person.decisionId ?? '')?.source, labels.get(person.decisionId ?? '')?.positive], ['person', false]);
+  // A second prune finds nothing to label and keeps what it has
+  assert.equal(later.prune(), 0);
+  assert.equal(s.db.decisionLabels('flow.bounce').length, 2);
+});
+
 test('the catalogue and the last state come from the settings and the history', async () => {
   const s = setup();
   s.engine.register(new FakeProvider('jev', answering(0.9)));
