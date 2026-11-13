@@ -1952,6 +1952,9 @@ a.member-run:hover {
 .flow-limit-cost input {
   flex: 1 1 auto;
   min-width: 0;
+  /* The box around it already has the field's padding: the input's own took 24 px of a 73 px field and left
+     "No limit" 3 px to spare, which one runner image did not have */
+  padding-inline: 0;
   border: 0;
   outline: 0;
   background: transparent;
