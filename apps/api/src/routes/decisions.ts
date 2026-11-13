@@ -1,8 +1,15 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { decisionPoint, DECISION_POINTS, type Core } from '@claudio/core';
+import { randomUUID } from 'node:crypto';
+import { decisionPoint, DECISION_POINTS, labelsFromOutcomes, parseQuestions, redactState, ReplayRunner, type Core } from '@claudio/core';
 import type {
   DecisionCredentialsResult,
   DecisionFeedback,
+  DecisionLabel,
+  DecisionLabelImportResult,
+  DecisionLabelOutcomesResult,
+  DecisionReplayList,
+  DecisionReplayRequest,
+  DecisionReplayStarted,
   DecisionNotificationOpenedResult,
   DecisionPageQuery,
   DecisionPaletteResult,
@@ -187,5 +194,106 @@ export const decisionRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { 
   app.delete<{ Params: { id: string } }>('/decisions/:id', (req) => {
     if (!core.db.deleteDecision(req.params.id)) throw fail(404, `decision ${req.params.id} not found`);
     return { ok: true };
+  });
+
+  // ---- The golden set and replays (docs/plans/decision-engine-v2.md, M5). Writes are a person's.
+
+  const labelFields = (note: unknown): string | null => {
+    if (note === undefined || note === null) return null;
+    if (typeof note !== 'string' || note.length > 500) throw new Error('note must be a string of at most 500 characters');
+    return note.trim() === '' ? null : note;
+  };
+
+  app.get<{ Querystring: { point?: string } }>('/decisions/labels', (req): DecisionLabel[] => {
+    const point = req.query.point === undefined || req.query.point === '' ? undefined : pointOf(req.query.point);
+    return core.db.decisionLabels(point);
+  });
+
+  app.post<{ Body: { decisionId?: unknown; positive?: unknown; note?: unknown } | undefined }>('/decisions/labels', (req): DecisionLabel => {
+    const { decisionId, positive, note } = req.body ?? {};
+    if (typeof decisionId !== 'string' || decisionId === '') throw new Error('decisionId must be a decision id');
+    if (typeof positive !== 'boolean') throw new Error('positive must be true or false');
+    const text = labelFields(note);
+    const row = core.db.decision(decisionId);
+    if (!row) throw fail(404, `decision ${decisionId} not found`);
+    // The row's state was redacted when it was stored; the label keeps exactly that
+    core.db.saveDecisionLabel({ id: randomUUID(), point: row.point, decisionId: row.id, state: row.state, questions: row.questions, positive, answers: null, source: 'person', note: text, at: new Date().toISOString() });
+    const saved = core.db.decisionLabels(row.point).find((l) => l.decisionId === row.id);
+    if (!saved) throw fail(500, 'the label was not saved');
+    return saved;
+  });
+
+  app.delete<{ Params: { id: string } }>('/decisions/labels/:id', (req) => {
+    if (!core.db.deleteDecisionLabel(req.params.id)) throw fail(404, `label ${req.params.id} not found`);
+    return { ok: true };
+  });
+
+  const MAX_IMPORT = 500;
+  app.post<{ Body: { labels?: unknown } | undefined }>('/decisions/labels/import', (req): DecisionLabelImportResult => {
+    const labels = req.body?.labels;
+    if (!Array.isArray(labels) || labels.length === 0 || labels.length > MAX_IMPORT) throw new Error(`labels must be a list of 1 to ${MAX_IMPORT} items`);
+    // Validated whole before anything is written: a set is imported entirely or not at all
+    const parsed: Array<Omit<DecisionLabel, 'id' | 'at'>> = (labels as unknown[]).map((item, i) => {
+      const entry = typeof item === 'object' && item !== null && !Array.isArray(item) ? (item as Record<string, unknown>) : null;
+      if (!entry) throw new Error(`labels[${i}] must be an object`);
+      const id = typeof entry.point === 'string' ? pointOf(entry.point) : null;
+      const def = id ? decisionPoint(id) : undefined;
+      if (!id || !def) throw new Error(`labels[${i}].point must be a decision point`);
+      if (typeof entry.state !== 'object' || entry.state === null || Array.isArray(entry.state)) throw new Error(`labels[${i}].state must be an object`);
+      const questions = parseQuestions(entry.questions);
+      if (!questions) throw new Error(`labels[${i}].questions must be valid questions with unique ids`);
+      if (typeof entry.positive !== 'boolean') throw new Error(`labels[${i}].positive must be true or false`);
+      // A set built outside was never redacted: it is held to the point's own limits and masks before it is stored
+      return { point: id, decisionId: null, state: redactState(entry.state as Record<string, unknown>, def.maxStateBytes), questions, positive: entry.positive, answers: null, source: 'person', note: labelFields(entry.note) };
+    });
+    const at = new Date().toISOString();
+    for (const label of parsed) core.db.saveDecisionLabel({ ...label, id: randomUUID(), at });
+    return { imported: parsed.length };
+  });
+
+  app.post<{ Body: { point?: unknown; days?: unknown } | undefined }>('/decisions/labels/outcomes', (req): DecisionLabelOutcomesResult => {
+    const { point, days } = req.body ?? {};
+    if (typeof point !== 'string') throw new Error('point must be a decision point id');
+    const id = pointOf(point);
+    const window = days === undefined ? DEFAULT_STATS_DAYS : days;
+    if (typeof window !== 'number' || !Number.isFinite(window) || window <= 0) throw new Error('days must be a number above 0');
+    return labelsFromOutcomes(core.db, id, { since: new Date(Date.now() - window * DAY_MS).toISOString() });
+  });
+
+  const replays = new ReplayRunner({ db: core.db, engine: core.decisions, settings: core.decisionSettings });
+  app.addHook('onClose', () => {
+    replays.stop();
+  });
+
+  app.post<{ Body: Record<string, unknown> | undefined }>('/decisions/replays', (req): DecisionReplayStarted => {
+    const body = req.body ?? {};
+    if (typeof body.point !== 'string') throw new Error('point must be a decision point id');
+    const request: DecisionReplayRequest = { point: pointOf(body.point) };
+    const provider = oneOf<DecisionProviderId>(typeof body.provider === 'string' ? body.provider : undefined, ['cli', 'jev'], 'provider');
+    if (body.provider !== undefined && typeof body.provider !== 'string') throw new Error('provider must be one of cli, jev');
+    if (provider) request.provider = provider;
+    if (body.questions !== undefined) {
+      const questions = parseQuestions(body.questions);
+      if (!questions) throw new Error('questions must be valid questions with unique ids');
+      request.questions = questions;
+    }
+    if (body.limit !== undefined) {
+      if (typeof body.limit !== 'number') throw new Error('limit must be a whole number');
+      request.limit = body.limit;
+    }
+    if (body.concurrency !== undefined) {
+      if (typeof body.concurrency !== 'number') throw new Error('concurrency must be a whole number');
+      request.concurrency = body.concurrency;
+    }
+    if (body.note !== undefined) {
+      const note = labelFields(body.note);
+      if (note) request.note = note;
+    }
+    return replays.start(request);
+  });
+
+  app.get<{ Querystring: { point?: string } }>('/decisions/replays', (req): DecisionReplayList => {
+    const point = req.query.point === undefined || req.query.point === '' ? undefined : pointOf(req.query.point);
+    return { items: core.db.decisionReplays(point), ...replays.state() };
   });
 };

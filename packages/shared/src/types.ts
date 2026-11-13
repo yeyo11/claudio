@@ -10607,6 +10607,134 @@ export interface DecisionLabel {
   at: string;
 }
 
+/** A person labels a history row: the answer that acts was right (`positive`) or wrong for its state */
+export interface DecisionLabelRequest {
+  decisionId: string;
+  positive: boolean;
+  note?: string;
+}
+
+/** One state of a set built outside Claudio (the review's labelled reports): redacted on the way in */
+export interface DecisionLabelImportItem {
+  point: DecisionPointId;
+  state: Record<string, unknown>;
+  questions: DecisionQuestion[];
+  positive: boolean;
+  note?: string;
+}
+
+export interface DecisionLabelImportRequest {
+  labels: DecisionLabelImportItem[];
+}
+
+export interface DecisionLabelImportResult {
+  imported: number;
+}
+
+/** Turns a point's resolved history into labels (`direct` outcomes only), before the history is pruned */
+export interface DecisionLabelOutcomesRequest {
+  point: DecisionPointId;
+  /** How far back to read; default 30 */
+  days?: number;
+}
+
+export interface DecisionLabelOutcomesResult {
+  /** Labels written or refreshed */
+  saved: number;
+  /** Rows a person had already labelled: their word stands */
+  keptPerson: number;
+  /** Rows whose answers say neither acting nor holding, so they cannot be labelled */
+  unreadable: number;
+}
+
+/** Where a replay's right to send the states came from: the point's own consent, or the owner's word for one run */
+export type DecisionReplayConsent = 'point' | 'owner-flag';
+
+/** The scorer's output for a replay: the same structure the promotion gate reads from live history */
+export type DecisionReplayScore = Pick<DecisionPointEvidence, 'precision' | 'baselinePrecision' | 'baseline' | 'calibration' | 'actRate'>;
+
+/** Answers against labels. "Acted" is the answer that acts or flags; "right" is the label's `positive` */
+export interface DecisionReplayConfusion {
+  /** Acted, and acting was right */
+  actedRight: number;
+  /** Acted, and acting was wrong */
+  actedWrong: number;
+  /** Held, and acting would have been wrong */
+  heldRight: number;
+  /** Held, and acting would have been right */
+  heldWrong: number;
+  /** Answered, but its answers say neither acting nor holding */
+  unreadable: number;
+  /** Of the cases where acting was right, how many the answer acted on */
+  recall: DecisionRate;
+}
+
+/** One stored replay: a point's labelled states put to a provider again */
+export interface DecisionReplay {
+  id: string;
+  point: DecisionPointId;
+  at: string;
+  provider: DecisionProviderId;
+  model: string;
+  /** The questions asked: the point's own, or the reworded ones that were being tried */
+  questions: DecisionQuestion[];
+  /** Stable hash of `questions`; the promotion gate looks a replay up by it */
+  questionsHash: string;
+  /** Labelled cases put to the provider, answered or not */
+  cases: number;
+  /** Of those, how many got no answer; they are left out of the score */
+  unavailable: number;
+  score: DecisionReplayScore;
+  confusion: DecisionReplayConfusion;
+  costUsd: number;
+  consent: DecisionReplayConsent;
+  note: string | null;
+}
+
+export interface DecisionReplayRequest {
+  point: DecisionPointId;
+  /** Defaults to the provider the point runs on */
+  provider?: DecisionProviderId;
+  /** Reworded questions to try instead of the point's own */
+  questions?: DecisionQuestion[];
+  /** The newest labels to use; default 100, at most 500 */
+  limit?: number;
+  /** Calls at once; default 2, at most 8 */
+  concurrency?: number;
+  note?: string;
+}
+
+export interface DecisionReplayRunning {
+  point: DecisionPointId;
+  provider: DecisionProviderId;
+  startedAt: string;
+  cases: number;
+  /** Cases that have an answer or a refusal so far */
+  done: number;
+}
+
+export interface DecisionReplayFailure {
+  point: DecisionPointId;
+  at: string;
+  message: string;
+}
+
+/** `POST /decisions/replays`: the run goes on in the background; read it from `GET /decisions/replays` */
+export interface DecisionReplayStarted {
+  point: DecisionPointId;
+  provider: DecisionProviderId;
+  cases: number;
+  questionsHash: string;
+}
+
+export interface DecisionReplayList {
+  /** Newest first */
+  items: DecisionReplay[];
+  running: DecisionReplayRunning[];
+  /** The last run of each point that ended without a result */
+  failed: DecisionReplayFailure[];
+}
+
 /** The state a point would send, or sent last, and where it would go */
 export interface DecisionPreview {
   point: DecisionPointId;

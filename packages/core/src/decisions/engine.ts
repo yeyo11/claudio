@@ -326,6 +326,11 @@ export class DecisionEngine {
     if (this.pruneTimer) clearInterval(this.pruneTimer);
     this.pruneTimer = null;
   }
+
+  /** A registered provider, read only: the replay harness asks through it exactly as a live request would (M5) */
+  provider(id: DecisionProviderId): DecisionProvider | undefined {
+    return this.providers.get(id);
+  }
 }
 
 /** The lowest confidence of the batch; null when any answer has none (the CLI) */
