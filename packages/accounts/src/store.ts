@@ -1,12 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { ChildProcess } from 'node:child_process';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Account, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
-import { prepareAccountDir, removeLinks } from './dirs.ts';
+import { orphanDirs, reconcileAccountDir, removeLinks, type ReconcileReport } from './dirs.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
@@ -107,6 +107,8 @@ export interface AccountStoreOptions {
    * Absent (the terminal's `claudio-accounts`, which runs no chat) nothing is refused.
    */
   liveChatsOn?: (account: string) => string[];
+  /** Where the store says what it found and left alone (a conflict, an orphan dir); `console.warn` when absent */
+  log?: (message: string) => void;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -210,6 +212,7 @@ export class AccountStore {
     this.readings = new Readings(join(opts.dataDir, 'accounts', 'limits.json'));
     this.modelCache = new ModelCache(join(opts.dataDir, 'accounts', 'models'), modelsOptions(() => this.claude, this.env, opts.onSpawn));
     this.reload();
+    this.reconcileAll();
   }
 
   /**
@@ -282,11 +285,66 @@ export class AccountStore {
 
   // ---------- accounts ----------
 
-  /** What a process launcher needs: the account's id, kind and directory. */
+  /**
+   * What a process launcher needs: the account's id, kind and directory. A launcher asks for it
+   * before every spawn, so the account's links are brought up to the default dir here: lstat calls,
+   * no write when nothing is missing (an item added to `~/.claude` after the account was made
+   * reaches a chat on it at its next run).
+   */
   ref(id: string): AccountRef {
     if (id === DEFAULT_ID) return { id, kind: 'login', dir: this.defaultDir };
     const a = this.entry(id);
+    this.reconcile(id);
     return { id, kind: a.kind, dir: this.dirOf(id) };
+  }
+
+  /**
+   * One pass of the account's links: the missing ones are made, the hand-made ones that point
+   * where Claudio would point them are recorded, anything else in the way is reported and left.
+   * Never throws: a dir that cannot be written is logged, and the run it precedes goes on.
+   */
+  reconcile(id: string, opts: { save?: boolean } = {}): ReconcileReport | null {
+    if (id === DEFAULT_ID) return null;
+    const a = this.entry(id);
+    let report: ReconcileReport;
+    try {
+      report = reconcileAccountDir(this.dirOf(id), this.defaultDir, { recorded: a.links });
+    } catch (error) {
+      this.say(`accounts: could not link the configuration of ${id}: ${error instanceof Error ? error.message : String(error)}`);
+      return null;
+    }
+    const fresh = [...report.linked, ...report.adopted].filter((item) => !a.links.includes(item));
+    if (fresh.length) {
+      a.links = [...a.links, ...fresh];
+      if (opts.save !== false) void this.save().catch((error: unknown) => this.say(`accounts: could not record the links of ${id}: ${error instanceof Error ? error.message : String(error)}`));
+    }
+    for (const step of report.conflicts) {
+      const key = `${id}/${step.item}/${step.reason}`;
+      if (this.reported.has(key)) continue;
+      this.reported.add(key);
+      this.say(`accounts: ${id} has its own ${step.item} (${step.reason}) where the default's would be linked; left as it is`);
+    }
+    // A conflict that was solved is told again if it comes back
+    for (const key of [...this.reported]) if (key.startsWith(`${id}/`) && !report.conflicts.some((c) => key === `${id}/${c.item}/${c.reason}`)) this.reported.delete(key);
+    return report;
+  }
+
+  /** What was already said, so a conflict is logged once rather than at every spawn */
+  private readonly reported = new Set<string>();
+
+  private say(message: string): void {
+    (this.opts.log ?? ((line: string) => console.warn(line)))(message);
+  }
+
+  /** Every account's links, at start-up, and the directories no account names */
+  private reconcileAll(): void {
+    for (const a of this.stored.accounts) this.reconcile(a.id);
+    for (const dir of this.orphans()) this.say(`accounts: ${dir} belongs to no account; left in place (remove it by hand if it holds nothing you need)`);
+  }
+
+  /** The dirs under `<data>/accounts/` that no account record names; never removed */
+  orphans(): string[] {
+    return orphanDirs(join(this.opts.dataDir, 'accounts'), new Set(this.stored.accounts.map((a) => a.id)));
   }
 
   /**
@@ -406,9 +464,16 @@ export class AccountStore {
     if (alias && this.list().some((a) => a.alias === alias)) throw new Error(`alias ${alias} is already taken`);
     const id = `acc-${randomUUID().slice(0, 8)}`;
     const dir = this.dirOf(id);
-    const links = prepareAccountDir(dir, this.defaultDir);
-    if (request.kind !== 'login') await writeAtomic(join(dir, SECRET_FILE), `${request.secret?.trim()}\n`, 0o600);
-    this.stored.accounts.push({ id, kind: request.kind, alias, enabled: true, links, identity: { ...NO_IDENTITY, signedIn: request.kind !== 'login' } });
+    this.stored.accounts.push({ id, kind: request.kind, alias, enabled: true, links: [], identity: { ...NO_IDENTITY, signedIn: request.kind !== 'login' } });
+    // The links join the record as they are made; a failure leaves no half-made account behind
+    try {
+      mkdirSync(dir, { recursive: true, mode: 0o700 });
+      this.reconcile(id, { save: false });
+      if (request.kind !== 'login') await writeAtomic(join(dir, SECRET_FILE), `${request.secret?.trim()}\n`, 0o600);
+    } catch (error) {
+      this.stored.accounts = this.stored.accounts.filter((x) => x.id !== id);
+      throw error;
+    }
     await this.save();
     return this.get(id);
   }

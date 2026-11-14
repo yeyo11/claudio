@@ -47,10 +47,26 @@ account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
   path.
 - **An alias** is required for `token` and `api-key` accounts only: a `login` account already has
   its email.
-- **Dirs** live in `<data>/accounts/<id>/`. `settings.json`, `CLAUDE.md`, `keybindings.json`,
-  `agents`, `commands` and `skills` are symlinks to the default dir, and `projects/` is always linked,
-  so every account writes its transcripts where Claudio reads them and a session started on one
-  account resumes on another with `--resume`.
+- **Dirs** live in `<data>/accounts/<id>/`. Items of the default dir are symlinked into them, and the
+  links are made **when the source exists and kept in sync before every run**, not once at creation
+  (`reconcileAccountDir`, `packages/accounts/src/dirs.ts`):
+  - configuration: `settings.json`, `CLAUDE.md`, `keybindings.json`, `agents`, `commands`, `skills`,
+    `rules`, `output-styles`, `workflows`, `themes` and `hooks`;
+  - history, always shared: `projects`, `agent-memory`, `file-history`, `tasks` and `plans`, so every
+    account writes its transcripts where Claudio reads them and a session started on one account
+    resumes on another with `--resume`.
+
+  A pass runs at start-up for every account, when one is created and every time a launcher asks the
+  store for the account's `ref` (before each spawn). It costs a few `lstat` calls and writes nothing
+  when nothing is missing. An item whose source appears later (a `commands/` made last week) is linked
+  on the next pass; a link made by hand that points where Claudio would point it is adopted, and
+  recorded so removing the account undoes it. Anything else already there (a real file or dir, a link
+  elsewhere) is a **conflict**: logged once, never overwritten, never deleted. Identity (credentials,
+  the state file, organisation policy) and `plugins/` are not linked. A directory under `accounts/`
+  that no account names is listed in the log and left in place.
+- **Writes keep the links.** Claudio's own writers (`writeAtomic` in `packages/accounts` and in
+  `packages/core/src/config`) write the file a link ends at, so saving `settings.json`, `CLAUDE.md` or
+  an agent file from Settings does not replace the link with a plain copy.
 - **Secrets** of `token` and `api-key` accounts are a `0600` file in the account's own dir and are
   in no API answer. Claudio never reads, copies or writes a `login` account's credentials: only the
   CLI does.

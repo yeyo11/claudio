@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import { dirname } from 'node:path';
+import { throughLinks } from '@claudio/accounts';
 import type { ConfigFileVariant, InstructionsDoc, SettingsDoc } from '@claudio/shared';
 import { restoreSecrets } from '../security/redact.ts';
 import { instructionsPath, settingsPath, type ConfigScope } from './scope.ts';
@@ -25,10 +26,12 @@ export async function readJson(file: string): Promise<Record<string, unknown> | 
  * exist, not even for an instant, at whatever the umask allows.
  */
 export async function writeAtomic(file: string, content: string, mode?: number): Promise<void> {
-  await mkdir(dirname(file), { recursive: true });
-  const tmp = `${file}.${process.pid}.tmp`;
+  // A symlinked settings.json, CLAUDE.md or agent file is written where it ends, so it stays a link
+  const target = await throughLinks(file);
+  await mkdir(dirname(target), { recursive: true });
+  const tmp = `${target}.${process.pid}.tmp`;
   await writeFile(tmp, content, mode === undefined ? 'utf8' : { encoding: 'utf8', mode });
-  await rename(tmp, file);
+  await rename(tmp, target);
 }
 
 /** settings.json / CLAUDE.md for any scope (user, project shared, project local). */
