@@ -4496,6 +4496,12 @@ export interface LimitWait {
   moveId: string;
 }
 
+/** A step of a graph that is no task (its integrator, synthesis, a fixer, a reviewer) waiting for its usage limit to reset */
+export interface OrchestrationStepWait extends LimitWait {
+  role: OrchestrationChatRole;
+  chatId: string;
+}
+
 export interface OrchestrationTaskState extends OrchestrationTaskSpec {
   status: OrchestrationTaskStatus;
   /** A task Claudio added to the graph itself, not one the person or the planner wrote; a relaunch adds it again */
@@ -4587,6 +4593,11 @@ export interface Orchestration {
   integration?: OrchestrationIntegration | null;
   /** The newest change request opened for the integration branch; null or absent before one */
   pullRequest?: OrchestrationPullRequest | null;
+  /**
+   * The steps that are no task waiting for a usage limit to reset, as the graph is read: worked out
+   * when it is read, never stored, like a task's `waiting`. Absent when none waits
+   */
+  stepWaits?: OrchestrationStepWait[];
   /** The synthesis run, so its report can be continued like any other conversation */
   synthesisRunId?: string | null;
   /** When the synthesis run started and ended; absent on graphs stored before they were recorded */

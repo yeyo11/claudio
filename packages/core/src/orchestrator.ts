@@ -10,10 +10,12 @@ import type {
   Health,
   LaunchOrchestrationTemplateRequest,
   Orchestration,
+  OrchestrationChatRole,
   OrchestrationEngine,
   OrchestrationIntegration,
   OrchestrationPullRequest,
   OrchestrationSpec,
+  OrchestrationStepWait,
   OrchestrationSummary,
   OrchestrationTaskSpec,
   OrchestrationTaskState,
@@ -147,6 +149,29 @@ const ACCEPT_REASON_MAX = 1000;
 const REVIEW_DEPTH_PATHS = 60;
 /** The largest delay a timer takes: the review fixer has no clock of its own, as the check fixer has none */
 const NO_CLOCK_MS = 2 ** 31 - 1;
+/**
+ * How often a step held at a usage limit looks whether anything still holds it: a hold whose limit
+ * the rotation let go of without a wait or a replay (a decision that failed, a wait it could not
+ * record) has no event that says so
+ */
+const HOLD_LOOK_MS = 1_000;
+/** Later than any claim: what `openProviderMoves` is asked with to read every open wait, resuming ones too */
+const FAR_FUTURE = '9999-12-31T23:59:59.999Z';
+/** The steps that are no task, by the task id their chat carries on its graph link, and what each does for the graph */
+const STEP_ROLES: ReadonlyMap<string, OrchestrationChatRole> = new Map<string, OrchestrationChatRole>([
+  ['__integration__', 'integration'],
+  ['__synthesis__', 'synthesis'],
+  ['__verification__', 'verification'],
+  ['__checks-fix__', 'verification'],
+  [REVIEW_CHAT_ROLE, 'review'],
+]);
+
+/** Why a task or a step did not go on when its wait for a usage limit ended without a replay */
+function waitEndedWhy(end: 'failed' | 'cancelled', reason: string | null, what: 'task' | 'step'): string {
+  if (end === 'cancelled') return 'a person stopped waiting for the usage limit to reset';
+  if (reason === 'limit-wait-expired') return 'the usage limit did not reset within the time Claudio waits for it';
+  return `the usage limit reset, but the ${what} could not go on${reason ? ` (${reason})` : ''}`;
+}
 /** A failure whose signature survives this many fixer attempts is the same error: more attempts will not help */
 const SAME_ERROR_ATTEMPTS = 3;
 /** How every worker's prompt, and each message that sends it back to its chat, ends */
@@ -642,6 +667,14 @@ export class Orchestrator {
   private readonly deciding = new Set<Promise<unknown>>();
   /** Opens and follows an integration branch's change request; set by Core, which owns the host service */
   pullRequests: OrchestrationPullRequestService | null = null;
+  /**
+   * The chats of the graph's steps that are not tasks (the integrator, the synthesis, the fixers, the
+   * review gate's runs), by chat id, while their step waits for them: at a usage limit they are the
+   * graph's work, moved or waited for as a task is (docs/plans/limit-resume-and-credits.md, D7)
+   */
+  private readonly steps = new Map<string, { orchestrationId: string; role: OrchestrationChatRole; taskId: string }>();
+  /** Who hears that a step's wait ended without a replay, by chat id */
+  private readonly stepReleases = new Map<string, Set<(why: string) => void>>();
   /** The rotation has the chat's usage limit: it is deciding, waiting for the reset or moving the task; set by Core */
   limitHeld: ((chatId: string) => boolean) | null = null;
   /** The open wait for a limit to reset that a task's chat is in; set by Core */
@@ -799,6 +832,7 @@ export class Orchestrator {
    * a new conversation instead of continuing its own.
    */
   recover(): void {
+    this.closeStepWaits();
     for (const orch of this.items.values()) {
       // A workflow kept running through the restart waits for its limit: watched again, so it is never left unwatched
       if (orch.status === 'running' && orch.engine === 'workflow' && orch.workflow?.runId) this.followWorkflow(orch, orch.workflow.runId);
@@ -875,10 +909,12 @@ export class Orchestrator {
     // Nothing of this moment to say: the stored graph is already the answer, copies and all
     const pullRequest = this.pullRequests?.newest(orch.id) ?? null;
     const blocks = this.guardBlocks(orch.id);
-    if (!pullRequest && !blocks.size && [...now.values()].every((of) => !of.health && !of.activity && !of.waiting)) return orch;
+    const stepWaits = this.stepWaitsOf(orch.id);
+    if (!pullRequest && !blocks.size && !stepWaits.length && [...now.values()].every((of) => !of.health && !of.activity && !of.waiting)) return orch;
     return {
       ...orch,
       ...(pullRequest ? { pullRequest } : {}),
+      ...(stepWaits.length ? { stepWaits } : {}),
       tasks: orch.tasks.map((t) => {
         const guardBlocks = blocks.get(t.id);
         return now.has(t.id) || guardBlocks ? { ...t, ...now.get(t.id), ...(guardBlocks ? { guardBlocks } : {}) } : t;
@@ -1118,6 +1154,8 @@ export class Orchestrator {
     // Checks started by hand run on a graph that is already over, and stopping it has to reach them; so does an integration retried by hand
     this.cancelChecks(orch.id);
     this.endPlaceWaits(orch.id);
+    // A step held at a limit would go on with its turn after the stop: its wait ends with it
+    this.releaseSteps(orch.id);
     if (orch.status !== 'running' && orch.status !== 'waiting') return orch;
     orch.status = 'stopped';
     orch.endedAt = now();
@@ -1974,8 +2012,10 @@ ${quoted}
     const workflow = this.workflowOfLead(chatId);
     if (workflow) return { subjectKind: 'task', subjectId: `${workflow.id}:${WORKFLOW_LEAD}` };
     const found = this.taskOfChat(chatId);
-    if (!found || found.task.status !== 'running') return null;
-    return { subjectKind: 'task', subjectId: `${found.orch.id}:${found.task.id}` };
+    if (found?.task.status === 'running') return { subjectKind: 'task', subjectId: `${found.orch.id}:${found.task.id}` };
+    // A step that is no task is the graph's work too (D7): its limit is moved or waited for as a task's
+    const step = this.steps.get(chatId);
+    return step ? { subjectKind: 'task', subjectId: `${step.orchestrationId}:${step.taskId}` } : null;
   }
 
   /**
@@ -1986,6 +2026,11 @@ ${quoted}
   waitEnded(move: Pick<ProviderMove, 'fromChat' | 'at'>, end: 'resumed' | 'failed' | 'cancelled', reason: string | null): void {
     const workflow = this.workflowOfLead(move.fromChat);
     if (workflow) return this.workflowWaitEnded(workflow, end, reason);
+    // A step's own wait for its replayed turn hears that none will come
+    if (this.steps.has(move.fromChat)) {
+      if (end !== 'resumed') for (const hear of [...(this.stepReleases.get(move.fromChat) ?? [])]) hear(waitEndedWhy(end, reason, 'step'));
+      return;
+    }
     const found = this.taskOfChat(move.fromChat);
     if (!found || found.task.status !== 'running') return;
     const { orch, task } = found;
@@ -1999,14 +2044,138 @@ ${quoted}
       return this.persist();
     }
     task.status = end === 'cancelled' ? 'stopped' : 'failed';
-    task.error =
-      end === 'cancelled'
-        ? 'a person stopped waiting for the usage limit to reset'
-        : reason === 'limit-wait-expired'
-          ? 'the usage limit did not reset within the time Claudio waits for it'
-          : `the usage limit reset, but the task could not go on${reason ? ` (${reason})` : ''}`;
+    task.error = waitEndedWhy(end, reason, 'task');
     task.endedAt = now();
     this.schedule(orch);
+  }
+
+  // ---------- a limit: the steps that are no task ----------
+  // The integrator, the synthesis, both fixers and the review gate's runs each await their chat's
+  // result. At a usage limit the rotation moves the chat to an account with room and replays its turn
+  // there, or waits for a reset and replays it then, in the same chat (D7): every one of these chats
+  // keeps its session, and a step's turn is a task's turn, safe to replay. The step follows the replay
+  // to its result through the review gate's hold (`awaitReviewRun`), which ends when a wait ends with
+  // no replay, so a step never waits for a turn that is not coming.
+
+  /** Awaits a step's chat as the graph's work: its limit held, moved or waited for, until its last result. */
+  private async stepResult(orch: Orchestration, chatId: string, taskId: string): Promise<RunResult> {
+    this.beginStep(orch, chatId, taskId);
+    try {
+      // A step has no clock of its own, and a stop reaches it by stopping its chat
+      const out = await awaitReviewRun(this.limitHost(), chatId, NO_CLOCK_MS, new AbortController().signal);
+      return 'result' in out ? out.result : { isError: true, result: 'stopped', structuredOutput: undefined, costUsd: 0, cause: 'stopped' };
+    } finally {
+      this.endStep(chatId);
+    }
+  }
+
+  private beginStep(orch: Orchestration, chatId: string, taskId: string): void {
+    this.steps.set(chatId, { orchestrationId: orch.id, role: STEP_ROLES.get(taskId) ?? 'task', taskId });
+  }
+
+  private endStep(chatId: string): void {
+    this.steps.delete(chatId);
+    this.stepReleases.delete(chatId);
+  }
+
+  /** The waits of a graph's steps that are no task, as the graph is read now. */
+  private stepWaitsOf(orchestrationId: string): OrchestrationStepWait[] {
+    const out: OrchestrationStepWait[] = [];
+    for (const [chatId, step] of this.steps) {
+      if (step.orchestrationId !== orchestrationId) continue;
+      const wait = this.waitOf?.(chatId) ?? null;
+      if (wait) out.push({ ...wait, role: step.role, chatId });
+    }
+    return out;
+  }
+
+  /** Ends the waits of a graph's steps: after a stop there is nothing for their turns to go on with. */
+  private releaseSteps(orchestrationId: string): void {
+    for (const [chatId, step] of [...this.steps]) if (step.orchestrationId === orchestrationId) this.releaseWait?.(chatId);
+  }
+
+  /**
+   * A step does not survive a restart (`load` ends it), so the wait of its chat would replay a turn
+   * that nobody awaits. Closed before the rotation re-arms what is open.
+   */
+  private closeStepWaits(): void {
+    let open: ProviderMove[];
+    try {
+      open = this.db.openProviderMoves(FAR_FUTURE);
+    } catch {
+      return;
+    }
+    for (const move of open) {
+      if (move.subjectKind !== 'task') continue;
+      const cut = move.subjectId.lastIndexOf(':');
+      const taskId = move.subjectId.slice(cut + 1);
+      if (cut < 0 || !STEP_ROLES.has(taskId) || !this.items.has(move.subjectId.slice(0, cut))) continue;
+      this.db.closeProviderMove(move.id, 'cancelled', now(), { reason: 'its step ended with a restart' });
+    }
+  }
+
+  /** What a step's chat is awaited through: the review gate's host, whose hold at a limit knows how to end. */
+  private limitHost(): Omit<ReviewHost, 'start'> {
+    return {
+      waitForResult: (id) => this.runs.waitForResult(id),
+      nextResult: (id, signal) => this.runs.nextResult(id, signal),
+      stop: (id) => {
+        if (this.runs.get(id)) this.runs.stop(id);
+      },
+      limitHeld: (id) => this.limitHeld?.(id) ?? false,
+      waitOf: (id) => this.waitOf?.(id) ?? null,
+      released: (id, signal, onWait) => this.holdReleased(id, signal, onWait),
+    };
+  }
+
+  /**
+   * Resolves, with why, when a step's held limit will bring no next result: its wait ended without a
+   * replay (`waitEnded`), or a look finds nothing holding the limit, no wait and the chat not working,
+   * which is how a hold ends that the rotation let go of without either. Never settles once `signal`
+   * aborts, which is when the hold got its result.
+   */
+  private holdReleased(chatId: string, signal: AbortSignal, onWait: (wait: LimitWait | null) => void): Promise<string> {
+    return new Promise((resolve) => {
+      let shown = this.waitOf?.(chatId)?.moveId ?? null;
+      let timer: NodeJS.Timeout | null = null;
+      const listeners = this.stepReleases.get(chatId) ?? new Set<(why: string) => void>();
+      this.stepReleases.set(chatId, listeners);
+      const finish = (why: string | null): void => {
+        if (timer) {
+          clearTimeout(timer);
+          this.timers.delete(timer);
+        }
+        timer = null;
+        listeners.delete(hear);
+        signal.removeEventListener('abort', onAbort);
+        if (why !== null) resolve(why);
+      };
+      const hear = (why: string): void => finish(why);
+      const onAbort = (): void => finish(null);
+      const arm = (): void => {
+        timer = setTimeout(look, HOLD_LOOK_MS);
+        timer.unref();
+        this.timers.add(timer);
+      };
+      const look = (): void => {
+        if (timer) this.timers.delete(timer);
+        timer = null;
+        if (this.closed) return finish(null);
+        const wait = this.waitOf?.(chatId) ?? null;
+        if ((wait?.moveId ?? null) !== shown) {
+          shown = wait?.moveId ?? null;
+          onWait(wait);
+        }
+        const status = this.runs.get(chatId)?.status;
+        const working = status === 'busy' || status === 'starting';
+        if (!wait && !working && !(this.limitHeld?.(chatId) ?? false)) return finish('the usage limit was neither waited for nor moved to another account');
+        arm();
+      };
+      if (signal.aborted) return;
+      listeners.add(hear);
+      signal.addEventListener('abort', onAbort, { once: true });
+      arm();
+    });
   }
 
   /**
@@ -2259,7 +2428,7 @@ ${quoted}
     ));
     state.integratorRunId = run.id;
     this.persist();
-    const result = await this.runs.waitForResult(run.id);
+    const result = await this.stepResult(orch, run.id, '__integration__');
     orch.costUsd += result.costUsd;
     if (result.isError) state.error = `integrator: ${result.result}`;
   }
@@ -2329,7 +2498,7 @@ ${quoted}
       // Kept so the report can be answered: it is a conversation like any other
       orch.synthesisRunId = run.id;
       this.persist();
-      const result = await this.runs.waitForResult(run.id);
+      const result = await this.stepResult(orch, run.id, '__synthesis__');
       orch.finalResult = result.isError ? `Synthesis failed: ${result.result}` : result.result;
       orch.costUsd += result.costUsd;
     } catch (err) {
@@ -2372,6 +2541,7 @@ ${quoted}
     const control = this.verifying.get(id);
     if (!control) return;
     control.cancelled = true;
+    this.releaseSteps(id);
     for (const handle of control.commands) handle.cancel();
     if (control.fixerRunId && this.runs.get(control.fixerRunId)) this.runs.stop(control.fixerRunId);
     // The round stops its own runs when aborted; the ones already started are stopped here too
@@ -2497,6 +2667,7 @@ ${quoted}
       }
     } finally {
       this.verifying.delete(orch.id);
+      this.endReviewSteps(control);
     }
     try {
       state.commit = await headCommitAsync(root);
@@ -2704,6 +2875,8 @@ ${quoted}
       fixerStop = attempt.stop;
       state.commits = commitsSince(root, startHead);
       if (control.cancelled) return conclude('failed', 'Stopped before the checks finished.');
+      // Another attempt would meet the same limit: a person decides, with the checks as they are
+      if (attempt.limited) return conclude('failed', `${named}, and the fixer stopped at a usage limit (${attempt.limited}), so Claudio stopped there.`);
       if (attempt.budget) {
         const made = state.commits.length;
         return conclude(
@@ -2798,7 +2971,7 @@ ${quoted}
     earlier: string[],
     budgetUsd: number | null,
     control: VerificationControl,
-  ): Promise<{ note: string; budget: boolean; stop: { kind: FixStopKind; note: string } | null; notStarted: string | null }> {
+  ): Promise<{ note: string; budget: boolean; stop: { kind: FixStopKind; note: string } | null; notStarted: string | null; limited: string | null }> {
     const checks = failures.map(({ index, failure }) => {
       const entry = state.commands[index] as VerificationCommand;
       return { command: entry.command, failure: `It ${failure}.`, output: entry.output };
@@ -2806,6 +2979,8 @@ ${quoted}
     let note: string;
     let budget = false;
     let stop: { kind: FixStopKind; note: string } | null = null;
+    // The fixer's turn met a usage limit that no account and no wait carried through
+    let limited: string | null = null;
     // One attempt can be at a parallel group's failed checks: the record names every one
     const record: VerificationFix = { runId: null, command: checks.map((c) => c.command).join('; '), attempt: state.attempts, startedAt: now(), endedAt: null, costUsd: 0 };
     (state.fixes ??= []).push(record);
@@ -2853,7 +3028,7 @@ ${quoted}
       // Never started: not an attempt, and nothing it could have left behind to commit
       state.fixes = state.fixes.filter((f) => f !== record);
       const why = control.cancelled ? 'stopped' : isTransientRefusal(err) ? `no place came free in time (${err.message})` : (err as Error).message;
-      return { note: `the fixer could not start: ${why}`, budget: false, stop: null, notStarted: why };
+      return { note: `the fixer could not start: ${why}`, budget: false, stop: null, notStarted: why, limited: null };
     }
     try {
       control.fixerRunId = run.id;
@@ -2861,11 +3036,12 @@ ${quoted}
       record.runId = run.id;
       record.effort = usedEffort(run);
       this.persist();
-      const result = await this.runs.waitForResult(run.id);
+      const result = await this.stepResult(orch, run.id, '__verification__');
       orch.costUsd += result.costUsd;
       state.costUsd += result.costUsd;
       record.costUsd = result.costUsd;
       budget = result.cause === 'budget';
+      if (result.cause === 'rate-limit') limited = result.result;
       note = budget ? 'its cost limit ran out before it finished' : result.isError ? `the fixer ended with an error: ${result.result}` : result.result;
       // Read from the whole report: the rows are at its end, which `tail` below would keep but a long one could cut
       if (!result.isError) {
@@ -2888,7 +3064,7 @@ ${quoted}
     } catch {
       // the fixer left the tree in a state git will not commit; the re-run says whether it matters
     }
-    return { note: tail(note, 1500), budget, stop, notStarted: null };
+    return { note: tail(note, 1500), budget, stop, notStarted: null, limited };
   }
 
 
@@ -2930,16 +3106,17 @@ ${quoted}
           { orchestrationId: orch.id, orchestrationTaskId: REVIEW_CHAT_ROLE },
         );
         control.reviewRunIds.add(run.id);
+        // The graph's work until the gate is done with it (`endReviewSteps`)
+        this.beginStep(orch, run.id, REVIEW_CHAT_ROLE);
         return run.id;
       },
-      waitForResult: (id) => this.runs.waitForResult(id),
-      nextResult: (id) => this.runs.nextResult(id),
-      stop: (id) => {
-        if (this.runs.get(id)) this.runs.stop(id);
-      },
-      limitHeld: (id) => this.limitHeld?.(id) ?? false,
-      waitOf: (id) => this.waitOf?.(id) ?? null,
+      ...this.limitHost(),
     };
+  }
+
+  /** The review gate's runs stop being the graph's work once its round or its loop is over. */
+  private endReviewSteps(control: VerificationControl): void {
+    for (const id of control.reviewRunIds) this.endStep(id);
   }
 
   /** The depth of a review the graph did not fix: `review.depth` decides, and off or shadow means full */
@@ -3168,6 +3345,8 @@ ${quoted}
       fixerNote = fixed.note;
       if (control.cancelled) return finish('incomplete', 'stopped');
       if (fixed.budget) return finish('blocked', `${outcome.reason} The fixer's cost limit ran out.`);
+      // Checking again what the fixer never got to work on would cost a round for nothing
+      if (fixed.limited) return finish('incomplete', `the review fixer stopped at a usage limit: ${fixed.limited}`);
       state.commits = commitsSince(root, startHead);
       let headAfter = headBefore;
       try {
@@ -3214,13 +3393,15 @@ ${quoted}
     maxFix: number,
     budgetUsd: number,
     control: VerificationControl,
-  ): Promise<{ note: string; budget: boolean; costUsd: number }> {
+  ): Promise<{ note: string; budget: boolean; costUsd: number; limited: string | null }> {
     const verification = orch.verificationSpec as VerificationSpec;
     const record: VerificationFix = { runId: null, command: `review round ${String(round)}`, attempt: (state.fixes?.length ?? 0) + 1, startedAt: now(), endedAt: null, costUsd: 0 };
     (state.fixes ??= []).push(record);
     let note: string;
     let budget = false;
     let costUsd = 0;
+    // The fixer's turn met a usage limit that no account and no wait carried through
+    let limited: string | null = null;
     try {
       const run = this.runs.start(
         {
@@ -3253,13 +3434,15 @@ ${quoted}
       record.runId = run.id;
       record.effort = usedEffort(run);
       this.persist();
-      // A held usage limit is waited on, unlike `fix()`, through the same wait the reviewers use
-      const waited = await awaitReviewRun(this.reviewHost(orch, control), run.id, NO_CLOCK_MS, control.abort.signal);
+      this.beginStep(orch, run.id, REVIEW_CHAT_ROLE);
+      // A held usage limit is waited on through the same wait the reviewers use
+      const waited = await awaitReviewRun(this.reviewHost(orch, control), run.id, NO_CLOCK_MS, control.abort.signal).finally(() => this.endStep(run.id));
       if ('result' in waited) {
         const result = waited.result;
         costUsd = result.costUsd;
         record.costUsd = result.costUsd;
         budget = result.cause === 'budget';
+        if (result.cause === 'rate-limit') limited = result.result;
         note = budget ? 'its cost limit ran out before it finished' : result.isError ? `the fixer ended with an error: ${result.result}` : result.result;
       } else note = 'the fixer was stopped';
     } catch (err) {
@@ -3272,7 +3455,7 @@ ${quoted}
     } catch {
       // the re-run of the checks says whether it matters
     }
-    return { note: tail(note, 1500), budget, costUsd };
+    return { note: tail(note, 1500), budget, costUsd, limited };
   }
 
   /**
@@ -3319,6 +3502,7 @@ ${quoted}
       }
     } finally {
       this.verifying.delete(orch.id);
+      this.endReviewSteps(control);
     }
     state.endedAt = now();
     this.persist();
@@ -3399,7 +3583,7 @@ ${quoted}
       },
       { orchestrationId: orch.id, orchestrationTaskId: '__checks-fix__' },
     );
-    const result = await this.runs.waitForResult(run.id);
+    const result = await this.stepResult(orch, run.id, '__checks-fix__');
     orch.costUsd += result.costUsd;
     try {
       commitAll(req.cwd, `chore: keep what the checks fixer left uncommitted\n\nOrchestration ${orch.name} (${orch.id.slice(0, 8)}).`);
