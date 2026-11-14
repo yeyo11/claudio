@@ -109,6 +109,13 @@ export interface ChatUiConfig {
      * the app knows its teammates, the chat package does not. Absent, the row names the install's id
      */
     Teammate?: ComponentType<{ owner: string; shareId: string | null }>;
+    /**
+     * A model as the app names it ("Opus 5"; the id in mono where the list has no name for it): the
+     * app holds the model list, the chat package does not. Absent, the card shows the model as given
+     */
+    ModelName?: ComponentType<{ model: string }>;
+    /** An effort level as the app words it ("Medium"), for the line of a subagent's card; absent, the level as given */
+    EffortName?: ComponentType<{ effort: string }>;
   };
 }
 

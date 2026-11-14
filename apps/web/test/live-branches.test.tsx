@@ -1,8 +1,9 @@
 // tsx compiles test files with the classic runtime; this one renders JSX like the app does
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { ChatBackgroundTask, ChatChildren, ChatDetail, ChatSubagent, ChatSubagentEntry, SubagentActivityEvent, TranscriptEntry } from '@claudio/shared';
 import * as React from 'react';
 import type { ReactNode } from 'react';
@@ -15,6 +16,7 @@ import { transcriptRows } from '@claudio/chat-ui/lib/chat-steps';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { keys } from '../src/api';
+import { EffortName, ModelName } from '../src/components/AgentFacts';
 import { patchSubagentActivity } from '../src/lib/events';
 import { setLanguage } from '../src/i18n';
 
@@ -135,7 +137,85 @@ test('a card under the step: live rail while it runs, never a gradient', () => {
   const record = render(<BranchCard branch={done!} />);
   assert.match(record, /class="chat-launch is-task"/);
   assert.match(record, /chat-launch-status is-completed">Done</);
-  assert.match(record, /chat-launch-facts">pnpm test · 1m 10s</);
+  assert.match(record, /chat-launch-facts"><span class="chat-launch-ident"><span class="chat-launch-lead">pnpm test<\/span><\/span><span class="chat-launch-clockbox"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-clock">1m 10s<\/span><\/span><\/span>/);
+});
+
+/** The card with the app's own slots, over an overview that lists models the way the CLI names them */
+function agentCard(over: Partial<ChatSubagent>, lang: 'en' | 'es' = 'en'): string {
+  const client = new QueryClient();
+  client.setQueryData(keys.overview, { system: { models: [{ value: 'opus', label: 'Opus 5', resolvedModel: 'claude-opus-5-5' }, { value: 'sonnet', label: 'Sonnet 5', ids: ['claude-sonnet-5-5'] }] } });
+  const [branch] = liveBranches(held(children({ subagents: [sub({ kind: 'general-purpose', ...over })] })), Date.now());
+  setLanguage(lang);
+  return renderToStaticMarkup(
+    <QueryClientProvider client={client}>
+      <MemoryRouter>
+        <ChatUiProvider value={{ ...config, slots: { ModelName, EffortName } as unknown as ChatUiConfig['slots'] }}>
+          <TooltipProvider>
+            <BranchCard branch={branch!} />
+          </TooltipProvider>
+        </ChatUiProvider>
+      </MemoryRouter>
+    </QueryClientProvider>,
+  );
+}
+
+const identity = (html: string) => /<span class="chat-launch-ident">(.*?)<\/span><(?:span class="chat-launch-doing"|span class="chat-launch-clockbox")/.exec(html)?.[1] ?? '';
+/** The words of the identity part, the facts told apart by their separators */
+const words = (html: string) => identity(html).replace(/<span class="chat-launch-dot"[^>]*>·<\/span>/g, ' · ').replace(/<[^>]+>/g, '');
+
+test("a subagent's card names its model and effort after its type, in the app's own words", () => {
+  const en = agentCard({ model: 'claude-opus-5-5', effort: 'high' });
+  assert.equal(words(en), 'general-purpose · Opus 5 · Effort: High');
+  assert.match(en, /<span class="sr-only">Effort: <\/span>High/);
+  // The same words in Spanish, from the app's effort levels
+  assert.equal(words(agentCard({ model: 'sonnet', effort: 'medium' }, 'es')), 'general-purpose · Sonnet 5 · Effort: Medio');
+});
+
+test('a model the list does not name is drawn as the id it is, in mono', () => {
+  assert.match(identity(agentCard({ model: 'claude-haiku-9-9' })), /<span class="chat-launch-model"><span class="middle-cut mono"><span class="middle-cut-head">claude-haiku-9-9<\/span><\/span><\/span>/);
+});
+
+test('a long model id is cut in the middle: its start gives way and its last characters stay', () => {
+  const id = 'claude-experimental-preview-20991231';
+  const html = identity(agentCard({ model: id, effort: 'high' }));
+  assert.match(html, /<span class="middle-cut-head">claude-experimental-preview-<\/span><span class="middle-cut-tail">20991231<\/span>/);
+  assert.equal(words(agentCard({ model: id, effort: 'high' })), `general-purpose · ${id} · Effort: High`);
+});
+
+test('a card shows only the facts it has: no model, no effort, nothing in their place', () => {
+  assert.equal(words(agentCard({ model: null, effort: null })), 'general-purpose');
+  assert.equal(words(agentCard({})), 'general-purpose');
+  assert.equal(words(agentCard({ model: 'opus', effort: null })), 'general-purpose · Opus 5');
+});
+
+test('the clock is outside the part that gives way, and no separator is left without a part after it', () => {
+  const html = agentCard({ model: 'opus', activity: reading });
+  // What it is doing is cut first and carries its full text (FullText); the clock sits in a box of its own after it
+  assert.match(html, /<span class="chat-launch-doing"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-act"><span class="verb">[^<]*<\/span> packages\/core\/src\/chats\.ts<\/span><\/span><span class="chat-launch-clockbox"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-clock">[^<]+<\/span><\/span><\/span>/);
+  assert.doesNotMatch(html, /<span class="chat-launch-doing">(?:(?!<\/span><span class="chat-launch-clockbox).)*<span class="chat-launch-clock"/, 'the clock is not inside the part that shrinks');
+});
+
+test('the effort and the clock never shrink or end in an ellipsis; the parts that do are the lead, the model and what it is doing', () => {
+  const css = readFileSync(new URL('../../../packages/chat-ui/src/styles/chat.css', import.meta.url), 'utf8');
+  const rule = (selector: string) => new RegExp(`${selector.replace(/\./g, '\\.')}[^{]*\\{[^}]*\\}`).exec(css)?.[0] ?? '';
+  const html = agentCard({ model: 'opus', activity: reading });
+  // Each of those goes through FullText (or MiddleCut, for an id): the title is set while the text is really cut, which e2e/specs/overflow measures
+  assert.match(html, /class="chat-launch-act"/);
+  assert.match(html, /class="chat-launch-lead"/);
+  // The effort and the clock never shrink; the model and the activity do, the activity much sooner
+  assert.match(rule('.chat-launch-effort'), /flex: none/);
+  assert.match(rule('.chat-launch-clockbox'), /flex: none/);
+  assert.doesNotMatch(rule('.chat-launch-effort'), /overflow|ellipsis/);
+});
+
+test('beside an activity the identity takes no share of the shortfall and leaves the activity its floor and the clock its room', () => {
+  const css = readFileSync(new URL('../../../packages/chat-ui/src/styles/chat.css', import.meta.url), 'utf8');
+  // The first rule for it is the wide card's; the narrow card's comes later, inside its container query
+  const rule = /\.chat-launch-facts\.has-doing > \.chat-launch-ident \{[^}]*\}/.exec(css)?.[0] ?? '';
+  assert.match(rule, /flex-shrink: 0/);
+  assert.match(rule, /max-width: calc\(100% - var\(--launch-doing-floor\) - var\(--launch-clock-room\)\)/);
+  assert.match(agentCard({ model: 'opus', activity: reading }), /class="chat-launch-facts has-doing"/);
+  assert.match(agentCard({ model: 'opus' }), /class="chat-launch-facts"/);
 });
 
 test("a step's calls lead to the branches they started", () => {

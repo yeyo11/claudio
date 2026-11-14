@@ -3835,7 +3835,15 @@
         "type": [
           "string",
           "null"
-        ]
+        ],
+        "description": "The model its own messages ran on; until it has written one, the model its launch asked for; null when neither says"
+      },
+      "effort": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The effort its launch named; null when it named none (the CLI reports none of its own)"
       },
       "usage": {
         "$ref": "#/components/schemas/TokenUsage"
@@ -15728,6 +15736,20 @@
         ],
         "description": "Where it works, when that is not the chat's directory (a worktree)"
       },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The model it runs on: the one its own messages report, else the one its launching call asked for (an alias such as `opus`, or an id); null when neither says, never a guess at what it inherited. Absent from a server that predates it."
+      },
+      "effort": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The effort its launching call named; null when it named none. The CLI reports none of its own."
+      },
       "tasks": {
         "type": "array",
         "items": {
@@ -16527,6 +16549,20 @@
           "null"
         ],
         "description": "Where it works, when that is not the chat's directory (a worktree)"
+      },
+      "model": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The model it runs on: the one its own messages report, else the one its launching call asked for (an alias such as `opus`, or an id); null when neither says, never a guess at what it inherited. Absent from a server that predates it."
+      },
+      "effort": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The effort its launching call named; null when it named none. The CLI reports none of its own."
       },
       "tasks": {
         "type": "array",

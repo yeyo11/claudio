@@ -1,11 +1,13 @@
 import type { ChatChildren } from '@claudio/shared';
 import { Bot, Check, ChevronRight, CircleAlert, CirclePause, CircleStop, Terminal, Workflow } from 'lucide-react';
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { AnimatePresence, EASE_OUT, motion } from '@claudio/ui/components/motion';
+import { FullText } from '@claudio/ui/components/FullText';
+import { MiddleCut } from '@claudio/ui/components/MiddleCut';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { formatDuration } from '@claudio/ui/lib/format';
@@ -15,6 +17,7 @@ import { useClockTick, useMotionLevel } from '@claudio/ui/lib/motion';
 import type { ProgressStatus } from '@claudio/ui/lib/progress';
 import { branchCounts, branchElapsed, liveBranches, newestBranch, nextExpiry, type Branch, type BranchChat, type BranchCounts } from '../lib/chat-branches';
 import { scopedKey } from '@claudio/ui/lib/server-scope';
+import { useOptionalChatUi } from '../lib/context';
 
 /** Where the strip's fold is remembered: `'open' | 'closed'`, closed when nothing is stored. */
 export const BRANCHES_STORAGE_KEY = 'claudio-chat-branches';
@@ -298,6 +301,15 @@ function Strip({ chat, branches, onOpen }: { chat: BranchChat; branches: Branch[
 
 const SEGMENT: Record<Branch['segments'][number], ProgressStatus> = { completed: 'done', running: 'running', failed: 'failed', stopped: 'skipped' };
 
+/** The separator between the facts of a card: drawn, not read out, spaced by its own margin */
+function Dot() {
+  return (
+    <span className="chat-launch-dot" aria-hidden>
+      ·
+    </span>
+  );
+}
+
 /**
  * A branch a step started, as the card the conversation keeps where the delegation happened: what
  * it is, how it stands (the spinner and the live rail while it runs, its final word and length once
@@ -311,6 +323,27 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
   const mark =
     branch.kind === 'agent' ? <Bot {...ICON_SM} /> : branch.kind === 'task' ? <Terminal {...ICON_SM} /> : branch.description.replace(/[^\p{L}\p{N}]/gu, '').slice(0, 2).toUpperCase();
   const lead = branch.kind === 'agent' ? branch.label : branch.kind === 'task' ? (branch.command ?? branch.label) : null;
+  const slots = useOptionalChatUi()?.slots;
+  const ModelName = slots?.ModelName;
+  const EffortName = slots?.EffortName;
+  // Only what the stream or the launch said: a card never guesses what an agent inherited. Each fact
+  // is a box of its own so the line can say which one gives way first: the model, never the effort.
+  const identity: { key: string; node: ReactNode }[] = [
+    ...(lead !== null ? [{ key: 'lead', node: <FullText className="chat-launch-lead">{lead}</FullText> }] : []),
+    ...(branch.kind === 'agent' && branch.model
+      ? [{ key: 'model', node: <FullText className="chat-launch-model">{ModelName ? <ModelName model={branch.model} /> : <MiddleCut text={branch.model} className="mono" />}</FullText> }]
+      : []),
+    ...(branch.kind === 'agent' && branch.effort ? [{ key: 'effort', node: <span className="chat-launch-effort">{EffortName ? <EffortName effort={branch.effort} /> : branch.effort}</span> }] : []),
+  ];
+  const doing =
+    branch.kind === 'workflow' && branch.progress && branch.progress.total > 0 ? (
+      <WorkflowFacts branch={branch} />
+    ) : line ? (
+      <>
+        <span className="verb">{line.verb}</span>
+        {line.target ? ` ${line.target}` : ''}
+      </>
+    ) : null;
   const StateIcon = branch.status === 'running' ? null : STATE_ICON[branch.status];
   return (
     <div className={`chat-launch is-${branch.kind} ${running ? 'live-rail is-running' : ''}`.trimEnd()}>
@@ -319,26 +352,31 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
           {mark}
         </span>
         <span className="chat-launch-what">
-          <span className="chat-launch-name ellipsis">{branch.description}</span>
+          <FullText className="chat-launch-name ellipsis">{branch.description}</FullText>
           <span className="chat-launch-state">
             {StateIcon ? <StateIcon {...ICON_SM} className={`chat-branch-icon is-${branch.status}`} /> : <Spinner />}
             <span className={`chat-launch-status is-${branch.status}`}>{t(`branches.state.${branch.status}`)}</span>
-            <span className="chat-launch-facts">
-              {lead !== null && `${lead} · `}
-              {branch.kind === 'workflow' && branch.progress && branch.progress.total > 0 && (
-                <>
-                  <WorkflowFacts branch={branch} />
-                  {' · '}
-                </>
+            <span className={`chat-launch-facts${doing ? ' has-doing' : ''}`}>
+              {/* The type, the model and the effort say what the agent is and stay whole as long as they can;
+                  what it is doing gives way first, and the clock never: it sits outside both, and a
+                  separator belongs to the part that follows it, so none is left at an end */}
+              {identity.length > 0 && (
+                <span className="chat-launch-ident">
+                  {identity.flatMap((fact, i) => [...(i > 0 ? [<Dot key={`dot-${fact.key}`} />] : []), <Fragment key={fact.key}>{fact.node}</Fragment>])}
+                </span>
               )}
-              {line && (
-                <>
-                  <span className="verb">{line.verb}</span>
-                  {line.target ? ` ${line.target}` : ''}
-                  {' · '}
-                </>
+              {doing && (
+                <span className="chat-launch-doing">
+                  {identity.length > 0 && <Dot />}
+                  <FullText className="chat-launch-act">{doing}</FullText>
+                </span>
               )}
-              <BranchClock branch={branch} words />
+              <span className="chat-launch-clockbox">
+                {(identity.length > 0 || doing) && <Dot />}
+                <span className="chat-launch-clock">
+                  <BranchClock branch={branch} words />
+                </span>
+              </span>
             </span>
           </span>
         </span>

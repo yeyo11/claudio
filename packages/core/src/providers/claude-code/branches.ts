@@ -1,4 +1,4 @@
-import { closeRuns, isWaitingOnBackground, normalizeMessage, type TranscriptEntry } from '@claudio/shared';
+import { agentLaunch, closeRuns, isModelName, isWaitingOnBackground, normalizeMessage, type TranscriptEntry } from '@claudio/shared';
 import type { BackgroundTask, SubagentInfo, WorkflowRun } from '../../cli-facts.ts';
 import { now } from '../../live-chat.ts';
 import { readProgress, workflowStatus } from '../../workflows.ts';
@@ -61,7 +61,12 @@ function pauseAgent(agent: SubagentInfo, at: string): void {
 const SUBAGENT_TOOLS = new Set(['Task', 'Agent']);
 
 function trackSubagents(chat: ClaudeBranches, entry: NonNullable<ReturnType<typeof normalizeMessage>>): void {
-  if (entry.isSidechain) return;
+  if (entry.isSidechain) {
+    // The model a subagent's own messages report is the one it ran on, whatever its launch asked for
+    const sub = entry.parentToolUseId ? chat.subagents.get(entry.parentToolUseId) : undefined;
+    if (sub && entry.role === 'assistant' && isModelName(entry.model)) sub.model = entry.model;
+    return;
+  }
   for (const block of entry.blocks) {
     if (block.type === 'tool_use' && SUBAGENT_TOOLS.has(block.name)) {
       const input = (block.input ?? {}) as Record<string, unknown>;
@@ -74,6 +79,7 @@ function trackSubagents(chat: ClaudeBranches, entry: NonNullable<ReturnType<type
         startedAt,
         endedAt: null,
         runs: [{ startedAt, endedAt: null }],
+        ...agentLaunch(input),
       });
     } else if (block.type === 'tool_result') {
       const sub = chat.subagents.get(block.toolUseId);

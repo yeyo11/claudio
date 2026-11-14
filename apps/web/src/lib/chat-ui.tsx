@@ -3,6 +3,7 @@ import { activeBase } from '@claudio/ui/lib/server-scope';
 import { api, enc } from '../api';
 import { withToken } from './auth';
 import { ChatUiProvider, type ChatClient, type ChatUiConfig } from '@claudio/chat-ui/lib/context';
+import { EffortName, ModelName } from '../components/AgentFacts';
 import { TeammateName } from '../components/TeammateName';
 import { reviewLink, reviewPath } from './changes-summary';
 import { describeCron } from './cron-words';
@@ -57,6 +58,9 @@ const slots: ChatUiConfig['slots'] = {
   Diff: lazy(() => import('../components/changes/DiffSlot').then((m) => ({ default: m.DiffSlot }))),
   // Not lazy: a row names its teammate as it draws, and a suspended name would blank the step
   Teammate: TeammateName,
+  // Light, and a card draws them as it mounts
+  ModelName,
+  EffortName,
 };
 
 const paths: ChatUiConfig['paths'] = {

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T14:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-14T18:00:00Z
 tags:
     - chat
     - transcript
@@ -51,6 +51,47 @@ and leaves. On a phone the bar is 44 px and the list is a `Sheet` titled "En mar
 workflow card included. A card stays after its branch ended, with its final word and duration: it is
 the conversation's record. A subagent that is running reads its own activity in the strip, the
 inspector's Branches card and the subagent panel's status line.
+
+**What a subagent's card says of the agent.** Its secondary line reads `type · model · effort`, then
+what it is doing and its clock. Only what the CLI reports for programs is shown, never a guess:
+
+| Fact | Where it comes from | When it is missing |
+| --- | --- | --- |
+| Model | the model on the subagent's own assistant messages (its sidechain in the stream, its first reply in its own transcript on disk); until it has written one, the `model` its launching `Agent`/`Task` call named (`ChatSubagent.model`) | an agent that inherited the choice and has not replied yet shows no model, because "inherit" is not a model |
+| Effort | the `effort` its launching call named (`ChatSubagent.effort`); the CLI reports none of its own for an agent | no word: an agent that was not given one runs on whatever the model's default is, which nothing reports |
+
+The model is named the way the app names models elsewhere: the CLI's own name from its model list
+("Sonnet"), matched on the alias, the id it resolves to or any id it was reported under (the
+`default` row is not a name); a model the list does not name is drawn as the id it is, in mono. The
+effort is the word of the effort picker ("Medium", "Medio"), with "Effort" read out before it. The
+subagent's panel lists both in its facts. A workflow's own card shows neither: its agents report a
+model in their progress, which its panel shows, and no effort.
+
+On a card wide enough, the line is one line, and it gives way in this order. What the agent is
+doing goes first and alone: while it has more than its floor (`--launch-doing-floor`, the separator,
+the verb and a few characters of its target), the identity takes no share of the shortfall
+(`flex-shrink: 0` on `.chat-launch-ident` when the facts carry `.has-doing`). A share split by flex
+weight is what cut the model by a fifth of a pixel while the activity still had room, and with a long
+id left the activity at no width. The identity is capped instead, at the line minus that floor and the
+clock's room (`--launch-clock-room`, `m:ss`), both shares of the facts' box, which takes the whole room beside the state word; past the cap it is cut, the model within it (a long
+unnamed id is cut **in the middle**, its start and its last eight characters kept: `MiddleCut`, plain
+CSS, never under `6ch` once split), while the type beside a model and the effort stay whole. Without
+an activity (a finished agent, a task's command) the identity is the only part that gives way. The
+clock never gives way: it is a box of its own outside the parts that shrink (`.chat-launch-clockbox`),
+and each separator belongs to the part that follows it, so none is left at an end of the line.
+
+Every part that can be cut carries its full text as a `title` while it is cut (`FullText`; the id's
+start carries it for the id), which `ui-invariants` and `overflow` seed with a long id to hold
+(invariant I3). Whether a part is cut is read from its unrounded widths (a range over its content
+against its box), not only from `scrollWidth` and `clientWidth`, which are whole pixels and read a box
+0.2 px short of its text as fitting while the browser already draws the ellipsis.
+
+A card narrower than 30 rem (a container query on the card, so the open side panel counts) gives the
+state a row of its own, from under the mark to the card's edge, and makes the facts two lines: the
+identity first, wrapping at its facts' edges with no separators (a long id stays on the type's line,
+cut in the middle to the room left there), then the activity and the clock, whose target is the part cut by an ellipsis. A card with
+no activity (a background command) keeps its clock on the identity's line rather than on a line of its
+own.
 
 ## The lenses
 

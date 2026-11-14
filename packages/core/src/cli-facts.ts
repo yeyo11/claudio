@@ -90,6 +90,12 @@ export interface SubagentInfo {
   cwd?: string | null;
   /** Launched to run in the background, rather than awaited by its parent */
   background?: boolean;
+  /** The model id its own messages ran on, from its stream or transcript: what it actually used, which an inherited choice only shows here */
+  model?: string | null;
+  /** The model the launching call named (`model` of its input), an alias or an id; null when it left the choice to inherit */
+  requestedModel?: string | null;
+  /** The effort the launching call named; the CLI reports none of its own for an agent */
+  effort?: string | null;
 }
 
 /** One agent a workflow launched, as its progress reports it. */

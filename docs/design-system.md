@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-11T15:00:00Z
+updated_at: 2026-11-14T18:00:00Z
 tags:
     - design-system
     - web
@@ -969,8 +969,13 @@ the classes are the last section of `claudio-ds.css`.
   hairline), no gradient, no energy: the composer keeps the screen's energy border.
 - **A branch card** (`.chat-launch`, generalised from the workflow card: `.is-agent`, `.is-task`,
   `.is-workflow`) sits under the step whose call started it, matched by the agent id or the task id
-  the CLI recorded: an icon mark, the description, a state line (spinner or the final word, kind,
-  clock, the command for a task) and "Abrir". Running, it carries the live rail; it never takes a
+  the CLI recorded: an icon mark, the description, a state line (spinner or the final word, then
+  `type · model · effort` for a subagent, the command for a task, what it is doing, the clock) and
+  "Abrir". The model is the CLI's name for it in sans, or its id in mono where the list has no name;
+  the effort is the effort picker's word; each is left out when nothing reported it. Narrower than
+  30 rem the line is two ([Tool rows and live branches](chat-tool-rows-and-branches.md)): what the
+  agent is, then what it is doing and the clock. A long model id is cut in the middle (`MiddleCut`,
+  full text in its title), the effort and the clock never give way, and no separator ends a line. Running, it carries the live rail; it never takes a
   gradient, the workflow card included. It stays once the branch ended: it is the record.
 - **A subagent's own line.** Core keeps an activity tracker per running sidechain, so a subagent reads
   "leyendo `packages/core/src/chats.ts`" in the strip, in its card, in the inspector's Branches card
@@ -2467,7 +2472,11 @@ the file being edited is its only moving part.
 - Text cut by an ellipsis or a clamp carries its full text (invariant I3). A non-interactive label
   renders as `FullText` (`packages/ui/src/components/FullText.tsx`, the hook `useFullTextTitle` in
   `lib/full-text.ts`): it keeps the element and class it is given and sets `title` only while the text
-  is really cut, measured again on resize, on each render and once the fonts are in. A label made of
+  is really cut, measured again on resize, on each render and once the fonts are in. Cut means its
+  unrounded content width (a range over it) passes its box, not only `scrollWidth > clientWidth`: those
+  are whole pixels and miss a box a fraction of a pixel short of its text, whose ellipsis is drawn all
+  the same. A literal cut in the middle (a model id) is `MiddleCut` (`.middle-cut`, `.is-split` once it
+  is long enough to split): its start takes the ellipsis and the title, its last eight characters stay. A label made of
   parts (the chat header's subtitle) passes `full`. Inside a link or a button, the label span is the
   `FullText`, never the control. The phone tab bar's labels are never cut: a tab is at least as wide as
   its label (`minmax(min-content, 1fr)`), so at 320 px "Orchestrations" takes its width and the short
@@ -2500,6 +2509,11 @@ read them) is the case these rules exist for ([plans/agent-messages.md](plans/ag
    row with a long title the title gives way. A tag that is alone on its line may shrink to its card
    (`min-width: 0` on that badge) and then ends in an ellipsis. A tag that would crowd a path out of a
    narrow row moves to a line of its own (the risk tag in the steps list).
+   The chat's detail panel is the case in point: an orchestration chat's origin chip (`OriginBadge`)
+   carries the orchestration's name and the task's, which a person wrote, so its label sits in
+   `.badge-text` and ends in an ellipsis; before, it widened the drawer's body to several times its
+   width and the panel scrolled sideways. `overflow.spec.mjs` opens the panel over a long worktree,
+   nine-digit token counts and that chip.
 4. **Code and diffs keep their lines.** They scroll sideways inside their own block, with a scrollbar
    that shows on hover and focus. `.diff` outside a phone's wrap is one grid column
    `minmax(max-content, 1fr)`: every row is as wide as the widest line, so tints, rails, numbers and

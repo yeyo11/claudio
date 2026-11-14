@@ -3,7 +3,7 @@ import { open, readFile, readdir, rm, stat, type FileHandle } from 'node:fs/prom
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { entrySearchText, entryText, isModelName, isWaitingOnBackground, normalizeMessage, NotFoundError, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentTranscript, type BackgroundTaskOutput, type ChatBranchRun, type TranscriptEntry, type TranscriptSearchResult } from '@claudio/shared';
+import { agentLaunch, entrySearchText, entryText, isModelName, isWaitingOnBackground, normalizeMessage, NotFoundError, runsElapsedMs, searchPattern, TRANSCRIPT_PAGE, TRANSCRIPT_PAGE_MAX, TranscriptSearch, type AgentTranscript, type BackgroundTaskOutput, type ChatBranchRun, type TranscriptEntry, type TranscriptSearchResult } from '@claudio/shared';
 import { toChatTask } from './chat-branches.ts';
 import { AGENT_FOLD, AGENT_ID_RE, WORKFLOW_RUN_ID_RE, agentRead, emptyAgentRead } from './agents.ts';
 import type { BackgroundTask, SubagentInfo, TranscriptPage, TranscriptSummary, WorkflowRun } from './cli-facts.ts';
@@ -206,24 +206,30 @@ const RESUMED_AFTER_MS = 2000;
 const CWD_PROBE_BYTES = 64 * 1024;
 
 /**
- * The directory an agent works in, from the first transcript line that records one. A subagent
- * started with `isolation: worktree` works in its own worktree, not its parent's directory.
+ * What the first lines of a subagent's transcript say of it: the directory it works in (a
+ * subagent started with `isolation: worktree` has its own, not its parent's) and the model its
+ * first reply ran on.
  */
-async function firstCwd(file: string): Promise<string | null> {
+async function probeHead(file: string): Promise<{ cwd: string | null; model: string | null; size: number }> {
   const handle = await open(file, 'r').catch(() => null);
-  if (!handle) return null;
+  if (!handle) return { cwd: null, model: null, size: 0 };
   try {
     const buffer = Buffer.alloc(CWD_PROBE_BYTES);
     const { bytesRead } = await handle.read(buffer, 0, CWD_PROBE_BYTES, 0);
+    let cwd: string | null = null;
+    let model: string | null = null;
     for (const raw of buffer.subarray(0, bytesRead).toString('utf8').split('\n')) {
       try {
-        const cwd = (JSON.parse(raw) as { cwd?: unknown }).cwd;
-        if (typeof cwd === 'string' && cwd) return cwd;
+        const line = JSON.parse(raw) as { cwd?: unknown; type?: unknown; message?: { model?: unknown } };
+        if (!cwd && typeof line.cwd === 'string' && line.cwd) cwd = line.cwd;
+        const named = line.type === 'assistant' ? line.message?.model : undefined;
+        if (!model && typeof named === 'string' && isModelName(named)) model = named;
+        if (cwd && model) break;
       } catch {
         /* a line cut off by the probe */
       }
     }
-    return null;
+    return { cwd, model, size: bytesRead };
   } finally {
     await handle.close();
   }
@@ -308,6 +314,11 @@ function agentState(
   return { status: stopStatus(stop.status), endedAt: stop.at };
 }
 
+/** The facts a subagent card shows beside its type: what it ran on (its own reply's model), what its launch named, and the effort the launch named. */
+function agentModel(ran: string | null, launch: { requestedModel: string | null; effort: string | null } | undefined) {
+  return { model: ran, requestedModel: launch?.requestedModel ?? null, effort: launch?.effort ?? null };
+}
+
 /** An agent's state and runs from the folded activity of its session. */
 function agentFacts(activity: SessionActivity, agentId: string, mtime: Date | null, live: boolean, fallbackStart: string | null) {
   const resumes = activity.resumes.get(agentId) ?? [];
@@ -365,6 +376,8 @@ interface SessionActivity {
   waitLog: Map<string, string[]>;
   /** agentId → every time its parent resumed it with SendMessage, oldest first */
   resumes: Map<string, string[]>;
+  /** tool call id → what an Agent/Task call asked of the agent it launched */
+  launches: Map<string, { requestedModel: string | null; effort: string | null }>;
 }
 
 /** The activity folded so far, with what a later line needs of an earlier one. */
@@ -383,7 +396,7 @@ function recordStop(activity: ActivityFold, id: string, stop: AgentStop): void {
 }
 
 const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
-  init: () => ({ agents: new Map(), tasks: new Map(), stops: new Map(), stopLog: new Map(), waitLog: new Map(), resumes: new Map(), launchInputs: new Map() }),
+  init: () => ({ agents: new Map(), tasks: new Map(), stops: new Map(), stopLog: new Map(), waitLog: new Map(), resumes: new Map(), launches: new Map(), launchInputs: new Map() }),
   clone: (a) => ({
     agents: new Map(a.agents),
     tasks: new Map(a.tasks),
@@ -391,6 +404,7 @@ const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
     stopLog: new Map([...a.stopLog].map(([id, at]) => [id, [...at]])),
     waitLog: new Map([...a.waitLog].map(([id, at]) => [id, [...at]])),
     resumes: new Map([...a.resumes].map(([id, at]) => [id, [...at]])),
+    launches: new Map(a.launches),
     launchInputs: new Map(a.launchInputs),
   }),
   add: (activity, o) => {
@@ -402,6 +416,9 @@ const ACTIVITY_FOLD: JsonlFold<ActivityFold> = {
       const b = block as { type?: string; name?: string; id?: unknown; input?: unknown; tool_use_id?: unknown };
       if (b.type === 'tool_use' && (b.name === 'Bash' || b.name === 'Monitor') && typeof b.id === 'string') {
         activity.launchInputs.set(b.id, { tool: b.name, input: (b.input ?? {}) as Record<string, unknown> });
+      }
+      if (b.type === 'tool_use' && (b.name === 'Agent' || b.name === 'Task') && typeof b.id === 'string') {
+        activity.launches.set(b.id, agentLaunch((b.input ?? {}) as Record<string, unknown>));
       }
       if (b.type === 'tool_result' && typeof b.tool_use_id === 'string') {
         resultFor = b.tool_use_id;
@@ -538,7 +555,7 @@ export interface SessionStoreOptions {
  */
 export class SessionStore {
   /** Subagent transcript → its working dir; written once at its start, so never re-read */
-  private readonly cwdCache = new Map<string, string | null>();
+  private readonly headCache = new Map<string, { cwd: string | null; model: string | null }>();
   private readonly activities = new JsonlCache(ACTIVITY_FOLD);
   private readonly toolEntries = new JsonlCache(TOOL_ENTRIES_FOLD, TOOL_ENTRIES_FILES);
   private readonly editStepFolds = new JsonlCache(EDIT_STEPS_FOLD, EDIT_STEPS_FILES);
@@ -944,12 +961,15 @@ export class SessionStore {
       }
       const transcriptFile = join(dir, `agent-${agentId}.jsonl`);
       const transcript = await stat(transcriptFile).catch(() => null);
-      let cwd = this.cwdCache.get(transcriptFile);
-      if (cwd === undefined && transcript) {
-        cwd = await firstCwd(transcriptFile);
-        // Only a found value is final: an agent that has not written a line yet will
-        if (cwd) this.cwdCache.set(transcriptFile, cwd);
+      let head = this.headCache.get(transcriptFile);
+      if (head === undefined && transcript) {
+        const probed = await probeHead(transcriptFile);
+        head = { cwd: probed.cwd, model: probed.model };
+        // Only found values are final: an agent that has not written its first reply yet will, unless
+        // its prompt filled the whole probe and no reply will ever fit in it
+        if (probed.cwd && (probed.model || probed.size >= CWD_PROBE_BYTES)) this.headCache.set(transcriptFile, head);
       }
+      const cwd = head?.cwd ?? null;
       const lastActivityAt = transcript ? transcript.mtime.toISOString() : null;
       const { state, launch, runs } = agentFacts(activity, agentId, transcript?.mtime ?? null, live, lastActivityAt);
       out.push({
@@ -962,8 +982,9 @@ export class SessionStore {
         runs,
         agentId,
         lastActivityAt,
-        cwd: cwd ?? null,
+        cwd,
         background: meta.requestShape === 'background',
+        ...agentModel(head?.model ?? null, activity.launches.get(meta.toolUseId ?? '')),
       });
     }
     return out.sort((a, b) => b.startedAt.localeCompare(a.startedAt));
@@ -1133,6 +1154,7 @@ export class SessionStore {
     let runs: ChatBranchRun[] = [];
     let description = meta?.description ?? null;
     let workflowPhase = meta?.workflowPhase ?? null;
+    let launch: { requestedModel: string | null; effort: string | null } | undefined;
     if (opts.runId) {
       const { agent, journalDone } = await readWorkflowAgent(found.file, opts.runId, agentId);
       status = agent?.state === 'done' || journalDone ? 'completed' : agent?.state === 'error' ? 'failed' : live ? 'running' : 'stopped';
@@ -1145,6 +1167,7 @@ export class SessionStore {
     } else {
       const activity = await this.activity(found.file);
       const facts = agentFacts(activity, agentId, info?.mtime ?? null, live, read.firstAt);
+      launch = activity.launches.get(meta?.toolUseId ?? '');
       ({ status, endedAt } = facts.state);
       startedAt = facts.launch;
       runs = facts.runs;
@@ -1170,7 +1193,9 @@ export class SessionStore {
       durationMs,
       runs,
       lastActivityAt,
-      model: read.model,
+      // What it ran on when its transcript says so, else what its launch asked for
+      model: read.model ?? launch?.requestedModel ?? null,
+      effort: launch?.effort ?? null,
       usage: read.usage,
       toolCalls: read.toolCalls,
       cwd: read.cwd,

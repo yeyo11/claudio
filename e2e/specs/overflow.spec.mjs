@@ -5,7 +5,8 @@
 // with long data (overflow-seed.mjs) and the Spanish copy, at 1280 × 720, 1906 × 1045 and 390 × 844
 // in both themes, and asks e2e/ui/overflow.mjs for the page, the panes and the list rows whose content
 // is wider than they are. Blocks wide on purpose (code, diffs, tables, `data-scroll-x`) are left out,
-// and the diff is checked for the opposite: its long line must be reachable inside its own block.
+// and the chat's detail panel is opened on the way (a long worktree, nine-digit token counts, an orchestration's long name in its
+// origin chip), and the diff is checked for the opposite: its long line must be reachable inside its own block.
 import { sidewaysOverflow } from '../ui/overflow.mjs';
 import { cleanupOverflow, LONG_FILE, SCREEN, seedOverflow, SESSION, settleOrchestration } from './overflow-seed.mjs';
 
@@ -26,6 +27,20 @@ async function openToolRows(page) {
   await page.sleep(400);
 }
 
+/**
+ * Opens the chat's detail panel wherever it is closed: the drawer's toggle beside a wide page, the
+ * header's button (a sheet) on a narrow one. The labels are in the page's language, so the buttons
+ * are told by where they are. Returns whether the panel's body is on the page afterwards.
+ */
+async function openDetailPanel(page) {
+  await page.eval(
+    `const sheet=[...document.querySelectorAll('main .chat-head button[aria-label]')].find((b)=>/details|detalles/i.test(b.getAttribute('aria-label')));` +
+      `const rail=document.querySelector('.chat-inspector:not(.is-open) .icon-btn[aria-expanded=false]');(sheet||rail)?.click();return !!(sheet||rail)`,
+  );
+  await page.sleep(500);
+  return page.eval(`return !!document.querySelector('.chat-inspector-body .insp-facts')`);
+}
+
 export default async ({ page, api, check, dirs }) => {
   let seeded = null;
   const problems = [];
@@ -37,6 +52,9 @@ export default async ({ page, api, check, dirs }) => {
     check(steps.status === 200 && steps.body.length >= 2 && steps.body.some((step) => step.risk), `the chat has two steps, the first one outside the directory (${steps.status}, ${steps.body?.length})`);
 
     const orch = `/orchestration/${seeded.orchestrationId}`;
+    // The chat of a task of that orchestration: its origin chip names the orchestration and the task as long as they were written
+    const worker = seeded.orchestrationChats[0] ?? null;
+    check(worker !== null, `the long orchestration started a chat for its first task (${seeded.orchestrationChats.length})`);
     const routes = [
       ['changes, step by step', `/chats/${SESSION}/changes?lens=steps&step=ovf-write`],
       ['changes, the long line', `/chats/${SESSION}/changes?lens=steps&step=ovf-edit`],
@@ -45,6 +63,9 @@ export default async ({ page, api, check, dirs }) => {
       ['changes, side by side', `/chats/${SESSION}/changes?mode=split&file=${SCREEN}`],
       ['changes, a long file', `/chats/${SESSION}/changes?mode=unified&file=${LONG_FILE}`],
       ['chat', `/chats/${SESSION}`],
+      // The detail panel open, with the figures of a long session (nine digits, two long model ids) and a long worktree
+      ['chat details', `/chats/${SESSION}`],
+      ...(worker ? [['chat of an orchestration, details', `/chats/${worker}`]] : []),
       ['home', '/'],
       ['chats', '/chats'],
       ['orchestrations', '/orchestration'],
@@ -72,6 +93,10 @@ export default async ({ page, api, check, dirs }) => {
             .catch(() => problems.push(`[${theme} ${width} ${name}] the page did not finish loading`));
           await page.eval(`await document.fonts?.ready;return true`);
           if (name === 'chat') await openToolRows(page);
+          if (name.includes('details')) {
+            const open = await openDetailPanel(page);
+            if (!open) problems.push(`[${theme} ${width} ${name}] the detail panel did not open`);
+          }
           for (const found of await sidewaysOverflow(page)) problems.push(`[${theme} ${width} ${name}] ${found}`);
         }
       }

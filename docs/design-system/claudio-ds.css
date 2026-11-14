@@ -2690,8 +2690,43 @@ a.cont-from:hover { color: var(--fg); }
 .chat-launch-state { display: flex; align-items: center; gap: 6px; font-size: var(--fs-small); min-width: 0; }
 .chat-launch-status { font-size: var(--fs-small); font-variant-numeric: tabular-nums; }
 .chat-launch-status.is-running { color: var(--live); } .chat-launch-status.is-completed { color: var(--ok); } .chat-launch-status.is-failed { color: var(--bad); } .chat-launch-status.is-stopped { color: var(--warn); }
-.chat-launch-facts { font-size: var(--fs-small); color: var(--fg-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chat-launch-facts { --launch-doing-floor: 12ch; --launch-clock-room: 6ch; display: flex; flex: 1 1 0; min-width: 0; font-size: var(--fs-small); color: var(--fg-3); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .chat-launch-open { flex: none; }
+/* The facts' parts: what the agent is (type · model · effort), what it is doing, the clock. The activity
+   gives way first and alone down to its floor; the identity takes no share of that while it has room
+   (a share by weight cut the model by a fraction of a pixel), then is cut, the model within it */
+.chat-launch-ident { display: flex; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.chat-launch-facts.has-doing > .chat-launch-ident { flex-shrink: 0; max-width: calc(100% - var(--launch-doing-floor) - var(--launch-clock-room)); }
+.chat-launch-lead, .chat-launch-model, .chat-launch-act { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.chat-launch-lead:not(:only-child) { flex-shrink: 0; }
+.chat-launch-model:has(> .middle-cut.is-split) { min-width: 6ch; }
+.chat-launch-effort, .chat-launch-clockbox { flex: none; white-space: nowrap; }
+.chat-launch-doing { display: flex; flex: 0 1 auto; min-width: 0; overflow: hidden; }
+.chat-launch-facts .verb { color: var(--live); }
+.chat-launch-dot { flex: none; margin-inline: 0.4em; }
+/* A narrow card (container query, ≤ 30rem): the state takes a row of its own under the mark, the
+   identity wraps at its facts' edges with no separators, the activity and the clock share a line */
+.chat-launch { container-type: inline-size; }
+@container (max-width: 30rem) {
+  .chat-launch-head { flex-wrap: wrap; row-gap: 6px; }
+  .chat-launch-what { display: contents; }
+  .chat-launch-name { flex: 1 1 0; min-width: 0; }
+  .chat-launch-state { flex-basis: 100%; flex-wrap: wrap; order: 1; }
+  .chat-launch-facts { flex-basis: 100%; flex-wrap: wrap; }
+  .chat-launch-ident { flex-wrap: wrap; column-gap: 0.9em; overflow: visible; }
+  .chat-launch-facts.has-doing > .chat-launch-ident { flex-basis: 100%; max-width: none; }
+  .chat-launch-model { max-width: 100%; }
+  .chat-launch-model:has(> .middle-cut.is-split) { flex: 1 1 6ch; max-width: max-content; }
+  .chat-launch-doing { flex: 1 1 0; min-width: 6ch; }
+  .chat-launch-ident > .chat-launch-dot, .chat-launch-doing > .chat-launch-dot, .chat-launch-clockbox > .chat-launch-dot { display: none; }
+  .chat-launch-ident + .chat-launch-clockbox, .chat-launch-doing + .chat-launch-clockbox { margin-inline-start: 0.8em; }
+}
+/* MiddleCut: a literal (a model id, a hash) cut in the middle. The start takes the ellipsis and the full
+   text as its title while cut; the last eight characters never shrink */
+.middle-cut { display: inline-flex; max-width: 100%; min-width: 0; vertical-align: bottom; }
+.middle-cut.is-split { min-width: 6ch; }
+.middle-cut-head { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.middle-cut-tail { flex: none; white-space: nowrap; }
 /* ---------- end of Tool rows and live branches ---------- */
 /* ---------- Guards: the Settings card ---------- */
 .guard-status { display: flex; align-items: center; gap: 8px; margin: 0; font-size: var(--fs-small); }
