@@ -659,10 +659,10 @@ export class LiveChat {
    * The accounts the turn died on at their limit since the chat last ended a turn without one: what
    * the rotation passes over. Kept on the chat, not in the accounts' readings, because a failure
    * says the account is out but not how full it is or until when. Each with when it died there (epoch
-   * ms): a failure stops counting once the account's reading says its reset passed since
-   * (`stillFailed` in chats.ts)
+   * ms) and the reset that death gave, when it gave one: a failure stops counting once that reset has
+   * passed, or the account's reading says its reset passed since (`stillFailed` in chats.ts)
    */
-  limitedAccounts = new Map<string, number>();
+  limitedAccounts = new Map<string, { at: number; until: number | null }>();
   /**
    * The main agent's last `stop_reason` in this turn, from stream-json: a turn cut by `max_tokens`
    * can still end with JSON that parses, and a reader of the result has to know it was cut
@@ -758,6 +758,16 @@ export class LiveChat {
     chat.endedAt = last?.endedAt ?? record.updatedAt;
     chat.lastText = record.lastText;
     chat.error = last?.error ?? null;
+    // A turn that died on its account's limit, with nothing since: the chat is still at it. The account
+    // that record names must be the one the chat is on, or a move already took it elsewhere. What the
+    // rotation needs after that (the turn to replay) is not kept: it goes on with the nudge, as a
+    // wait that was open at a restart does (`LiveChat.lastUserTurn`)
+    if (last && !chat.cutOff && (last.cause === 'rate-limit' || last.cause === 'auth') && (last.account ?? null) === (record.account ?? null)) {
+      chat.rateLimited = true;
+      chat.authFailed = last.cause === 'auth';
+      // Announced before the restart: nothing announces it again
+      chat.limitRequested = true;
+    }
     chat.workingDir = record.workingDir;
     chat.nativeId = record.nativeSessionId ?? null;
     chat.account = record.account ?? null;

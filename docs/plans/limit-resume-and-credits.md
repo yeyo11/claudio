@@ -12,7 +12,7 @@ tags:
 ---
 # Study: work that does not resume after a usage limit, and the credits Claudio ignores
 
-Status: **proposed**; `t1` is built on `fix/chat-waits-at-limit` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` built, the rest **proposed**.
+Status: **proposed**; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
 
 On 2026-11-13 the owner reported two problems:
 
@@ -416,7 +416,24 @@ What differs from the plan:
 - "A person took over" is found by looking (the chat's executions and turns, the poll and every account change), not by an event on `send`: `chats.ts` is not this task's. A wait can outlive a person's message by up to one poll, and never causes a replay over it.
 - After a refused resume the runtime has cleared the chat's limit flags (`replayLastTurn` does it before it sends), so the banner is gone while the wait row stays; the retry sends the nudge, because that replay already counted. Moving the clearing after admission is `t2`'s file.
 
-Still open: a restart (`t2`, `t8`), a `resuming` row whose claim is live at a restart (`t8`), a wait with no known reset and no reading (cause 5, `t8`).
+Still open: a `resuming` row whose claim is live at a restart (`t8`), a wait with no known reset and no reading (cause 5, `t8`). The restart (`t2`), the refused resume's flags and the person's take-over by event were t1's open items; `t2`, below, closes them.
+
+### t2, a limit survives a restart (branch `fix/limit-survives-restart`)
+
+Built in `packages/core/src/chats.ts`, `live-chat.ts` and `rotation.ts` (the take-over call); tests in `packages/core/test/limit-restart.test.ts` and `accounts-rotation.test.ts`.
+
+- **Cause 2.** An execution that dies on a limit records the reset the chat knew (`Execution.limitResetsAt`, an optional field on the execution's JSON row: no migration). `LiveChat.restore` puts a chat back at its limit when its last execution died on one (`rate-limit`, or `auth`) on the account the record still names, so the banner shows and `POST /chats/:id/wait` opens a wait that knows the recorded reset. `ChatManager.restore` no longer retires such a chat to its summary (`retirable` already kept it awake in a live process). The turn that died is not stored, so a wait after a restart replays with the nudge, as one open at a restart already did.
+- **Cause 9.** `limitedAccounts` keeps `{ at, until }`, and `resetSince` counts a failure as over once its recorded `until` has passed (only a reset after the failure is evidence), besides the earlier reading comparison (R10). The refusal's reset (`refusedUntil`) is now kept with the account that gave it, so a chat moved to another account no longer waits on the first account's reset.
+- **A refused resume.** `replayLastTurn` and `replayWith` put the limit flags, the replay count, the forced account and the unread messages back when `sendMessage` throws (run slots, memory, queue yield), so the chat stays at its limit and the retry replays the turn it was, not the nudge.
+- **A person took over.** `ChatManager.sendMessage` emits `person-message` for a person's message (not a housekeeping turn, not the limit's own replay); the rotation ends that chat's wait `cancelled` at once. Automated work's waits ignore it, and so does a wait whose claim is being replayed (the person's message queues behind the replay).
+
+What differs from the plan:
+
+- It touches `packages/shared/src/types.ts` (the `Execution.limitResetsAt` field, with the regenerated `schemas.json`): the persistence rule puts what a chat needs to restore itself on its executions, and the recorded reset had nowhere else to live.
+- A restart does not open a wait for a chat that is at its limit and has none: the wait opens when `limit-hit` fires (now the rotation does it with `rotateOnLimit` on) or a person clicks Wait. Opening them for every restored chat would resume turns that ended days ago.
+- The poll in t1 stays as the second way to find a take-over (a message that reached the chat by another path).
+
+Still open: the turn that died is not replayed after a restart, only the nudge (the row holds it in t8); `limitResetsAt` is absent on executions recorded before this, which keep the reading comparison.
 
 ### t3, graph steps that are no task (branch `fix/graph-steps-wait-at-limit`)
 
