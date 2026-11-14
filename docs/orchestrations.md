@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-14T12:00:00Z
 tags:
     - orchestration
     - planner
@@ -235,8 +235,30 @@ wait (`LimitWait`) on it ([accounts.md](accounts.md#choosing-and-switching)).
 - **A graph that waits for a decision can be resumed whole** (`resume`, the page's menu): every
   task it waits on goes on, in its chat, as for a stopped graph. It is refused while one of those
   tasks' chats is still working (a person went on in it by hand).
+- **The graph's other steps take the same path** (D7 of
+  [plans/limit-resume-and-credits.md](plans/limit-resume-and-credits.md)). The integrator, the
+  synthesis, the verification's fixer, the checks fix of a pull request, and the review gate's
+  reviewers, verifier and fixer are the graph's work too (`workOf` answers `<graph>:__integration__`,
+  `__synthesis__`, `__verification__`, `__checks-fix__` or `__review__` while the step awaits its
+  chat). At a limit the chat moves to an account with room, or waits for the reset, with the bounds
+  of a task's wait, and its turn is replayed in the same chat: each of these chats keeps its session,
+  and a step's turn is as safe to replay as a task's. While one waits, the graph says so:
+  `stepWaits` on `GET /orchestrations/:id` (role, chat and the `LimitWait`, worked out when it is
+  read), and the review gate's `waiting` as before.
+  - **A wait that ends with no replay ends the step's hold** (a person stopped waiting, the wait ran
+    out, or the rotation let go of the limit without a wait): the step takes the limited result, with
+    why, instead of waiting for a turn that is not coming. The review round ends `incomplete` and can
+    be retried, a verification or review fixer stops the checks there (another attempt would meet
+    the same limit), the integrator's error is the integration's, and the synthesis reports it failed.
+  - **A stop ends the waits of its steps**, and a restart closes them (`cancelled`): a step does not
+    survive a restart, and its replay would be for nobody.
+  - **The planner is no step of a graph.** It runs before the graph exists, with no session to resume
+    (`internal`), and ends at a limit with the CLI's text, which names the reset (D6); a plan started
+    after it goes to an account with room.
 - **Tests.** `packages/core/test/orchestration-limit-way-back.test.ts` (the R11 cases, and a turn
   replayed while the limited process was still exiting),
+  `orchestration-limit-steps.test.ts` (each kind of step moved, waited for and resumed, a wait that
+  ends for good, a stop, a graph with no limit, and the planner),
   `orchestration-limit-account-switch.test.ts` (a task moved to another account at its limit goes on
   in one attempt, and the execution that hit the limit keeps its cause, which a replay writes before
   it stops the process so `limitedTail` still knows the account after a restart),

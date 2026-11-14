@@ -45,11 +45,18 @@ const FIXER_NOTE_CHARS = 1500;
 export interface ReviewHost {
   start(req: ReviewLaunch): string;
   waitForResult(chatId: string): Promise<RunResult>;
-  nextResult(chatId: string): Promise<RunResult>;
+  /** The chat's next result; `signal` takes the listener off once the caller stops waiting for it */
+  nextResult(chatId: string, signal?: AbortSignal): Promise<RunResult>;
   stop(chatId: string): void;
   /** The rotation holds this chat's usage limit: it will replay the turn or wait for a reset */
   limitHeld(chatId: string): boolean;
   waitOf?(chatId: string): LimitWait | null;
+  /**
+   * Resolves, with why, once a held limit will bring the chat no next result: its wait ended without
+   * a replay, or nothing holds the limit any more and the chat is not working. `onWait` hears the
+   * wait the chat is in as it opens and ends. Without it a hold lasts until the next result.
+   */
+  released?(chatId: string, signal: AbortSignal, onWait: (wait: LimitWait | null) => void): Promise<string>;
 }
 
 export interface ReviewLaunch {
@@ -160,10 +167,12 @@ export type RunWait = { result: RunResult } | { timedOut: true } | { cancelled: 
 /**
  * Waits for a run under Claudio's own clock. A usage limit the rotation holds pauses the clock: the
  * wait is not the run's time, so it is waited on through `nextResult` with no timer, and the clock
- * resumes when the replayed turn answers.
+ * resumes when the replayed turn answers. A hold that ends with no turn to come (a person stopped
+ * waiting, the wait ran out) answers the limited result, with why: before, nothing but a stop could
+ * end a hold whose replay never came (docs/plans/limit-resume-and-credits.md, cause 4).
  */
 export async function awaitReviewRun(
-  host: ReviewHost,
+  host: Omit<ReviewHost, 'start'>,
   chatId: string,
   timeoutMs: number,
   signal: AbortSignal,
@@ -186,17 +195,28 @@ export async function awaitReviewRun(
     const result = out.value;
     if (!(result.isError && result.cause === 'rate-limit' && host.limitHeld(chatId))) return { result };
     setWaiting(host.waitOf?.(chatId) ?? null);
-    pending = host.nextResult(chatId);
-    const held = await race(pending, null, signal);
-    setWaiting(null);
+    const following = new AbortController();
+    const next = host.nextResult(chatId, following.signal).then((value): Held => ({ next: value }));
+    const gone = host.released ? host.released(chatId, following.signal, setWaiting).then((why): Held => ({ gone: why })) : new Promise<Held>(() => undefined);
+    let held: Raced<Held>;
+    try {
+      held = await race(Promise.race([next, gone]), null, signal);
+    } finally {
+      following.abort();
+      setWaiting(null);
+    }
     if (held.kind !== 'value') {
       host.stop(chatId);
       return { cancelled: true };
     }
+    if ('gone' in held.value) return { result: { ...result, result: `${result.result} (${held.value.gone})` } };
     // The replayed turn may itself be limited again: the loop asks the same question of it
-    pending = Promise.resolve(held.value);
+    pending = Promise.resolve(held.value.next);
   }
 }
+
+/** How a hold ended: the chat's next result, or why none will come */
+type Held = { next: RunResult } | { gone: string };
 
 // ---------- helpers ----------
 
