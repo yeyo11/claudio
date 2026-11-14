@@ -469,7 +469,15 @@ test('a reading that leaves every account out moves the wait to the earliest res
     // The reading changes the accounts, which has every wait look again: once that look is over, it decided
     await waitFor(() => rechecks.mock.callCount() > 0);
     await Promise.all(rechecks.mock.calls.map((call) => call.result));
-    assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting', 'beta is still out');
+    // What each account and the wait looked like, so a failure under load explains itself
+    const seen = (): string =>
+      JSON.stringify({
+        wait: r.db.providerMove(move?.id ?? ''),
+        accounts: Object.fromEntries(Object.values(r.ids).concat(DEFAULT_ID).map((id) => [id, r.store.find(id)?.limits ?? null])),
+        executions: r.chats.get(chat.id)?.executions.map((e) => [e.account ?? null, e.cause ?? null, e.limitResetsAt ?? null]),
+        spawns: r.spawns().map((x) => x.dir),
+      });
+    assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting', `beta is still out; saw ${seen()}`);
     const before = r.spawns().length;
     t.mock.timers.tick(400);
     await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed' && r.spawns().length > before);
@@ -480,6 +488,42 @@ test('a reading that leaves every account out moves the wait to the earliest res
 });
 
 // R11: "Stop waiting" also offers "run it now on an account with room"
+// Cause 9 of docs/plans/limit-resume-and-credits.md: a failure was compared with the account's latest
+// reading, so a reading taken after the reset (not out, about a time the account was out) left the
+// failure counting against the account until a turn went through.
+test('an account the turn died on is a candidate again once the reset its failure recorded has passed, whatever reading came after', async () => {
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 1, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    await r.rotation.close();
+    const failures = r.chats.get(chat.id)?.executions.filter((e) => e.cause === 'rate-limit') ?? [];
+    // The reset is a second away, so the wait may already have replayed the turn more than once
+    assert.ok(failures.length >= 1, 'the turn died on an account');
+    assert.ok(failures.every((e) => !!e.limitResetsAt), `each failure recorded the reset it was refused with; saw ${JSON.stringify(failures.map((e) => [e.account, e.limitResetsAt ?? null, e.endedAt]))}`);
+    const failedOn = new Set(failures.map((e) => e.account ?? DEFAULT_ID));
+
+    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // Readings taken after the reset. An account the turn died on reads fine now, and says nothing of
+    // the time the failure happened; every other account is out for an hour, so only a failure's
+    // recorded reset can make one of them a candidate
+    const at = Date.now();
+    for (const id of [DEFAULT_ID, r.ids.a, r.ids.b, r.ids.c]) {
+      const reading = failedOn.has(id)
+        ? roomy(at)
+        : readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: sec(at) + 3600, unifiedWindows: { five_hour: { utilization: 1, resetsAt: sec(at) + 3600 } } }, at);
+      assert.ok(reading);
+      await r.chats.noteAccountReading(id, reading);
+    }
+    const next = r.chats.chooseNext(chat.id)?.account ?? null;
+    const current = r.chats.accountOf(chat.id);
+    // Every other account is out, and the chat's own is a candidate again like any: the recorded reset passed
+    assert.ok(next && failedOn.has(next), `an account whose recorded reset passed is a candidate again; chose ${String(next)} (the chat is on ${String(current)}, died on ${[...failedOn].join(', ')})`);
+  } finally {
+    r.close();
+  }
+});
+
 test('run now sends a waiting turn on at once, on the first account the readings allow, even one it died on (R11)', async () => {
   const r = await rig({ work, limited: (d) => Object.values(d), pollMs: 3_600_000 });
   try {

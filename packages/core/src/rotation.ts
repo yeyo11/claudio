@@ -145,6 +145,10 @@ export class ProviderRotation {
   private readonly listener = (run: ChatRuntime, limitResetsAt: string | null): void => {
     void this.onLimitHit(run, limitResetsAt);
   };
+  /** A person wrote to a chat (`person-message`): the wait it is in is over now, not at the next look */
+  private readonly onPerson = (chatId: string): void => this.personWrote(chatId);
+  /** Chats whose claimed wait is being replayed now: the turn it sends is no person's, and one that arrives meanwhile queues behind it */
+  private readonly resuming = new Set<string>();
   private started = false;
   private unsubscribe: (() => void) | null = null;
   /** A look at every wait is queued for the next turn of the loop: a burst of readings costs one */
@@ -170,6 +174,7 @@ export class ProviderRotation {
     this.started = true;
     this.closing = false;
     this.deps.runtime.on('limit-hit', this.listener);
+    this.deps.runtime.on('person-message', this.onPerson);
     this.unsubscribe = this.deps.accountsChanged?.(() => this.recheckSoon()) ?? null;
   }
 
@@ -178,7 +183,10 @@ export class ProviderRotation {
    * has, so a shutdown does not close the database under a replay.
    */
   close(): Promise<void> {
-    if (this.started) this.deps.runtime.off('limit-hit', this.listener);
+    if (this.started) {
+      this.deps.runtime.off('limit-hit', this.listener);
+      this.deps.runtime.off('person-message', this.onPerson);
+    }
     this.unsubscribe?.();
     this.unsubscribe = null;
     this.started = false;
@@ -534,6 +542,16 @@ export class ProviderRotation {
       else this.drop(row);
       return false;
     }
+    this.resuming.add(run.id);
+    try {
+      return await this.replayClaimed(row, run, account, decidedBy);
+    } finally {
+      this.resuming.delete(run.id);
+    }
+  }
+
+  /** The replay of a wait this process claimed, and the end of the wait. */
+  private async replayClaimed(row: ProviderMove, run: ChatRuntime, account: string | undefined, decidedBy: 'rotation' | 'person'): Promise<boolean> {
     const from = this.deps.runtime.accountOf(run.id);
     let replayed = false;
     let reason: string | null = null;
@@ -605,6 +623,25 @@ export class ProviderRotation {
     if (!run || !this.tookOver(row, run)) return false;
     this.end(row, 'cancelled', TOOK_OVER);
     return true;
+  }
+
+  /**
+   * A person sent a message to a chat that waits: they took it over, and the wait ends before anything
+   * can replay over their words. The poll would find it too, up to a look later.
+   */
+  private personWrote(chatId: string): void {
+    if (this.resuming.has(chatId) || this.handling.has(chatId)) return;
+    try {
+      const id = this.waits.get(chatId);
+      const row = id ? this.deps.db.providerMove(id) : null;
+      const run = this.deps.runtime.get(chatId);
+      if (!row || !run || (row.state !== 'waiting' && row.state !== 'resuming')) return;
+      // A task's or a flow's chat is not the person's: a message to it does not stop its wait
+      if (this.isAutomated(run, this.deps.work?.(chatId) ?? null)) return;
+      this.end(row, 'cancelled', TOOK_OVER);
+    } catch {
+      // A closed database (shutting down) is not the wait's to report
+    }
   }
 
   private releaseIfTakenOver(chatId: string): void {
