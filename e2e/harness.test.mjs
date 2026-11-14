@@ -361,7 +361,10 @@ test('a wait that times out reports the page, and a failed assertion the console
   assert.match(result.output, /console errors:\n {4}the page broke/);
   assert.match(result.output, /failed requests:\n(?: {4}.*\n)* {4}404 GET http:\/\/127\.0\.0\.1:\d+\/api\/no-such-route/);
   assert.match(result.output, /GET http:\/\/127\.0\.0\.1:\d+\/api\/events\?probe=0 \(EventSource, 200, /);
-  assert.match(result.output, /GET http:\/\/127\.0\.0\.1:\d+\/api\/system\?probe=queued \(Fetch, not sent, /);
+  // Any request the full pool kept waiting proves the point. The probe itself is not asked for by name:
+  // on a loaded machine the app is still fetching chunks it prefetches when the streams open, those
+  // wait in the same queue, and they fill the list's 20 lines (oldest first) ahead of the probe.
+  assert.match(result.output, /still open:\n(?: {4}.*\n)* {4}GET http:\/\/127\.0\.0\.1:\d+\/\S+ \((?:Fetch|Script|Stylesheet|EventSource), not sent, /);
   assert.match(result.output, /^ {2}server: GET \/api\/health answered 200 in \d+ ms$/m);
   assert.match(result.output, /assertion failed: on purpose\n {2}console errors:\n {4}logged before the assertion/);
   assert.deepEqual(result.survivors, { chrome: [], server: false });

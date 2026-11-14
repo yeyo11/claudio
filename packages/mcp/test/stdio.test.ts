@@ -67,7 +67,8 @@ test('without a usable CLAUDIO_API_URL it exits with 1, says why on stderr and w
     let err = '';
     child.stdout.on('data', (c: Buffer) => (out += c));
     child.stderr.on('data', (c: Buffer) => (err += c));
-    const [code] = await once(child, 'exit');
+    // 'close', not 'exit': the process can be gone before its stderr pipe has handed over what it wrote
+    const [code] = await once(child, 'close');
     assert.equal(code, 1, JSON.stringify(env));
     assert.equal(err, NO_URL);
     assert.equal(out, '');
