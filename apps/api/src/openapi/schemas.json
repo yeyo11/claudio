@@ -4195,6 +4195,13 @@
         ],
         "description": "The newest change request opened for the integration branch; null or absent before one"
       },
+      "stepWaits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrchestrationStepWait"
+        },
+        "description": "The steps that are no task waiting for a usage limit to reset, as the graph is read: worked out when it is read, never stored, like a task's `waiting`. Absent when none waits"
+      },
       "synthesisRunId": {
         "type": [
           "string",
@@ -5195,6 +5202,38 @@
     ],
     "description": "What the fix answers: failing checks (what a row without a kind means) or review comments."
   },
+  "OrchestrationStepWait": {
+    "type": "object",
+    "properties": {
+      "provider": {
+        "$ref": "#/components/schemas/ProviderId"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the limit resets; null when unknown, and the wait ends at the cap"
+      },
+      "moveId": {
+        "type": "string"
+      },
+      "role": {
+        "$ref": "#/components/schemas/OrchestrationChatRole"
+      },
+      "chatId": {
+        "type": "string"
+      }
+    },
+    "required": [
+      "chatId",
+      "moveId",
+      "provider",
+      "resetsAt",
+      "role"
+    ],
+    "description": "A step of a graph that is no task (its integrator, synthesis, a fixer, a reviewer) waiting for its usage limit to reset"
+  },
   "OrchestrationEngine": {
     "type": "string",
     "enum": [
@@ -6001,6 +6040,13 @@
           }
         ],
         "description": "The newest change request opened for the integration branch; null or absent before one"
+      },
+      "stepWaits": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/OrchestrationStepWait"
+        },
+        "description": "The steps that are no task waiting for a usage limit to reset, as the graph is read: worked out when it is read, never stored, like a task's `waiting`. Absent when none waits"
       },
       "synthesisRunId": {
         "type": [

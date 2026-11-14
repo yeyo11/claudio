@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-13T21:00:00Z
+updated_at: 2026-11-14T12:00:00Z
 tags:
     - rest-api
     - api
@@ -760,7 +760,7 @@ every 3 s and only while a client listens.
 | GET | `/orchestrations/plans` | Plans generated but not launched; each is kept when its planner finishes |
 | GET | `/orchestrations/plans/:runId` | The draft `OrchestrationSpec` a planner chat produced (`:runId` is the planner chat's id) |
 | POST | `/orchestrations/plan` | Same as `plan/start` but waits for the draft — holds the request open for minutes |
-| GET | `/orchestrations/:id` | State of every task, results, cost |
+| GET | `/orchestrations/:id` | State of every task, results, cost; `stepWaits` while a step that is no task (integrator, synthesis, fixer, reviewer) waits for a usage limit to reset |
 | GET | `/orchestrations/:id/timings` | Where the graph's time went, computed on read: phases, time after the last task, parallelism, the critical path with its waits, slot/limit/retry waits, every verification run and fixer attempt; `missing` names what an older graph did not record. `node scripts/orchestration-timings.mjs` prints it as Markdown tables against `CLAUDIO_API_URL` |
 | POST | `/orchestrations/:id/spend-pass` | Let a graph run past today's spend cap: sets `spendPass` to the server's local day and answers the orchestration. Refused to a chat's token with `403` |
 | POST | `/orchestrations/:id/stop` | Stop all workers |

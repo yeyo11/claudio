@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-14T09:00:00Z
+updated_at: 2026-11-14T12:00:00Z
 tags:
     - plan
     - study
@@ -12,7 +12,7 @@ tags:
 ---
 # Study: work that does not resume after a usage limit, and the credits Claudio ignores
 
-Status: **proposed**; `t1` is built on `fix/chat-waits-at-limit` (see [Outcome](#outcome)). Was: **proposed** for every task.
+Status: **proposed**; `t1` is built on `fix/chat-waits-at-limit` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` built, the rest **proposed**.
 
 On 2026-11-13 the owner reported two problems:
 
@@ -417,6 +417,61 @@ What differs from the plan:
 - After a refused resume the runtime has cleared the chat's limit flags (`replayLastTurn` does it before it sends), so the banner is gone while the wait row stays; the retry sends the nudge, because that replay already counted. Moving the clearing after admission is `t2`'s file.
 
 Still open: a restart (`t2`, `t8`), a `resuming` row whose claim is live at a restart (`t8`), a wait with no known reset and no reading (cause 5, `t8`).
+
+### t3, graph steps that are no task (branch `fix/graph-steps-wait-at-limit`)
+
+Built in `packages/core/src/orchestrator.ts` and `review-gate.ts`, with `stepWaits` on `Orchestration`
+(`packages/shared/src/types.ts`); tests in `packages/core/test/orchestration-limit-steps.test.ts`,
+over a whole Core and the fake CLI (`FAKE_CLAUDE_LIMIT_ONCE_IF` limits the step whose prompt it
+matches). `rotation.ts` is unchanged.
+
+- **Cause 4, D7.** `Orchestrator.workOf` answers `<graph>:__integration__`, `__synthesis__`,
+  `__verification__`, `__checks-fix__` or `__review__` while a step awaits its chat, so the rotation
+  takes its limit as it takes a task's: moved to an account with room, else a wait with the same
+  rules and bounds, and `ended` reaches `Orchestrator.waitEnded`. Covered: the integrator, the
+  synthesis, the verification fixer, a pull request's checks fix, and the review gate's reviewers,
+  verifier and fixer.
+- **What "resume" means.** For every one of these steps it is the task's: the turn is replayed in the
+  same chat (`--resume`). Each chat keeps its session (none is `internal`), the reviewers and the
+  verifier are read-only and held to a schema whose answer the replay gives, and the integrator and
+  the fixers commit their work, so a replay goes on from the branch as it is, as a task's does. No
+  step is started again.
+- **The hold.** Every step awaits its chat through `awaitReviewRun`, which now leaves a hold when no
+  turn is coming: the wait ended without a replay (`waitEnded` hears it), or a look every second finds
+  no wait, no hold and the chat not working. The step then takes the limited result with why. What
+  follows leaves the graph for a person: the review round ends `incomplete` (retry the review), a
+  verification or review fixer stops there without another attempt into the same limit (verify
+  again), the integrator's error is the integration's, the synthesis reports it failed.
+- **The graph says it waits.** `GET /orchestrations/:id` carries `stepWaits` (role, chat, `LimitWait`),
+  worked out when it is read, as a task's `waiting` is; the review gate's `waiting` is refreshed as
+  the wait opens.
+- **A stop and a restart.** Stopping a graph (or its checks) ends its steps' waits; a restart closes
+  them `cancelled`, since a step does not survive it and its replay would be for nobody.
+
+What differs from the plan:
+
+- **The inferred hang was not reproduced.** On `main`, a reviewer at its limit did not hang the gate:
+  the CLI ends its process after the limited result, the rotation let go of the limit within one
+  turn of the loop ("this turn is not replayed"), and the process's end reached `nextResult`, so the
+  gate saw an unheld limited result and failed the run: the round ended `incomplete` with "You've hit
+  your usage limit" (the first run of the new test showed it). The defect was that the reviewer was
+  neither moved nor waited for. A hang needs the process to end while the rotation is still deciding,
+  which a decision of one `setImmediate` makes very unlikely. Once a step's limit is waited for, a
+  wait that ends without a replay would have hung the gate; that is what the hold's new exit closes.
+- **The planner keeps D6** (agreed with the orchestrator on 2026-11-14). It is no step of a graph:
+  it runs before the graph exists, as an `internal` chat with no persisted session, with a person on
+  its page. It ends at a limit with the CLI's text, which names the reset, and a plan started after it
+  runs on an account with room (`choose` passes over the account whose reading says it is out). To
+  hold a planner's wait, Claudio would have to start it again on a new chat once an account has room
+  and the web would have to follow that chat instead of the one it polls; that is web work outside
+  this task, for a case where the person is present and can plan again.
+- **The pull request's checks fix** (`runChecksFix`) is covered too: it is a step of the graph that is
+  no task, which the plan did not list.
+- A shared type changed (`OrchestrationStepWait`, `Orchestration.stepWaits`), with the OpenAPI schemas
+  and the `GET /orchestrations/:id` row of `docs/rest-api.md`.
+
+Still open: a step's wait across a restart is closed rather than followed (`t8` could resume the step
+itself); the web shows `stepWaits` only through the review gate's line (`t9`).
 
 ## The owner's decisions (2026-11-13)
 
