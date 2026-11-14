@@ -155,6 +155,23 @@ test("a housekeeping chat at a limit is not resumed on another account and waits
   }
 });
 
+test("an API client's chat at a limit is not replayed on another account, nor does it wait: its request was answered", async () => {
+  // The CLI's own login is out and the others have room: a person's chat would move there
+  const r = await rig({ limited: 'default' });
+  try {
+    const chat = r.chats.start({ prompt: 'from a client', name: 'api', keepAlive: false, apiClient: true });
+    await r.chats.exited(chat.id);
+    await waitFor(() => r.events.some((e) => e.type === 'run.rateLimited'));
+    await new Promise((res) => setTimeout(res, 200));
+    assert.equal(r.spawns(), 1, 'no replay was started on any account');
+    assert.equal(r.db.providerMoves({ chatId: chat.id }).length, 0);
+    assert.equal(r.db.rotationEvents().length, 0);
+    assert.equal(r.rotation.holds(chat.id), false);
+  } finally {
+    r.close();
+  }
+});
+
 test("a person's wait that ended because they wrote does not stop the next limit from waiting", async () => {
   const r = await rig({ limited: 'all', resetsIn: 3600 });
   try {
