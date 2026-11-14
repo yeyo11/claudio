@@ -63,6 +63,12 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       open: !!c.querySelector('.chat-launch-open'),
       ident: c.querySelector('.chat-launch-ident')?.textContent.trim() ?? '',
       clock: c.querySelector('.chat-launch-clock')?.textContent.trim() ?? '',
+      // The clock's box is whole, inside the line, and outside the part that gives way
+      clockWhole: (() => {
+        const k = c.querySelector('.chat-launch-clock')?.getBoundingClientRect();
+        const f = c.querySelector('.chat-launch-facts')?.getBoundingClientRect();
+        return !!k && !!f && k.width > 8 && k.right <= f.right + 1 && !c.querySelector('.chat-launch-doing .chat-launch-clock');
+      })(),
     }))`);
 
   try {
@@ -115,6 +121,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     // The type, then the model its own messages ran on (an id here: the sandbox lists no names), then the effort its call named
     check(/^Explore\s*·\s*\S+\s*·\s*Effort: High$/.test(agentCard?.ident ?? ''), `the agent's card names its type, its model and its effort (${agentCard?.ident})`);
     check(Boolean(agentCard?.clock), `the clock stays on the line beside them (${agentCard?.clock})`);
+    check(shown.every((c) => c.clockWhole), `every card's clock is whole, inside its line and outside the part that gives way (${JSON.stringify(shown.map((c) => c.clockWhole))})`);
 
     // ---- both end: the rows say done, then leave, and the strip goes ----
     writeFileSync(join(work, HOLDS.turn), '');

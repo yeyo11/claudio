@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T14:00:00Z
-updated_at: 2026-11-13T12:00:00Z
+updated_at: 2026-11-14T12:00:00Z
 tags:
     - chat
     - transcript
@@ -67,11 +67,16 @@ effort is the word of the effort picker ("Medium", "Medio"), with "Effort" read 
 subagent's panel lists both in its facts. A workflow's own card shows neither: its agents report a
 model in their progress, which its panel shows, and no effort.
 
-On a card wide enough, the line is one line and what gives way first is the target of what the agent
-is doing, then the end of the identity; the clock never does. A card narrower than 30 rem (a
-container query on the card, so the open side panel counts) makes it two lines: the identity first
-(allowed to wrap rather than lose the model or the effort), then the activity and the clock, whose
-target is the part cut by an ellipsis.
+On a card wide enough, the line is one line, and it gives way in this order: the target of what the
+agent is doing first, then the model (a long unnamed id is cut **in the middle**, its start and its
+last eight characters kept: `MiddleCut`, plain CSS), then the type. The effort and the clock never
+give way: the clock is a box of its own outside the part that shrinks (`.chat-launch-clockbox`), and
+each separator belongs to the part that follows it, so none is left at an end of the line. Every
+part that can be cut carries its full text as a `title` while it is cut (`FullText`; the id's start
+carries it for the id), which `ui-invariants` and `overflow` seed with a long id to hold (invariant
+I3). A card narrower than 30 rem (a container query on the card, so the open side panel counts)
+makes it two lines: the identity first, on one line and cut the same way, then the activity and the
+clock, whose target is the part cut by an ellipsis.
 
 ## The lenses
 

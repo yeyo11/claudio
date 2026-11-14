@@ -2922,16 +2922,29 @@ a.attachment-chip:hover {
 }
 
 .chat-launch-facts {
-  /* One line of parts: the type, model and effort; then what it is doing and the clock. Each part
-     is its own flex item so that a long target is cut before the model is, and the clock never */
+  /* One line of parts: what the agent is (type, model, effort), what it is doing, the clock. Each is
+     its own flex item and gives way in that order's reverse: what it is doing first (its weight is
+     the largest), then the model within the identity; the effort and the clock never shrink. The
+     base rule clips and ellipsizes the line as a whole, which would cut the clock: reset it */
   display: flex;
   min-width: 0;
+  overflow: visible;
   color: var(--fg-3);
   font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
+  text-overflow: clip;
 }
 
-.chat-launch-ident,
+.chat-launch-ident {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+  /* Never over the clock, even when the room is shorter than the three facts at their least */
+  overflow: hidden;
+}
+
+.chat-launch-lead,
+.chat-launch-model,
 .chat-launch-act {
   min-width: 0;
   overflow: hidden;
@@ -2939,27 +2952,46 @@ a.attachment-chip:hover {
   white-space: nowrap;
 }
 
-.chat-launch-ident {
+.chat-launch-lead {
   flex: 0 1 auto;
 }
 
-.chat-launch-tail {
+/* Beside a model the type never gives way: a share of the model's shortfall would cut it by a pixel
+   and draw an ellipsis on a word that fits. Alone (a task's command) it is what gives way */
+.chat-launch-lead:not(:only-child) {
+  flex-shrink: 0;
+}
+
+.chat-launch-model {
+  flex: 0 1000 auto;
+  /* A cut id keeps its start and its end (MiddleCut); this much of it stays at the very least */
+  min-width: 6ch;
+}
+
+.chat-launch-effort {
+  flex: none;
+  white-space: nowrap;
+}
+
+.chat-launch-doing {
   display: flex;
-  flex: 0 100 auto;
+  flex: 0 1000 auto;
   min-width: 0;
+  overflow: hidden;
 }
 
 .chat-launch-act {
   flex: 0 1 auto;
 }
 
-.chat-launch-dot,
-.chat-launch-clock {
+.chat-launch-clockbox {
+  display: flex;
   flex: none;
   white-space: nowrap;
 }
 
 .chat-launch-dot {
+  flex: none;
   margin-inline: 0.4em;
 }
 
@@ -2968,8 +3000,8 @@ a.attachment-chip:hover {
   container-type: inline-size;
 }
 
-/* On a narrow card the line is two: what the agent is (type, model, effort, which may wrap rather
-   than lose the model or the effort), then what it is doing with the clock, whose target is cut */
+/* On a narrow card the line is two: what the agent is (wrapping between its facts, the id cut in the middle), then what
+   it is doing with the clock at its end. The separators go: between lines they would end one */
 @container (max-width: 30rem) {
   .chat-launch-facts {
     flex-wrap: wrap;
@@ -2977,16 +3009,37 @@ a.attachment-chip:hover {
 
   .chat-launch-ident {
     flex-basis: 100%;
+    /* The three facts may not fit side by side beside the mark and the button (a phone's card has
+       about 120px). They wrap at their own edges, never in the middle of one: the model, alone on a
+       line, is cut in the middle; the effort stays whole. No separator is drawn, as it would end a line */
+    flex-wrap: wrap;
+    column-gap: 0.9em;
     overflow: visible;
-    white-space: normal;
   }
 
-  .chat-launch-facts > .chat-launch-dot {
+  .chat-launch-ident > .chat-launch-dot {
     display: none;
   }
 
-  .chat-launch-tail {
-    flex: 1 1 100%;
+  .chat-launch-model {
+    flex: 0 1 auto;
+    max-width: 100%;
+  }
+
+  .chat-launch-doing {
+    /* A zero basis, so the clock fits the line and the target takes what is left; the minimum keeps
+       it from fitting beside the identity on that one's line, where it would be drawn at no width */
+    flex: 1 1 0;
+    min-width: 6ch;
+  }
+
+  .chat-launch-doing > .chat-launch-dot,
+  .chat-launch-clockbox > .chat-launch-dot {
+    display: none;
+  }
+
+  .chat-launch-clockbox.has-doing {
+    margin-inline-start: 0.8em;
   }
 }
 

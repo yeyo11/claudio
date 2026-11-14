@@ -176,6 +176,7 @@
   "Merge [Merge]",
   "MergeNotices [MergeNotices]",
   "Metrics [MetricCell, MetricsTable, RateBar]",
+  "MiddleCut [MiddleCut]",
   "Milestones [Milestones]",
   "ModelFallbacksCard [ModelFallbacksCard]",
   "ModelPicker [ModelPick, ModelPicker, modelPicks]",

@@ -1,11 +1,13 @@
 import type { ChatChildren } from '@claudio/shared';
 import { Bot, Check, ChevronRight, CircleAlert, CirclePause, CircleStop, Terminal, Workflow } from 'lucide-react';
-import { memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
+import { Fragment, memo, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Collapsible } from '@claudio/ui/components/controls/Collapsible';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { AnimatePresence, EASE_OUT, motion } from '@claudio/ui/components/motion';
+import { FullText } from '@claudio/ui/components/FullText';
+import { MiddleCut } from '@claudio/ui/components/MiddleCut';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { formatDuration } from '@claudio/ui/lib/format';
@@ -299,22 +301,13 @@ function Strip({ chat, branches, onOpen }: { chat: BranchChat; branches: Branch[
 
 const SEGMENT: Record<Branch['segments'][number], ProgressStatus> = { completed: 'done', running: 'running', failed: 'failed', stopped: 'skipped' };
 
-/**
- * The separator between the facts of a card, drawn but not read out. Between the parts of the line
- * it is spaced by its margin; inside a part (`inline`) the text carries its spaces, so the part can
- * wrap at it on a narrow card.
- */
-function Dot({ inline = false }: { inline?: boolean }) {
+/** The separator between the facts of a card: drawn, not read out, spaced by its own margin */
+function Dot() {
   return (
-    <span className={inline ? 'chat-launch-sep' : 'chat-launch-dot'} aria-hidden>
-      {inline ? ' · ' : '·'}
+    <span className="chat-launch-dot" aria-hidden>
+      ·
     </span>
   );
-}
-
-/** The facts joined by dots. */
-function joinWith(parts: ReactNode[]): ReactNode {
-  return parts.flatMap((part, i) => (i === 0 ? [part] : [<Dot key={`dot${i}`} inline />, part]));
 }
 
 /**
@@ -333,12 +326,24 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
   const slots = useOptionalChatUi()?.slots;
   const ModelName = slots?.ModelName;
   const EffortName = slots?.EffortName;
-  // Only what the stream or the launch said: a card never guesses what an agent inherited
-  const identity: ReactNode[] = [
-    ...(lead !== null ? [lead] : []),
-    ...(branch.kind === 'agent' && branch.model ? [ModelName ? <ModelName key="model" model={branch.model} /> : <span key="model" className="mono">{branch.model}</span>] : []),
-    ...(branch.kind === 'agent' && branch.effort ? [EffortName ? <EffortName key="effort" effort={branch.effort} /> : <span key="effort">{branch.effort}</span>] : []),
+  // Only what the stream or the launch said: a card never guesses what an agent inherited. Each fact
+  // is a box of its own so the line can say which one gives way first: the model, never the effort.
+  const identity: { key: string; node: ReactNode }[] = [
+    ...(lead !== null ? [{ key: 'lead', node: <FullText className="chat-launch-lead">{lead}</FullText> }] : []),
+    ...(branch.kind === 'agent' && branch.model
+      ? [{ key: 'model', node: <FullText className="chat-launch-model">{ModelName ? <ModelName model={branch.model} /> : <MiddleCut text={branch.model} className="mono" />}</FullText> }]
+      : []),
+    ...(branch.kind === 'agent' && branch.effort ? [{ key: 'effort', node: <span className="chat-launch-effort">{EffortName ? <EffortName effort={branch.effort} /> : branch.effort}</span> }] : []),
   ];
+  const doing =
+    branch.kind === 'workflow' && branch.progress && branch.progress.total > 0 ? (
+      <WorkflowFacts branch={branch} />
+    ) : line ? (
+      <>
+        <span className="verb">{line.verb}</span>
+        {line.target ? ` ${line.target}` : ''}
+      </>
+    ) : null;
   const StateIcon = branch.status === 'running' ? null : STATE_ICON[branch.status];
   return (
     <div className={`chat-launch is-${branch.kind} ${running ? 'live-rail is-running' : ''}`.trimEnd()}>
@@ -352,31 +357,22 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
             {StateIcon ? <StateIcon {...ICON_SM} className={`chat-branch-icon is-${branch.status}`} /> : <Spinner />}
             <span className={`chat-launch-status is-${branch.status}`}>{t(`branches.state.${branch.status}`)}</span>
             <span className="chat-launch-facts">
-              {/* The type, the model and the effort say what the agent is and stay whole as long as they can; what it is doing gives way first, and the clock never */}
+              {/* The type, the model and the effort say what the agent is and stay whole as long as they can;
+                  what it is doing gives way first, and the clock never: it sits outside both, and a
+                  separator belongs to the part that follows it, so none is left at an end */}
               {identity.length > 0 && (
-                <>
-                  <span className="chat-launch-ident">{joinWith(identity)}</span>
-                  <Dot />
-                </>
+                <span className="chat-launch-ident">
+                  {identity.flatMap((fact, i) => [...(i > 0 ? [<Dot key={`dot-${fact.key}`} />] : []), <Fragment key={fact.key}>{fact.node}</Fragment>])}
+                </span>
               )}
-              <span className="chat-launch-tail">
-                {branch.kind === 'workflow' && branch.progress && branch.progress.total > 0 && (
-                  <>
-                    <span className="chat-launch-act">
-                      <WorkflowFacts branch={branch} />
-                    </span>
-                    <Dot />
-                  </>
-                )}
-                {line && (
-                  <>
-                    <span className="chat-launch-act">
-                      <span className="verb">{line.verb}</span>
-                      {line.target ? ` ${line.target}` : ''}
-                    </span>
-                    <Dot />
-                  </>
-                )}
+              {doing && (
+                <span className="chat-launch-doing">
+                  {identity.length > 0 && <Dot />}
+                  <FullText className="chat-launch-act">{doing}</FullText>
+                </span>
+              )}
+              <span className={`chat-launch-clockbox${doing ? ' has-doing' : ''}`}>
+                {(identity.length > 0 || doing) && <Dot />}
                 <span className="chat-launch-clock">
                   <BranchClock branch={branch} words />
                 </span>

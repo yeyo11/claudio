@@ -1039,6 +1039,12 @@ export interface Execution {
    * rotation passes over, so it does not count among the accounts a limit passed over.
    */
   cause?: 'rate-limit' | 'auth';
+  /**
+   * With `cause: 'rate-limit'`: when the account the turn died on gives its limit back (ISO), as far
+   * as the chat knew when the turn ended. A chat restored after a restart waits for it, and a failure
+   * stops counting against the account once it has passed. Absent when none was known (a bare 429).
+   */
+  limitResetsAt?: string;
   permissionMode: PermissionMode;
   model: string | null;
   /** Id of the {@link Account} its process ran on; null or absent for one recorded before accounts, or run on the CLI's own default login */

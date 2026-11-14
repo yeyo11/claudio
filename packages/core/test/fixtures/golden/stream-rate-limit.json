@@ -44,7 +44,8 @@
           "total": 0
         },
         "turns": 1,
-        "cause": "rate-limit"
+        "cause": "rate-limit",
+        "limitResetsAt": "<time>"
       }
     ],
     "backgroundTasks": [],

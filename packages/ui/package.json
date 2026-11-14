@@ -10,6 +10,7 @@
     "./components/CodeBlock": "./src/components/CodeBlock.tsx",
     "./components/Dialog": "./src/components/Dialog.tsx",
     "./components/FullText": "./src/components/FullText.tsx",
+    "./components/MiddleCut": "./src/components/MiddleCut.tsx",
     "./components/ListToolbar": "./src/components/ListToolbar.tsx",
     "./components/Markdown": "./src/components/Markdown.tsx",
     "./components/ProgressBar": "./src/components/ProgressBar.tsx",

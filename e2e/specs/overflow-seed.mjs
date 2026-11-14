@@ -23,6 +23,10 @@ const SENTENCE =
 const LONG_LINE =
   'description: "Writing to one subagent from Claudio is viable through a Claude Code mod\'s documented $.session.send({to:{agentId}}); spike passed 2026-11-10 with the installed CLI, haiku, and a bridge that polls the API for what to deliver next"';
 
+/** A subagent on a model the list does not name, whose id is longer than any card's line (invariant I3) */
+const LONG_MODEL = 'claude-experimental-research-preview-20261114-extended-context-1m';
+const LONG_AGENT = 'a9f8e7d6c5b4a3f2';
+
 export const SCREEN = 'packages/frontend/src/screens/settings/decisions/DecisionsScreenWithAVeryLongName.tsx';
 export const LONG_FILE = 'packages/frontend/src/screens/settings/decisions/long-generated-table.ts';
 const BRANCH = 'feature/mensajes-entre-agentes-y-desbordamientos-en-toda-la-aplicacion';
@@ -78,6 +82,9 @@ function transcript(cwd, outside, main) {
     // gets figures of nine digits for two models, whose ids are long as well (the owner's report)
     assistant([{ type: 'text', text: 'Sigo con el resto de la auditoría.' }], 'claude-opus-5-5', { input_tokens: 5_300, output_tokens: 1_500_000, cache_read_input_tokens: 1_281_000_000, cache_creation_input_tokens: 2_000_000 }),
     assistant([{ type: 'text', text: 'Y lo que queda por revisar.' }], 'claude-sonnet-5-5', { input_tokens: 174, output_tokens: 48_700, cache_read_input_tokens: 10_000_000 }),
+    // The subagent whose card carries the long model id: its result names it, and its own files follow
+    assistant([{ type: 'tool_use', id: 'ovf-agent', name: 'Agent', input: { description: 'Auditar todas las cuentas', subagent_type: 'general-purpose', prompt: 'Audita las cuentas.' } }]),
+    result('ovf-agent', { agentId: LONG_AGENT }),
   ].join('\n');
 }
 
@@ -95,6 +102,17 @@ export async function seedOverflow({ api, configDir, workspaceDir }) {
   const dir = join(configDir, 'projects', cwd.replace(/[^a-zA-Z0-9]/g, '-'));
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${SESSION}.jsonl`), `${transcript(cwd, outside, main)}\n`);
+  const agents = join(dir, SESSION, 'subagents');
+  mkdirSync(agents, { recursive: true });
+  const sidechain = (role, uuid, parentUuid, message, sec) => JSON.stringify({ parentUuid, isSidechain: true, agentId: LONG_AGENT, type: role, cwd, sessionId: SESSION, timestamp: new Date(Date.now() - 800_000 + sec * 1000).toISOString(), uuid, message });
+  writeFileSync(join(agents, `agent-${LONG_AGENT}.meta.json`), JSON.stringify({ agentType: 'general-purpose', description: 'Auditar todas las cuentas', toolUseId: 'ovf-agent', spawnDepth: 1, requestShape: 'foreground' }));
+  writeFileSync(
+    join(agents, `agent-${LONG_AGENT}.jsonl`),
+    `${[
+      sidechain('user', 'ovf-su1', null, { role: 'user', content: 'Audita las cuentas.' }, 1),
+      sidechain('assistant', 'ovf-sa1', 'ovf-su1', { model: LONG_MODEL, id: 'msg-ovf-sub', type: 'message', role: 'assistant', content: [{ type: 'text', text: 'Mirando.' }], usage: { input_tokens: 10, output_tokens: 5 } }, 3),
+    ].join('\n')}\n`,
+  );
 
   const seeded = { main, cwd, dir, projectId: null, taskId: null, orchestrationId: null, orchestrationChats: [] };
   const project = await api.post('/projects/import', { path: main, name: 'Un proyecto cuyo nombre es lo bastante largo como para necesitar su elipsis en todas partes', template: 'software' });

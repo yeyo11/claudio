@@ -18,6 +18,10 @@ const SESSION = 'e2e-ui-invariants-0000-000000000000';
 // (the transcript, the composer's foot) is measured like a page
 const AGENT = 'a1b2c3d4e5f60718';
 const FIXTURES = resolve(dirname(fileURLToPath(import.meta.url)), '../../packages/core/test/fixtures');
+// A second subagent on a model the list does not name, with an id no card has room for: the line of the card
+// must cut it in the middle and keep the effort and the clock (docs/chat-tool-rows-and-branches.md)
+const LONG_AGENT = 'a9f8e7d6c5b4a3f2';
+const LONG_MODEL = 'claude-experimental-research-preview-20261114-extended-context-1m';
 const PROJECT = '-work-ui-invariants';
 const UNBROKEN = 'sk-ant-api03-ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789ABCDEFGHIJ';
 const PROMPT = `Review the migration of packages/frontend/src/screens/settings/decisions/DecisionsScreen.tsx and check ${UNBROKEN} is never logged`;
@@ -29,6 +33,7 @@ function transcript() {
     { ...base, uuid: 'uinv-1', timestamp: at(0), type: 'user', message: { role: 'user', content: PROMPT } },
     { ...base, uuid: 'uinv-2', timestamp: at(1), type: 'assistant', message: { role: 'assistant', model: 'claude-sonnet-5', content: [{ type: 'text', text: `Checked /Users/someone/workspace/claudio/packages/frontend/src/screens/settings/decisions/DecisionsScreen.tsx: ${UNBROKEN} appears nowhere.` }] } },
     { ...base, uuid: 'uinv-3', timestamp: at(2), type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_explore01', content: 'ok' }] }, toolUseResult: { agentId: AGENT } },
+    { ...base, uuid: 'uinv-4', timestamp: at(3), type: 'user', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_long01', content: 'ok' }] }, toolUseResult: { agentId: LONG_AGENT } },
   ]
     .map((line) => JSON.stringify(line))
     .join('\n');
@@ -39,6 +44,16 @@ export default async ({ page, api, check, dirs }) => {
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${SESSION}.jsonl`), transcript());
   cpSync(join(FIXTURES, 'agent-session'), join(dir, SESSION), { recursive: true });
+  const sidechain = (role, uuid, parentUuid, message, s) => JSON.stringify({ parentUuid, isSidechain: true, agentId: LONG_AGENT, type: role, cwd: '/work/ui-invariants', sessionId: SESSION, timestamp: new Date(Date.UTC(2026, 0, 3, 9, 0, s)).toISOString(), uuid, message });
+  const longDir = join(dir, SESSION, 'subagents');
+  writeFileSync(join(longDir, `agent-${LONG_AGENT}.meta.json`), JSON.stringify({ agentType: 'general-purpose', description: 'Audit every account against the long-context preview', toolUseId: 'toolu_long01', spawnDepth: 1, requestShape: 'foreground' }));
+  writeFileSync(
+    join(longDir, `agent-${LONG_AGENT}.jsonl`),
+    `${[
+      sidechain('user', 'lu1', null, { role: 'user', content: 'Audit the accounts.' }, 4),
+      sidechain('assistant', 'la1', 'lu1', { model: LONG_MODEL, id: 'msg_long', type: 'message', role: 'assistant', content: [{ type: 'text', text: 'Looking.' }], usage: { input_tokens: 10, output_tokens: 5 } }, 6),
+    ].join('\n')}\n`,
+  );
   const workspace = join(tmpdir(), `claudio-ui-invariants-${process.pid}`);
   mkdirSync(workspace, { recursive: true });
   const imported = await api.post('/projects/import', { path: workspace, name: 'A project whose name is long enough to need its ellipsis everywhere', template: 'software' });

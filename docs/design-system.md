@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-13T12:00:00Z
+updated_at: 2026-11-14T12:00:00Z
 tags:
     - design-system
     - web
@@ -973,7 +973,9 @@ the classes are the last section of `claudio-ds.css`.
   `type · model · effort` for a subagent, the command for a task, what it is doing, the clock) and
   "Abrir". The model is the CLI's name for it in sans, or its id in mono where the list has no name;
   the effort is the effort picker's word; each is left out when nothing reported it. Narrower than
-  30 rem the line wraps onto two ([Tool rows and live branches](chat-tool-rows-and-branches.md)). Running, it carries the live rail; it never takes a
+  30 rem the line is two ([Tool rows and live branches](chat-tool-rows-and-branches.md)): what the
+  agent is, then what it is doing and the clock. A long model id is cut in the middle (`MiddleCut`,
+  full text in its title), the effort and the clock never give way, and no separator ends a line. Running, it carries the live rail; it never takes a
   gradient, the workflow card included. It stays once the branch ended: it is the record.
 - **A subagent's own line.** Core keeps an activity tracker per running sidechain, so a subagent reads
   "leyendo `packages/core/src/chats.ts`" in the strip, in its card, in the inspector's Branches card

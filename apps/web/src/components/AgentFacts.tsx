@@ -1,4 +1,5 @@
 import type { ModelOption } from '@claudio/shared';
+import { MiddleCut } from '@claudio/ui/components/MiddleCut';
 import { useTranslation } from 'react-i18next';
 import { effortLabel } from './EffortPicker';
 import { useModelCatalog } from './ui';
@@ -18,7 +19,7 @@ export function modelOptionFor(catalog: readonly ModelOption[], model: string): 
  */
 export function ModelName({ model }: { model: string }) {
   const label = modelOptionFor(useModelCatalog(), model)?.label;
-  return label ? <>{label}</> : <span className="mono">{model}</span>;
+  return label ? <>{label}</> : <MiddleCut text={model} className="mono" />;
 }
 
 /**
