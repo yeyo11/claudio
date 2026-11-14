@@ -191,7 +191,7 @@ test('a card shows only the facts it has: no model, no effort, nothing in their 
 test('the clock is outside the part that gives way, and no separator is left without a part after it', () => {
   const html = agentCard({ model: 'opus', activity: reading });
   // What it is doing is cut first and carries its full text (FullText); the clock sits in a box of its own after it
-  assert.match(html, /<span class="chat-launch-doing"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-act"><span class="verb">[^<]*<\/span> packages\/core\/src\/chats\.ts<\/span><\/span><span class="chat-launch-clockbox has-doing"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-clock">[^<]+<\/span><\/span><\/span>/);
+  assert.match(html, /<span class="chat-launch-doing"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-act"><span class="verb">[^<]*<\/span> packages\/core\/src\/chats\.ts<\/span><\/span><span class="chat-launch-clockbox"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-clock">[^<]+<\/span><\/span><\/span>/);
   assert.doesNotMatch(html, /<span class="chat-launch-doing">(?:(?!<\/span><span class="chat-launch-clockbox).)*<span class="chat-launch-clock"/, 'the clock is not inside the part that shrinks');
 });
 
@@ -206,6 +206,16 @@ test('the effort and the clock never shrink or end in an ellipsis; the parts tha
   assert.match(rule('.chat-launch-effort'), /flex: none/);
   assert.match(rule('.chat-launch-clockbox'), /flex: none/);
   assert.doesNotMatch(rule('.chat-launch-effort'), /overflow|ellipsis/);
+});
+
+test('beside an activity the identity takes no share of the shortfall and leaves the activity its floor and the clock its room', () => {
+  const css = readFileSync(new URL('../../../packages/chat-ui/src/styles/chat.css', import.meta.url), 'utf8');
+  // The first rule for it is the wide card's; the narrow card's comes later, inside its container query
+  const rule = /\.chat-launch-facts\.has-doing > \.chat-launch-ident \{[^}]*\}/.exec(css)?.[0] ?? '';
+  assert.match(rule, /flex-shrink: 0/);
+  assert.match(rule, /max-width: calc\(100% - var\(--launch-doing-floor\) - var\(--launch-clock-room\)\)/);
+  assert.match(agentCard({ model: 'opus', activity: reading }), /class="chat-launch-facts has-doing"/);
+  assert.match(agentCard({ model: 'opus' }), /class="chat-launch-facts"/);
 });
 
 test("a step's calls lead to the branches they started", () => {

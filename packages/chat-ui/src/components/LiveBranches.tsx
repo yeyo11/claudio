@@ -352,11 +352,11 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
           {mark}
         </span>
         <span className="chat-launch-what">
-          <span className="chat-launch-name ellipsis">{branch.description}</span>
+          <FullText className="chat-launch-name ellipsis">{branch.description}</FullText>
           <span className="chat-launch-state">
             {StateIcon ? <StateIcon {...ICON_SM} className={`chat-branch-icon is-${branch.status}`} /> : <Spinner />}
             <span className={`chat-launch-status is-${branch.status}`}>{t(`branches.state.${branch.status}`)}</span>
-            <span className="chat-launch-facts">
+            <span className={`chat-launch-facts${doing ? ' has-doing' : ''}`}>
               {/* The type, the model and the effort say what the agent is and stay whole as long as they can;
                   what it is doing gives way first, and the clock never: it sits outside both, and a
                   separator belongs to the part that follows it, so none is left at an end */}
@@ -371,7 +371,7 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
                   <FullText className="chat-launch-act">{doing}</FullText>
                 </span>
               )}
-              <span className={`chat-launch-clockbox${doing ? ' has-doing' : ''}`}>
+              <span className="chat-launch-clockbox">
                 {(identity.length > 0 || doing) && <Dot />}
                 <span className="chat-launch-clock">
                   <BranchClock branch={branch} words />

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T14:00:00Z
-updated_at: 2026-11-14T12:00:00Z
+updated_at: 2026-11-14T18:00:00Z
 tags:
     - chat
     - transcript
@@ -67,16 +67,31 @@ effort is the word of the effort picker ("Medium", "Medio"), with "Effort" read 
 subagent's panel lists both in its facts. A workflow's own card shows neither: its agents report a
 model in their progress, which its panel shows, and no effort.
 
-On a card wide enough, the line is one line, and it gives way in this order: the target of what the
-agent is doing first, then the model (a long unnamed id is cut **in the middle**, its start and its
-last eight characters kept: `MiddleCut`, plain CSS), then the type. The effort and the clock never
-give way: the clock is a box of its own outside the part that shrinks (`.chat-launch-clockbox`), and
-each separator belongs to the part that follows it, so none is left at an end of the line. Every
-part that can be cut carries its full text as a `title` while it is cut (`FullText`; the id's start
-carries it for the id), which `ui-invariants` and `overflow` seed with a long id to hold (invariant
-I3). A card narrower than 30 rem (a container query on the card, so the open side panel counts)
-makes it two lines: the identity first, on one line and cut the same way, then the activity and the
-clock, whose target is the part cut by an ellipsis.
+On a card wide enough, the line is one line, and it gives way in this order. What the agent is
+doing goes first and alone: while it has more than its floor (`--launch-doing-floor`, the separator,
+the verb and a few characters of its target), the identity takes no share of the shortfall
+(`flex-shrink: 0` on `.chat-launch-ident` when the facts carry `.has-doing`). A share split by flex
+weight is what cut the model by a fifth of a pixel while the activity still had room, and with a long
+id left the activity at no width. The identity is capped instead, at the line minus that floor and the
+clock's room (`--launch-clock-room`, `m:ss`), both shares of the facts' box, which takes the whole room beside the state word; past the cap it is cut, the model within it (a long
+unnamed id is cut **in the middle**, its start and its last eight characters kept: `MiddleCut`, plain
+CSS, never under `6ch` once split), while the type beside a model and the effort stay whole. Without
+an activity (a finished agent, a task's command) the identity is the only part that gives way. The
+clock never gives way: it is a box of its own outside the parts that shrink (`.chat-launch-clockbox`),
+and each separator belongs to the part that follows it, so none is left at an end of the line.
+
+Every part that can be cut carries its full text as a `title` while it is cut (`FullText`; the id's
+start carries it for the id), which `ui-invariants` and `overflow` seed with a long id to hold
+(invariant I3). Whether a part is cut is read from its unrounded widths (a range over its content
+against its box), not only from `scrollWidth` and `clientWidth`, which are whole pixels and read a box
+0.2 px short of its text as fitting while the browser already draws the ellipsis.
+
+A card narrower than 30 rem (a container query on the card, so the open side panel counts) gives the
+state a row of its own, from under the mark to the card's edge, and makes the facts two lines: the
+identity first, wrapping at its facts' edges with no separators (a long id stays on the type's line,
+cut in the middle to the room left there), then the activity and the clock, whose target is the part cut by an ellipsis. A card with
+no activity (a background command) keeps its clock on the identity's line rather than on a line of its
+own.
 
 ## The lenses
 

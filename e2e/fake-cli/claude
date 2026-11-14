@@ -235,7 +235,7 @@ const emit = (message) => process.stdout.write(`${JSON.stringify({ ...message, s
  */
 const sidechain = (branch) => (branch ? { parent_tool_use_id: branch.toolUseId, isSidechain: true } : { parent_tool_use_id: null });
 const assistant = (content, branch = null) => {
-  const message = { type: 'assistant', uuid: randomUUID(), ...sidechain(branch), message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model, content, usage: { input_tokens: contextTokens, output_tokens: 10 } } };
+  const message = { type: 'assistant', uuid: randomUUID(), ...sidechain(branch), message: { id: `msg_${randomUUID()}`, type: 'message', role: 'assistant', model: branch?.model ?? model, content, usage: { input_tokens: contextTokens, output_tokens: 10 } } };
   emit(message);
   (branch ? branch.record : record)({ type: 'assistant', uuid: message.uuid, message: message.message });
 };
@@ -1028,6 +1028,8 @@ function startAgent(own, text) {
   log('agent', { toolUseId: id, agentId, description, background });
   assistant([{ type: 'tool_use', id, name: 'Agent', input }]);
   const branch = openBranch(id, agentId, description, background);
+  // An agent the call gave a model runs on it, so its own messages report that model
+  if (named.model) branch.model = modelName(named.model);
   emit({ type: 'system', subtype: 'task_started', uuid: randomUUID(), task_id: agentId, tool_use_id: id, description, task_type: 'local_agent', is_backgrounded: background, prompt: input.prompt });
   const launched = { agentId, description, prompt: input.prompt, resolvedModel: model };
   const summary = `Looked around for: ${description}.`;

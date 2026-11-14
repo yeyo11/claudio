@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-14T12:00:00Z
+updated_at: 2026-11-14T18:00:00Z
 tags:
     - design-system
     - web
@@ -2472,7 +2472,11 @@ the file being edited is its only moving part.
 - Text cut by an ellipsis or a clamp carries its full text (invariant I3). A non-interactive label
   renders as `FullText` (`packages/ui/src/components/FullText.tsx`, the hook `useFullTextTitle` in
   `lib/full-text.ts`): it keeps the element and class it is given and sets `title` only while the text
-  is really cut, measured again on resize, on each render and once the fonts are in. A label made of
+  is really cut, measured again on resize, on each render and once the fonts are in. Cut means its
+  unrounded content width (a range over it) passes its box, not only `scrollWidth > clientWidth`: those
+  are whole pixels and miss a box a fraction of a pixel short of its text, whose ellipsis is drawn all
+  the same. A literal cut in the middle (a model id) is `MiddleCut` (`.middle-cut`, `.is-split` once it
+  is long enough to split): its start takes the ellipsis and the title, its last eight characters stay. A label made of
   parts (the chat header's subtitle) passes `full`. Inside a link or a button, the label span is the
   `FullText`, never the control. The phone tab bar's labels are never cut: a tab is at least as wide as
   its label (`minmax(min-content, 1fr)`), so at 320 px "Orchestrations" takes its width and the short

@@ -15,7 +15,7 @@ export function MiddleCut({ text, className = '' }: { text: string; className?: 
   const ref = useFullTextTitle<HTMLElement>(text);
   const split = text.length > SPLIT_FROM;
   return (
-    <span className={`middle-cut ${className}`.trimEnd()}>
+    <span className={`middle-cut${split ? ' is-split' : ''} ${className}`.trimEnd()}>
       <span ref={ref} className="middle-cut-head">
         {split ? text.slice(0, -TAIL) : text}
       </span>

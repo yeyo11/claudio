@@ -1413,6 +1413,11 @@ button.step:hover {
   vertical-align: bottom;
 }
 
+/* Cut, it keeps its ellipsis and a few characters of its start besides its end */
+.middle-cut.is-split {
+  min-width: 6ch;
+}
+
 .middle-cut-head {
   min-width: 0;
   overflow: hidden;
