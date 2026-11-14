@@ -3,6 +3,7 @@ import type { DatabaseSync, SQLInputValue } from 'node:sqlite';
 import type {
   ChatOrigin,
   ClaudioEvent,
+  DecisionBaseline,
   DecisionMode,
   Lesson,
   LessonJob,
@@ -113,7 +114,7 @@ export interface LessonQueueDeps {
   proposer: LessonProposer;
   decisions: {
     effective(point: 'lesson.mine', projectId: string | null): { mode: DecisionMode };
-    ask(point: 'lesson.mine', subject: { kind: 'chat'; id: string; data: Record<string, unknown> }, scope: { projectId: string | null }): Promise<DecisionOutcome>;
+    ask(point: 'lesson.mine', subject: { kind: 'chat'; id: string; data: Record<string, unknown> }, scope: { projectId: string | null; baseline?: DecisionBaseline }): Promise<DecisionOutcome>;
   };
   chat(chatId: string): Promise<LessonChatInfo | null>;
   /** The Memory module of the project is on */
@@ -664,7 +665,12 @@ export class LessonMiningQueue {
       quote: cutToBytes(s.quote, GATE_QUOTE_BYTES),
       context: cutToBytes([s.before, ...s.tools, s.context].filter(Boolean).join('\n'), GATE_QUOTE_BYTES),
     }));
-    const outcome = await this.deps.decisions.ask('lesson.mine', { kind: 'chat', id: chat.id, data: { signals } }, { projectId: job.project_id });
+    const outcome = await this.deps.decisions.ask(
+      'lesson.mine',
+      { kind: 'chat', id: chat.id, data: { signals } },
+      // With the point off an automatic job is skipped when jobs are claimed, so today's behaviour does not mine: the baseline is "no", and a yes is a miner run the code would not have started
+      { projectId: job.project_id, baseline: false },
+    );
     const base: Patch = { untilUuid: input.untilUuid, signals: input.signals.length, decisionId: outcome.decisionId };
     if (outcome.mode === 'off') {
       this.settle(job, 'skipped', { outcome: 'gate-unavailable' });

@@ -519,7 +519,8 @@ test('notification.urgency is at state version 2 and lists risk, so a consent fo
   const asks = async (version: number): Promise<number> => {
     const config = tempConfig();
     const settings = new DecisionSettingsStore(config, new DecisionCredentialStore(config));
-    const engine = new DecisionEngine({ settings, db: new Db(config), projectDecisions: () => null });
+    // The point once it may act: proven, and never held out (the gate is tested in decision-lifecycle.test.ts)
+    const engine = new DecisionEngine({ settings, db: new Db(config), projectDecisions: () => null, standing: () => 'proven', random: () => 1 });
     let calls = 0;
     engine.register({
       id: 'jev',

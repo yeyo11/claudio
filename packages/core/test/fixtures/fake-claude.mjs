@@ -22,6 +22,11 @@
 //   FAKE-TEXT-ONCE <text>         the session's first turn ends with that text as its result, and every
 //                                 later turn answers `continued: <the prompt it got>`: a worker that
 //                                 stops with a report while work is still owed
+//   FAKE-TEXT-ALWAYS <text>       every turn of the session ends with that text, the continuations' too: a
+//                                 worker that reports the same owed work however often it is sent back
+//   FAKE-THEN-COMMIT <file>       with FAKE-TEXT-ONCE: every later turn writes <file> with a Write call and
+//                                 commits it, as a continuation that changed something
+//   FAKE-THEN-READ <file>         with FAKE-TEXT-ONCE: every later turn only reads <file> with a Read call
 //   FAKE-BG-AGENT                 with FAKE-TEXT-ONCE: that first turn also starts a background subagent
 //                                 and ends with it still running, as a lead that delegated and stopped;
 //                                 the subagent reports its end ($FAKE_CLAUDE_BG_AGENT_MS after the result,
@@ -91,6 +96,10 @@
 //   FAKE_CLAUDE_TIMELINE=<file>   appends what happened, one word a line: `armed`, `message`, and
 //                                 `background-ended` and `eof` for a FAKE-BG-AGENT's end and its input's
 //
+// Every result reports `total_cost_usd` as the CLI does, cumulative over the session: a turn costs
+// 0.01, a resume goes on from the session's total and a fork starts from its parent's
+// (fake-session-totals.mjs).
+//
 // It reports the files it could see and its working directory, which is what the tests check.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
@@ -98,6 +107,7 @@ import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } 
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
+import { forkedFrom, sessionTotals } from './fake-session-totals.mjs';
 
 const args = process.argv.slice(2);
 // Reading an account's model list (the `initialize` handshake and the version before it) is not a
@@ -148,7 +158,16 @@ if (!existsSync(dir)) {
   process.stderr.write(`fake-claude: worktree ${dir} was not prepared\n`);
   process.exit(1);
 }
-const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
+// Every `total_cost_usd` written below is what that turn cost; the result reports the session's
+// total after it, as the CLI does (fake-session-totals.mjs)
+let totals = null;
+const out = (msg) => {
+  if (msg.type === 'result' && typeof msg.total_cost_usd === 'number') {
+    totals ??= sessionTotals(startedSession, forkedFrom(args));
+    msg = { ...msg, total_cost_usd: totals.add(msg.total_cost_usd).totalCostUsd };
+  }
+  process.stdout.write(`${JSON.stringify(msg)}\n`);
+};
 
 // The hooks of --settings, run as the CLI does: a shell command with the hook input on stdin
 const settingsFile = flag('--settings');
@@ -332,10 +351,19 @@ lines.on('line', async (line) => {
     out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `retried: ${prompt}` });
     return;
   }
+  // What a session was told to keep saying outlives the process, as a fault does
+  const always = join(tmpdir(), `fake-claude-text-always-${sessionId}`);
+  const sayAlways = /^FAKE-TEXT-ALWAYS (.*)$/m.exec(prompt);
+  if (sayAlways) writeFileSync(always, sayAlways[1]);
+  if (existsSync(always)) {
+    out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: readFileSync(always, 'utf8').replaceAll('\\n', '\n') });
+    return;
+  }
   const early = join(tmpdir(), `fake-claude-text-${sessionId}`);
   const text = /^FAKE-TEXT-ONCE (.*)$/m.exec(prompt);
   if (text && !existsSync(early)) {
-    writeFileSync(early, '1');
+    // What the later turns do is the first prompt's to say: theirs is the continuation's
+    writeFileSync(early, JSON.stringify({ commit: /^FAKE-THEN-COMMIT (\S+)$/m.exec(prompt)?.[1] ?? null, read: /^FAKE-THEN-READ (\S+)$/m.exec(prompt)?.[1] ?? null }));
     if (/^FAKE-BG-AGENT$/m.test(prompt)) {
       out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_bg', name: 'Agent', input: { description: 'survey the routes', subagent_type: 'general-purpose', run_in_background: true } }] } });
       out({ type: 'system', subtype: 'task_started', session_id: sessionId, task_id: 'agent-bg', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true, description: 'survey the routes' });
@@ -348,6 +376,19 @@ lines.on('line', async (line) => {
     return;
   }
   if (existsSync(early)) {
+    const then = JSON.parse(readFileSync(early, 'utf8'));
+    const call = (name, input) => {
+      const id = `toolu_${randomUUID().slice(0, 8)}`;
+      out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id, name, input }] } });
+      out({ type: 'user', session_id: sessionId, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content: 'ok', is_error: false }] } });
+    };
+    if (then.commit) {
+      call('Write', { file_path: join(dir, then.commit), content: 'continued\n' });
+      writeFileSync(join(dir, then.commit), `continued ${randomUUID()}\n`);
+      git('add', '--', then.commit);
+      git('commit', '-q', '-m', `continue: ${then.commit}`);
+    }
+    if (then.read) call('Read', { file_path: join(dir, then.read) });
     out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `continued: ${prompt}` });
     return;
   }

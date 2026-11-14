@@ -101,6 +101,11 @@ const ROOT_TYPES = [
   // The decision engine
   'DecisionSettings', 'DecisionSettingsUpdate', 'DecisionCredentialsUpdate', 'DecisionCredentialsResult', 'DecisionTestRequest', 'DecisionTestResult',
   'DecisionPointInfo', 'DecisionPreview', 'DecisionConsentRequest', 'DecisionRecord', 'DecisionPage', 'DecisionPageQuery', 'DecisionFilter',
+  // The promotion gate (docs/plans/decision-engine-v2.md §5)
+  'DecisionSettingsSaveResult', 'DecisionActivationRefusal',
+  // The golden set and its replays (docs/plans/decision-engine-v2.md §4)
+  'DecisionLabel', 'DecisionLabelRequest', 'DecisionLabelImportRequest', 'DecisionLabelImportResult', 'DecisionLabelOutcomesRequest', 'DecisionLabelOutcomesResult',
+  'DecisionReplayRequest', 'DecisionReplayStarted', 'DecisionReplayList',
   // Instruction evals
   'EvalDefinition', 'EvalFile', 'EvalRunRequest', 'EvalEstimate', 'EvalRun', 'EvalRunSummary', 'EvalSample', 'EvalCall', 'EvalCheck', 'EvalComparison',
   'EvalFileListItem', 'EvalHead', 'EvalFileDetail', 'PutEvalFileRequest', 'EvalConsentRequest', 'ResumeEvalRunRequest', 'EvalRunPage', 'EvalSampleDetail', 'EvalGate',

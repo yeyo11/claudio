@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-24T13:36:20.210175264Z
-updated_at: 2026-11-13T15:00:00Z
+updated_at: 2026-11-14T00:00:00Z
 tags:
     - status
     - project-state
@@ -22,9 +22,9 @@ pull request is in [CHANGELOG.md](../CHANGELOG.md), so a release never leaves th
 | Version | The root `package.json`'s; release-please keeps it the same across all ten `package.json` files, and [CHANGELOG.md](../CHANGELOG.md) says what each release carried |
 | Released | On GitHub (`yeyo11/claudio`: `.deb`, AppImage, `ghcr.io/yeyo11/claudio`), from release-please's release pull requests. Claudio forks Agentry 0.37.1, drives Claude Code only, and is a product of its own (`@claudio/*`, `CLAUDIO_*`, `~/.config/Claudio`, ports 8797, 5181, 8809 and 8444); see [plans/claude-only-fork.md](plans/claude-only-fork.md) |
 | Runtime | Node >= 22, pnpm workspace |
-| Source | 1,866 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 10,656 lines of `packages/shared/src/types.ts` |
+| Source | 1,883 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 11,151 lines of `packages/shared/src/types.ts` |
 | REST | 48 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 701 unit and integration test files, plus 105 browser specs under `e2e/specs/` |
+| Tests | 709 unit and integration test files, plus 105 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build, the e2e runner's own tests; the e2e suite on four `e2e (k/4)` shards, called from `e2e.yml` and skipped on docs-only pull requests; the `test` gate; the image smoke test), `e2e.yml` (the shards), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape: `packages/shared` holds the types every other package imports,
@@ -78,6 +78,17 @@ agent reads, a hint for a stuck worker) one home: three typed questions, two pro
 Code CLI by default, TypeSafe's Jev with the owner's own key), a mode per point (`off`, `shadow`,
 `active`) and a Decisions tab in Settings. The catalogue has 29 points, and they ship `off` as the
 product's default; nothing is sent anywhere until the owner consents to a point. See [decision-engine.md](decision-engine.md).
+
+The decision engine's second plan, merged in #122 on 2026-11-13, made a point earn
+its place ([plans/decision-engine-v2.md](plans/decision-engine-v2.md)). Every row records what the
+code rule would have done, every resolver says whether its outcome is direct or a proxy, and a point
+has a standing (unproven, proven, failing) that gates `active`: an act point, or a suggestion that
+starts a run, cannot be switched on without proof, a point is held out at random while it acts,
+and the engine sends it back to shadow, and says so, when its evidence goes. A golden set of labelled
+states, a replay harness and a script test a question before it ships; a run sent back to its chat has
+its effect recorded and its rules in code; the Supervisor decides first whether a worker is stuck;
+the cost of a resumed session is billed by what its own turns cost; and the docs say what each point
+sends, field by field. The browser specs for it have not run.
 
 **Collaborators** were merged into `main` in #7 on 2026-10-17: teammates' Claudios share projects
 read only, peer to peer over iroh, with the follow-ups of R12 and the denied-join fix of R14
@@ -200,11 +211,14 @@ From 2026-11-07 to 2026-11-11:
   owner. The open items of each built plan are in its Outcome section.
 - **The owner's requests.** None is open: R6 (a full redesign with Stitch) and R8 (WebMCP) were
   dropped on 2026-10-17, and everything else is built and closed in [requests.md](requests.md).
-- **The decision engine's shadow period.** The owner's own install has run the points on Jev since
-  2026-10-18, and a review of that history is in progress (2026-11-13). All 29 points have a
-  resolver (CW-28 added `palette.intent`, `notification.urgency` and `orchestration.model`), and the `cli` provider
-  no longer waits on anything: CW-25's effort control landed ([effort.md](effort.md)) and CW-4's quota hold was superseded by phase 4 of multiple providers; see the plan's
-  [Outcome](plans/decision-engine.md#outcome).
+- **The decision engine after its second plan.** Nothing has earned `active` yet: 27 of the 29 points
+  have a resolver (`review.triage` and `issue.triage` have none), most resolve few rows a month, and
+  `run.continuation` does not beat the phrase list on the owner's labelled rows, so it cannot be
+  promoted. What stays open is in the plan's [Outcome](plans/decision-engine-v2.md#open): the feedback
+  surfaces (a tap on a continuation, a hint or a flag; a "label ten" queue), the floor and the gate's
+  warnings on a project's rows, the points that pass no baseline, cost baselines for sessions born outside Claudio, and the whole verification of the build
+  (the test, `ci-checks` and e2e gates and a QA pass, owed before the pull request). The first plan's
+  Outcome is [here](plans/decision-engine.md#outcome).
 - **The project ecosystem** was merged into `main` in #118 and is no longer open as a whole; see the
   plan's [Outcome](plans/project-ecosystem.md#the-ecosystem-as-a-whole) and the Known gaps of
   [work-items.md](work-items.md#known-gaps), [team-and-flow.md](team-and-flow.md#known-gaps) and
@@ -240,6 +254,7 @@ From 2026-11-07 to 2026-11-11:
 | [`plans/changes-review.md`](plans/changes-review.md) | Landed (#115) — see [Outcome](plans/changes-review.md#outcome) |
 | [`plans/project-ecosystem.md`](plans/project-ecosystem.md) | Landed (#118) — see [Outcome](plans/project-ecosystem.md#outcome) |
 | [`plans/decision-engine.md`](plans/decision-engine.md) | Landed (#141): the engine, both providers, 22 points at the time (29 now; all ship off) and the Decisions tab. See [Outcome](plans/decision-engine.md#outcome) and [decision-engine.md](decision-engine.md). The owner's 18 decisions are in [`decisions/decision-engine.md`](decisions/decision-engine.md) |
+| [`plans/decision-engine-v2.md`](plans/decision-engine-v2.md) | Landed (#122, 2026-11-13): evidence on every row (baseline, direct or proxy outcomes, net runs), the promotion gate with standing, holdout, demotion and suggestion floor, golden set and replays, the continuation's rules and effects, the Supervisor's structured draft and per-call clock, and the cost of a resumed session. The build's verification is still owed. See [Outcome](plans/decision-engine-v2.md#outcome) and [decision-engine.md](decision-engine.md) |
 | [`plans/orchestration-speed.md`](plans/orchestration-speed.md) | Built (epic CW-11): where a graph's time goes is recorded and shown (CW-13, #210); the shorter verification (CW-14); cheaper worker checks and the `e2e-specs` task (CW-15, #213); shorter chains with planner guidance and the longest-chain hint (CW-16, #205). Workstream B (CW-4) was superseded by phase 4 of multiple providers, see [`plans/limit-resume.md`](plans/limit-resume.md#what-replaced-it) |
 | [`plans/agent-wire-format.md`](plans/agent-wire-format.md) | Landed (#221, CW-33, 2026-10-08): the MCP list tools answer only the fields a model needs, as compact JSON (`packages/mcp/src/fields.ts`). TOON was measured with a CLI bench (`scripts/wire-format-bench.mjs`), saved at most 4 % and cost more on three of four tools, and is not adopted; ZON rejected. The UI ↔ API side is built, see [api-wire.md](api-wire.md). See [Outcome](plans/agent-wire-format.md#outcome) and [claudio-mcp-server.md](claudio-mcp-server.md) |
 | [`plans/claudio-assistant.md`](plans/claudio-assistant.md) | Landed (#216, 2026-10-07, umbrella CW-30): the global entry and confined chat (CW-18) and nine write tools, each confirmed by the person (CW-17), on the MCP server (CW-6) and the chat token (CW-10). See [`claudio-assistant.md`](claudio-assistant.md) and [Outcome](plans/claudio-assistant.md#outcome) |
@@ -382,5 +397,5 @@ possible to keep honest.
 [[plans/app-updates.md]] · [[plans/verify-roadmap-plans.md]] · [[plans/redesign-night-shift.md]] · [[plans/changes-review.md]] ·
 [[plans/tunnel.md]] · [[design-system.md]] · [[plans/project-ecosystem.md]] ·
 [[plans/project-ecosystem-audit.md]] · [[projects.md]] · [[work-items.md]] · [[team-and-flow.md]] · [[assistant.md]] ·
-[[decision-engine.md]] · [[plans/decision-engine.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/claudio-assistant.md]] · [[claudio-assistant.md]] ·
+[[decision-engine.md]] · [[plans/decision-engine.md]] · [[plans/decision-engine-v2.md]] · [[decisions/decision-engine.md]] · [[plans/orchestration-speed.md]] · [[plans/claudio-assistant.md]] · [[claudio-assistant.md]] ·
 [[decisions/english-technical-language.md]] · [[plans/flow-start-and-chat-token.md]] · [[plans/web-packages.md]] · [[api-wire.md]] · [[plans/agent-wire-format.md]] · [[plans/multi-provider.md]] · [[providers.md]] · [[plans/in-app-setup.md]] · [[setup.md]] · [[security-model.md]] · [[lan-access.md]] · [[plans/lan-access.md]] · [[terminal.md]] · [[collaborators.md]] · [[plans/assistant-everything.md]]

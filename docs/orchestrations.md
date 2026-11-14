@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-11-07T00:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - orchestration
     - planner
@@ -192,6 +192,30 @@ that leaves it out. The full design is in [plans/review-gate.md](plans/review-ga
   the gate as `incomplete` before spending. Measured costs are in the plan's
   [Outcome](plans/review-gate.md#outcome); the review's time is in
   [orchestration-timings.md](orchestration-timings.md#what-is-recorded).
+
+## A task that ends on a report with work still owed
+
+A worker is sent back to its own chat, up to `MAX_CONTINUATIONS` (3) times, when its turn ended with
+something owed. A continuation has one of three **causes**, and the task records each one with its
+effect (`continuationEffects`: `cause`, whether the turn that followed `changed` anything, its
+`commits` and `edits`):
+
+| Cause | What sends it | Held to |
+| --- | --- | --- |
+| `structural` | A fact the code reads: no structured result, uncommitted paths in the worktree, delegated work still running | `MAX_CONTINUATIONS` only; no decision can waive it |
+| `phrase` | The phrase list matched the last paragraph: an offer to continue, a question nobody will answer, a next step announced, "waiting for" delegated work | `MAX_CONTINUATIONS` |
+| `decision` | The `run.continuation` point read a step of the worker's own task as owed (`owes-own-work`) and no phrase caught it | **One per run, and none after a continuation that changed nothing** |
+
+The rules for a continuation owed only to the decision are code, whatever the decision answers
+(`decisionMayContinue` in `packages/core/src/open-items.ts`): at most one per run; none once any
+earlier continuation changed nothing; and none unless every earlier continuation has its effect on
+record, since one whose effect is unknown could be either. What such a continuation says is one
+sentence, to take the step if one is owed and otherwise to answer "nothing is owed" in one line, and
+when it changes nothing the report before it stays the task's result. A `done` or `hands-off`
+answer that acted waives the phrase list for that turn. Why: on one install, 223 of 226 continuations
+were sent on the decision's word alone and 164 changed nothing
+([plans/decision-engine-v2.md](plans/decision-engine-v2.md)). The decision and its evidence are in
+[decision-engine.md](decision-engine.md#runcontinuation).
 
 ## A task held at a usage limit
 

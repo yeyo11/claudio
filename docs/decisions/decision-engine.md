@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-28T13:40:32.928075489Z
-updated_at: 2026-09-29T12:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - decision
     - decisions
@@ -59,6 +59,42 @@ Separate provider and bill; content leaves the machine (no other outside service
   for this point only; a one-time migration reads the file and the file is never written again.
   `?tab=supervisor` lands on `/settings/decisions#point-supervisor-intervene`. Original text above
   kept. See [the plan](../plans/settings-ia.md#72-the-supervisor-as-supervisorintervene).
+- **Amendments of 2026-11-13: the second plan.** A review of the owner's install found that the
+  engine had no way to tell whether a point helped and no brake on one that did not
+  ([plans/decision-engine-v2.md](../plans/decision-engine-v2.md)). The owner took the recommended
+  option of each decision of that plan (its section 9, here "plan D1" to "plan D8"), except plan D8,
+  which has its own answer. Original text above kept.
+  - **Plan D1, the promotion gate.** Moving an act point to `active`, or a suggest point whose answer
+    starts a run (`lesson.mine`), is refused until its evidence clears a gate; other suggest points
+    are switched with a warning. This amends decision 2 above (modes: act points act only when
+    confidence clears the threshold): a point earns `active`, and a switch alone no longer does it.
+    No bulk activation.
+  - **Plan D2, demotion.** An active point whose evidence goes, or whose act or flag rate leaves its band,
+    is moved back to shadow by the engine, which records why and tells the person. Nothing promotes
+    by itself.
+  - **Plan D3, the holdout.** An active act point withholds 10 % of the acts it would take for its first
+    100, then 5 %, so it is judged on cases it did not shape.
+  - **Plan D4, continuations.** At most one decision-driven continuation per run, and none after a
+    continuation that changed nothing; the code holds this whatever the decision answers.
+  - **Plan D5, provider per point.** Decided from the replay comparison's numbers: stay on Jev where
+    it wins, on the CLI's `haiku` where it does not. The one comparison run, for `run.continuation`,
+    put no arm above the base rate; the engine has no provider per point (the provider is global, or a
+    project's override), and none was added.
+  - **Plan D6, points with no possible evidence.** Listed as such, left `off` by default, none
+    removed. The listing itself is not built.
+  - **Plan D7, stored cost figures.** The executions of chats whose totals only grow are recomputed;
+    the spend ledger is left as it is, and a row dates the fix. This amends decision 14 above
+    (metrics): the Usage line shows the net of runs, not "Claude runs saved".
+  - **Plan D8, no design round in this run.** Only the minimum UI, from existing components: a point's
+    standing and evidence on its row, the gate's refusal, the demotion notice and the net effect. The
+    feedback surfaces of the plan's section 7 are not built.
+  - **Privacy wording (decisions 12 and 16 above).** The record said Jev takes "no text or code". What is true: Jev
+    writes no text or code, and receives the declared state after consent, which for many points is
+    text or code (a hunk, the before and after of a test edit, the end of a report, error text).
+    [decision-engine.md](../decision-engine.md#what-leaves-the-machine) lists it per point.
+  - **Verification.** By the owner's choice, from the second wave of the build no task ran the test,
+    `ci-checks` or e2e gates; each merge ran only lint and typecheck. The whole verification and a QA
+    pass are done by the owner and the orchestrating session before the pull request.
 
 ## Decision points (all in the one delivery, in build order)
 
@@ -99,4 +135,4 @@ prototypes. As of 2026-09-30:
 
 ## Related
 
-[[plans/decision-engine.md]] · [[plans/project-ecosystem.md]] · [[plans/agent-observability.md]] · [[decisions/english-technical-language.md]]
+[[plans/decision-engine.md]] · [[plans/decision-engine-v2.md]] · [[decision-engine.md]] · [[plans/project-ecosystem.md]] · [[plans/agent-observability.md]] · [[decisions/english-technical-language.md]]

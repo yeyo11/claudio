@@ -34,6 +34,7 @@ import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline';
+import { forkedFrom, sessionTotals } from './fake-session-totals.mjs';
 
 const args = process.argv.slice(2);
 // Reading an account's model list (the `initialize` handshake and the version before it, which the
@@ -72,16 +73,24 @@ let mode = flag('--permission-mode') ?? 'manual';
 /** The permission request this turn is blocked on */
 let pending = null;
 
-// The real CLI reports the window of every model that answered, variant suffix included
-const modelUsage = { 'claude-opus-5[1m]': { inputTokens: 1, outputTokens: 1, costUSD: 0.01, contextWindow: 1_000_000 } };
-// `FAKE_CLAUDE_COSTS=0.10,0.25,none` scripts the cumulative total of this process's results in order
-// ('none' reports no cost); past the list, and without it, every result reports 0.01
+// What one turn uses; the real CLI reports the window of every model that answered, variant suffix included
+const turnModel = 'claude-opus-5[1m]';
+const turnUsage = (costUsd) => ({ [turnModel]: { inputTokens: 1, outputTokens: 1, ...(costUsd === undefined ? {} : { costUSD: costUsd }), contextWindow: 1_000_000 } });
+// `FAKE_CLAUDE_COSTS=0.10,0.15,none` scripts what each result's turn costs, in order over the whole
+// session ('none': the result reports no cost); past the list, and without it, a turn costs 0.01.
+// The result reports the session's totals after it, which a resume goes on from and a fork starts
+// from, as the CLI does (fake-session-totals.mjs)
 const costs = process.env.FAKE_CLAUDE_COSTS?.split(',');
-let resultsSent = 0;
-const result = (text, extra = {}) => {
-  const scripted = costs?.[resultsSent++];
+const totals = sessionTotals(sessionId, forkedFrom(args));
+/** The cost and usage figures of the next result, its turn added to the session's */
+const figures = () => {
+  const scripted = costs?.[totals.results];
   const cost = scripted === undefined ? 0.01 : scripted === 'none' ? undefined : Number(scripted);
-  out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, ...(cost === undefined ? {} : { total_cost_usd: cost }), modelUsage, result: text, ...extra });
+  const { totalCostUsd, modelUsage } = totals.add(cost, turnUsage(cost));
+  return { ...(cost === undefined ? {} : { total_cost_usd: totalCostUsd }), modelUsage };
+};
+const result = (text, extra = {}) => {
+  out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, ...figures(), result: text, ...extra });
 };
 const fixture = (...parts) => JSON.parse(readFileSync(fileURLToPath(new URL(parts.join('/'), import.meta.url)), 'utf8'));
 /** The recorded lines of a compaction, as this process's session: the recordings carry a placeholder id */
@@ -91,7 +100,11 @@ const compactionLines = (file) =>
     .filter((l) => l.trim())
     .map((l) => {
       const line = JSON.parse(l);
-      return line.session_id ? { ...line, session_id: sessionId } : line;
+      const own = line.session_id ? { ...line, session_id: sessionId } : line;
+      if (own.type !== 'result' || typeof own.total_cost_usd !== 'number') return own;
+      // The recording's figures are its own session's: here they are this turn's, on this session's totals
+      const { totalCostUsd, modelUsage } = totals.add(own.total_cost_usd, own.modelUsage ?? {});
+      return { ...own, total_cost_usd: totalCostUsd, modelUsage };
     });
 const respond = (requestId, response) => out({ type: 'control_response', response: { subtype: 'success', request_id: requestId, response } });
 
@@ -189,6 +202,10 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       return;
     }
     const ask = /^ASK (\S+)/.exec(prompt);
+    // The Supervisor's draft is held to `{ stuck, hint }`: a stuck worker, with its own argv as the hint
+    if (!ask && args.includes('--json-schema') && prompt.startsWith('You are watching an AI coding agent')) {
+      return result('', { structured_output: { stuck: true, hint: `args=${args.join(' ')}` } });
+    }
     if (!ask) return result(`args=${args.join(' ')}`);
     if (!args.includes('--permission-prompt-tool')) return result('denied: nobody to ask');
     pending = randomUUID();
@@ -223,7 +240,9 @@ createInterface({ input: process.stdin }).on('line', (line) => {
       respond(msg.request_id, { still_queued: [] });
       if (pending) {
         pending = null;
-        out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, total_cost_usd: 0.01 });
+        // An interrupted turn's result carries the total and, as recorded here, no split by model
+        const { total_cost_usd: total } = figures();
+        out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, ...(total === undefined ? {} : { total_cost_usd: total }) });
       }
     } else if (request.subtype === 'set_permission_mode') {
       mode = request.mode;
