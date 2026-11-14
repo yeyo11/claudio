@@ -32,7 +32,11 @@ export function readSecret(account: AccountRef): string {
  * plus the token or key for the kinds that have one. The server's own variables (`PORT`, `HOST`,
  * `CLAUDIO_*` outside the allow-list of `withoutServerEnv`) never reach it.
  *
- * The default account keeps whatever `CLAUDE_CONFIG_DIR` the base had. Without one, it sets it only
+ * The default account keeps the `CLAUDE_CONFIG_DIR` the base had, while it names the account's own
+ * dir. A base that names another one is a variable inherited from somewhere that is not this store
+ * (a chat Claudio started on a non-default account, whose dir it exports): the default account's
+ * processes run in `account.dir`, or a test's fake CLI signs in and counts its probes in that
+ * other account's real dir (B15, 2026-10-19 and 2026-11-07). Without a variable, it sets it only
  * when the account's dir is not the CLI's own default (`~/.claude`): set to that, the variable moves
  * the CLI's global config from `~/.claude.json` to `~/.claude/.claude.json`, a second file without
  * the person's MCP servers, project trust and model options (seen on CLI 2.1.300: 5 models instead
@@ -42,7 +46,7 @@ export function envFor(account: AccountRef, base: NodeJS.ProcessEnv = process.en
   const env: NodeJS.ProcessEnv = withoutServerEnv(base);
   for (const name of ACCOUNT_VARS) delete env[name];
   if (account.id !== DEFAULT_ID) env.CLAUDE_CONFIG_DIR = account.dir;
-  else if (base.CLAUDE_CONFIG_DIR) env.CLAUDE_CONFIG_DIR = base.CLAUDE_CONFIG_DIR;
+  else if (base.CLAUDE_CONFIG_DIR) env.CLAUDE_CONFIG_DIR = resolve(base.CLAUDE_CONFIG_DIR) === resolve(account.dir) ? base.CLAUDE_CONFIG_DIR : account.dir;
   else if (resolve(account.dir) !== resolve(base.HOME ?? homedir(), '.claude')) env.CLAUDE_CONFIG_DIR = account.dir;
   if (account.kind === 'token') env.CLAUDE_CODE_OAUTH_TOKEN = readSecret(account);
   if (account.kind === 'api-key') env.ANTHROPIC_API_KEY = readSecret(account);
