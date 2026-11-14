@@ -147,6 +147,18 @@ export function chatControl({ holder, origin, taskRunning = false, deliverable =
  */
 export const HUNG_COMMAND_MS = 3 * 60_000;
 export const HUNG_COMMAND_BAD_MS = 10 * 60_000;
+
+/**
+ * When a command with a history is a problem, past the point where it is worth a look (`slowAfterMs`,
+ * at least 30 s, three times its median, one and a half times its p90): twice that, and never before
+ * the fixed first look of {@link HUNG_COMMAND_MS}. Only `bad` wakes the Supervisor, and the bare
+ * doubling made a command that usually takes a second "bad" at one minute, inside the two minutes
+ * the shell tool gives a command by default: a hint there interrupts work that its own timeout still
+ * governs.
+ */
+export function hungAfterMs(slowAfter: number): number {
+  return Math.max(HUNG_COMMAND_MS, 2 * slowAfter);
+}
 /** The same limits for a chat that is working and has said nothing at all. */
 export const SILENCE_MS = 3 * 60_000;
 export const SILENCE_BAD_MS = 10 * 60_000;
@@ -163,6 +175,11 @@ export interface RunningCommandFacts {
   heartbeat?: { elapsedSeconds: number; at: string };
   /** What commands of its kind usually take, from the history; without it the fixed limit applies */
   usual?: UsualDuration | null;
+  /**
+   * It may not have started: a sibling of its batch is still running ahead of it (`commandClock`).
+   * It keeps the chat from reading as silent, and is not timed until it starts.
+   */
+  queued?: boolean;
 }
 
 /** What health is read from. Every field is something Claudio already holds. */
@@ -214,9 +231,10 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
   if (working && commands.length) {
     // Each command is judged on its own: one that hung is the one to cancel, not its neighbours
     for (const command of commands) {
+      if (command.queued) continue;
       const age = commandAge(command, nowMs);
       const limit = command.usual ? slowAfterMs(command.usual) : HUNG_COMMAND_MS;
-      const badAt = command.usual ? 2 * limit : HUNG_COMMAND_BAD_MS;
+      const badAt = command.usual ? hungAfterMs(limit) : HUNG_COMMAND_BAD_MS;
       if (age < limit) continue;
       // One param for the reason and the hint, so the command is cut once, to the hint's length
       const figures = { command: oneLine(command.command, 80), minutes: wholeMinutes(age) };

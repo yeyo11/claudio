@@ -58,7 +58,8 @@ function setup(project: ProjectDecisionSettings | null = null) {
   const db = new Db(config);
   const credentials = new DecisionCredentialStore(config);
   const settings = new DecisionSettingsStore(config, credentials);
-  const engine = new DecisionEngine({ settings, db, projectDecisions: () => project });
+  // These tests are about asking and acting; the promotion gate and the holdout are decision-lifecycle.test.ts's
+  const engine = new DecisionEngine({ settings, db, projectDecisions: () => project, standing: () => 'proven', random: () => 1 });
   return { db, settings, engine };
 }
 
@@ -138,7 +139,8 @@ test('active acts only when the confidence clears the threshold, and the lowest 
   assert.equal(above.act, true);
   assert.ok(above.answers?.bounce);
   const row = s.db.decision(above.decisionId ?? '');
-  assert.deepEqual([row?.acted, row?.visible, row?.savedRun, row?.threshold], [true, true, true, 0.85]);
+  // `fixable` is today's behaviour (another Developer run), so acting on it saves nothing
+  assert.deepEqual([row?.acted, row?.visible, row?.savedRun, row?.runEffect, row?.threshold], [true, true, false, 0, 0.85]);
 
   await configure(s, 'flow.bounce', 'active', { threshold: 0.95 });
   const below = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
@@ -298,7 +300,7 @@ test('a batch is one call, secrets are masked in what is sent, and resolve write
   assert.equal(provider.calls.length, 1);
   const sent = JSON.stringify(provider.calls[0]?.state);
   assert.ok(!sent.includes('abcdef123456') && !sent.includes('sk-ant'));
-  s.engine.resolve(out.decisionId ?? '', { summary: 'next QA passed', agreed: true });
+  s.engine.resolve(out.decisionId ?? '', { summary: 'next QA passed', agreed: true, quality: 'proxy' });
   const row = s.db.decision(out.decisionId ?? '');
   assert.equal(row?.agreed, true);
   assert.equal(row?.outcome?.summary, 'next QA passed');
@@ -310,9 +312,33 @@ test('pruning keeps historyDays of rows', async () => {
   await configure(s, 'flow.bounce', 'shadow');
   const out = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
   assert.equal(s.engine.prune(), 0);
-  const later = new DecisionEngine({ settings: s.settings, db: s.db, projectDecisions: () => null, now: () => new Date(Date.now() + 31 * 86_400_000) });
+  const later = new DecisionEngine({ settings: s.settings, db: s.db, projectDecisions: () => null, now: () => new Date(Date.now() + 31 * 86_400_000), standing: () => 'proven' });
   assert.equal(later.prune(), 1);
   assert.equal(s.db.decision(out.decisionId ?? ''), null);
+});
+
+test('an outcome becomes a label before its row is pruned, and never overrules a person\'s label', async () => {
+  const s = setup();
+  s.engine.register(new FakeProvider('jev', answering(0.9)));
+  await configure(s, 'flow.bounce', 'shadow');
+  const direct = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
+  const proxy = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
+  const person = await s.engine.ask('flow.bounce', subject, { projectId: 'p' });
+  s.engine.resolve(direct.decisionId ?? '', { summary: 'the next QA run passed', agreed: true, quality: 'direct' });
+  s.engine.resolve(proxy.decisionId ?? '', { summary: 'a guess', agreed: true, quality: 'proxy' });
+  s.engine.resolve(person.decisionId ?? '', { summary: 'the next QA run passed', agreed: true, quality: 'direct' });
+  s.db.saveDecisionLabel({ id: 'mine', point: 'flow.bounce', decisionId: person.decisionId, state: {}, questions: [], positive: false, answers: null, source: 'person', note: 'my call', at: new Date().toISOString() });
+
+  const later = new DecisionEngine({ settings: s.settings, db: s.db, projectDecisions: () => null, now: () => new Date(Date.now() + 31 * 86_400_000), standing: () => 'proven' });
+  assert.equal(later.prune(), 3);
+  assert.equal(s.db.decision(direct.decisionId ?? ''), null);
+  const labels = new Map(s.db.decisionLabels('flow.bounce').map((l) => [l.decisionId, l]));
+  assert.equal(labels.get(direct.decisionId ?? '')?.source, 'outcome');
+  assert.equal(labels.has(proxy.decisionId ?? ''), false, 'only a direct outcome is a label');
+  assert.deepEqual([labels.get(person.decisionId ?? '')?.source, labels.get(person.decisionId ?? '')?.positive], ['person', false]);
+  // A second prune finds nothing to label and keeps what it has
+  assert.equal(later.prune(), 0);
+  assert.equal(s.db.decisionLabels('flow.bounce').length, 2);
 });
 
 test('the catalogue and the last state come from the settings and the history', async () => {

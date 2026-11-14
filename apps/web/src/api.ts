@@ -120,8 +120,10 @@ import type {
   DecisionPointInfo,
   DecisionPreview,
   DecisionProviderId,
+  DecisionActivationIssue,
   DecisionRecord,
   DecisionSettings,
+  DecisionSettingsSaveResult,
   DecisionSettingsUpdate,
   DecisionStats,
   DecisionTestResult,
@@ -350,6 +352,8 @@ export class ApiRequestError extends Error {
   readonly spend?: SpendState;
   /** The fields a refused write names, `path: reason` each (an eval file that does not parse) */
   problems?: string[];
+  /** The points a settings write would make active without the evidence, on a refusal at `decision-unproven` or `decision-bulk-activation` */
+  refused?: DecisionActivationIssue[];
   /** What a restart would stop, on a refusal at `update.live-work` */
   live?: LiveWork;
   /** The certificate the address showed, on `servers.confirm-fingerprint`: the person compares it before a token is sent */
@@ -524,6 +528,8 @@ export async function requestResponseAt(base: string, path: string, init: CallIn
     const fingerprint = (err as { fingerprint?: unknown }).fingerprint;
     const seenAt = (err as { address?: unknown }).address;
     if (code === 'servers.confirm-fingerprint' && typeof fingerprint === 'string' && typeof seenAt === 'string') refusal.seenCertificate = { fingerprint, address: seenAt };
+    const refused = (err as { points?: unknown }).points;
+    if ((code === 'decision-unproven' || code === 'decision-bulk-activation') && Array.isArray(refused)) refusal.refused = refused as DecisionActivationIssue[];
     if (Array.isArray(problems)) refusal.problems = problems.filter((p): p is string => typeof p === 'string');
     throw refusal;
   }
@@ -918,7 +924,7 @@ export function createApi(base: string | (() => string)) {
       request<ToolPreset>(`/config/tool-presets/${enc(id)}`, { method: 'PUT', body: preset }),
     deleteToolPreset: (id: string) => request<{ ok: true }>(`/config/tool-presets/${enc(id)}`, { method: 'DELETE' }),
     decisionSettings: (o: ReadOptions = {}) => request<DecisionSettings>('/decisions/settings', o),
-    putDecisionSettings: (settings: DecisionSettingsUpdate) => request<DecisionSettings>('/decisions/settings', { method: 'PUT', body: settings }),
+    putDecisionSettings: (settings: DecisionSettingsUpdate) => request<DecisionSettingsSaveResult>('/decisions/settings', { method: 'PUT', body: settings }),
     decisionPoints: (o: ReadOptions = {}) => request<DecisionPointInfo[]>('/decisions/points', o),
     putDecisionKey: (key: string) => request<DecisionCredentialsResult>('/decisions/credentials', { method: 'PUT', body: { key } }),
     deleteDecisionKey: () => request<DecisionCredentialsResult>('/decisions/credentials', { method: 'DELETE' }),

@@ -41,6 +41,7 @@ import type { EnvironmentSink } from './environments.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import type { BranchTracker, DriverEvent, DriverSession, ModelUsage, PermissionQuestion, ProviderDriver } from './providers/driver.ts';
+import { legacyTotals, type SessionTotals } from './session-totals.ts';
 import { emptyTokenUsage } from './usage.ts';
 
 const MAX_EVENTS_PER_RUN = 5000;
@@ -446,10 +447,11 @@ export interface ChatHost {
   observeLimit(chat: LiveChat, event: DriverEvent): void;
   /** Marks the account the chat ran on as signed out, or clears the mark when a turn went through on it */
   observeSignIn(chat: LiveChat, authFailed: boolean): void;
-  learnModelCosts(execution: Execution, modelUsage: ModelUsage[]): void;
+  /** Adds what one turn cost per model (the growth of each model's reported cost) to the execution's split */
+  learnModelCosts(execution: Execution, turnCosts: Record<string, number>): void;
   learnWindows(modelUsage: ModelUsage[]): void;
   maybeLimit(chat: LiveChat): void;
-  /** Writes one row of the daily spend ledger for a result: `usd` is the increase over the process's last report, null when the result carried no cost */
+  /** Writes one row of the daily spend ledger for a result: `usd` is the increase over the session's last report, null when the result carried no cost */
   recordSpend(chat: LiveChat, execution: Execution, usd: number | null): void;
   /** Ends the chat's execution as failed for a protocol fault and takes the process down */
   failProtocol(chat: LiveChat, message: string): void;
@@ -489,12 +491,17 @@ export class LiveChat {
   proc: ChildProcessWithoutNullStreams | null = null;
   /** When `proc` was spawned: its stream reports every workflow started since, and none before */
   procStartedAt: string | null = null;
-  /** The `total_cost_usd` the current process last reported; it is cumulative over the process, so each result's spend is the increase. Reset at every spawn. */
+  /**
+   * The `total_cost_usd` the session last reported. It is cumulative over the session, across its
+   * processes (a resume restores it, a fork starts from its parent's: `session-totals.ts`), so each
+   * result's spend is the increase over it. Zero only for a session that starts new; kept on the
+   * record, so a restart goes on from it.
+   */
   lastReportedCostUsd = 0;
-  /** The `modelUsage` the current process last reported, cumulative like its cost. Reset at every spawn. */
+  /** The `modelUsage` the session last reported, cumulative and kept like its cost */
   lastReportedModelUsage: ModelUsage[] = [];
   /**
-   * What the last result's turn alone used and cost: the growth of the process's cumulative figures
+   * What the last result's turn alone used and cost: the growth of the session's cumulative figures
    * since its previous result. Null before any result, or when the result reported none.
    */
   lastTurn: { tokens: TokenUsage | null; costUsd: number | null } = { tokens: null, costUsd: null };
@@ -754,6 +761,8 @@ export class LiveChat {
     chat.workingDir = record.workingDir;
     chat.nativeId = record.nativeSessionId ?? null;
     chat.account = record.account ?? null;
+    // The process is gone, the session's totals are not: the next one resumes them
+    chat.reported = record.reported ?? legacyTotals(chat.executions);
     // Whatever the agent had not taken went with the processes of the wrapper that wrote this. A row
     // stored before the source was recorded was a person's: nothing else wrote into a chat then but hints
     chat.undelivered = (record.pending ?? []).map((m) => {
@@ -800,6 +809,16 @@ export class LiveChat {
   /** What the chat has cost: only what the CLI reported, nothing estimated */
   get costUsd(): number {
     return this.executions.reduce((sum, e) => sum + (e.costUsd ?? 0), 0);
+  }
+
+  /** The totals the session last reported: what its next result is measured from */
+  get reported(): SessionTotals {
+    return { costUsd: this.lastReportedCostUsd, models: this.lastReportedModelUsage };
+  }
+
+  set reported(totals: SessionTotals) {
+    this.lastReportedCostUsd = totals.costUsd;
+    this.lastReportedModelUsage = totals.models;
   }
 
   /** A message waits for the exiting process to be replaced: its exit is not the chat's end */
@@ -1009,6 +1028,7 @@ export class LiveChat {
       ...(this.opts.apiAsked ? { apiAsked: this.opts.apiAsked } : {}),
       // Without `blockedBy`, which is the live process's and goes with it
       ...(this.pending.size || this.undelivered.length ? { pending: [...[...this.pending.values()].map((m) => pendingView(m)), ...this.undelivered] } : {}),
+      ...(this.lastReportedCostUsd > 0 || this.lastReportedModelUsage.length ? { reported: this.reported } : {}),
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
     };

@@ -8,7 +8,7 @@ import type { ClaudioEventInput } from './events.ts';
 import { gitAsyncText, headCommitAsync, isGitRepoAsync } from './git.ts';
 import { HEALTH_REASONS, said } from './health-strings.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
-import { agentOf, budget, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
+import { agentOf, budget, commandClock, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
 
 /** What a chat's health needs beyond what its process shows: the parts only the chat service knows. */
 export interface HealthBase {
@@ -21,6 +21,18 @@ export interface HealthBase {
   taskElapsedMs?: number;
   taskSpentUsd?: number;
 }
+
+/** "No" answers in a row after which a chat is asked less often */
+const SEMANTIC_LOOP_NO_STREAK = 3;
+/** Calls a backed-off chat makes before it is asked again, until an answer says yes */
+const SEMANTIC_LOOP_BACKOFF_CALLS = 40;
+
+/**
+ * How often a chat that stays bad wakes the Supervisor again. Its signals can stay the same for hours
+ * (a command hanging on), and the Supervisor's back-offs (a failed draft, a "not stuck" answer) need a
+ * later look to come due; waking it costs a read of its proposals, nothing more.
+ */
+export const REWAKE_MS = 5 * 60_000;
 
 /** How long the state of a worktree is trusted between reads: `git status` is an exec, and a UI polls. */
 const FINGERPRINT_TTL_MS = 10_000;
@@ -42,8 +54,13 @@ export class HealthService {
    * signal, so a worker's own edits can never talk one away.
    */
   decisions: Pick<DecisionEngine, 'ask' | 'effective'> | null = null;
-  /** Per chat: the semantic loop point's last question and what it answered */
-  private readonly loops = new Map<string, { asked: string; callsAtAsk: number; inFlight: boolean; flagged: { count: number; since: string } | null }>();
+  /**
+   * Per chat: the semantic loop point's questions and what they answered. `asked` holds the hash of
+   * every repetition put so far (a repetition that leaves the window and comes back is still the one
+   * that was asked), `callsAtAsk` how many calls the chat had at the last one and `noStreak` how many
+   * "no" in a row.
+   */
+  private readonly loops = new Map<string, { asked: Set<string>; callsAtAsk: number; noStreak: number; inFlight: boolean; flagged: { count: number; since: string } | null }>();
   /** Per chat: the test edits the weakening point has been asked about, and those it flagged */
   private readonly tests = new Map<string, { asked: Set<string>; flagged: Map<string, ToolCall> }>();
   private readonly pending = new Set<Promise<unknown>>();
@@ -144,20 +161,32 @@ export class HealthService {
   private semanticLoop(chatId: string, trace: Trace): HealthSignal | null {
     const engine = this.decisions;
     if (!engine || engine.effective('health.semantic-loop', null).mode === 'off') return null;
-    const entry = this.loops.get(chatId) ?? { asked: '', callsAtAsk: 0, inFlight: false, flagged: null };
+    const entry = this.loops.get(chatId) ?? { asked: new Set<string>(), callsAtAsk: 0, noStreak: 0, inFlight: false, flagged: null };
     this.loops.set(chatId, entry);
+    // No state means the cheap rule found no repetition worth judging: no repetition, no question
     const state = semanticLoopState(trace);
-    // Only worth asking after the worker has done several new steps since the last question
-    if (state && !entry.inFlight && state.lastCallId !== entry.asked && trace.calls.length - entry.callsAtAsk >= 4) {
+    // The same repetition is never asked twice; after three "no" in a row a chat is asked once per 40 calls
+    const backedOff = entry.noStreak >= SEMANTIC_LOOP_NO_STREAK && trace.calls.length - entry.callsAtAsk < SEMANTIC_LOOP_BACKOFF_CALLS;
+    if (state && !entry.inFlight && !entry.asked.has(state.hash) && !backedOff) {
       entry.inFlight = true;
-      entry.asked = state.lastCallId;
+      entry.asked.add(state.hash);
       entry.callsAtAsk = trace.calls.length;
-      const asking = engine.ask('health.semantic-loop', { kind: 'chat', id: chatId, data: { calls: state.calls } }, { projectId: null }).then((outcome) => {
-        const answer = outcome.answers?.loop;
-        entry.flagged = outcome.act && answer?.kind === 'noul' && answer.value ? { count: state.calls.length, since: state.firstAt } : null;
-      }).finally(() => {
-        entry.inFlight = false;
-      });
+      // The code rule does not flag: the baseline is "no flag"
+      const asking = engine
+        .ask('health.semantic-loop', { kind: 'chat', id: chatId, data: { calls: state.calls } }, { projectId: null, baseline: false })
+        .then((outcome) => {
+          // The back-off counts every answer, shadow and under the floor included: `answers` is set
+          // only when the point acts, and read alone it never backed a shadow point off
+          const answer = outcome.reply?.loop;
+          const yes = answer?.kind === 'noul' ? answer.value : null;
+          // An unavailable provider answered nothing: that is neither a yes nor a no
+          if (yes !== null) entry.noStreak = yes ? 0 : entry.noStreak + 1;
+          // Whether it shows is the engine's call (`act`: mode, standing and the suggest floor), not ours
+          entry.flagged = outcome.act && yes ? { count: state.calls.length, since: state.firstAt } : null;
+        })
+        .finally(() => {
+          entry.inFlight = false;
+        });
       this.track(asking);
     }
     if (!entry.flagged || !state) return null;
@@ -173,7 +202,7 @@ export class HealthService {
     for (const edit of fresh) {
       entry.asked.add(edit.key);
       const asking = engine
-        .ask('health.test-weakening', { kind: 'chat', id: chatId, data: { path: edit.path, before: edit.before, after: edit.after } }, { projectId: null })
+        .ask('health.test-weakening', { kind: 'chat', id: chatId, data: { path: edit.path, before: edit.before, after: edit.after } }, { projectId: null, baseline: false })
         .then((outcome) => {
           const answer = outcome.answers?.weakened;
           if (outcome.act && answer?.kind === 'noul' && answer.value && !entry.flagged.has(edit.path)) entry.flagged.set(edit.path, edit.call);
@@ -203,11 +232,22 @@ export class HealthService {
     };
     facts.live = {
       lastEventAt: trace.lastEventAt,
+      // Each on its own clock (`commandClock`): one queued behind a sibling of its batch is not timed
+      // until it starts, unless the CLI's heartbeat says it is running already
       commands: runningCommands(trace).map((call) => {
         const command = typeof call.input.command === 'string' ? call.input.command : 'a command';
         const heartbeat = trace.heartbeats.get(call.id);
+        const clock = commandClock(trace, call, nowMs);
         const agent = agentOf(trace, call);
-        return { command, startedAt: call.at, toolUseId: call.id, usual: usualOf(commandKind(command)), ...(heartbeat ? { heartbeat } : {}), ...(agent ? { agent } : {}) };
+        return {
+          command,
+          startedAt: clock ?? call.at,
+          toolUseId: call.id,
+          usual: usualOf(commandKind(command)),
+          ...(clock === null && !heartbeat ? { queued: true } : {}),
+          ...(heartbeat ? { heartbeat } : {}),
+          ...(agent ? { agent } : {}),
+        };
       }),
     };
 
@@ -298,8 +338,8 @@ export interface HealthMonitorDeps {
  */
 export class HealthMonitor {
   private timer: NodeJS.Timeout | null = null;
-  /** What was last announced per chat; a chat with nothing announced is `ok` */
-  private readonly announced = new Map<string, { level: HealthLevel; key: string }>();
+  /** What was last announced per chat, and when it last woke the Supervisor; a chat with nothing announced is `ok` */
+  private readonly announced = new Map<string, { level: HealthLevel; key: string; wokeAt: number }>();
 
   constructor(
     private readonly deps: HealthMonitorDeps,
@@ -335,25 +375,32 @@ export class HealthMonitor {
         },
         nowMs,
       );
-      this.announce(chat, task, health.signals.filter((s) => STUCK.has(s.kind)));
+      this.announce(chat, task, health.signals.filter((s) => STUCK.has(s.kind)), nowMs);
     }
     // A chat whose process is gone is not stuck any more: say so once, so a badge does not stay lit
     for (const id of [...this.announced.keys()]) {
       if (live.has(id)) continue;
       const chat = this.deps.runtime.get(id);
-      if (chat) this.announce(chat, this.deps.taskOf(chat), []);
+      if (chat) this.announce(chat, this.deps.taskOf(chat), [], nowMs);
       this.announced.delete(id);
       this.deps.health.forget(id);
     }
   }
 
-  private announce(chat: ChatRuntime, task: TaskContext | null, signals: HealthSignal[]): void {
+  private announce(chat: ChatRuntime, task: TaskContext | null, signals: HealthSignal[], nowMs: number): void {
     const worst = signals[0];
     const level: HealthLevel = worst ? worst.level : 'ok';
     const key = `${level}|${signals.map((s) => `${s.kind}:${s.level}`).join(',')}`;
-    const before = this.announced.get(chat.id) ?? { level: 'ok' as HealthLevel, key: 'ok|' };
-    if (before.key === key) return;
-    this.announced.set(chat.id, { level, key });
+    const before = this.announced.get(chat.id) ?? { level: 'ok' as HealthLevel, key: 'ok|', wokeAt: 0 };
+    if (before.key === key) {
+      // Nothing new to announce, but a chat that stays bad is looked at again now and then
+      if (level === 'bad' && nowMs - before.wokeAt >= REWAKE_MS) {
+        before.wokeAt = nowMs;
+        this.deps.onBad?.(chat, task, signals);
+      }
+      return;
+    }
+    this.announced.set(chat.id, { level, key, wokeAt: nowMs });
     const who = task?.taskName ?? chat.name;
     this.deps.emit({
       type: 'health.changed',

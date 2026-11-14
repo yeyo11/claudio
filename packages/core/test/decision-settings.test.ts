@@ -3,7 +3,7 @@ import { mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS, parseDecisionSettings, parseProjectDecisions } from '../src/decisions/settings.ts';
+import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTINGS, DEFAULT_GATE, parseDecisionSettings, parseProjectDecisions } from '../src/decisions/settings.ts';
 import { loadConfig } from '../src/paths.ts';
 import { defaultProjectSettings, parseProjectSettings } from '../src/project-settings.ts';
 
@@ -18,7 +18,7 @@ const body = () => ({ ...structuredClone(DEFAULT_DECISION_SETTINGS) });
 
 test('an install that saved nothing reads as the defaults: cli, haiku at low effort, nothing on', () => {
   const { settings } = stores();
-  assert.deepEqual(settings.get(), { ...DEFAULT_DECISION_SETTINGS, jev: { model: 'jev-1.13.0', keySet: false, keyHint: null } });
+  assert.deepEqual(settings.get(), { ...DEFAULT_DECISION_SETTINGS, gate: DEFAULT_GATE, jev: { model: 'jev-1.13.0', keySet: false, keyHint: null } });
   assert.equal(settings.get().cli.effort, 'low');
 });
 
@@ -30,6 +30,22 @@ test('PUT validates the whole document and refuses a bad value', () => {
   assert.throws(() => parseDecisionSettings({ ...body(), historyDays: 366 }), /historyDays/);
   assert.throws(() => parseDecisionSettings({ ...body(), points: { 'flow.bounce': { mode: 'active', threshold: 0.4 } } }), /threshold/);
   assert.throws(() => parseDecisionSettings({ ...body(), points: { 'nope.point': { mode: 'off' } } }), /unknown decision point/);
+});
+
+test('the signal kinds the Supervisor may act on alone are none by default, validated, and kept by a body that leaves them out', async () => {
+  const { settings } = stores();
+  assert.deepEqual(settings.get().supervisor, { autoSignals: [] }, 'a new install proposes every hint');
+  assert.throws(() => parseDecisionSettings({ ...body(), supervisor: { autoSignals: ['hung-command', 'stuck-forever'] } }), /unknown signal kind stuck-forever/);
+  assert.throws(() => parseDecisionSettings({ ...body(), supervisor: { autoSignals: 'hung-command' } }), /autoSignals/);
+  assert.throws(() => parseDecisionSettings({ ...body(), supervisor: [] }), /supervisor must be an object/);
+
+  await settings.set({ ...body(), supervisor: { autoSignals: ['hung-command', 'loop', 'hung-command'] } });
+  assert.deepEqual(settings.get().supervisor.autoSignals, ['hung-command', 'loop']);
+  // A client that predates the field saves the rest without emptying the list
+  const { supervisor: _supervisor, ...older } = body();
+  await settings.set({ ...older, historyDays: 60 });
+  assert.deepEqual(settings.get().supervisor.autoSignals, ['hung-command', 'loop']);
+  assert.equal(settings.get().historyDays, 60);
 });
 
 test('saving keeps the consent already given and ignores one in the body', async () => {

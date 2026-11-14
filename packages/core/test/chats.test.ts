@@ -707,7 +707,7 @@ test('once the core shuts down, nothing asks the CLI for its sessions: a late ca
 
 // ---------- daily spend ledger ----------
 
-test('each result writes the increase of its process total to the spend ledger, and a new process starts again from zero', async () => {
+test("each result writes the increase of the session's total to the spend ledger, and a resumed process goes on from that total", async () => {
   const { core } = setup();
   const rows = (id: string) =>
     (core.db.connection.prepare('SELECT usd, reported, purpose FROM spend_ledger WHERE chat_id = ? ORDER BY seq').all(id) as Array<{ usd: number; reported: number; purpose: string }>).map((r) => ({
@@ -715,7 +715,8 @@ test('each result writes the increase of its process total to the spend ledger, 
       reported: r.reported,
       purpose: r.purpose,
     }));
-  process.env.FAKE_CLAUDE_COSTS = '0.10,0.25,none';
+  // What each turn costs: the fake reports the session's running total, 0.10, 0.25, nothing, then 0.35
+  process.env.FAKE_CLAUDE_COSTS = '0.10,0.15,none,0.10';
   try {
     const started = core.runtime.start({ prompt: 'one', purpose: 'flow' });
     await core.runtime.waitForResult(started.id);
@@ -729,7 +730,8 @@ test('each result writes the increase of its process total to the spend ledger, 
       { usd: 0.15, reported: 1, purpose: 'flow' },
       { usd: 0, reported: 0, purpose: 'flow' },
     ]);
-    // The process ends and the next one counts its total from zero: 0.10 again is a new 0.10, not a negative increase
+    // The process ends and the next one resumes the session's total: its 0.35 is 0.10 of new spend,
+    // not 0.35 again
     core.runtime.stop(started.id);
     await core.runtime.exited(started.id);
     await core.chats.resume(started.id, { prompt: 'again' });

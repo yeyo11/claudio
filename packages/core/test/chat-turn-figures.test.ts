@@ -7,8 +7,9 @@ import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import type { DriverSession } from '../src/providers/driver.ts';
 
 // A turn's own cost and tokens (`LiveChat.lastTurn`, what `x-claudio-cost-usd` and the OpenAI usage
-// read) are the growth of the process's cumulative figures since its previous result. Both baselines
-// must move on every result, an execution open or not, or the two figures disagree.
+// read) are the growth of the session's cumulative figures since its previous result, whichever
+// process reported it. Both baselines must move on every result, an execution open or not, or the two
+// figures disagree.
 
 const spends: number[] = [];
 const host = {
@@ -29,14 +30,27 @@ const host = {
   failProtocol: () => {},
 } as unknown as ChatHost;
 
-function rig(): { chat: LiveChat; result(turn: number): void } {
+function rig(): { chat: LiveChat; result(turn: number): void; report(totalUsd: number, output: number): void } {
   const driver = new ClaudeCodeDriver('claude');
   const chat = new LiveChat('sess-figures', { prompt: 'p', cwd: '/work' }, {}, 'claudio', null, { workspaceDir: '/work', defaultPermissionMode: 'manual' }, driver, true);
   chat.proc = { pid: 1, exitCode: null, signalCode: null } as unknown as ChildProcessWithoutNullStreams;
   const session: DriverSession = driver.attach({ write: () => true, end: () => {}, up: () => true }, (event) => foldEvent(host, chat, event), chat.branches);
+  const report = (totalUsd: number, output: number) =>
+    session.readLine(
+      JSON.stringify({
+        type: 'result',
+        subtype: 'success',
+        is_error: false,
+        num_turns: 1,
+        total_cost_usd: totalUsd,
+        modelUsage: { 'claude-sonnet-5-5': { inputTokens: 0, outputTokens: output, cacheReadInputTokens: 0, cacheCreationInputTokens: 0, costUSD: totalUsd, contextWindow: 200000 } },
+        result: 'ok',
+      }),
+    );
   return {
     chat,
-    // The process's totals after `turn` turns of 0.01 USD and 10 input / 5 output tokens each
+    report,
+    // The session's totals after `turn` turns of 0.01 USD and 10 input / 5 output tokens each
     result: (turn) =>
       session.readLine(
         JSON.stringify({
@@ -64,4 +78,26 @@ test('a result with no open execution still moves the cost baseline, so the next
   assert.equal(chat.lastTurn.tokens?.output, 5);
   assert.equal(chat.lastReportedCostUsd, 0.02);
   assert.deepEqual(spends, [], 'with no execution nothing is written to the spend ledger');
+});
+
+test("a turn of a resumed session is measured from the session's last report, not from zero", () => {
+  const { chat, report } = rig();
+  // What the chat's record gave back: the session had reported 0.50 and 400 output tokens
+  chat.reported = { costUsd: 0.5, models: [{ model: 'claude-sonnet-5-5', outputTokens: 400, costUsd: 0.5 }] };
+  report(0.52, 410);
+  assert.ok(Math.abs((chat.lastTurn.costUsd ?? NaN) - 0.02) < 1e-9, String(chat.lastTurn.costUsd));
+  assert.equal(chat.lastTurn.tokens?.output, 10);
+});
+
+test('a total lower than the last report started again from zero, so the whole of it is the turn', () => {
+  const { chat, report } = rig();
+  report(0.3, 300);
+  // A session whose totals the agent could not restore reports from zero again
+  report(0.04, 20);
+  assert.equal(chat.lastTurn.costUsd, 0.04);
+  assert.equal(chat.lastTurn.tokens?.output, 20);
+  // And the next turn grows from that, not from the higher figure before it
+  report(0.05, 25);
+  assert.ok(Math.abs((chat.lastTurn.costUsd ?? NaN) - 0.01) < 1e-9, String(chat.lastTurn.costUsd));
+  assert.equal(chat.lastTurn.tokens?.output, 5);
 });

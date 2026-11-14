@@ -22,8 +22,25 @@ const stat = (count: number): DecisionPointStats => ({
   notUseful: 0,
   costUsd: 0,
   runsSaved: 0,
+  runsCaused: 0,
+  netRuns: 0,
+  resolvedDirect: 0,
+  resolvedProxy: 0,
+  baseline: { rows: 0, differs: 0, decisionRight: 0, baselineRight: 0, unresolved: 0 },
+  evidence: {
+    point: 'board.triage',
+    answered: 0,
+    resolvedDirect: 0,
+    resolvedProxy: 0,
+    unresolved: 0,
+    precision: { n: 0, hits: 0, value: null, lower90: null },
+    baselinePrecision: { n: 0, hits: 0, value: null, lower90: null },
+    baseline: { rows: 0, differs: 0, decisionRight: 0, baselineRight: 0, unresolved: 0 },
+    calibration: [],
+    actRate: { n: 0, hits: 0, value: null, lower90: null },
+  },
 });
-const stats = (count: number, over: Partial<DecisionStats> = {}): DecisionStats => ({ since: '2026-09-01T00:00:00.000Z', points: [stat(count)], jevCostUsd: 0.38, claudeRunsSaved: 37, ...over });
+const stats = (count: number, over: Partial<DecisionStats> = {}): DecisionStats => ({ since: '2026-09-01T00:00:00.000Z', points: [stat(count)], jevCostUsd: 0.38, runsSaved: 37, runsCaused: 0, netRuns: 37, claudeRunsSaved: 37, ...over });
 const render = (value: DecisionStats) =>
   renderToStaticMarkup(
     <MemoryRouter>
@@ -31,7 +48,7 @@ const render = (value: DecisionStats) =>
     </MemoryRouter>,
   );
 
-test('the line says what Jev cost and how many runs were saved, with a link to the history', async () => {
+test('the line says what Jev cost and the net in runs, with a link to the history', async () => {
   // setLanguage, not changeLanguage alone: the cost is an Intl format, which follows the stored
   // language, and CI's locale is not the developer's
   setLanguage('en');
@@ -39,13 +56,40 @@ test('the line says what Jev cost and how many runs were saved, with a link to t
   const html = render(stats(12));
   assert.match(html, /Decisions/);
   assert.match(html, /Jev (US)?\$?0[.,]38/);
-  assert.match(html, /37 agent runs saved/);
+  assert.match(html, /Net: 37 agent runs saved \(37 saved, 0 caused\)/);
   assert.match(html, /href="\/settings\/decisions\/history"/);
+  assert.doesNotMatch(html, /agent runs saved<\/span>/);
   setLanguage('es');
   await i18n.changeLanguage('es');
-  assert.match(render(stats(12, { claudeRunsSaved: 1 })), /1 ejecución del agente ahorrada/);
+  assert.match(render(stats(12, { runsSaved: 1, runsCaused: 0, netRuns: 1 })), /Neto: 1 ejecución del agente ahorrada \(1 ahorrada, 0 provocadas\)/);
   setLanguage('en');
   await i18n.changeLanguage('en');
+});
+
+test('the net counts what the decisions caused against what they saved, and says so when it is a cost or nothing', async () => {
+  setLanguage('en');
+  await i18n.changeLanguage('en');
+  assert.match(render(stats(12, { runsSaved: 3, runsCaused: 8, netRuns: -5 })), /Net: 5 agent runs added \(3 saved, 8 caused\)/);
+  assert.match(render(stats(12, { runsSaved: 4, runsCaused: 3, netRuns: 1 })), /Net: 1 agent run saved \(4 saved, 3 caused\)/);
+  assert.match(render(stats(12, { runsSaved: 2, runsCaused: 2, netRuns: 0 })), /Net: no agent runs saved or added \(2 saved, 2 caused\)/);
+});
+
+test('each count in the net agrees with its noun, in the singular and the plural, in both languages', async () => {
+  setLanguage('es');
+  await i18n.changeLanguage('es');
+  assert.match(render(stats(12, { runsSaved: 1, runsCaused: 1, netRuns: 0 })), /\(1 ahorrada, 1 provocada\)/);
+  assert.match(render(stats(12, { runsSaved: 10, runsCaused: 2, netRuns: 8 })), /Neto: 8 ejecuciones del agente ahorradas \(10 ahorradas, 2 provocadas\)/);
+  assert.match(render(stats(12, { runsSaved: 0, runsCaused: 1, netRuns: -1 })), /Neto: 1 ejecución del agente de más \(0 ahorradas, 1 provocada\)/);
+  setLanguage('en');
+  await i18n.changeLanguage('en');
+  assert.match(render(stats(12, { runsSaved: 1, runsCaused: 1, netRuns: 0 })), /\(1 saved, 1 caused\)/);
+});
+
+test('every dot of the line opens the fact it belongs to, so a wrapped line never ends on one', async () => {
+  await i18n.changeLanguage('en');
+  const html = render(stats(12));
+  assert.equal([...html.matchAll(/<span class="fact[^"]*"><span class="sep" aria-hidden="true">·<\/span>/g)].length, 2);
+  assert.doesNotMatch(html, /<\/span><span class="sep"/);
 });
 
 test('the line is hidden when no decision was recorded in the window', async () => {
