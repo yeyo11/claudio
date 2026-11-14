@@ -360,7 +360,7 @@ const viewWith = (limit: AccountLimit | null, plan: string | null = 'max'): Acco
   accounts: [],
   atLimit: false,
   nextReset: null,
-  settings: { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [] },
+  settings: { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [], newAccountConfig: 'shared' },
 });
 
 test('the status bar words a limit and a failed probe, and keeps "Not signed in" for the credentials', async () => {

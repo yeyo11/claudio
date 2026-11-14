@@ -2,6 +2,11 @@ import type { FastifyPluginAsync } from 'fastify';
 import type { Core } from '@claudio/core';
 import type {
   Account,
+  AccountConfig,
+  AccountConfigMode,
+  AccountConfigPlan,
+  AccountConfigResult,
+  AccountConfigStart,
   AccountInUseResponse,
   AccountLoginSession,
   AccountsRefreshResult,
@@ -14,7 +19,7 @@ import type {
   RotationPolicyRequest,
   UsageHistoryPoint,
 } from '@claudio/shared';
-import { AccountInUseError, DEFAULT_ID } from '@claudio/accounts';
+import { AccountInUseError, DEFAULT_ID, DefaultAccountConfigError } from '@claudio/accounts';
 import { AccountLogins } from '../account-logins.ts';
 import { NotFoundError } from '@claudio/shared';
 
@@ -63,6 +68,17 @@ const optionalString = (value: unknown, name: string): string | undefined => {
   return value;
 };
 
+const modeOf = (value: unknown): AccountConfigMode => {
+  if (value !== 'shared' && value !== 'independent') throw new Error('mode must be shared or independent');
+  return value;
+};
+
+const startOf = (value: unknown): AccountConfigStart => {
+  if (value === undefined) return 'copy';
+  if (value !== 'copy' && value !== 'empty') throw new Error('start must be copy or empty');
+  return value;
+};
+
 const count = (value: string | undefined, name: string): number | undefined => {
   if (value === undefined || value === '') return undefined;
   const n = Number(value);
@@ -84,7 +100,7 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   app.get('/accounts', (): Account[] => {
     core.accounts.reload();
     // The CLI's own login is left out while it has no credential at all: an empty ghost beside the real accounts
-    return core.accounts.list();
+    return core.accounts.withConfig(core.accounts.list());
   });
 
   app.post<{ Body: unknown }>('/accounts', async (req, reply): Promise<AccountLoginSession> => {
@@ -97,7 +113,10 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   });
 
   // Reads the CLI itself (`get_usage`, no turn, no tokens), one account at a time, each with its own timeout
-  app.post('/accounts/refresh', (): Promise<AccountsRefreshResult> => core.refreshAccountUsage());
+  app.post('/accounts/refresh', async (): Promise<AccountsRefreshResult> => {
+    const result = await core.refreshAccountUsage();
+    return { ...result, accounts: core.accounts.withConfig(result.accounts) };
+  });
 
   app.post<{ Params: { id: string } }>('/accounts/:id/refresh', async (req, reply): Promise<Account | { error: string; code: string }> => {
     core.accounts.reload();
@@ -110,7 +129,7 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     if (error) return reply.status(502).send({ error: `the CLI could not read the usage of ${req.params.id}: ${error}`, code: 'accounts.check-failed' });
     const account = accounts.find((a) => a.id === req.params.id);
     if (!account) throw new NotFoundError(`account ${req.params.id} not found`);
-    return account;
+    return core.accounts.withConfig([account])[0] ?? account;
   });
 
   app.post<{ Params: { id: string } }>('/accounts/:id/login', async (req, reply): Promise<AccountLoginSession> => {
@@ -125,7 +144,7 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     if (typeof b.secret !== 'string') throw new Error('secret must be a string');
     const account = await core.accounts.add({ kind: b.kind, alias: optionalString(b.alias, 'alias') ?? null, secret: b.secret });
     void reply.status(201);
-    return account;
+    return core.accounts.getWithConfig(account.id);
   });
 
   app.get<{ Params: { id: string } }>('/accounts/logins/:id', (req): AccountLoginSession => logins.get(req.params.id));
@@ -212,6 +231,39 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     return core.accounts.models(req.params.id, { refresh: req.query.refresh === 'true' || req.query.refresh === '1' });
   });
 
+  // The configuration mode (docs/plans/account-configuration-and-project-rules.md §6): every change is
+  // planned first, so a page can show what would be copied, moved aside and linked, and applied second
+  app.get<{ Params: { id: string } }>('/accounts/:id/config', (req): AccountConfig => {
+    core.accounts.reload();
+    const config = core.accounts.configOf(req.params.id);
+    if (!config) throw new DefaultAccountConfigError();
+    return config;
+  });
+
+  app.get<{ Params: { id: string }; Querystring: { mode?: string; start?: string } }>('/accounts/:id/config/plan', (req): AccountConfigPlan => {
+    core.accounts.reload();
+    return core.accounts.planConfig(req.params.id, modeOf(req.query.mode), startOf(req.query.start));
+  });
+
+  app.put<{ Params: { id: string }; Body: unknown }>('/accounts/:id/config', async (req): Promise<AccountConfigResult> => {
+    const b = body(req.body);
+    const mode = modeOf(b.mode);
+    if (mode === 'shared' && b.start !== undefined) throw new Error('start is only for a switch to independent');
+    const done = await core.accounts.setConfigMode(req.params.id, mode, startOf(b.start));
+    return { account: core.accounts.getWithConfig(req.params.id), ...done };
+  });
+
+  app.get<{ Params: { id: string; name: string } }>('/accounts/:id/config/items/:name/plan', (req): AccountConfigPlan => {
+    core.accounts.reload();
+    return core.accounts.planItem(req.params.id, req.params.name);
+  });
+
+  app.post<{ Params: { id: string; name: string }; Body: unknown }>('/accounts/:id/config/items/:name', async (req): Promise<AccountConfigResult> => {
+    if (body(req.body).use !== 'shared') throw new Error('use must be shared');
+    const done = await core.accounts.useShared(req.params.id, req.params.name);
+    return { account: core.accounts.getWithConfig(req.params.id), ...done };
+  });
+
   app.patch<{ Params: { id: string }; Body: unknown }>('/accounts/:id', async (req): Promise<Account> => {
     const b = body(req.body);
     const { id } = req.params;
@@ -222,7 +274,7 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
     let account = core.accounts.get(id);
     if (b.alias !== undefined) account = await core.accounts.setAlias(id, b.alias);
     if (b.enabled !== undefined) account = await core.accounts.setEnabled(id, b.enabled);
-    return account;
+    return core.accounts.getWithConfig(account.id);
   });
 
   app.delete<{ Params: { id: string } }>('/accounts/:id', async (req, reply): Promise<{ deleted: true } | AccountInUseResponse> => {

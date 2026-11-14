@@ -1121,6 +1121,10 @@
           }
         ],
         "description": "Null until something was read"
+      },
+      "config": {
+        "$ref": "#/components/schemas/AccountConfig",
+        "description": "Where the account's configuration comes from and how its dir stands against it, as the `/accounts` routes serve it; other listings (the overview, the account view) leave it out, since reading every item of every dir is not free. Absent for the CLI's own login (`default`), which is the source of the shared configuration and has no mode."
       }
     },
     "required": [
@@ -1137,6 +1141,146 @@
       "limits"
     ],
     "description": "One Claude account: a config directory of its own, chosen per process."
+  },
+  "AccountConfig": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "$ref": "#/components/schemas/AccountConfigMode"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "ok",
+          "repair",
+          "conflict"
+        ],
+        "description": "`conflict` when an item is in conflict, `repair` when an item waits for its link or a switch was left half-way, `ok` otherwise"
+      },
+      "items": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountConfigItem"
+        }
+      },
+      "switching": {
+        "anyOf": [
+          {
+            "type": "object",
+            "properties": {
+              "to": {
+                "$ref": "#/components/schemas/AccountConfigMode"
+              },
+              "start": {
+                "$ref": "#/components/schemas/AccountConfigStart"
+              }
+            },
+            "required": [
+              "to",
+              "start"
+            ]
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "A switch that was interrupted before it ended; applying it again finishes it"
+      },
+      "keptAside": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        },
+        "description": "The dirs under `<account dir>/.claudio-own/` that hold what was moved aside, oldest first: never deleted by Claudio"
+      }
+    },
+    "required": [
+      "mode",
+      "state",
+      "items",
+      "switching",
+      "keptAside"
+    ],
+    "description": "`Account.config` and `GET /accounts/:id/config`."
+  },
+  "AccountConfigMode": {
+    "type": "string",
+    "enum": [
+      "shared",
+      "independent"
+    ],
+    "description": "Where an account's configuration comes from (docs/plans/account-configuration-and-project-rules.md §6.1): `shared` links the default dir's settings, instructions, agents, commands, skills and the rest into the account's dir, kept in sync before every run; `independent` keeps the account's own files, which Claudio leaves alone. Identity is always the account's own and history always shared, whatever the mode."
+  },
+  "AccountConfigItem": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string",
+        "description": "The entry's name in a Claude Code config dir (`settings.json`, `agents`, `agent-memory`)"
+      },
+      "kind": {
+        "type": "string",
+        "enum": [
+          "file",
+          "dir"
+        ]
+      },
+      "class": {
+        "type": "string",
+        "enum": [
+          "config",
+          "history"
+        ],
+        "description": "`config` follows the account's mode; `history` is shared whatever the mode"
+      },
+      "state": {
+        "$ref": "#/components/schemas/AccountConfigItemState"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/AccountConfigReason"
+      }
+    },
+    "required": [
+      "name",
+      "kind",
+      "class",
+      "state"
+    ]
+  },
+  "AccountConfigItemState": {
+    "type": "string",
+    "enum": [
+      "linked",
+      "missing",
+      "own",
+      "absent",
+      "conflict",
+      "not-in-default"
+    ],
+    "description": "One item of an account's dir against the default dir. `linked`: a link to the default's item. `missing`: the default has it and the next pass will link it. `own`: the account's own file or dir. `absent`: an independent account without it, which the CLI runs without. `conflict`: something is where a link should be and Claudio will not decide for the person (`reason` says what). `not-in-default`: the default dir has no such item, so there is nothing to share yet."
+  },
+  "AccountConfigReason": {
+    "type": "string",
+    "enum": [
+      "no-source",
+      "own-item",
+      "link-elsewhere",
+      "real-file",
+      "real-dir",
+      "empty",
+      "identical",
+      "aside-taken",
+      "failed"
+    ],
+    "description": "Why an item stands as it does or a step is what it is. `real-file`, `real-dir`, `link-elsewhere`: what is in the way of a link. `empty`, `identical`: in the way, but empty or byte for byte the default's, so it is moved aside and linked with no question. `aside-taken`: the place it would be kept already holds something. `failed`: the file system refused (the message is in the log)."
+  },
+  "AccountConfigStart": {
+    "type": "string",
+    "enum": [
+      "copy",
+      "empty"
+    ],
+    "description": "What an account that turns `independent` starts from: a copy of the shared configuration, or nothing"
   },
   "AccountsSettings": {
     "type": "object",
@@ -1173,6 +1317,10 @@
           "type": "string"
         },
         "description": "The global order of the accounts, which the `order` strategy follows; empty means the order they are listed in. `PUT /accounts/settings` accepts every enabled account's id once (disabled ones may be listed too); an account added later goes after the ones named."
+      },
+      "newAccountConfig": {
+        "$ref": "#/components/schemas/AccountConfigMode",
+        "description": "The configuration mode an account added from now on starts in; `shared` unless a person chose. An independent account starts from a copy of the shared configuration."
       }
     },
     "required": [
@@ -1182,7 +1330,8 @@
       "cooldownSeconds",
       "strategy",
       "preferred",
-      "order"
+      "order",
+      "newAccountConfig"
     ],
     "description": "`accounts.json`: when and how work moves to another account."
   },
@@ -30896,6 +31045,150 @@
       "chats"
     ],
     "description": "`DELETE /accounts/:id` refused with 409: live chats run on the account; stop them or move them first."
+  },
+  "AccountConfigPlan": {
+    "type": "object",
+    "properties": {
+      "account": {
+        "type": "string"
+      },
+      "from": {
+        "$ref": "#/components/schemas/AccountConfigMode"
+      },
+      "to": {
+        "$ref": "#/components/schemas/AccountConfigMode"
+      },
+      "start": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/AccountConfigStart"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "For a switch to `independent`; null for `shared`"
+      },
+      "aside": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Where moved items would be kept, relative to the account's dir (`.claudio-own/<time>`); null when nothing moves"
+      },
+      "steps": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountConfigStep"
+        }
+      }
+    },
+    "required": [
+      "account",
+      "from",
+      "to",
+      "start",
+      "aside",
+      "steps"
+    ],
+    "description": "`GET /accounts/:id/config/plan`: what applying the same switch would do, with nothing changed yet."
+  },
+  "AccountConfigStep": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "type": "string"
+      },
+      "class": {
+        "type": "string",
+        "enum": [
+          "config",
+          "history"
+        ]
+      },
+      "action": {
+        "$ref": "#/components/schemas/AccountConfigAction"
+      },
+      "reason": {
+        "$ref": "#/components/schemas/AccountConfigReason"
+      }
+    },
+    "required": [
+      "name",
+      "class",
+      "action"
+    ]
+  },
+  "AccountConfigAction": {
+    "type": "string",
+    "enum": [
+      "keep",
+      "link",
+      "copy",
+      "unlink",
+      "replace",
+      "move-aside",
+      "skip",
+      "conflict"
+    ],
+    "description": "One step of a switch or of a \"use shared\". `keep`: already as it should be. `link`: an absent item is linked. `copy`: a link (or an absent item) becomes a copy of the default's item. `unlink`: the link is removed and nothing replaces it (`start: 'empty'`). `replace`: the account's item is moved aside, then linked. `move-aside`: moved aside, nothing to link. `skip`: nothing to do. `conflict`: left exactly as it is."
+  },
+  "AccountConfigRequest": {
+    "type": "object",
+    "properties": {
+      "mode": {
+        "$ref": "#/components/schemas/AccountConfigMode"
+      },
+      "start": {
+        "$ref": "#/components/schemas/AccountConfigStart",
+        "description": "Only for `independent`; `copy` when absent"
+      }
+    },
+    "required": [
+      "mode"
+    ],
+    "description": "`PUT /accounts/:id/config`: switch the account's configuration, or finish a switch left half-way."
+  },
+  "AccountConfigItemRequest": {
+    "type": "object",
+    "properties": {
+      "use": {
+        "type": "string",
+        "const": "shared"
+      }
+    },
+    "required": [
+      "use"
+    ],
+    "description": "`POST /accounts/:id/config/items/:name`: settle one item in conflict. Only `shared` today: the account's item is moved aside and the default's linked."
+  },
+  "AccountConfigResult": {
+    "type": "object",
+    "properties": {
+      "account": {
+        "$ref": "#/components/schemas/Account"
+      },
+      "steps": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountConfigStep"
+        },
+        "description": "Each item's step as it was carried out; a step that failed reads `conflict` with `reason: 'failed'`"
+      },
+      "aside": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "Relative to the account's dir; null when nothing was moved"
+      }
+    },
+    "required": [
+      "account",
+      "steps",
+      "aside"
+    ],
+    "description": "What a switch or a \"use shared\" did, step by step, and the account as it stands after it."
   },
   "RotationPolicy": {
     "type": "object",

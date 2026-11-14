@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-14T12:00:00Z
+updated_at: 2026-11-14T16:00:00Z
 tags:
     - rest-api
     - api
@@ -348,8 +348,13 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 | DELETE | `/accounts/logins/:id` | Cancel a sign-in; an account that never signed in is removed |
 | PATCH | `/accounts/:id` | `{ alias?, enabled? }`; a disabled account is never chosen for new work |
 | DELETE | `/accounts/:id` | Remove an account and its dir; `400` for `default`; `409 account-in-use` with the live chats' ids (`chats`) while one runs on it |
-| GET | `/accounts/settings` | `rotateOnLimit`, `threshold`, `hysteresis`, `cooldownSeconds`, `strategy`, `preferred` and `order` from `accounts.json` |
-| PUT | `/accounts/settings` | Change them, validated: `preferred` an enabled account or null, `order` every enabled account once |
+| GET | `/accounts/:id/config` | The account's configuration: `mode` (`shared` links the default dir's configuration, `independent` keeps its own), each item's state (`linked`, `missing`, `own`, `absent`, `conflict` with its `reason`, `not-in-default`), `state` (`ok`, `repair`, `conflict`), a `switching` cut short, and the `keptAside` dirs. The same object is `Account.config` in `GET /accounts`; `400` for `default` |
+| GET | `/accounts/:id/config/plan` | `?mode=shared\|independent&start=copy\|empty`: what the switch would do item by item (`copy`, `unlink`, `link`, `replace`, `move-aside`, `keep`, `skip`, `conflict`) and where moved items would go; writes nothing |
+| PUT | `/accounts/:id/config` | `{ mode, start? }`: carry the switch out, one atomic step per item, a failure blocking only its item; a second call finishes a switch cut short. Nothing of the default dir is written and nothing of the account's deleted: replaced items go to `.claudio-own/<time>/` in its dir |
+| GET | `/accounts/:id/config/items/:name/plan` | What "use shared" would do for one configuration or history item (a real `agent-memory/`): `replace`, `link`, `keep` or `skip`; writes nothing |
+| POST | `/accounts/:id/config/items/:name` | `{ use: 'shared' }`: move the account's item aside to `.claudio-own/<time>/` and link the default's |
+| GET | `/accounts/settings` | `rotateOnLimit`, `threshold`, `hysteresis`, `cooldownSeconds`, `strategy`, `preferred`, `order` and `newAccountConfig` (the mode a new account starts in, `shared` by default) from `accounts.json` |
+| PUT | `/accounts/settings` | Change them, validated: `preferred` an enabled account or null, `order` every enabled account once, `newAccountConfig` `shared` or `independent` |
 | GET | `/accounts/:id/models` | The models an account can run, from the CLI's `initialize` (no tokens), cached per account; `?refresh=true` reads it again; `404` for an unknown account |
 | GET | `/accounts/model-fallbacks` | The accepted `{ from, to, origin, at }` model fallbacks from `model-fallbacks.json` |
 | PUT | `/accounts/model-fallbacks` | Replace the list: `{ fallbacks: [{ from, to, origin? }] }`, validated |

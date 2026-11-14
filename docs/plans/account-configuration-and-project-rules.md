@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-13T23:30:00Z
+updated_at: 2026-11-14T16:00:00Z
 tags:
     - plan
     - study
@@ -12,8 +12,8 @@ tags:
 ---
 # Plan: account configuration (shared or independent) and project rules
 
-Status: **T0b and T1 are built** on branch `fix/account-links-reconcile` (2026-11-13); the rest is
-proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
+Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
+`feat/account-config-mode` (2026-11-14); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
 
@@ -608,6 +608,64 @@ another account's dir, which a test run from a chat on a non-default account inh
 is now a reported conflict until T4's "use shared" moves it aside. The race above for history dirs.
 `HOME` is not redirected in tests. The two stray fixture files in the owner's dirs and the orphan
 `acc-79ffec12` are left for the owner.
+
+**T4** (`feat/account-config-mode`, 2026-11-14): the mode, server side only.
+- Contract (`packages/shared/src/types.ts`): `AccountConfigMode = 'shared' | 'independent'`,
+  `AccountConfigStart = 'copy' | 'empty'`, `AccountConfigItem { name; kind; class; state; reason? }`
+  with `state` `linked | missing | own | absent | conflict | not-in-default`, `Account.config?:
+  AccountConfig { mode; state: 'ok' | 'repair' | 'conflict'; items; switching; keptAside }` (absent
+  for the default account), `AccountConfigPlan`, `AccountConfigStep`, `AccountConfigRequest`,
+  `AccountConfigItemRequest`, `AccountConfigResult`, and `AccountsSettings.newAccountConfig`
+  (`shared` by default).
+- Stored: `accounts.json` gains `config: { mode, switching? }` per account (absent reads `shared`,
+  so every existing account is shared). `switching` (`to`, `start`, and the stamp of its aside dir)
+  is written before a switch's first step and dropped when it ends.
+- `packages/accounts/src/config-mode.ts`: `planSwitch` and `planUseShared` (from `lstat` calls,
+  nothing written), `applySteps` (one atomic step per item; a failure reads `conflict`,
+  `reason: 'failed'`, and the next item goes on), `describeConfig` (the served state). To
+  independent: links become copies, built under `<dir>/.claudio-switch/<item>.partial`, renamed to
+  `<item>` when whole and then into place; `empty` only removes the links. To shared: own items go to
+  `<dir>/.claudio-own/<ISO time with - for : and .>/` and the default's are linked. The store
+  (`planConfig`, `setConfigMode`, `planItem`, `useShared`, `configOf`) finishes a recorded switch at
+  start-up; the before-spawn reconcile skips configuration items for an independent account or one
+  mid-switch, and keeps history linked in both modes.
+- Routes: `GET /accounts/:id/config`, `GET /accounts/:id/config/plan?mode&start`,
+  `PUT /accounts/:id/config` `{ mode, start? }`, `GET /accounts/:id/config/items/:name/plan`,
+  `POST /accounts/:id/config/items/:name` `{ use: 'shared' }`; the install default through the
+  existing `PUT /accounts/settings`. Writes are `person` (403 to a chat's token), reads are open to
+  it.
+- History items that are real dirs (the owners' `agent-memory/`): no merge-move, which the plan
+  never named. A non-empty one stays a reported conflict until a person uses "use shared", which
+  moves it aside whole and links the shared one. §6.2's automatic rule is built in the before-spawn
+  reconcile (`dirs.ts`): an empty dir or file, or a regular file byte-identical to the default's (up
+  to 1 MB), is moved aside and linked, logged once with what moved and where. A dir is removed with
+  `rmdir` after an empty one is made in the aside dir, so a CLI that wrote into it since the plan
+  keeps it (`rmdir` refuses, the item stays a conflict); a file moves only while the store knows of
+  no live chat on the account (unknown, at start-up, counts as live). This also settles T1's open
+  race of a history dir the CLI creates empty before the default has one.
+
+**Differs from the plan.**
+- No `POST /accounts/:id/config/repair`: `PUT /accounts/:id/config` with the current mode repairs
+  and finishes, and the reconcile runs before every spawn anyway.
+- `use: 'own'` and `start: 'restore'` are not built: an independent account has no configuration
+  conflicts, and history is never the account's own (D3); restoring a kept copy waits for the design
+  round.
+- An account born independent (the install default set so) starts from a copy, as one that turns
+  independent does.
+- A switch to shared also moves aside an own item the default lacks (`move-aside`), so a shared
+  account holds the default's configuration and nothing else; the reconcile alone would have left it
+  (`own-item`).
+- No `plugins` field on `Account.config` (T2).
+- `Account.config` is served by the `/accounts` routes only, not by every
+  listing: describing a dir costs about 2 ms per account, and `list()` is on the path of every
+  account choice (computing it there made the R10 rotation test time out twice under the test
+  gate's load).
+
+**Stays open.** No settings-registry row for `newAccountConfig` (no reset button) and no screens:
+both wait for T9 and T10. The new routes are not served by a headless Claudio (`headless.ts`); the
+image has no page to switch from. A switch does not wait for the account's live chats: a running CLI
+sees its configuration change under it. Removing an account deletes the copies kept aside in its
+dir. Plugins (T2), the overlay (T3), the canary (T5) and the rules (T6 to T8) are untouched.
 
 ## The owner's decisions (2026-11-13)
 

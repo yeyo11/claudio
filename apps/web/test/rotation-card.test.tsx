@@ -35,6 +35,7 @@ const settings = (over: Partial<AccountsSettings> = {}): AccountsSettings => ({
   strategy: 'order',
   preferred: null,
   order: [],
+  newAccountConfig: 'shared',
   ...over,
 });
 
