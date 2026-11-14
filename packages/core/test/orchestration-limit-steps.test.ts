@@ -247,7 +247,9 @@ for (const kind of KINDS.filter((k) => k.name !== 'the verifier' && k.name !== '
       );
 
       // The account resets: a reading newer than the wait says it has room
-      await r.core.runtime.noteAccountReading(DEFAULT_ID, roomy(Math.max(Date.now(), Date.parse(wait.at) + 1)));
+      const reading = roomy(Math.max(Date.now(), Date.parse(wait.at) + 1));
+      assert.ok(reading);
+      await r.core.runtime.noteAccountReading(DEFAULT_ID, reading);
       const orch = await settled(r, started.id);
       kind.wentThrough(orch);
       assert.equal(r.core.db.providerMove(wait.id)?.state, 'resumed');
