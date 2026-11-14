@@ -62,10 +62,10 @@ function maxTurns(): OpenAiFailure {
 }
 
 /** What a failed `result` means to the client; null when the result is not a failure to report. */
-export function failureOfOutcome(outcome: RunOutcome, text: string | undefined): OpenAiFailure | null {
+export function failureOfOutcome(outcome: RunOutcome, text: string | undefined, limitResetsAt: string | null = null): OpenAiFailure | null {
   if (outcome.subtype === MAX_TURNS_SUBTYPE) return maxTurns();
   if (!outcome.isError || outcome.cause === 'budget') return null;
-  if (outcome.cause === 'rate-limit') return { kind: 'usage-limit', resetsAt: null, ...(text ? { message: text } : {}) };
+  if (outcome.cause === 'rate-limit') return { kind: 'usage-limit', resetsAt: limitResetsAt, ...(text ? { message: text } : {}) };
   if (outcome.cause === 'stopped') return { kind: 'server', message: 'The chat was stopped before it answered.' };
   return { kind: 'server', message: text ? `The run failed: ${text}` : 'The run failed.' };
 }
@@ -101,6 +101,8 @@ export function toolBlocked(guard: RunGuardEvent): OpenAiFailure {
 export interface TurnContext {
   usage?: TokenUsage | null;
   costUsd?: number | null;
+  /** When the account the turn died on is back (ISO), if the chat knows: what a usage limit's `Retry-After` counts to */
+  limitResetsAt?: string | null;
 }
 
 export interface ChatCompletionTranslatorOptions {
@@ -326,7 +328,7 @@ export class ChatCompletionTranslator implements TurnTranslator<ChatCompletionSt
   }
 
   private finish(outcome: RunOutcome, text: string | undefined, context: TurnContext, out: ChatCompletionStreamItem[]): void {
-    const failure = failureOfOutcome(outcome, text);
+    const failure = failureOfOutcome(outcome, text, context.limitResetsAt ?? null);
     if (failure) {
       this.fail(failure, out);
       return;

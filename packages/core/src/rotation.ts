@@ -240,6 +240,10 @@ export class ProviderRotation {
     // Housekeeping runs with no persisted session, so its `--resume` always fails (case C7 of
     // docs/plans/limit-resume-and-credits.md): it ends here, and whoever started it runs it again
     if (run.origin === 'internal') return;
+    // An API client's request was answered with its 429 when the turn died (with `Retry-After`): the
+    // client asks again when it wants. Moving or waiting would replay a turn for nobody and spend on
+    // an account the client never chose
+    if (run.origin === 'api') return;
     const work = this.deps.work?.(run.id) ?? null;
     const automated = this.isAutomated(run, work);
     // A person's chat moves to another account only when they asked for it; otherwise it has its banner
@@ -247,9 +251,6 @@ export class ProviderRotation {
       if (auth) this.deps.runtime.notice(run.id, 'The sign-in of the chat\'s account expired; sign in to it again, or move the chat to another account.');
       return;
     }
-    // With rotation on, a person's or a schedule's chat waits like automated work. An API client's
-    // request was answered with its 429 already: a wait would spend a turn for nobody (t4 settles it)
-    const waits = automated || run.origin !== 'api';
     this.handling.add(run.id);
     try {
       // A person who wrote to the chat since its last wait took it over: that wait is over, and the
@@ -265,7 +266,7 @@ export class ProviderRotation {
         }
       }
       const moved = await this.moveToAccount(run, auth);
-      if (moved.moved || !waits) return;
+      if (moved.moved) return;
       // The accounts know when the first of them that can take the turn is back (`chooseNext`); else
       // the reset the account the turn died on gave (`limitResetOf`: that account's reading, or the refusal),
       // which may have passed by now: the wait then goes on at once
@@ -276,7 +277,7 @@ export class ProviderRotation {
       this.deps.runtime.notice(run.id, `Handling the ${auth ? 'sign-in failure' : 'usage limit'} failed: ${why}`);
       // Flows and tasks keep the run open while the rotation holds it: with neither a move nor a
       // wait behind it, nothing would ever end it. Waiting is all there is to fall back to.
-      if (waits && !this.waits.has(run.id)) {
+      if (!this.waits.has(run.id)) {
         try {
           this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : `handling the limit failed: ${why}`, resetsAt: limitResetsAt, projectId: null });
         } catch {

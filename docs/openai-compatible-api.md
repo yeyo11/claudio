@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-25T16:00:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-14T15:00:00Z
 tags:
     - api
     - openai
@@ -151,6 +151,16 @@ The spend gate answers `409 { code: 'spend-cap', spend }` today. Under `/v1` tha
 whose `retryAfterSeconds` counts to `spend.resetsAt`. The usage limit takes its reset as ISO text or
 epoch seconds. `Retry-After` is at least 1. A 5xx shows its message only when the error is marked
 `expose`, which is the API handler's own rule.
+
+A usage limit is `429 rate_limit_exceeded` whose `Retry-After` counts to the reset the chat knew when
+the turn died: the account's reading while it reads out, else the reset the CLI's rejected
+`rate_limit_event` carried; a rejection with no reset leaves the account out for its cooldown
+(300 s by default), which is what it counts to. With no reading at all there is no `Retry-After`:
+none is invented. A streamed answer has sent its 200 by then, so there the limit is the error chunk with no header. The
+request is the whole of it: Claudio neither replays the turn on another account nor waits for the
+reset on the client's behalf (the rotation leaves an API client's chat alone), so the client retries
+after `Retry-After`; its retry starts a chat that passes over the account that is out
+([the plan](plans/limit-resume-and-credits.md), t4).
 
 ### The conversation key
 
