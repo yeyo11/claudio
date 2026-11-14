@@ -26,6 +26,8 @@ const FIXER = '^You are the fixer of the verification';
 const REVIEW_FIXER = '^You are the review fixer';
 const REVIEWER = 'Your dimension is `correctness`';
 const VERIFIER = '^Other reviewers made claims';
+/** Matches no prompt: no step meets a limit */
+const NO_LIMIT = '(?!)';
 
 const BLOCKER = JSON.stringify({
   findings: [{ title: 'The handler drops the input', severity: 'high', file: 'api.txt', line: 1, evidence: 'api.txt line one is the handler', failureScenario: 'an empty input is lost', confidence: 0.9 }],
@@ -290,7 +292,8 @@ test('a reviewer at a limit with no account to move to waits, and a wait that en
     assert.equal(orch.verification?.status, 'failed');
     assert.equal(orch.verification?.gate, 'review');
     assert.equal(r.core.orchestrator.view(orch).stepWaits, undefined, 'nothing is shown waiting any more');
-    // What a person can do now: run the review again
+    // What a person can do now: run the review again, on an account that has room by then
+    process.env.FAKE_CLAUDE_LIMIT_ONCE_IF = NO_LIMIT;
     assert.doesNotThrow(() => r.core.orchestrator.retryReview(started.id));
     const again = await settled(r, started.id);
     assert.equal(again.verification?.review?.status, 'passed', again.verification?.review?.reason ?? '');
@@ -311,7 +314,10 @@ test("a verification fixer whose wait ends for good fails the checks with the re
     assert.match(orch.verification?.report ?? '', /the fixer stopped at a usage limit/);
     assert.equal(orch.verification?.fixes?.length, 1, 'no second attempt into the same limit');
     // What a person can do now: run the checks again once an account has room
+    process.env.FAKE_CLAUDE_LIMIT_ONCE_IF = NO_LIMIT;
     assert.doesNotThrow(() => r.core.orchestrator.verify(started.id));
+    const again = await settled(r, started.id);
+    assert.ok(again.verification?.status === 'passed' || again.verification?.status === 'fixed', again.verification?.report ?? '');
   } finally {
     await r.close();
   }
@@ -336,7 +342,7 @@ test('stopping a graph ends the wait of a step held at a limit, so no turn is re
 // ---------- no limit ----------
 
 test('a graph that never meets a limit integrates, verifies, reviews and synthesises as before, and nothing waits or moves', async () => {
-  const r = await rig('^$');
+  const r = await rig(NO_LIMIT);
   try {
     const started = graph(
       r,
@@ -404,7 +410,7 @@ test('a held limit whose wait ends with no replay answers the limited result wit
 // ---------- the planner, which is no step of a graph ----------
 
 test("a planner at its limit ends with the CLI's words, and a plan started after it runs on an account with room", async () => {
-  const r = await rig('^$', { second: true });
+  const r = await rig(NO_LIMIT, { second: true });
   // The CLI's own login is out for an hour; the real CLI sends the rejected reading before its 429
   process.env.FAKE_CLAUDE_LIMITED_DIRS = r.core.accounts.ref(DEFAULT_ID).dir;
   process.env.FAKE_CLAUDE_LIMIT_RESETS_IN = '3600';
