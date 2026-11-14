@@ -262,7 +262,7 @@ So today none of the owner's accounts would keep working past its plan. The owne
 - `isUsingOverage` "stays true at hard exhaustion (status rejected)".
 - `overageDisabledReason` takes values such as `out_of_credits`, `org_level_disabled`, `member_level_disabled` and `overage_not_provisioned`.
 
-Claudio must not depend on these until the SDK reference documents them or a spike confirms them. Claudio's stream parser already reads these fields when present (`stream.ts:288-291`). The legacy `provider_limits` row of 2026-10-30 holds `overage: {status: rejected, using: false, disabledReason: out_of_credits}`.
+Spike S1 (t5, [credits-in-the-stream](decisions/credits-in-the-stream.md)) settled it: SDK 0.3.325's `sdk.d.ts` types `isUsingOverage`, `overageStatus` and `overageDisabledReason` (with no doc comment), and the reference's prose documents only `errorCode`, `canUserPurchaseCredits`, `hasChargeableSavedPaymentMethod` and `overageEnabled`. Claudio must not decide on `isUsingOverage` alone: no recorded event ever had it true. Claudio's stream parser already reads these fields when present (`stream.ts:288-291`). The legacy `provider_limits` row of 2026-10-30 holds `overage: {status: rejected, using: false, disabledReason: out_of_credits}`.
 
 ### What the CLI does at a plan limit
 
@@ -270,7 +270,7 @@ Claudio must not depend on these until the SDK reference documents them or a spi
 |---|---|---|
 | On, under the cap | Goes on, billing credits, with no question | Documented (support article); the `-p` stream shape (`allowed` + overage fields) is from the binary, **inferred** |
 | Off | The request is refused: a rejected `rate_limit_event`, then a result with `api_error_status` 429 and the "You've hit your … limit · resets …" text | **Verified** in 46 executions |
-| At their cap (`limitReached`) or out of balance | Refused as when off. Interactively the CLI offers to raise the cap; in `-p` it cannot ask. The documented `errorCode: credits_required` is likely here | Documented in part; the `-p` behaviour is **not determined** (spike S2) |
+| At their cap (`limitReached`) or out of balance | Refused as when off. Interactively the CLI offers to raise the cap; in `-p` it cannot ask. The documented `errorCode: credits_required` is documented as "included usage exhausted, the user must buy credits": it is the credits-off case for certain, the cap case is not said | Documented in part; the `-p` behaviour is **not determined** (spike S2) |
 
 ### What Claudio does with credits today (verified)
 
@@ -501,6 +501,14 @@ What differs from the plan:
 
 - t1's note said an API chat "is still moved when an account has room". That was the replay of cause 11, so t4 removes it too. The chat stays on the account it died on; a client's retry after a failed turn has no conversation key, so it starts a chat that passes over the account that is out.
 - A streamed answer has sent its 200 before the limit, so there the limit is the error chunk with no header; `Retry-After` is for the whole answer.
+
+### t5, spikes S1 and S4 (branch `docs/credits-in-the-stream`)
+
+Written up in [credits-in-the-stream](decisions/credits-in-the-stream.md); docs only, no turn run.
+
+- **S1.** SDK 0.3.325 types the three overage fields with no comment; the reference prose documents `errorCode: credits_required` (CLI 2.1.181+, "included usage exhausted, user must buy credits") and `overageEnabled` (only on `allowed_warning`, 2.1.295+), not the other three. `unifiedWindows` is not typed at all. No recorded event has `isUsingOverage: true`.
+- **S4.** `get_usage` types `extra_usage.is_enabled`, `monthly_limit`, `used_credits` (experimental); `disabled_reason` and `spend_limit_reached` are observed only. No account was at a limit on 2026-11-14, so what it answers at a limit and its time then are **not observed**; below a limit it answered the windows, resets and credits on all three accounts, in 5 s (decision of 2026-10-17) to 11-15 s (loaded, four accounts).
+- **For t6 and t7.** Build the `overage` state on `get_usage` `extra_usage`; take the stream's overage fields as optional hints; stop a turn under `never` on a hint or a fresh `get_usage`; also map `seven_day_overage_included` apart (it shows as a model "Overage_included" today). S2 is still needed to know the stream of a paid turn.
 
 ## The owner's decisions (2026-11-13)
 
