@@ -464,7 +464,7 @@ test('a reading that leaves every account out moves the wait to the earliest res
     // loaded machine takes its time over the reading (R17 of docs/plans/ci-and-regression-open.md).
     // Timers stay real, so the wait's timer still fires and reads the clock the test set.
     t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
-    const rechecks = t.mock.method(r.rotation as unknown as { recheck(): Promise<void> }, 'recheck');
+    const rechecks = t.mock.method(r.rotation, 'sweep');
     // Beta's window is reported to reset in a moment: still out now, back soon
     const soon = Date.now() + 400;
     const reading = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: soon / 1000, unifiedWindows: { five_hour: { utilization: 1, resetsAt: soon / 1000 } } }, Date.now());
@@ -503,7 +503,7 @@ test('a wait keeps waiting for a reset the frozen clock has not reached, however
     const [move] = r.db.providerMoves({ chatId: chat.id });
     process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
     t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
-    const rechecks = t.mock.method(r.rotation as unknown as { recheck(): Promise<void> }, 'recheck');
+    const rechecks = t.mock.method(r.rotation, 'sweep');
     const soon = Date.now() + 400;
     const reading = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: soon / 1000, unifiedWindows: { five_hour: { utilization: 1, resetsAt: soon / 1000 } } }, Date.now());
     assert.ok(reading);

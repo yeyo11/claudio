@@ -4494,6 +4494,8 @@ export interface LimitWait {
   /** ISO time the limit resets; null when unknown, and the wait ends at the cap */
   resetsAt: string | null;
   moveId: string;
+  /** ISO time the wait looks again (its reset, or the next probe of an unknown one); null when due now */
+  nextLookAt?: string | null;
 }
 
 /** A step of a graph that is no task (its integrator, synthesis, a fixer, a reviewer) waiting for its usage limit to reset */
@@ -8730,6 +8732,13 @@ export interface ProviderMove {
   resetsAt: string | null;
   reason: string | null;
   updatedAt: string;
+  /**
+   * ISO time an open wait looks again: its reset, the next `get_usage` probe of a reset nobody gave,
+   * or the next poll. Null on a closed move, and on a wait no look has scheduled yet (due now)
+   */
+  nextLookAt?: string | null;
+  /** How many times the wait asked `get_usage` for its accounts, with no turn, because nothing said when they reset */
+  probeCount?: number;
 }
 
 /**

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-14T15:00:00Z
+updated_at: 2026-11-14T18:00:00Z
 tags:
     - plan
     - study
@@ -12,7 +12,7 @@ tags:
 ---
 # Study: work that does not resume after a usage limit, and the credits Claudio ignores
 
-Status: **proposed**; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
+Status: **proposed**; `t8` is built on `feat/limit-hold-sweeper`; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
 
 On 2026-11-13 the owner reported two problems:
 
@@ -501,6 +501,27 @@ What differs from the plan:
 
 - t1's note said an API chat "is still moved when an account has room". That was the replay of cause 11, so t4 removes it too. The chat stays on the account it died on; a client's retry after a failed turn has no conversation key, so it starts a chat that passes over the account that is out.
 - A streamed answer has sent its 200 before the limit, so there the limit is the error chunk with no header; `Retry-After` is for the whole answer.
+
+### t8, the hold sweeper (branch `feat/limit-hold-sweeper`)
+
+Built in `packages/core/src/rotation.ts`, `db.ts` (one migration), `chats.ts` (the stored turn) and `index.ts` (the probe); tests in `packages/core/test/limit-holds.test.ts`.
+
+- **Schema.** A forward-only migration adds `next_look_at` (TEXT), `turn` (TEXT, JSON) and `probe_count` (INTEGER, default 0) to `provider_moves`. A row an older Claudio opened has no `next_look_at`, which reads as due now, so the first pass takes it over. `ProviderMove` gains `nextLookAt` and `probeCount`, and `LimitWait` gains `nextLookAt` (optional, for `t9`'s "looking again at 17:15"); the OpenAPI schemas are regenerated.
+- **The sweeper.** The per-row timers, `learned` and `recheck` are gone. One timer per process sleeps until the earliest `next_look_at` (or the lapse of a claim) among the open rows whose chat it has, 30 s at the most (`sweepMs`), at least 5 ms. A pass (`sweep()`, one at a time, a second request follows it) looks at the due rows; an account's new reading asks for a pass over every row (R10). Each look ends the wait, resumes it, or writes its next look, so no row is looked at in a loop. A reset learnt from a reading is written into `resets_at`. The 5 min poll stays the longest a known reset goes unlooked at.
+- **Probes (cause 5).** A due wait with no known reset asks `get_usage` through `deps.probe` instead of polling: Core's `probeForWait` asks the accounts `probeTargets` returns (the pinned account, else every enabled, signed-in subscription account) whose reading is not newer than the wait's last look (`updated_at`), one at a time, each bounded by 30 s, and two waits probing one account share its call. The row's next look is written before the probe starts (5, 15, 30, then every 60 min), so a probe that hangs or a restart costs one look. The answer goes through `noteAccountReading`, so the waits hear it as any reading. `maxWaitHours` ends such a wait only once a probe taken past the cap answered nothing. A sign-in failure's wait is not probed. No turn is ever started to find out.
+- **`recover` is a pass (cause 8).** `recover()` takes over the rows whose chat this process restored (so `holds` answers at once), closes the rows of chats no process has, and runs a pass. A `resuming` row whose claim a restart cut short is looked at again once the claim lapses, which `openProviderMoves` at a single start-up never did.
+- **The turn in the row.** `startWait` stores `ChatManager.limitTurnOf` (each message's text, upload ids, source and words). After a restart `replayLastTurn(id, account, storedTurn)` sends that turn again, under new ids, counted as a replay; a row with no turn (an older Claudio's) sends the nudge as before. A workflow lead still resumes through `deps.replay`.
+
+What differs from the plan:
+
+- **The turn is stored as text, not message ids.** The chat's records do not key a message's text by Claudio's message id (`chat_entries` are the CLI's transcript entries), so ids would have had nothing to resolve against. The text is the person's own and already in the data directory.
+- **The probe's "fresh reading"** is a reading newer than the wait's last look, not than the wait: the wait's own probe answers would otherwise count as fresh and stop every later probe. The row's `updated_at` records the last look (and is moved again when a probe settles).
+- **No `BEGIN IMMEDIATE` around the claim.** `claimProviderMove` is one guarded `UPDATE`, which SQLite already runs atomically against another process; the two-process test still replays once.
+- `chats.ts` changed (the plan did not list it): the stored turn has to go through the chat manager's replay to keep its flags, its count and the refusal path of `t2`.
+
+Kept as they were: a person's chat waits and resumes by itself; a person's message cancels its wait; a refused resume keeps its claim as the back-off and leaves the chat as it was; an `origin: 'api'` chat is never held; an `internal` chat ends at its limit; graph steps that are no task wait like tasks.
+
+Still open: a graph step's wait across a restart is still closed by the orchestrator (`t3`), not resumed; `t9` shows `nextLookAt`.
 
 ## The owner's decisions (2026-11-13)
 

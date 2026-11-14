@@ -4658,6 +4658,13 @@
       },
       "moveId": {
         "type": "string"
+      },
+      "nextLookAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the wait looks again (its reset, or the next probe of an unknown one); null when due now"
       }
     },
     "required": [
@@ -5221,6 +5228,13 @@
       },
       "moveId": {
         "type": "string"
+      },
+      "nextLookAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the wait looks again (its reset, or the next probe of an unknown one); null when due now"
       },
       "role": {
         "$ref": "#/components/schemas/OrchestrationChatRole"
@@ -30790,6 +30804,17 @@
       },
       "updatedAt": {
         "type": "string"
+      },
+      "nextLookAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time an open wait looks again: its reset, the next `get_usage` probe of a reset nobody gave, or the next poll. Null on a closed move, and on a wait no look has scheduled yet (due now)"
+      },
+      "probeCount": {
+        "type": "number",
+        "description": "How many times the wait asked `get_usage` for its accounts, with no turn, because nothing said when they reset"
       }
     },
     "required": [
