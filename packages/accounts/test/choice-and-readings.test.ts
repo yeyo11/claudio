@@ -34,7 +34,7 @@ function store(opts: { liveChatsOn?: (id: string) => string[]; ghost?: boolean }
   return new AccountStore({ dataDir: mkdtempSync(join(root, 'data-')), defaultDir, claude: FAKE, env: env(), ...(opts.liveChatsOn ? { liveChatsOn: opts.liveChatsOn } : {}) });
 }
 
-const SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used', preferred: null, order: [] };
+const SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used', preferred: null, order: [], newAccountConfig: 'shared' };
 const ACCOUNTS = ['a', 'b', 'c'].map((id) => ({ id, enabled: true, signedIn: true }));
 const lim = (u: number | null, extra: Partial<AccountLimit> = {}): AccountLimit => ({
   state: u === null ? 'unknown' : u >= 1 ? 'exhausted' : u >= NEAR ? 'near' : 'ok',

@@ -185,7 +185,7 @@ describe('sign-in state', () => {
 });
 
 describe('choose and the sign-in state', () => {
-  const settings: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [] };
+  const settings: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [], newAccountConfig: 'shared' };
   const two = (a: AccountSignInState | undefined, b: AccountSignInState | undefined, pinned?: string): ReturnType<typeof choose> => {
     const accounts: Candidate[] = [
       { id: 'a', enabled: true, signedIn: true, ...(a ? { signInState: a } : {}) },
