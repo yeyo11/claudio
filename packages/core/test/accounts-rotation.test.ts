@@ -75,6 +75,10 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
     accountsChanged: (listener) => store.onChange(listener),
     pollMs: opts.pollMs ?? 20,
     slackMs: 0,
+    // Read at each call, as the chats and the accounts read it: left out, the rotation keeps the real
+    // `Date.now` it was built with, and a test that freezes `Date` froze only the readings, so a slow
+    // reading let the wait's timer find a reset passed that every reading still had ahead (R10)
+    now: () => Date.now(),
   });
   rotation.start();
   return {
@@ -487,7 +491,7 @@ test('a reading that leaves every account out moves the wait to the earliest res
   }
 });
 
-// The test above froze `Date` for the chats and the accounts, while the rotation kept the real
+// The test above freezes `Date`; until the rig gave the rotation that clock, the rotation kept the real
 // `Date.now` it took when it was built: a loaded machine that spent beta's 400 ms over the reading had
 // the wait's timer find the reset passed by the real clock, and resume, while every reading still
 // said beta was out. Here the stall is made on purpose, on the reading itself.
