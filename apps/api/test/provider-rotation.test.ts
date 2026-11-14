@@ -33,12 +33,16 @@ async function until(what: string, ready: () => boolean): Promise<void> {
   throw new Error(`timed out waiting for ${what}`);
 }
 
-/** A chat whose first turn dies against the provider's usage limit, reported as the CLI reports it. */
+/**
+ * A chat whose first turn dies against the provider's usage limit, reported as the CLI reports it.
+ * With rotation on and no other account, the rotation opens its wait by itself: this returns once it has.
+ */
 async function chatAtLimit(): Promise<string> {
   const res = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'FAKE-LIMIT-REPORTED-ONCE', cwd: repo }) });
   assert.equal(res.statusCode, 201, res.body);
   const { id } = res.json<ChatSummary>();
   await until('the chat to reach its limit', () => core.runtime.atLimit(id));
+  await until('its wait to open', () => core.db.providerMoves({ chatId: id }).some((m) => m.state === 'waiting'));
   return id;
 }
 
@@ -102,12 +106,11 @@ test('the wait list validates its filters before anything happens', async () => 
   assert.equal((await app.inject('/api/limits/waits?limit=0')).statusCode, 400);
 });
 
-test('waiting is the person\'s click: a wait row opens, a second is refused, and cancelling closes it', async () => {
+test('a chat at its limit waits by itself; a click is refused while it does, and cancelling closes the wait', async () => {
   const id = await chatAtLimit();
-  const wait = await app.inject({ method: 'POST', url: `/api/chats/${id}/wait` });
-  assert.equal(wait.statusCode, 201, wait.body);
-  const move = wait.json<ProviderMove>();
-  assert.deepEqual([move.state, move.action, move.fromChat, move.decidedBy], ['waiting', 'wait', id, 'person']);
+  const [move] = core.db.providerMoves({ chatId: id });
+  assert.ok(move);
+  assert.deepEqual([move.state, move.action, move.fromChat, move.decidedBy], ['waiting', 'wait', id, 'setting']);
   assert.equal((await app.inject({ method: 'POST', url: `/api/chats/${id}/wait` })).statusCode, 409);
 
   const open = (await app.inject(`/api/limits/waits?chatId=${id}&state=waiting`)).json<ProviderMove[]>();
@@ -119,13 +122,18 @@ test('waiting is the person\'s click: a wait row opens, a second is refused, and
   assert.equal((await app.inject({ method: 'POST', url: `/api/limits/waits/${move.id}/cancel` })).statusCode, 409);
   assert.equal((await app.inject({ method: 'POST', url: '/api/limits/waits/nope/cancel' })).statusCode, 404);
   assert.deepEqual((await app.inject(`/api/limits/waits?chatId=${id}&state=waiting`)).json(), []);
+  // The person's own click still opens a wait once they stopped the one that opened by itself
+  const again = await app.inject({ method: 'POST', url: `/api/chats/${id}/wait` });
+  assert.equal(again.statusCode, 201, again.body);
+  assert.equal(again.json<ProviderMove>().decidedBy, 'person');
 });
 
 test('run now is refused with its code while every account reads out, and once the wait is over (R11)', async () => {
   // The CLI's report says the only account is out for an hour: there is no account to run on now.
   // That a wait with an account that has room goes on at once is core's test (accounts-rotation)
   const id = await chatAtLimit();
-  const move = (await app.inject({ method: 'POST', url: `/api/chats/${id}/wait` })).json<ProviderMove>();
+  const move = core.db.providerMoves({ chatId: id })[0];
+  assert.ok(move);
   const refused = await app.inject({ method: 'POST', url: `/api/limits/waits/${move.id}/run-now` });
   assert.equal(refused.statusCode, 409, refused.body);
   assert.equal(refused.json<{ code?: string }>().code, 'no-room');
