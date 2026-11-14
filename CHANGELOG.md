@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.18.0](https://github.com/yeyo11/claudio/compare/v0.17.0...v0.18.0) (2026-11-14)
+
+
+### Features
+
+* **accounts:** a configuration mode per account, shared or independent ([#132](https://github.com/yeyo11/claudio/issues/132)) ([ab81fea](https://github.com/yeyo11/claudio/commit/ab81fea1468b2051f4d61d430d3b75bd578ac34f))
+
+
+### Bug fixes
+
+* **accounts:** keep every account's links in sync with the default dir, and stop tests reaching real account dirs ([#123](https://github.com/yeyo11/claudio/issues/123)) ([fb86216](https://github.com/yeyo11/claudio/commit/fb86216d99c002d317a6c802eebf9d041b6ab7c1))
+* **openai:** a usage limit on /v1 answers 429 with Retry-After, and an API chat is never replayed ([#133](https://github.com/yeyo11/claudio/issues/133)) ([27ae9d0](https://github.com/yeyo11/claudio/commit/27ae9d01218fe1dd939f770104eaab1836f6b0ce))
+* **orchestration:** graph steps that are no task wait or move at a usage limit like tasks ([#129](https://github.com/yeyo11/claudio/issues/129)) ([610fbd5](https://github.com/yeyo11/claudio/commit/610fbd5decf6b71a2372eb8ac1a8d56da6a01c49))
+* **rotation:** a chat at its limit survives a restart, and a refused resume leaves it as it was ([#128](https://github.com/yeyo11/claudio/issues/128)) ([8b156d0](https://github.com/yeyo11/claudio/commit/8b156d0b2e02151741a16e4d71207727df4012e9))
+* **rotation:** a person's chat waits at a limit and resumes by itself ([#124](https://github.com/yeyo11/claudio/issues/124)) ([24c7b07](https://github.com/yeyo11/claudio/commit/24c7b076ad35e58c31ce1a77f3129b00ebe0ab89))
+
+
+### Documentation
+
+* credits in the stream, spikes S1 and S4 ([#134](https://github.com/yeyo11/claudio/issues/134)) ([4601a39](https://github.com/yeyo11/claudio/commit/4601a3944769ea8860af914d761c43f9d1f27585))
+* **decisions:** the decision engine's second plan landed in [#122](https://github.com/yeyo11/claudio/issues/122) ([#126](https://github.com/yeyo11/claudio/issues/126)) ([6c91f38](https://github.com/yeyo11/claudio/commit/6c91f38d25a1d61211af1ba40788306889a4aca0))
+
 ## [0.17.0](https://github.com/yeyo11/claudio/compare/v0.16.2...v0.17.0) (2026-11-13)
 
 
