@@ -289,6 +289,8 @@ export class ClaudeStream {
             ...(typeof info.isUsingOverage === 'boolean' ? { isUsingOverage: info.isUsingOverage } : {}),
             ...(typeof info.overageResetsAt === 'number' ? { overageResetsAt: info.overageResetsAt } : {}),
             ...(typeof info.overageDisabledReason === 'string' ? { overageDisabledReason: info.overageDisabledReason } : {}),
+            ...(typeof info.overageEnabled === 'boolean' ? { overageEnabled: info.overageEnabled } : {}),
+            ...(typeof info.errorCode === 'string' ? { errorCode: info.errorCode } : {}),
             observedAt: now(),
           },
         });

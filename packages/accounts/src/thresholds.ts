@@ -1,4 +1,4 @@
-import type { AccountLimit } from '@claudio/shared';
+import type { AccountLimit, AccountLimitState } from '@claudio/shared';
 
 /*
  * The one place the account thresholds live. Before 2026-10-29 an account was `near` at 0.75 by its
@@ -37,4 +37,15 @@ export function isOut(limit: Pick<AccountLimit, 'state' | 'resetsAt'> | null | u
 export function outUntil(limit: Pick<AccountLimit, 'state' | 'resetsAt'> | null | undefined, now: number): number | null {
   if (!isOut(limit, now) || !limit?.resetsAt) return null;
   return Date.parse(limit.resetsAt);
+}
+
+/**
+ * The account's state as a person reads it: `overage` where the plan is spent and its credits cover
+ * what runs there (`creditsCover`), else the folded state. Such an account is still out for
+ * {@link isOut}: whether work may spend its credits is the account's credits setting, which only
+ * `choose` reads.
+ */
+export function accountState(limit: Pick<AccountLimit, 'state' | 'creditsCover'> | null | undefined): AccountLimitState {
+  if (!limit) return 'unknown';
+  return limit.state === 'exhausted' && limit.creditsCover === true ? 'overage' : limit.state;
 }

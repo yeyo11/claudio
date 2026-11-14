@@ -1,7 +1,7 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { AccountCliUsage, AccountLimit, ProviderLimitState, RateLimitWindow, ScopedRateLimit } from '@claudio/shared';
+import type { AccountCliUsage, AccountLimit, AccountOverageHints, ProviderLimitState, RateLimitWindow, ScopedRateLimit } from '@claudio/shared';
 import { writeAtomic } from './fs.ts';
 import { EXHAUSTED, NEAR } from './thresholds.ts';
 import { isRecord } from '@claudio/shared';
@@ -33,6 +33,8 @@ export interface Reading {
   scoped?: ScopedRateLimit[];
   /** What only `get_usage` states (plan, per-model limits, credits); carried over readings that lack it */
   cli?: AccountCliUsage;
+  /** The overage fields of the last event that carried any; carried over readings that lack them */
+  overage?: AccountOverageHints;
 }
 
 /** What a stream event needs to know beyond itself. */
@@ -43,13 +45,37 @@ export interface EventReadingOptions {
 
 const num = (v: unknown): number | null => (typeof v === 'number' && Number.isFinite(v) ? v : null);
 
-/** Extra usage past the plan: not a window of the account's own */
-const OVERAGE = 'overage';
+/** The window of the plan that credits are included in: kept apart, see {@link AccountOverageHints.included} */
+const OVERAGE_INCLUDED = 'seven_day_overage_included';
+
+/**
+ * Extra usage past the plan (`overage`) and the plan's overage-included window: neither is a window
+ * the account's state is folded from, nor a model's. Before 2026-11-14 `seven_day_overage_included`
+ * read as a scoped model called `Overage_included`.
+ */
+const isOverageKey = (key: string): boolean => key.includes('overage');
 
 /** The model a `seven_day_<model>` window counts for, by the display name `get_usage` states (`Opus`); null for an account-wide window. */
 function scopedModel(window: string): string | null {
+  if (isOverageKey(window)) return null;
   const name = /^seven_day_(.+)$/.exec(window)?.[1];
   return name ? name.charAt(0).toUpperCase() + name.slice(1) : null;
+}
+
+/**
+ * The overage fields of a `rate_limit_event`, read with every value optional; null when it carries
+ * none. They are hints (docs/decisions/credits-in-the-stream.md): only `get_usage` decides whether
+ * credits cover the account.
+ */
+function hintsOf(info: Record<string, unknown>, included: RateLimitWindow | null, now: number): AccountOverageHints | null {
+  const hints: AccountOverageHints = { observedAt: new Date(now).toISOString() };
+  if (typeof info.isUsingOverage === 'boolean') hints.using = info.isUsingOverage;
+  if (typeof info.overageStatus === 'string' && info.overageStatus) hints.status = info.overageStatus;
+  if (typeof info.overageDisabledReason === 'string' && info.overageDisabledReason) hints.disabledReason = info.overageDisabledReason;
+  if (typeof info.overageEnabled === 'boolean') hints.enabled = info.overageEnabled;
+  if (info.status === 'rejected' && info.errorCode === 'credits_required') hints.creditsRequired = true;
+  if (included) hints.included = included;
+  return Object.keys(hints).length > 1 ? hints : null;
 }
 
 /**
@@ -72,12 +98,15 @@ export function readingFromEvent(info: unknown, now: number, opts: EventReadingO
     if (i === -1) scoped.push(entry);
     else scoped[i] = entry;
   };
+  let included: RateLimitWindow | null = null;
   if (isRecord(info.unifiedWindows)) {
     for (const [key, w] of Object.entries(info.unifiedWindows)) {
-      if (!isRecord(w) || key === OVERAGE) continue;
+      if (!isRecord(w)) continue;
       const utilization = num(w.utilization);
       const resetsAt = num(w.resetsAt);
       if (utilization === null || resetsAt === null) continue;
+      if (key === OVERAGE_INCLUDED) included = { utilization, resetsAt };
+      if (isOverageKey(key)) continue;
       const model = scopedModel(key);
       if (model) addScoped(model, { utilization, resetsAt });
       else windows[key] = { utilization, resetsAt };
@@ -92,20 +121,24 @@ export function readingFromEvent(info: unknown, now: number, opts: EventReadingO
     // A rejection says the model's week is spent, whatever use it reported
     const used = status === 'rejected' ? Math.max(utilization ?? EXHAUSTED, EXHAUSTED) : utilization;
     if (used !== null) addScoped(model, { utilization: used, resetsAt });
-  } else if (type && !model && type !== OVERAGE && !windows[type] && resetsAt !== null && utilization !== null) {
+  } else if (type && !model && !isOverageKey(type) && !windows[type] && resetsAt !== null && utilization !== null) {
     windows[type] = { utilization, resetsAt };
+  } else if (type === OVERAGE_INCLUDED && !included && resetsAt !== null && utilization !== null) {
+    included = { utilization, resetsAt };
   }
   const cooldownMs = opts.cooldownMs ?? 0;
   let rejected: Reading['rejected'] | null = null;
   let outUntil: number | null = null;
   if (status === 'rejected' && !model) {
     const until = resetsAt !== null && resetsAt * 1000 > now ? resetsAt * 1000 : null;
-    if (type && type !== OVERAGE && info.isUsingOverage !== true && resetsAt !== null) rejected = { window: type, resetsAt };
+    if (type && !isOverageKey(type) && info.isUsingOverage !== true && resetsAt !== null) rejected = { window: type, resetsAt };
     else if (until !== null) outUntil = until;
     // The turn failed and the CLI did not say until when: the account is left alone for the cooldown
     else if (cooldownMs > 0) outUntil = now + cooldownMs;
   }
+  // Hints alone make no reading: one with no windows would replace the windows that were kept
   if (!Object.keys(windows).length && !rejected && outUntil === null && !scoped.length) return null;
+  const overage = hintsOf(info, included, now);
   return {
     source: 'stream',
     status,
@@ -114,6 +147,7 @@ export function readingFromEvent(info: unknown, now: number, opts: EventReadingO
     ...(rejected ? { rejected } : {}),
     ...(outUntil !== null ? { outUntil } : {}),
     ...(scoped.length ? { scoped } : {}),
+    ...(overage ? { overage } : {}),
   };
 }
 
@@ -229,6 +263,7 @@ export function fold(reading: Reading, now: number): AccountLimit {
   else if (binding) state = binding[1].utilization >= EXHAUSTED ? 'exhausted' : binding[1].utilization >= NEAR ? 'near' : 'ok';
   const resetsAt = spent ? spent.resetsAt * 1000 : (out ?? (binding ? binding[1].resetsAt * 1000 : null));
   const scoped = scopedOf(reading, now);
+  const creditsCover = state === 'exhausted' ? covers(reading, spent !== null || out !== null) : null;
   const cli: AccountCliUsage | null = reading.cli
     ? { ...reading.cli, scoped }
     : scoped.length
@@ -244,7 +279,25 @@ export function fold(reading: Reading, now: number): AccountLimit {
     observedAt: new Date(reading.at).toISOString(),
     source: reading.source,
     ...(cli ? { cli } : {}),
+    ...(creditsCover !== null ? { creditsCover } : {}),
+    ...(reading.overage ? { overageHints: reading.overage } : {}),
   };
+}
+
+/**
+ * Whether the credits of an account whose plan is spent cover its sends: `get_usage` says they are on
+ * (`extra_usage.is_enabled`, the typed answer) and not at their cap, and no refusal came since it was
+ * asked. A refusal (`refused`: the reading holds a rejection, at `reading.at`) at or after that answer
+ * says the CLI did not let credits pay. The stream's overage fields never decide it alone.
+ */
+function covers(reading: Reading, refused: boolean): boolean {
+  const credits = reading.cli?.credits;
+  if (!credits?.enabled || credits.limitReached || !reading.cli) return false;
+  const askedAt = Date.parse(reading.cli.observedAt);
+  if (!Number.isFinite(askedAt)) return false;
+  if (refused && reading.at >= askedAt) return false;
+  const hints = reading.overage;
+  return !(hints?.creditsRequired && Date.parse(hints.observedAt) >= askedAt);
 }
 
 /**
@@ -291,6 +344,7 @@ export class Readings {
     } else if (old) {
       next = { ...reading };
       if (old.cli && !reading.cli) next.cli = old.cli;
+      if (old.overage && !reading.overage) next.overage = old.overage;
       // A fresh `get_usage` lists every scoped limit; until one comes, what the stream said of them stands
       const kept = reading.cli ? [] : (old.scoped ?? []).filter((s) => !reading.scoped?.some((r) => r.model === s.model && r.window === s.window));
       const scoped = [...kept, ...(reading.scoped ?? [])];

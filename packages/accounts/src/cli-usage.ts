@@ -29,14 +29,17 @@ function minor(v: unknown): number | null {
 
 /**
  * The credits, from `spend` (amounts with their currency and exponent) with `extra_usage` filling
- * what it lacks (`credits_ever_enabled`, `spend_limit_reached`). Null when the CLI states neither.
+ * what it lacks (`credits_ever_enabled`, `spend_limit_reached`), and `extra_usage.is_enabled` deciding
+ * whether they are on. Null when the CLI states neither.
  */
 function creditsOf(spend: unknown, extra: unknown): AccountCredits | null {
   const s = isRecord(spend) ? spend : null;
   const e = isRecord(extra) ? extra : null;
   if (!s && !e) return null;
   const used = s && isRecord(s.used) ? s.used : null;
-  const enabled = typeof s?.enabled === 'boolean' ? s.enabled : e?.is_enabled === true;
+  // `extra_usage.is_enabled` is the typed answer ("false while extra usage cannot cover sends");
+  // `spend.enabled` is only observed (docs/decisions/credits-in-the-stream.md)
+  const enabled = typeof e?.is_enabled === 'boolean' ? e.is_enabled : s?.enabled === true;
   const usedMinor = minor(s?.used) ?? num(e?.used_credits) ?? 0;
   const limitMinor = minor(s?.limit) ?? num(e?.monthly_limit);
   return {
