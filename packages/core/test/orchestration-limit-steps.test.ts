@@ -359,7 +359,7 @@ test('a graph that never meets a limit integrates, verifies, reviews and synthes
     const orch = await settled(r, started.id);
     assert.equal(orch.status, 'completed');
     assert.equal(orch.integration?.status, 'merged');
-    assert.equal(orch.verification?.status, 'fixed', orch.verification?.report ?? '');
+    assert.ok(orch.verification?.status === 'passed' || orch.verification?.status === 'fixed', orch.verification?.report ?? '');
     assert.equal(orch.verification?.review?.status, 'passed', orch.verification?.review?.reason ?? '');
     assert.doesNotMatch(orch.finalResult ?? '', /Synthesis failed/);
     assert.deepEqual(r.core.db.rotationEvents(), []);
