@@ -358,23 +358,26 @@ export const BranchCard = memo(function BranchCard({ branch, onOpen }: { branch:
             <span className={`chat-launch-status is-${branch.status}`}>{t(`branches.state.${branch.status}`)}</span>
             <span className={`chat-launch-facts${doing ? ' has-doing' : ''}`}>
               {/* The type, the model and the effort say what the agent is and stay whole as long as they can;
-                  what it is doing gives way first, and the clock never: it sits outside both, and a
-                  separator belongs to the part that follows it, so none is left at an end */}
+                  what it is doing gives way first, and the clock never. What it is doing and the clock are
+                  one part of the line (the tail), so a line that must wrap breaks before both and the clock
+                  is never alone on one; a separator belongs to the part that follows it, so none is left at an end */}
               {identity.length > 0 && (
                 <span className="chat-launch-ident">
                   {identity.flatMap((fact, i) => [...(i > 0 ? [<Dot key={`dot-${fact.key}`} />] : []), <Fragment key={fact.key}>{fact.node}</Fragment>])}
                 </span>
               )}
-              {doing && (
-                <span className="chat-launch-doing">
-                  {identity.length > 0 && <Dot />}
-                  <FullText className="chat-launch-act">{doing}</FullText>
-                </span>
-              )}
-              <span className="chat-launch-clockbox">
-                {(identity.length > 0 || doing) && <Dot />}
-                <span className="chat-launch-clock">
-                  <BranchClock branch={branch} words />
+              <span className="chat-launch-tail">
+                {doing && (
+                  <span className="chat-launch-doing">
+                    {identity.length > 0 && <Dot />}
+                    <FullText className="chat-launch-act">{doing}</FullText>
+                  </span>
+                )}
+                <span className="chat-launch-clockbox">
+                  {(identity.length > 0 || doing) && <Dot />}
+                  <span className="chat-launch-clock">
+                    <BranchClock branch={branch} words />
+                  </span>
                 </span>
               </span>
             </span>

@@ -30,18 +30,34 @@ export function isCut(box: Box): boolean {
   return box.contentWidth !== undefined && box.innerWidth !== undefined && box.contentWidth > box.innerWidth + SUBPIXEL;
 }
 
-/** The element's sizes, with its content's unrounded width taken from a range over it */
+/**
+ * The element's sizes, with its content's unrounded width: the span of the rectangles of its text as
+ * laid out, the part past the ellipsis included. Text read only to a screen reader (`.sr-only`) is
+ * left out: it sits in a clipped box of a pixel, and its rectangle would make any label look cut; so is
+ * text that is not drawn at all.
+ */
 function measure(el: HTMLElement): Box {
   const box: Box = { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight };
-  if (typeof document === 'undefined' || typeof document.createRange !== 'function' || typeof getComputedStyle !== 'function') return box;
+  if (typeof document === 'undefined' || typeof document.createRange !== 'function' || typeof document.createTreeWalker !== 'function' || typeof getComputedStyle !== 'function') return box;
   const range = document.createRange();
-  range.selectNodeContents(el);
-  // A range's rectangle covers the text as laid out, the part past the ellipsis included
   if (typeof range.getBoundingClientRect !== 'function') return box;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let left = Infinity;
+  let right = -Infinity;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent?.trim() || node.parentElement?.closest('.sr-only')) continue;
+    range.selectNodeContents(node);
+    const rect = range.getBoundingClientRect();
+    // Text that is not drawn (inside a part hidden with `display: none`) has an empty rectangle at 0, 0
+    if (rect.width === 0 && rect.height === 0) continue;
+    left = Math.min(left, rect.left);
+    right = Math.max(right, rect.right);
+  }
+  if (right < left) return box;
   const style = getComputedStyle(el);
   const edges = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'] as const;
   const inset = edges.reduce((sum, edge) => sum + (Number.parseFloat(style[edge]) || 0), 0);
-  return { ...box, contentWidth: range.getBoundingClientRect().width, innerWidth: el.getBoundingClientRect().width - inset };
+  return { ...box, contentWidth: right - left, innerWidth: el.getBoundingClientRect().width - inset };
 }
 
 // What the caller says the full text is, for a label made of parts its textContent runs together

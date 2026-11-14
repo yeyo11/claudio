@@ -137,7 +137,7 @@ test('a card under the step: live rail while it runs, never a gradient', () => {
   const record = render(<BranchCard branch={done!} />);
   assert.match(record, /class="chat-launch is-task"/);
   assert.match(record, /chat-launch-status is-completed">Done</);
-  assert.match(record, /chat-launch-facts"><span class="chat-launch-ident"><span class="chat-launch-lead">pnpm test<\/span><\/span><span class="chat-launch-clockbox"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-clock">1m 10s<\/span><\/span><\/span>/);
+  assert.match(record, /chat-launch-facts"><span class="chat-launch-ident"><span class="chat-launch-lead">pnpm test<\/span><\/span><span class="chat-launch-tail"><span class="chat-launch-clockbox"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-clock">1m 10s<\/span><\/span><\/span><\/span>/);
 });
 
 /** The card with the app's own slots, over an overview that lists models the way the CLI names them */
@@ -159,7 +159,7 @@ function agentCard(over: Partial<ChatSubagent>, lang: 'en' | 'es' = 'en'): strin
   );
 }
 
-const identity = (html: string) => /<span class="chat-launch-ident">(.*?)<\/span><(?:span class="chat-launch-doing"|span class="chat-launch-clockbox")/.exec(html)?.[1] ?? '';
+const identity = (html: string) => /<span class="chat-launch-ident">(.*?)<\/span><span class="chat-launch-tail"/.exec(html)?.[1] ?? '';
 /** The words of the identity part, the facts told apart by their separators */
 const words = (html: string) => identity(html).replace(/<span class="chat-launch-dot"[^>]*>·<\/span>/g, ' · ').replace(/<[^>]+>/g, '');
 
@@ -191,7 +191,7 @@ test('a card shows only the facts it has: no model, no effort, nothing in their 
 test('the clock is outside the part that gives way, and no separator is left without a part after it', () => {
   const html = agentCard({ model: 'opus', activity: reading });
   // What it is doing is cut first and carries its full text (FullText); the clock sits in a box of its own after it
-  assert.match(html, /<span class="chat-launch-doing"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-act"><span class="verb">[^<]*<\/span> packages\/core\/src\/chats\.ts<\/span><\/span><span class="chat-launch-clockbox"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-clock">[^<]+<\/span><\/span><\/span>/);
+  assert.match(html, /<span class="chat-launch-tail"><span class="chat-launch-doing"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-act"><span class="verb">[^<]*<\/span> packages\/core\/src\/chats\.ts<\/span><\/span><span class="chat-launch-clockbox"><span class="chat-launch-dot" aria-hidden="true">·<\/span><span class="chat-launch-clock">[^<]+<\/span><\/span><\/span><\/span>/);
   assert.doesNotMatch(html, /<span class="chat-launch-doing">(?:(?!<\/span><span class="chat-launch-clockbox).)*<span class="chat-launch-clock"/, 'the clock is not inside the part that shrinks');
 });
 
@@ -208,12 +208,21 @@ test('the effort and the clock never shrink or end in an ellipsis; the parts tha
   assert.doesNotMatch(rule('.chat-launch-effort'), /overflow|ellipsis/);
 });
 
-test('beside an activity the identity takes no share of the shortfall and leaves the activity its floor and the clock its room', () => {
+test('the activity gives way before the model, and the type beside a model and the effort never do', () => {
   const css = readFileSync(new URL('../../../packages/chat-ui/src/styles/chat.css', import.meta.url), 'utf8');
-  // The first rule for it is the wide card's; the narrow card's comes later, inside its container query
-  const rule = /\.chat-launch-facts\.has-doing > \.chat-launch-ident \{[^}]*\}/.exec(css)?.[0] ?? '';
-  assert.match(rule, /flex-shrink: 0/);
-  assert.match(rule, /max-width: calc\(100% - var\(--launch-doing-floor\) - var\(--launch-clock-room\)\)/);
+  // The first rule for each is the wide card's; the narrow card's come later, inside its container query
+  const rule = (selector: string) => new RegExp(`\\n${selector.replace(/[.()>]/g, '\\$&')} \\{[^}]*\\}`).exec(css)?.[0] ?? '';
+  // No cap on the identity as a whole: its facts are the line's own items
+  assert.match(rule('.chat-launch-ident'), /display: contents/);
+  // Each grows from its floor to its text, the model a thousand times sooner than the activity
+  assert.match(rule('.chat-launch-model'), /flex: 1000 1 0;[^}]*max-width: max-content/);
+  assert.match(rule('.chat-launch-doing'), /width: var\(--launch-doing-floor\);[^}]*max-width: max-content/);
+  // What it is doing and the clock are one item, so a wrapped line breaks before both
+  assert.match(rule('.chat-launch-tail'), /display: flex/);
+  assert.match(rule('.chat-launch-lead'), /flex: none/);
+  assert.match(rule('.chat-launch-effort'), /flex: none/);
+  // Where even the floors do not fit, the line wraps between parts instead of clipping one
+  assert.match(rule('.chat-launch-facts'), /flex-wrap: wrap/);
   assert.match(agentCard({ model: 'opus', activity: reading }), /class="chat-launch-facts has-doing"/);
   assert.match(agentCard({ model: 'opus' }), /class="chat-launch-facts"/);
 });

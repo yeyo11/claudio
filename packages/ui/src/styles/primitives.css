@@ -1413,9 +1413,9 @@ button.step:hover {
   vertical-align: bottom;
 }
 
-/* Cut, it keeps its ellipsis and a few characters of its start besides its end */
+/* Cut, it keeps its end (eight characters), the ellipsis and a character of its start */
 .middle-cut.is-split {
-  min-width: 6ch;
+  min-width: 10ch;
 }
 
 .middle-cut-head {

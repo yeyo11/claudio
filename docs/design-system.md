@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-14T18:00:00Z
+updated_at: 2026-11-14T15:10:00Z
 tags:
     - design-system
     - web
@@ -2476,7 +2476,9 @@ the file being edited is its only moving part.
   unrounded content width (a range over it) passes its box, not only `scrollWidth > clientWidth`: those
   are whole pixels and miss a box a fraction of a pixel short of its text, whose ellipsis is drawn all
   the same. A literal cut in the middle (a model id) is `MiddleCut` (`.middle-cut`, `.is-split` once it
-  is long enough to split): its start takes the ellipsis and the title, its last eight characters stay. A label made of
+  is long enough to split, never under ten characters then): its start takes the ellipsis and the
+  title, its last eight characters stay. Cut text read only to a screen reader (`.sr-only`) is left out
+  of the measure. A label made of
   parts (the chat header's subtitle) passes `full`. Inside a link or a button, the label span is the
   `FullText`, never the control. The phone tab bar's labels are never cut: a tab is at least as wide as
   its label (`minmax(min-content, 1fr)`), so at 320 px "Orchestrations" takes its width and the short
