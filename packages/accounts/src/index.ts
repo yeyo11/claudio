@@ -1,11 +1,12 @@
 export { choose, globalOrder, type Candidate, type Choice, type ChooseOptions } from './choose.ts';
-export { CONFIG_ITEMS, HISTORY, HISTORY_ITEMS, orphanDirs, planAccountDir, prepareAccountDir, reconcileAccountDir, removeLinks, SHARED_SETTINGS, type ReconcileReport, type ReconcileStep } from './dirs.ts';
+export { ASIDE_DIR, CONFIG_ITEMS, FILE_ITEMS, HISTORY, HISTORY_ITEMS, orphanDirs, planAccountDir, prepareAccountDir, reconcileAccountDir, removeLinks, SHARED_SETTINGS, type ReconcileReport, type ReconcileStep } from './dirs.ts';
 export { throughLinks } from './fs.ts';
+export { applySteps, describeConfig, itemClass, keptAside, planSwitch, planUseShared, STAGING_DIR } from './config-mode.ts';
 export { ACCOUNT_VARS, envFor, readSecret, SECRET_FILE, type AccountRef } from './env.ts';
 export { CREDENTIALS_FILE, identify, parseAuthStatus, readCredentials, type CredentialsReading, type Identity } from './identify.ts';
 export { cliVersion, ModelCache, offers, parseInitialize, readInitialize, type InitializeAccount, type Initialized, type ModelsEntry, type ModelsOptions } from './models.ts';
 export { login, type LoginSession } from './login.ts';
-export { AccountInUseError, AccountStore, DEFAULT_ID, DEFAULT_SETTINGS, type AccountStoreOptions } from './store.ts';
+export { AccountInUseError, AccountStore, DefaultAccountConfigError, DEFAULT_ID, DEFAULT_SETTINGS, type AccountStoreOptions } from './store.ts';
 export { BAR_BAD, BAR_WARN, barTone, EXHAUSTED, isOut, NEAR, outUntil } from './thresholds.ts';
 export { cliConfigFile, fold, readCache, readingFromEvent, Readings, type EventReadingOptions, type Reading } from './usage.ts';
 export { apiKeyOf, checkApiKey, checkCredential, parseUsage, usageOf, type CredentialCheck, type KeyCheckOptions } from './cli-usage.ts';

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-14T12:00:00Z
+updated_at: 2026-11-14T16:00:00Z
 tags:
     - accounts
     - rotation
@@ -64,6 +64,47 @@ account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
   elsewhere) is a **conflict**: logged once, never overwritten, never deleted. Identity (credentials,
   the state file, organisation policy) and `plugins/` are not linked. A directory under `accounts/`
   that no account names is listed in the log and left in place.
+
+  Two kinds of conflict are settled before a run with no question (plan §6.2): an **empty** dir or
+  file, and a regular file **byte for byte the default's** (up to 1 MB), are moved to
+  `<account dir>/.claudio-own/<time>/` and the default's linked, and the log says what moved where,
+  once. A dir goes only if it is still empty when it goes (`rmdir` refuses one that is not, and the
+  item stays a conflict); a file goes only while no live chat runs on the account, since its process
+  may hold it open.
+- **Configuration mode** (plan [account-configuration-and-project-rules.md](plans/account-configuration-and-project-rules.md)
+  §6, `packages/accounts/src/config-mode.ts`). Each account is `shared` or `independent`, stored as
+  `config.mode` in `accounts.json` (an account made before the mode existed has none and is
+  `shared`). A new account starts in `newAccountConfig` of the rotation settings, `shared` unless a
+  person set it through `PUT /accounts/settings`; one born `independent` starts from a copy.
+  Identity is always the account's own and history always shared; the configuration items follow
+  the mode: links kept by the pass above for `shared`, the account's own files, which the pass
+  leaves alone, for `independent`. The default account is the source of "shared" and has no mode.
+  - **To independent**: each configuration link is replaced by a copy of what it points to (an item
+    missing in the account is copied too), or only removed with `start: 'empty'`. A copy is built
+    under `<account dir>/.claudio-switch/` (`<item>.partial` while it is written, renamed when whole)
+    and then renamed into place; links inside an item stay links. Nothing of the default dir is
+    written.
+  - **To shared**: each configuration item of the account's own is moved to
+    `<account dir>/.claudio-own/<time>/` and the default's linked; one the default lacks is only
+    moved aside. Nothing is deleted.
+  - **Plan, then apply.** `GET /accounts/:id/config/plan` answers the steps (`copy`, `unlink`,
+    `link`, `replace`, `move-aside`, `keep`, `skip`, `conflict`) with nothing written;
+    `PUT /accounts/:id/config` carries them out one item at a time. Each step is atomic for its item;
+    a step that fails reads `conflict` (`reason: 'failed'`) and the rest go on. The switch is
+    recorded (`config.switching`, with its start and its aside dir) before its first step, so a
+    second call, or the next start of the server, finishes one cut short; a run with nothing left to
+    do plans only `keep` and `skip`.
+  - **Use shared.** `POST /accounts/:id/config/items/:name` `{ use: 'shared' }` (planned by
+    `GET …/items/:name/plan`) settles one conflict: the account's item, such as the real
+    `agent-memory/` older accounts have, goes aside and the default's is linked. The two are never
+    merged.
+  - **What is served.** `Account.config` in the `/accounts` routes' answers (not in the overview's account view,
+    which every choice path would pay for: it reads every item of every dir) and
+    `GET /accounts/:id/config`: the mode, each item's
+    state (`linked`, `missing`, `own`, `absent`, `conflict` with its reason, `not-in-default`), a
+    sum-up `state` (`ok`, `repair`, `conflict`), a switch cut short, and the dirs kept aside. Every
+    write is refused to a chat's token; reads are not.
+  - Removing an account deletes its dir, the copies kept aside in it included.
 - **Writes keep the links.** Claudio's own writers (`writeAtomic` in `packages/accounts` and in
   `packages/core/src/config`) write the file a link ends at, so saving `settings.json`, `CLAUDE.md` or
   an agent file from Settings does not replace the link with a plain copy.
@@ -441,6 +482,12 @@ account's reading), `rotation-card.test.tsx` and `chat-limit.test.tsx`; the e2e 
 `packages/accounts/test/cli-usage.test.ts` guards the parser (against a recorded real answer), the
 fold precedence and the per-model choice; `apps/api/test/accounts.test.ts` the refresh routes; and
 `apps/web/test/account-card.test.tsx` the card.
+
+The configuration mode is guarded by `packages/accounts/test/config-mode.test.ts` (the install
+default, the reconciliation per mode, history in both modes, each switch, the plan writing nothing,
+an interrupted switch finished, a conflict blocking only its item, "use shared", the automatic
+moves and their live-chat guard) and by `apps/api/test/accounts.test.ts` (the served state, the
+routes, a chat's token refused).
 
 ## Related
 

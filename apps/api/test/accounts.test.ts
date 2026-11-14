@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, statSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import type { Account, AccountLoginSession, AuthStatus, AccountsSettings, RotationEvent, RotationPolicy, UsageHistoryPoint } from '@claudio/shared';
+import type { Account, AccountConfig, AccountConfigPlan, AccountConfigResult, AccountLoginSession, AuthStatus, AccountsSettings, RotationEvent, RotationPolicy, UsageHistoryPoint } from '@claudio/shared';
 import { AccountLogins } from '../src/account-logins.ts';
 import { buildApp } from '../src/app.ts';
 
@@ -334,15 +334,64 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
       ['POST', '/api/accounts/policies', { projects: ['p'] }],
       ['PUT', '/api/accounts/policies/any', { projects: ['p'] }],
       ['DELETE', '/api/accounts/policies/any', undefined],
+      ['PUT', `/api/accounts/${id}/config`, { mode: 'independent' }],
+      ['POST', `/api/accounts/${id}/config/items/agent-memory`, { use: 'shared' }],
     ];
+    // A chat's token reads an account's configuration and the plans, and changes none of it
+    for (const url of [`/api/accounts/${id}/config`, `/api/accounts/${id}/config/plan?mode=independent`, `/api/accounts/${id}/config/items/agent-memory/plan`]) {
+      assert.equal((await guarded.inject({ url, ...as(chat) })).statusCode, 200, url);
+    }
     for (const [method, url, body] of denied) {
       const res = await guarded.inject({ method: method as 'GET', url, ...as(chat, body) });
       assert.equal(res.statusCode, 403, `${method} ${url}`);
     }
     assert.ok(secured.accounts.list().some((a) => a.id === id), 'nothing the chat tried changed the accounts');
+    assert.equal(secured.accounts.configOf(id)?.mode, 'shared', 'nor its configuration mode');
   } finally {
     await guarded.close();
     await secured.shutdown();
+  }
+});
+
+test('the API serves the configuration mode and the state of each item, plans a switch and applies it', async () => {
+  const claudeDir = join(root, 'claude');
+  mkdirSync(join(claudeDir, 'agents'), { recursive: true });
+  writeFileSync(join(claudeDir, 'CLAUDE.md'), 'be brief');
+  const created = await app.inject({ method: 'POST', url: '/api/accounts/token', ...json({ kind: 'token', alias: 'modes', secret: 's' }) });
+  const { id } = created.json<Account>();
+  try {
+    const listed = (await accounts()).find((a) => a.id === id);
+    assert.equal(listed?.config?.mode, 'shared', 'a new account takes the install default');
+    assert.equal(listed?.config?.items.find((i) => i.name === 'CLAUDE.md')?.state, 'linked');
+    assert.equal(listed?.config?.items.find((i) => i.name === 'projects')?.class, 'history');
+    const config = (await app.inject(`/api/accounts/${id}/config`)).json<AccountConfig>();
+    assert.deepEqual(config, listed?.config);
+    assert.equal((await app.inject('/api/accounts/default/config')).statusCode, 400, 'the default account has no mode');
+    assert.equal((await app.inject('/api/accounts/acc-nope/config')).statusCode, 404);
+
+    const plan = (await app.inject(`/api/accounts/${id}/config/plan?mode=independent&start=empty`)).json<AccountConfigPlan>();
+    assert.deepEqual(plan.steps.filter((s) => s.action === 'unlink').map((s) => s.name).sort(), ['CLAUDE.md', 'agents']);
+    assert.equal((await app.inject(`/api/accounts/${id}/config/plan?mode=elsewhere`)).statusCode, 400);
+    assert.equal((await app.inject({ method: 'PUT', url: `/api/accounts/${id}/config`, ...json({ mode: 'shared', start: 'empty' }) })).statusCode, 400);
+
+    const applied = await app.inject({ method: 'PUT', url: `/api/accounts/${id}/config`, ...json({ mode: 'independent', start: 'empty' }) });
+    assert.equal(applied.statusCode, 200);
+    const result = applied.json<AccountConfigResult>();
+    assert.equal(result.account.config?.mode, 'independent');
+    assert.equal(result.account.config?.items.find((i) => i.name === 'CLAUDE.md')?.state, 'absent');
+    assert.equal(readFileSync(join(claudeDir, 'CLAUDE.md'), 'utf8'), 'be brief', 'the default dir is untouched');
+
+    const back = (await app.inject({ method: 'PUT', url: `/api/accounts/${id}/config`, ...json({ mode: 'shared' }) })).json<AccountConfigResult>();
+    assert.equal(back.account.config?.items.find((i) => i.name === 'CLAUDE.md')?.state, 'linked');
+    assert.equal(back.account.config?.state, 'ok');
+    assert.equal((await app.inject({ method: 'POST', url: `/api/accounts/${id}/config/items/nonsense`, ...json({ use: 'shared' }) })).statusCode, 400);
+
+    const settings = await app.inject({ method: 'PUT', url: '/api/accounts/settings', ...json({ newAccountConfig: 'independent' }) });
+    assert.equal(settings.json<AccountsSettings>().newAccountConfig, 'independent');
+    assert.equal((await app.inject({ method: 'PUT', url: '/api/accounts/settings', ...json({ newAccountConfig: 'both' }) })).statusCode, 400);
+    await app.inject({ method: 'PUT', url: '/api/accounts/settings', ...json({ newAccountConfig: 'shared' }) });
+  } finally {
+    await app.inject({ method: 'DELETE', url: `/api/accounts/${id}` });
   }
 });
 
