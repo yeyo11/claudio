@@ -75,6 +75,10 @@ async function rig(opts: { work?: ChatWork | null; limited?: (ids: Record<string
     accountsChanged: (listener) => store.onChange(listener),
     pollMs: opts.pollMs ?? 20,
     slackMs: 0,
+    // Read at each call, as the chats and the accounts read it: left out, the rotation keeps the real
+    // `Date.now` it was built with, and a test that freezes `Date` froze only the readings, so a slow
+    // reading let the wait's timer find a reset passed that every reading still had ahead (R10)
+    now: () => Date.now(),
   });
   rotation.start();
   return {
@@ -478,6 +482,41 @@ test('a reading that leaves every account out moves the wait to the earliest res
         spawns: r.spawns().map((x) => x.dir),
       });
     assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting', `beta is still out; saw ${seen()}`);
+    const before = r.spawns().length;
+    t.mock.timers.tick(400);
+    await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed' && r.spawns().length > before);
+    assert.equal(r.spawns().at(-1)?.dir, r.dirs[r.ids.b], 'its reset passing is a way back');
+  } finally {
+    r.close();
+  }
+});
+
+// The test above freezes `Date`; until the rig gave the rotation that clock, the rotation kept the real
+// `Date.now` it took when it was built: a loaded machine that spent beta's 400 ms over the reading had
+// the wait's timer find the reset passed by the real clock, and resume, while every reading still
+// said beta was out. Here the stall is made on purpose, on the reading itself.
+test('a wait keeps waiting for a reset the frozen clock has not reached, however long the machine takes over the reading (R10)', async (t) => {
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 3600, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+    const rechecks = t.mock.method(r.rotation as unknown as { recheck(): Promise<void> }, 'recheck');
+    const soon = Date.now() + 400;
+    const reading = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: soon / 1000, unifiedWindows: { five_hour: { utilization: 1, resetsAt: soon / 1000 } } }, Date.now());
+    assert.ok(reading);
+    // Heard after the rotation's own listener queued its look, and before that look runs: 600 ms of
+    // real time go by, more than beta's 400, while the test's clock stands still
+    const stall = r.store.onChange(() => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 600));
+    await r.chats.noteAccountReading(r.ids.b, reading);
+    stall();
+    await waitFor(() => rechecks.mock.callCount() > 0);
+    await Promise.all(rechecks.mock.calls.map((call) => call.result));
+    // Whatever timer the look armed for a reset it took as passed has fired by now
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting', 'by the clock every reading is read with, beta is still out');
     const before = r.spawns().length;
     t.mock.timers.tick(400);
     await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed' && r.spawns().length > before);
