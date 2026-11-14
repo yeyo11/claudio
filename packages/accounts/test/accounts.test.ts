@@ -74,8 +74,10 @@ describe('store, dirs and env', () => {
     // The CLI's own dir is left unset, so the CLI reads ~/.claude.json and not ~/.claude/.claude.json
     const home = { ...env(), HOME: root };
     assert.equal(envFor({ id: 'default', kind: 'login', dir: join(root, '.claude') }, home).CLAUDE_CONFIG_DIR, undefined);
-    // And a CLAUDE_CONFIG_DIR the process already had is kept as it is
-    assert.equal(envFor(s.ref('default'), { ...env(), CLAUDE_CONFIG_DIR: '/elsewhere' }).CLAUDE_CONFIG_DIR, '/elsewhere');
+    // A CLAUDE_CONFIG_DIR the process already had is kept as it is while it names the default's own dir...
+    assert.equal(envFor(s.ref('default'), { ...env(), CLAUDE_CONFIG_DIR: `${defaultDir}/` }).CLAUDE_CONFIG_DIR, `${defaultDir}/`);
+    // ...and replaced when it names another one, which a chat on another account exports (B15)
+    assert.equal(envFor(s.ref('default'), { ...env(), CLAUDE_CONFIG_DIR: '/elsewhere' }).CLAUDE_CONFIG_DIR, defaultDir);
     const key = await s.add({ kind: 'api-key', alias: 'billing', secret: 'sk-ant-api' });
     const k = envFor(s.ref(key.id), env());
     assert.equal(k.ANTHROPIC_API_KEY, 'sk-ant-api');

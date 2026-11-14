@@ -243,8 +243,9 @@ test('S-10: two messages sent close together reach the agent in the order they w
     assert.deepEqual(written, ['one', 'two']);
   } finally {
     writeFileSync(join(scratch, 'f1'), '');
-    core.shutdown();
-    await pause(150);
+    // Awaited: the Core's last writes (the released turn's exit, the store closing) land under
+    // `data`, and a fixed pause lost the race to the removal below on a loaded runner (ENOTEMPTY)
+    await core.shutdown();
     restore();
     rmSync(scratch, { recursive: true, force: true });
     rmSync(join(config.dataDir, '..'), { recursive: true, force: true });
