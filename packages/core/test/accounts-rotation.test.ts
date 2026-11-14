@@ -487,6 +487,41 @@ test('a reading that leaves every account out moves the wait to the earliest res
   }
 });
 
+// The test above froze `Date` for the chats and the accounts, while the rotation kept the real
+// `Date.now` it took when it was built: a loaded machine that spent beta's 400 ms over the reading had
+// the wait's timer find the reset passed by the real clock, and resume, while every reading still
+// said beta was out. Here the stall is made on purpose, on the reading itself.
+test('a wait keeps waiting for a reset the frozen clock has not reached, however long the machine takes over the reading (R10)', async (t) => {
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 3600, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+    const rechecks = t.mock.method(r.rotation as unknown as { recheck(): Promise<void> }, 'recheck');
+    const soon = Date.now() + 400;
+    const reading = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: soon / 1000, unifiedWindows: { five_hour: { utilization: 1, resetsAt: soon / 1000 } } }, Date.now());
+    assert.ok(reading);
+    // Heard after the rotation's own listener queued its look, and before that look runs: 600 ms of
+    // real time go by, more than beta's 400, while the test's clock stands still
+    const stall = r.store.onChange(() => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 600));
+    await r.chats.noteAccountReading(r.ids.b, reading);
+    stall();
+    await waitFor(() => rechecks.mock.callCount() > 0);
+    await Promise.all(rechecks.mock.calls.map((call) => call.result));
+    // Whatever timer the look armed for a reset it took as passed has fired by now
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(r.db.providerMove(move?.id ?? '')?.state, 'waiting', 'by the clock every reading is read with, beta is still out');
+    const before = r.spawns().length;
+    t.mock.timers.tick(400);
+    await waitFor(() => r.db.providerMove(move?.id ?? '')?.state === 'resumed' && r.spawns().length > before);
+    assert.equal(r.spawns().at(-1)?.dir, r.dirs[r.ids.b], 'its reset passing is a way back');
+  } finally {
+    r.close();
+  }
+});
+
 // R11: "Stop waiting" also offers "run it now on an account with room"
 // Cause 9 of docs/plans/limit-resume-and-credits.md: a failure was compared with the account's latest
 // reading, so a reading taken after the reset (not out, about a time the account was out) left the
