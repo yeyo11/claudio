@@ -33,6 +33,7 @@ import {
   type ExecutionExtras,
   type HousekeepingPurpose,
   type NewChat,
+  type PendingMessage,
   type PermissionHost,
   type ResolvedTools,
   type RunMeta,
@@ -81,13 +82,20 @@ export function limitedTail(executions: readonly Execution[]): string[] {
   return limitedTailAt(executions).map((f) => f.account);
 }
 
-/** `limitedTail` with when each execution died (epoch ms): its end, else its start for one never closed. */
-export function limitedTailAt(executions: readonly Execution[]): { account: string; at: number }[] {
-  const failures: { account: string; at: number }[] = [];
+/** A turn that died on an account's limit: when (epoch ms), and until when the account said it was out (null when nothing said) */
+export interface LimitFailure {
+  at: number;
+  until: number | null;
+}
+
+/** `limitedTail` with when each execution died (epoch ms): its end, else its start for one never closed, and the reset it recorded. */
+export function limitedTailAt(executions: readonly Execution[]): ({ account: string } & LimitFailure)[] {
+  const failures: ({ account: string } & LimitFailure)[] = [];
   for (let i = executions.length - 1; i >= 0; i--) {
     const e = executions[i];
     if (!e || e.cause !== 'rate-limit') break;
-    if (e.account) failures.push({ account: e.account, at: Date.parse(e.endedAt ?? e.startedAt) });
+    const until = e.limitResetsAt ? Date.parse(e.limitResetsAt) : NaN;
+    if (e.account) failures.push({ account: e.account, at: Date.parse(e.endedAt ?? e.startedAt), until: Number.isFinite(until) ? until : null });
   }
   return failures;
 }
@@ -99,9 +107,16 @@ export function limitedTailAt(executions: readonly Execution[]): { account: stri
  * turn and that turn died again, the rotation still passed over every account the earlier turns
  * had died on, reset or not, and waited instead of moving (R11 of docs/plans/ci-and-regression-open.md).
  * A failure the reading never showed as out (a bare 429, a reset already past) counts as before.
+ *
+ * The reset the failure itself recorded decides first: the account's reading is the latest one, and a
+ * reading taken after the reset says "not out" about a time it was out, so the failure counted until a
+ * turn went through (cause 9 of docs/plans/limit-resume-and-credits.md). An earlier reset than the
+ * recorded one is still seen through the reading (R10).
  */
-function resetSince(accounts: Pick<ChatAccounts, 'find'>, account: string, failedAt: number, at: number): boolean {
-  return isOut(accounts.find(account, failedAt)?.limits, failedAt) && !isOut(accounts.find(account, at)?.limits, at);
+function resetSince(accounts: Pick<ChatAccounts, 'find'>, account: string, failure: LimitFailure, at: number): boolean {
+  // A reset not after the failure is no evidence (a refusal can quote one already past): the failure counts as if none was said
+  if (failure.until !== null && failure.until > failure.at && at >= failure.until) return true;
+  return isOut(accounts.find(account, failure.at)?.limits, failure.at) && !isOut(accounts.find(account, at)?.limits, at);
 }
 /**
  * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
@@ -638,7 +653,8 @@ export class ChatManager extends EventEmitter {
       // What is read back is what was written: nothing to save again. One the restore cut off has
       // an execution it ended just now, and is written whole below
       if (!chat.cutOff) this.saved.set(chat.id, ChatManager.savedOf(chat));
-      if (!chat.cutOff && !pids && chat.endedAt !== null && chat.endedAt <= cutoff) {
+      // One at its limit stays: its banner, its Wait and the rotation's replay need it awake (`retirable`)
+      if (!chat.cutOff && !pids && !chat.rateLimited && chat.endedAt !== null && chat.endedAt <= cutoff) {
         this.chats.set(chat.id, chat);
         this.chats.retire(chat.id, chat.summary());
         this.saved.delete(chat.id);
@@ -646,6 +662,9 @@ export class ChatManager extends EventEmitter {
         continue;
       }
       this.chats.set(chat.id, chat);
+      // The reset the limit recorded: the wait that opens on it knows when to look
+      const recorded = chat.rateLimited && !chat.authFailed ? chat.executions[chat.executions.length - 1]?.limitResetsAt : undefined;
+      if (recorded) this.refusedUntil.set(chat, { until: recorded, account: chat.account });
       if (chat.cutOff) cut.push(chat);
       if (pids) {
         chat.push({
@@ -1373,6 +1392,9 @@ export class ChatManager extends EventEmitter {
     const receipt = { id: message.id, taken };
     chat.remember(receipt);
     this.persist(chat);
+    // A person wrote to the chat: a wait it was in is over at once (docs/accounts.md), unless this is the
+    // limit's own replay of a turn. Housekeeping turns (`purpose`) are not a person's words
+    if (message.source === 'person' && !purpose && !this.replaying.has(id)) this.emit('person-message', id);
     return receipt;
   }
 
@@ -2233,13 +2255,17 @@ export class ChatManager extends EventEmitter {
    * rejected event with no reset leaves the account out for `cooldownSeconds` on its reading.
    */
   private observeAccount(chat: LiveChat, event: DriverEvent): void {
-    if (event.kind === 'rate-limit' && event.info.status === 'rejected' && event.info.resetsAt) this.refusedUntil.set(chat, new Date(event.info.resetsAt * 1000).toISOString());
+    if (event.kind === 'rate-limit' && event.info.status === 'rejected' && event.info.resetsAt) this.refusedUntil.set(chat, { until: new Date(event.info.resetsAt * 1000).toISOString(), account: chat.account });
     const store = this.accounts;
     const id = chat.account;
     if (!store || !id) return;
     // One stamp for the failure and the reading it brings: the reading says the account was out then
     const at = Date.now();
-    if (event.kind !== 'rate-limit' || event.info.status === 'rejected') chat.limitedAccounts.set(id, at);
+    if (event.kind !== 'rate-limit' || event.info.status === 'rejected') {
+      // The reset this very event gave, when it gave one: what the failure is compared with later
+      const given = event.kind === 'rate-limit' && event.info.resetsAt ? event.info.resetsAt * 1000 : null;
+      chat.limitedAccounts.set(id, { at, until: given });
+    }
     if (event.kind !== 'rate-limit') return;
     const { info } = event;
     const reading = readingFromEvent(
@@ -2331,11 +2357,12 @@ export class ChatManager extends EventEmitter {
    * every one whose reset has passed since its latest failure (`resetSince`).
    */
   private stillFailed(chat: LiveChat, store: ChatAccounts, at: number): string[] {
-    const latest = new Map<string, number>();
-    for (const f of [...limitedTailAt(chat.executions), ...[...chat.limitedAccounts].map(([account, failedAt]) => ({ account, at: failedAt }))]) {
-      latest.set(f.account, Math.max(latest.get(f.account) ?? 0, f.at));
+    const latest = new Map<string, LimitFailure>();
+    for (const f of [...limitedTailAt(chat.executions), ...[...chat.limitedAccounts].map(([account, failure]) => ({ account, ...failure }))]) {
+      const known = latest.get(f.account);
+      if (!known || f.at > known.at || (f.at === known.at && known.until === null)) latest.set(f.account, { at: f.at, until: f.until });
     }
-    return [...latest].filter(([account, failedAt]) => !resetSince(store, account, failedAt, at)).map(([account]) => account);
+    return [...latest].filter(([account, failure]) => !resetSince(store, account, failure, at)).map(([account]) => account);
   }
 
   /**
@@ -2688,6 +2715,7 @@ export class ChatManager extends EventEmitter {
     const execution = chat.execution;
     if (execution) {
       Object.assign(execution, { endedAt: chat.endedAt, outcome: executionOutcome(status), error: chat.error, ...(chat.rateLimited ? { cause: chat.authFailed ? ('auth' as const) : ('rate-limit' as const) } : {}) });
+      if (chat.rateLimited && !chat.authFailed) this.stampLimit(chat, execution);
     }
     // What the agent still had in its queue died with it; what waits for the next process does not
     for (const message of chat.written()) {
@@ -2723,8 +2751,15 @@ export class ChatManager extends EventEmitter {
     this.emit('limit-hit', chat.summary(), this.limitResetOf(chat.id));
   }
 
-  /** The reset each chat's last refused turn gave (ISO), until a turn goes through: that turn's own evidence */
-  private readonly refusedUntil = new WeakMap<LiveChat, string>();
+  /** Chats whose own replay is sending a turn now: what it sends is the limit's, never a person taking the chat over */
+  private readonly replaying = new Set<string>();
+
+  /**
+   * The reset each chat's last refused turn gave (ISO), until a turn goes through: that turn's own
+   * evidence, and only for the account that gave it (a chat moved to another account is not out until
+   * the first one's reset).
+   */
+  private readonly refusedUntil = new WeakMap<LiveChat, { until: string; account: string | null }>();
 
   /**
    * When the account the chat's turn died on comes back, as far as the chat knows: its reading's
@@ -2733,9 +2768,20 @@ export class ChatManager extends EventEmitter {
    */
   limitResetOf(id: string): string | null {
     const chat = this.chats.get(id);
-    if (!chat) return null;
-    const limit = this.limitOf(id);
-    return limit?.state === 'exhausted' && limit.resetsAt ? limit.resetsAt : (this.refusedUntil.get(chat) ?? null);
+    return chat ? this.resetOfChat(chat) : null;
+  }
+
+  private resetOfChat(chat: LiveChat): string | null {
+    const limit = this.limitOf(chat.id);
+    if (limit?.state === 'exhausted' && limit.resetsAt) return limit.resetsAt;
+    const refused = this.refusedUntil.get(chat);
+    return refused && refused.account === chat.account ? refused.until : null;
+  }
+
+  /** What the execution that died on the limit records of it: the reset the chat knew, which a restart reads back */
+  private stampLimit(chat: LiveChat, execution: Execution): void {
+    const until = this.resetOfChat(chat);
+    if (until) execution.limitResetsAt = until;
   }
 
   /** A wrapper-generated line in the transcript (account rotations, retries). */
@@ -2885,8 +2931,8 @@ export class ChatManager extends EventEmitter {
     if (!account.signedIn) throw new AccountSwitchRefusal('signed-out', `account ${accountId} is signed out`);
     const at = Date.now();
     const out = isOut(account.limits, at);
-    const failedAt = chat.limitedAccounts.get(accountId);
-    if (out || (failedAt !== undefined && !resetSince(store, accountId, failedAt, at))) {
+    const failure = chat.limitedAccounts.get(accountId);
+    if (out || (failure !== undefined && !resetSince(store, accountId, failure, at))) {
       throw new AccountSwitchRefusal('exhausted', `account ${accountId} is out of usage${out && account.limits?.resetsAt ? ` until ${account.limits.resetsAt}` : ''}`);
     }
     // The lists the check looks at may not have been read yet (no turn, no tokens)
@@ -2979,6 +3025,7 @@ export class ChatManager extends EventEmitter {
   private keepLimitCause(chat: LiveChat): void {
     if (chat.rateLimited && chat.execution && !chat.execution.endedAt) {
       chat.execution.cause = chat.authFailed ? 'auth' : 'rate-limit';
+      if (!chat.authFailed) this.stampLimit(chat, chat.execution);
     }
   }
 
@@ -2989,6 +3036,8 @@ export class ChatManager extends EventEmitter {
   async replayLastTurn(id: string, account?: string): Promise<boolean> {
     const chat = this.chats.get(id);
     if (!chat || !chat.lastUserTurn) return false;
+    // Taken before anything changes: a resume the runtime refuses (run slots, memory) leaves the chat at its limit, as it was
+    const before = this.limitStateOf(chat);
     // A move to another account is not the second failure the counter guards against: every account
     // the turn died on is no candidate for its next move (`chooseNext`), so a chain of moves ends by itself
     if (account) chat.forcedAccount = account;
@@ -3009,14 +3058,38 @@ export class ChatManager extends EventEmitter {
       this.stop(id);
       if (proc) await once(proc, 'close');
     }
+    const held = new Map(chat.pending);
     chat.pending.clear();
-    for (const message of turn) {
-      // One that never reached the agent keeps the id the page knows it by, and the page hears it
-      // goes on (`carried`); one the transcript already has goes again under an id of its own
-      if (waiting.has(message.id)) this.carry(chat, message);
-      this.sendMessage(id, message.text, message.attachments.map((a) => a.id), waiting.has(message.id) ? message.id : undefined, undefined, fromOf(message));
+    this.replaying.add(id);
+    try {
+      for (const message of turn) {
+        // One that never reached the agent keeps the id the page knows it by, and the page hears it
+        // goes on (`carried`); one the transcript already has goes again under an id of its own
+        if (waiting.has(message.id)) this.carry(chat, message);
+        this.sendMessage(id, message.text, message.attachments.map((a) => a.id), waiting.has(message.id) ? message.id : undefined, undefined, fromOf(message));
+      }
+    } catch (error) {
+      this.restoreLimitState(chat, before, held);
+      throw error;
+    } finally {
+      this.replaying.delete(id);
     }
     return true;
+  }
+
+  /**
+   * What a resume has to put back when the runtime refuses it, before it knows it was admitted: the
+   * limit flags, the replay count and the account the move chose. The chat stays at its limit, and
+   * the retry replays the turn it was, not the nudge.
+   */
+  private limitStateOf(chat: LiveChat) {
+    return { rateLimited: chat.rateLimited, authFailed: chat.authFailed, limitRequested: chat.limitRequested, limitReplays: chat.limitReplays, forcedAccount: chat.forcedAccount };
+  }
+
+  private restoreLimitState(chat: LiveChat, before: ReturnType<ChatManager['limitStateOf']>, held: ReadonlyMap<string, PendingMessage>): void {
+    Object.assign(chat, before);
+    // A message the agent had not taken is still waiting for it
+    for (const [messageId, message] of held) if (!chat.pending.has(messageId)) chat.pending.set(messageId, message);
   }
 
   /** A message that waited for a process this chat replaces goes on in the new one, under its own id: the page is told so. */
@@ -3034,6 +3107,7 @@ export class ChatManager extends EventEmitter {
   async replayWith(id: string, text: string, account?: string): Promise<boolean> {
     const chat = this.chats.get(id);
     if (!chat) return false;
+    const before = this.limitStateOf(chat);
     if (account) chat.forcedAccount = account;
     else if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
     else chat.limitReplays++;
@@ -3042,6 +3116,7 @@ export class ChatManager extends EventEmitter {
     chat.authFailed = false;
     chat.limitRequested = false;
     const waiting = [...chat.pending.values()];
+    const held = new Map(chat.pending);
     if (chat.alive) {
       const proc = chat.proc;
       // Its messages go on in the next process: stopping this one loses none of them
@@ -3050,10 +3125,18 @@ export class ChatManager extends EventEmitter {
       if (proc) await once(proc, 'close');
     }
     chat.pending.clear();
-    this.sendMessage(id, text);
-    for (const message of waiting) {
-      this.carry(chat, message);
-      this.sendMessage(id, message.text, message.attachments.map((a) => a.id), message.id, undefined, fromOf(message));
+    this.replaying.add(id);
+    try {
+      this.sendMessage(id, text);
+      for (const message of waiting) {
+        this.carry(chat, message);
+        this.sendMessage(id, message.text, message.attachments.map((a) => a.id), message.id, undefined, fromOf(message));
+      }
+    } catch (error) {
+      this.restoreLimitState(chat, before, held);
+      throw error;
+    } finally {
+      this.replaying.delete(id);
     }
     return true;
   }

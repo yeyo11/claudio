@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-14T09:00:00Z
+updated_at: 2026-11-14T12:00:00Z
 tags:
     - accounts
     - rotation
@@ -263,22 +263,36 @@ tell a refused credential from an unreachable network. The four raw answers are 
   the turn's own account or refusal gave. An account that cannot run the model the chat asked for
   does not shorten the wait. A person's chat and a schedule's chat wait like automated work when
   `rotateOnLimit` is on, and go on by themselves; with it off they keep the banner. A person's
-  wait ends when they write to the chat. A wait for a known reset holds however far away it is;
+  wait ends the moment they write to the chat (`ChatManager` announces `person-message`, the
+  rotation cancels the wait; what the rotation itself sends is no person's). A wait for a known reset holds however far away it is;
   `maxWaitHours` bounds only a wait with no reset. A housekeeping (`internal`) chat is never moved,
   replayed or waited: it runs with no persisted session, so it ends at a limit and its owner runs
   it again. A resume the runtime refuses for run slots or memory keeps the wait and tries again
-  when the claim lapses (2 min). A wait whose chat no process has any more is closed `failed`.
+  when the claim lapses (2 min), and the chat stays as it was: the banner stays, and the retry
+  sends the turn that died, not the nudge, because a refused replay is no replay (`replayLastTurn`
+  puts the flags, the count and the account it chose back). A wait whose chat no process has any
+  more is closed `failed`.
+- **A limit survives a restart.** An execution that died on a limit records the reset it knew
+  (`Execution.limitResetsAt`) beside its `cause` and account. A restored chat whose last execution
+  died that way, on the account the chat is still on, is at its limit again (`LiveChat.restore`):
+  the banner shows, `POST /chats/:id/wait` opens the wait, and the reset it waits for is the recorded
+  one. It is not retired from memory while it is. The turn that died is not kept, so the replay
+  after a restart is the nudge (`LIMIT_CONTINUE_TEXT`): the CLI's session has the person's last
+  message.
 - **The replay count** (`MAX_LIMIT_REPLAYS`, one per execution) counts replays that landed on no new
   account, between two turns that went through. A turn that completes without error resets it, and a
   move to another account is never counted nor held back by it: `chooseNext` passes over every
   account the turn died on, so a chain of moves ends by itself. Before this, a second limit after a
   wait-replay left the chat stuck.
-- **A failure ends at its reset.** Each failure keeps when it happened (the chat's
-  `limitedAccounts`, and the end of each failed execution in `limitedTailAt`). It stops counting
-  once the account's reading said it was out then and says it is not now (`resetSince` in
-  `chats.ts`); `chooseNext`, `roomFor` and a person's switch read the same set (`stillFailed`). A
-  failure no reading showed as out (a bare 429, a reset already past) counts until a turn goes
-  through, as before. Until 2026-11-07 every failure counted until then, so once a wait replayed a
+- **A failure ends at its reset.** Each failure keeps when it happened and the reset it was
+  refused with (the chat's `limitedAccounts`, and the end and `limitResetsAt` of each failed
+  execution in `limitedTailAt`). It stops counting once that reset has passed, or once the
+  account's reading said it was out then and says it is not now (`resetSince` in `chats.ts`);
+  `chooseNext`, `roomFor` and a person's switch read the same set (`stillFailed`). The recorded
+  reset decides first because the reading is the latest one: a reading taken after the reset says
+  "not out" about a time the account was out, and the failure then counted until a turn went
+  through. A failure with no reset recorded (a bare 429, or a reset not after the failure) counts
+  until the reading says otherwise, as before. Until 2026-11-07 every failure counted until then, so once a wait replayed a
   turn that died again the rotation still skipped accounts whose reset had passed, and waited
   instead of moving (R11 of [ci-and-regression-open](plans/ci-and-regression-open.md)).
 - **A fork keeps its account** and its pin; a fork of a chat that ran on account B does not start
