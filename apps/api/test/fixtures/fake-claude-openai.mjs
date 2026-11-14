@@ -11,6 +11,8 @@
 //   SLOW <ms>     waits that long, then echoes
 //   BACKGROUND    reports a background task started (`task_started`, never ended), then echoes
 //   BUDGET        streams the start of an answer, then ends as `--max-budget-usd` does (`error_max_budget_usd`)
+//   LIMIT <s>     the account's usage limit: the rejected rate_limit_event with its reset <s> seconds away (none
+//                 when <s> is 0), then the 429 result the CLI ends the turn with
 //   TURNS         ends the turn as `--max-turns` does (`error_max_turns`), with no answer
 //
 // Started with `--json-schema`, it answers as the CLI does there: a line of prose, then a call to the
@@ -283,6 +285,15 @@ async function answer(prompt) {
     return;
   }
   if (last === 'EXIT') process.exit(0);
+  const limit = /^LIMIT (\d+)$/.exec(last);
+  if (limit) {
+    const resetsIn = Number(limit[1]);
+    const resetsAt = Math.floor(Date.now() / 1000) + resetsIn;
+    out({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', ...(resetsIn > 0 ? { resetsAt } : {}) } });
+    turns++;
+    out({ type: 'result', subtype: 'error_during_execution', is_error: true, api_error_status: 429, num_turns: 1, total_cost_usd: 0.01, result: "You've hit your usage limit" });
+    return;
+  }
   if (last === 'TURNS') {
     result(true, '', undefined, 'error_max_turns');
     return;

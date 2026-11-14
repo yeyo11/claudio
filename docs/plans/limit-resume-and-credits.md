@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-14T12:00:00Z
+updated_at: 2026-11-14T15:00:00Z
 tags:
     - plan
     - study
@@ -489,6 +489,18 @@ What differs from the plan:
 
 Still open: a step's wait across a restart is closed rather than followed (`t8` could resume the step
 itself); the web shows `stepWaits` only through the review gate's line (`t9`).
+
+### t4, `/v1` at a limit (branch `fix/v1-retry-after`)
+
+Built in `packages/core/src/openai/events.ts`, `apps/api/src/routes/openai.ts` and `packages/core/src/rotation.ts`; tests in `apps/api/test/openai-limit.test.ts` (over the fake CLI's new `LIMIT <s>` directive) and `packages/core/test/rotation-person-wait.test.ts`.
+
+- **`Retry-After`.** `/v1` already turned `usage-limit` into a 429 with `Retry-After` when the failure carried a reset, but both places that build it (the translator's `result` and the turn's `ended`) passed `null`. They now pass `ChatManager.limitResetOf(chat)` (`TurnContext.limitResetsAt`), so the header counts to the reset the CLI reported (at least 1 s). A rejection with no reset counts to the account's cooldown (300 s); with no reading at all the 429 has no header. Chat Completions and Responses both.
+- **Cause 11, the replay.** The rotation returns for an `origin: 'api'` chat right after announcing the limit: no move to another account, no wait. The request was answered with its 429 when the turn died, so a replay (or a wait) was a turn spent for nobody.
+
+What differs from the plan:
+
+- t1's note said an API chat "is still moved when an account has room". That was the replay of cause 11, so t4 removes it too. The chat stays on the account it died on; a client's retry after a failed turn has no conversation key, so it starts a chat that passes over the account that is out.
+- A streamed answer has sent its 200 before the limit, so there the limit is the error chunk with no header; `Retry-After` is for the whole answer.
 
 ## The owner's decisions (2026-11-13)
 
