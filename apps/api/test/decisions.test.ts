@@ -7,6 +7,7 @@ import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
 import type {
+  DecisionActivationRefusal,
   DecisionCredentialsResult,
   DecisionPage,
   DecisionPaletteResult,
@@ -14,6 +15,7 @@ import type {
   DecisionPreview,
   DecisionRecord,
   DecisionSettings,
+  DecisionSettingsSaveResult,
   DecisionStats,
   DecisionTestResult,
 } from '@claudio/shared';
@@ -65,6 +67,9 @@ const row = (id: string, over: Partial<DecisionRecord> = {}): DecisionRecord => 
   acted: false,
   visible: false,
   savedRun: false,
+  runEffect: 0,
+  baseline: null,
+  heldOut: false,
   latencyMs: 120,
   inputTokens: null,
   costUsd: 0.001,
@@ -110,7 +115,7 @@ test('the settings are read, replaced whole and validated, and consent survives 
   const again = await app.inject({
     method: 'PUT',
     url: '/api/decisions/settings',
-    ...json(settingsBody(before, { 'flow.bounce': { mode: 'active', threshold: 0.9, consent: null } })),
+    ...json(settingsBody(before, { 'flow.bounce': { mode: 'shadow', threshold: 0.8, consent: null } })),
   });
   assert.equal(again.json<DecisionSettings>().points['flow.bounce']?.consent?.stateVersion, 1);
 
@@ -142,6 +147,49 @@ test('the Jev key is saved with the privacy notice, never returned, and removed'
 
   const removed = await app.inject({ method: 'DELETE', url: '/api/decisions/credentials' });
   assert.equal(removed.json<DecisionCredentialsResult>().keySet, false);
+});
+
+test('the promotion gate refuses an unproven act point with a typed 409 and the evidence it lacks, and warns for a suggestion', async () => {
+  const before = (await app.inject('/api/decisions/settings')).json<DecisionSettings>();
+  assert.deepEqual(before.gate, { minCases: 30, suggestMinPrecision: 0.6, suggestMaxFlagRate: 0.3 });
+
+  const refused = await app.inject({ method: 'PUT', url: '/api/decisions/settings', ...json(settingsBody(before, { ...before.points, 'orchestration.retry': { mode: 'active', threshold: 0.9, consent: null } })) });
+  assert.equal(refused.statusCode, 409);
+  const body = refused.json<DecisionActivationRefusal>();
+  assert.equal(body.code, 'decision-unproven');
+  assert.equal(body.points[0]?.point, 'orchestration.retry');
+  assert.equal(body.points[0]?.standing, 'unproven');
+  assert.ok(body.points[0]?.live.shortfalls.includes('cases'));
+  assert.equal(body.points[0]?.gate.breakEven, 0.7);
+  assert.equal((await app.inject('/api/decisions/settings')).json<DecisionSettings>().points['orchestration.retry'], undefined, 'nothing was written');
+
+  const bulk = await app.inject({
+    method: 'PUT',
+    url: '/api/decisions/settings',
+    ...json(settingsBody(before, { ...before.points, 'memory.triage': { mode: 'active', threshold: 0.85, consent: null }, 'team.assign': { mode: 'active', threshold: 0.85, consent: null } })),
+  });
+  assert.equal(bulk.statusCode, 409);
+  assert.equal(bulk.json<DecisionActivationRefusal>().code, 'decision-bulk-activation');
+
+  const warned = await app.inject({ method: 'PUT', url: '/api/decisions/settings', ...json(settingsBody(before, { ...before.points, 'memory.triage': { mode: 'active', threshold: 0.85, consent: null } })) });
+  assert.equal(warned.statusCode, 200);
+  const saved = warned.json<DecisionSettingsSaveResult>();
+  assert.equal(saved.points['memory.triage']?.mode, 'active');
+  assert.deepEqual(saved.warnings.map((w) => w.point), ['memory.triage']);
+
+  // Saving again leaves the active unproven point as it is: no error, no warning
+  const again = await app.inject({ method: 'PUT', url: '/api/decisions/settings', ...json(settingsBody(before, saved.points)) });
+  assert.equal(again.statusCode, 200);
+  assert.deepEqual(again.json<DecisionSettingsSaveResult>().warnings, []);
+
+  const points = (await app.inject('/api/decisions/points')).json<DecisionPointInfo[]>();
+  const triage = points.find((p) => p.id === 'memory.triage');
+  assert.equal(triage?.standing, 'unproven');
+  assert.equal(triage?.effective.floor, 0.7);
+  assert.equal(triage?.effective.limitedBy, 'no-consent', 'switched on and silent: no consent');
+  assert.equal(points.find((p) => p.id === 'orchestration.retry')?.gate.enforced, true);
+
+  await app.inject({ method: 'PUT', url: '/api/decisions/settings', ...json(settingsBody(before, before.points)) });
 });
 
 test('testing Jev without a key says why, and a provider that is not one is refused', async () => {
@@ -212,7 +260,7 @@ test('the history is filtered and paged, rated, and deleted one row or a filtere
 
 test('the metrics count a window, and the window can be moved', async () => {
   core.db.clearDecisions({});
-  core.db.insertDecision(row('s-1', { acted: true, savedRun: true, costUsd: 0.002 }));
+  core.db.insertDecision(row('s-1', { acted: true, savedRun: true, runEffect: 1, costUsd: 0.002 }));
   core.db.insertDecision(row('s-2', { at: '2020-01-01T00:00:00.000Z' }));
   const stats = (await app.inject('/api/decisions/stats')).json<DecisionStats>();
   assert.equal(stats.points.find((p) => p.point === 'flow.bounce')?.count, 1);
@@ -267,7 +315,7 @@ test('an opened notification marks its newest decision once and answers null whe
   assert.equal((await open('')).statusCode, 400);
 });
 
-test("a chat's token cannot change what the engine sends, but can read and rate", async () => {
+test("a chat's token cannot change what the engine sends or rate a decision, but can read", async () => {
   const created = await app.inject({ method: 'POST', url: '/api/security/token', ...json({}) });
   const { token } = created.json<{ token: string }>();
   assert.equal((await app.inject({ method: 'PUT', url: '/api/security/auth', ...json({ mode: 'token' }) })).statusCode, 200);
@@ -288,6 +336,8 @@ test("a chat's token cannot change what the engine sends, but can read and rate"
       ['PUT', '/api/decisions/points/flow.bounce/consent', { granted: true, stateVersion: 1, providers: ['jev'] }],
       ['POST', '/api/decisions/some-row/palette-action', { commandId: null }],
       ['POST', '/api/decisions/notification-opened', { key: 'chat:c1:waiting' }],
+      // A rating is a direct outcome for the promotion gate: a worker must not be able to prove or demote a point
+      ['POST', '/api/decisions/some-row/feedback', { feedback: 'useful' }],
       // The deprecated door to the supervisor.intervene point's mode
       ['PUT', '/api/settings/supervisor', { enabled: true, autoSend: true }],
     ];
@@ -297,6 +347,8 @@ test("a chat's token cannot change what the engine sends, but can read and rate"
       assert.equal(answer.json().code, 'chat-forbidden');
     }
     assert.equal(core.decisionCredentials.getKey(), null);
+    const person = await app.inject({ method: 'POST', url: '/api/decisions/some-row/feedback', headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` }, payload: JSON.stringify({ feedback: 'useful' }) });
+    assert.notEqual(person.statusCode, 403, 'the person may rate (404 here: the row does not exist)');
     assert.equal((await app.inject(fromChat('GET', '/api/decisions/settings'))).statusCode, 200);
     assert.equal((await app.inject(fromChat('GET', '/api/decisions/points'))).statusCode, 200);
   } finally {

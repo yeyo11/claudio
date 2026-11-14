@@ -4,7 +4,8 @@ import test from 'node:test';
 import type { DecisionAnswer, DecisionPointId, DecisionRecord } from '@claudio/shared';
 import { Db } from '../src/db.ts';
 import { DecisionEngine } from '../src/decisions/engine.ts';
-import { DecisionResolvers } from '../src/decisions/resolve.ts';
+import { DIRECT_OUTCOMES, DecisionResolvers, evidencePossible, RESOLVED_POINTS, resolverOf } from '../src/decisions/resolve.ts';
+import { DECISION_POINTS } from '../src/decisions/points.ts';
 import { LessonStore } from '../src/lessons/store.ts';
 import { choiceOf, noulOf, scoreOf } from './decision-rig.ts';
 import { tempConfig } from './helpers.ts';
@@ -43,6 +44,9 @@ function setup() {
       acted: false,
       visible: false,
       savedRun: false,
+      runEffect: 0,
+      baseline: null,
+      heldOut: false,
       latencyMs: 10,
       inputTokens: 1,
       costUsd: 0,
@@ -93,6 +97,25 @@ test('flow.bounce: needs-person is right when the card waited for a person', () 
   const needs = s.row('flow.bounce', { subjectId: 'r1', answers: { bounce: choiceOf('needs-person') } });
   s.resolvers.sweep();
   assert.equal(s.get(needs.id)?.agreed, true);
+});
+
+test('flow.bounce: a person moving a card an acted needs-person parked is only a proxy; in shadow or held out it is direct', () => {
+  const s = setup();
+  s.run('r1', { outcome: 'rejected', endedAt: T0 });
+  s.db.connection
+    .prepare("INSERT INTO work_items (id, project_id, number, type, title, description, status, priority, rank, created_at, updated_at, waiting) VALUES ('i1', 'p1', 1, 'task', 't', '', 'in_progress', 'medium', 'a', ?, ?, 'bounces')")
+    .run(T0, T0);
+  s.db.connection
+    .prepare("INSERT INTO work_item_history (id, item_id, change, from_value, to_value, actor_kind, created_at) VALUES ('h1', 'i1', 'status', 'in_review', 'todo', 'person', ?)")
+    .run(T1);
+  // The decision parked the card itself: the person moving it next is what parking asked for
+  const acted = s.row('flow.bounce', { subjectId: 'r1', mode: 'active', acted: true, answers: { bounce: choiceOf('needs-person') } });
+  const shadow = s.row('flow.bounce', { subjectId: 'r1', answers: { bounce: choiceOf('needs-person') } });
+  const heldOut = s.row('flow.bounce', { subjectId: 'r1', mode: 'active', heldOut: true, answers: { bounce: choiceOf('needs-person') } });
+  s.resolvers.sweep();
+  assert.deepEqual([s.get(acted.id)?.agreed, s.get(acted.id)?.outcome?.quality], [true, 'proxy']);
+  assert.deepEqual([s.get(shadow.id)?.agreed, s.get(shadow.id)?.outcome?.quality], [true, 'direct']);
+  assert.deepEqual([s.get(heldOut.id)?.agreed, s.get(heldOut.id)?.outcome?.quality], [true, 'direct']);
 });
 
 test('flow.criteria-precheck: a clearly-unmet criterion is right when QA then rejects', () => {
@@ -173,6 +196,7 @@ test('lesson.mine: resolved once the job is done and every proposal it made was 
   assert.equal(s.get(approved.id)?.agreed, true);
   assert.equal(s.get(rejected.id)?.agreed, false, 'every proposal was rejected');
   assert.equal(s.get(nothing.id)?.agreed, false, 'the miner proposed nothing');
+  assert.equal(s.get(nothing.id)?.outcome?.quality, 'direct', 'what the miner produced, or did not, is a fact the decision could not fake');
   for (const open of [waiting, running, shadow, no]) assert.equal(s.get(open.id)?.resolvedAt, null, open.id);
 });
 
@@ -273,6 +297,61 @@ test('rows that are unavailable, off the window, or resolved already are left al
   assert.equal(s.resolvers.sweep(), 0, 'a resolved row is not resolved twice');
 });
 
+const stuckFlag = (s: ReturnType<typeof setup>, n: number): void => {
+  // A flagged test edit of a chat that belongs to no card: the resolver can never say anything about it
+  for (let i = 0; i < n; i++) s.row('health.test-weakening', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c-nowhere', answers: { weakened: noulOf(true) } });
+};
+
+test('the sweep reaches a point that sits behind thousands of rows no signal can resolve', () => {
+  const s = setup();
+  s.run('r1', { outcome: 'rejected', endedAt: T0 });
+  s.run('r2', { outcome: 'rejected', endedAt: T1 });
+  // Older than the stuck rows below: the old sweep took the newest 500 of all points and never got to it
+  const behind = s.row('flow.bounce', { subjectId: 'r1', answers: { bounce: choiceOf('fixable') } });
+  stuckFlag(s, 700);
+  assert.equal(s.resolvers.sweep(), 1);
+  assert.equal(s.get(behind.id)?.agreed, false);
+});
+
+test('within one point the sweep goes on from where it stopped, so newer rows are reached too', () => {
+  const s = setup();
+  stuckFlag(s, 1500);
+  s.run('w1', { item: 'iw', stage: 'work', chat: 'cw' });
+  s.run('v1', { item: 'iw', stage: 'verify', outcome: 'rejected', endedAt: T1 });
+  const newest = s.row('health.test-weakening', { kind: 'suggest', subjectKind: 'chat', subjectId: 'cw', answers: { weakened: noulOf(true) } });
+  let sweeps = 0;
+  while (s.get(newest.id)?.resolvedAt === null && sweeps < 8) {
+    s.resolvers.sweep();
+    sweeps += 1;
+  }
+  assert.ok(s.get(newest.id)?.resolvedAt, `still unresolved after ${String(sweeps)} sweeps`);
+  assert.ok(sweeps > 1, 'one pass is bounded, it does not read every row');
+});
+
+test('the sweep does not read a row its resolver can never settle: an unflagged loop answer, or a flag past what a person could answer', () => {
+  const s = setup();
+  const loop = (at: string, yes: boolean) => s.row('health.semantic-loop', { kind: 'suggest', subjectKind: 'chat', subjectId: 'c1', at, answers: { loop: noulOf(yes) } });
+  const readable = loop('2026-09-01T23:40:00.000Z', true);
+  loop('2026-09-01T23:41:00.000Z', false);
+  loop('2026-09-01T09:00:00.000Z', true);
+  const read: string[] = [];
+  const resolvers = new DecisionResolvers({
+    sql: s.db.connection,
+    db: {
+      decision: (id) => {
+        read.push(id);
+        return s.db.decision(id);
+      },
+    },
+    engine: { resolve: () => undefined },
+    historyDays: () => 30,
+    now: () => new Date('2026-09-02T00:00:00.000Z'),
+  });
+  resolvers.sweep();
+  assert.deepEqual(read, [readable.id]);
+  assert.ok(RESOLVED_POINTS.includes('health.semantic-loop'));
+});
+
 const action = (kind: 'proposed' | 'other' | 'dismissed', commandId: string | null) => ({ action: kind, commandId, at: T1 });
 const commands = [{ id: 'go.home', title: 'Home' }, { id: 'chat.new', title: 'New chat' }];
 
@@ -328,6 +407,34 @@ test('notification.urgency: only an open within the hour is a signal; a push nob
   assert.equal(s.get(normalIgnored.id)?.resolvedAt, null, 'ignored is no evidence, so it is not scored');
   assert.equal(s.get(openedLate.id)?.resolvedAt, null, 'an open after the window is not opened soon');
   assert.equal(s.get(highOpened.id)?.outcome?.detail?.withinMs, 20 * 60_000);
+});
+
+test('notification.urgency: an open after an acted answer is only a proxy, since the raised push is what made it likely', () => {
+  const s = setup();
+  const base = { kind: 'act' as const, subjectKind: 'notification' as const, subjectId: 'k', openedAt: '2026-09-01T10:20:00.000Z' };
+  const raised = s.row('notification.urgency', { ...base, mode: 'active', acted: true, answers: { urgency: choiceOf('high') } });
+  const shadow = s.row('notification.urgency', { ...base, answers: { urgency: choiceOf('high') } });
+  const heldOut = s.row('notification.urgency', { ...base, mode: 'active', heldOut: true, answers: { urgency: choiceOf('high') } });
+  s.resolvers.sweep();
+  assert.deepEqual([s.get(raised.id)?.agreed, s.get(raised.id)?.outcome?.quality], [true, 'proxy']);
+  assert.deepEqual([s.get(shadow.id)?.agreed, s.get(shadow.id)?.outcome?.quality], [true, 'direct']);
+  assert.deepEqual([s.get(heldOut.id)?.agreed, s.get(heldOut.id)?.outcome?.quality], [true, 'direct']);
+});
+
+test('which points can ever earn direct evidence is declared beside the resolvers, and each resolver keeps to it', () => {
+  // Every resolver is declared, and nothing is declared without a resolver
+  assert.deepEqual(Object.keys(DIRECT_OUTCOMES).sort(), [...RESOLVED_POINTS].sort());
+  for (const point of RESOLVED_POINTS) {
+    // Read from the resolver's own source: a branch that can return direct names the quality literally.
+    // The source is what the loader emitted, and esbuild (tsx) prints every string in double quotes
+    const source = resolverOf(point)?.toString() ?? '';
+    const canDirect = /(['"`])direct\1/.test(source);
+    assert.equal(canDirect, DIRECT_OUTCOMES[point], `${point}: declared ${String(DIRECT_OUTCOMES[point])}, its resolver ${canDirect ? 'can' : 'cannot'} return direct`);
+  }
+  // A point with no resolver has no evidence the app can infer
+  for (const def of DECISION_POINTS) if (!RESOLVED_POINTS.includes(def.id)) assert.equal(evidencePossible(def.id), false, def.id);
+  assert.equal(evidencePossible('flow.bounce'), true);
+  assert.equal(evidencePossible('flow.criteria-precheck'), false);
 });
 
 test('notification.urgency: before the hour ends with no open there is no outcome yet', () => {

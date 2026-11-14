@@ -14,6 +14,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
@@ -125,7 +126,31 @@ let permissionMode = flag('--permission-mode') ?? 'default';
 const modelName = (m) => (m.includes('-') ? m : `claude-${m}-5`);
 let model = modelName(flag('--model') ?? 'sonnet');
 let turns = 0;
-let costUsd = 0;
+/**
+ * The session's total, which every result reports: cumulative over the session, as Claude Code's is
+ * (spike S1 of docs/plans/decision-engine-v2.md). A resume goes on from the session's last total and
+ * a fork starts from its parent's; the CLI keeps it in the transcript, the fake in a file per session
+ * under the account's config dir.
+ */
+const totalsFile = (session) => join(env.CLAUDE_CONFIG_DIR || tmpdir(), 'fake-cli-totals', `${session}.json`);
+function storedTotal(session) {
+  try {
+    return session ? Number(JSON.parse(readFileSync(totalsFile(session), 'utf8')).costUsd) || 0 : null;
+  } catch {
+    return null;
+  }
+}
+let costUsd = storedTotal(sessionId) ?? storedTotal(argv.includes('--fork-session') ? flag('--resume') : null) ?? 0;
+function keepTotal() {
+  // Nothing to carry while turns cost nothing, which is the default: no file is left behind
+  if (!(costUsd > 0)) return;
+  try {
+    mkdirSync(dirname(totalsFile(sessionId)), { recursive: true });
+    writeFileSync(totalsFile(sessionId), JSON.stringify({ costUsd }));
+  } catch {
+    // a total that cannot be kept only makes the next process of the session count from zero
+  }
+}
 
 /**
  * What the context holds, as the assistant lines' usage report it. A spec that wants a meter worth
@@ -403,6 +428,14 @@ const heard = (text) => ({ type: 'text', text: `Heard: ${firstLine(text)}` });
 
 const MINER_FIRST_SENTENCE = 'You review part of a chat between a person and a coding agent working in one project.';
 const EMPTY_MINER_ANSWER = 'json: {"lessons":[]}';
+// The Supervisor's draft is `{ stuck, hint }` (docs/plans/decision-engine-v2.md §6): by default a stuck worker
+// and a hint a spec can recognise; `"@supervisor-draft"` in the scripts file replaces the whole line
+const SUPERVISOR_FIRST_WORDS = 'You are watching an AI coding agent';
+const DEFAULT_SUPERVISOR_DRAFT = 'json: {"stuck":true,"hint":"E2E supervisor hint: look at what the command is waiting for."}';
+// A replayed case says what the provider must answer in its own state, as `E2E-REPLAY:<id>=<value>,…`
+// (e2e/specs/decision-proof.mjs): a replay needs answers that differ from case to case, which a prompt
+// of Claudio's own text alone cannot tell the fake
+const PLANTED_ANSWERS = /E2E-REPLAY:([A-Za-z0-9_.=,-]+)/;
 
 /**
  * Turns written elsewhere, so the prompt a page shows reads like a person's and not like a script:
@@ -411,6 +444,14 @@ const EMPTY_MINER_ANSWER = 'json: {"lessons":[]}';
  * orchestrator's own words, which is why a key is looked for inside the message and not matched whole.
  */
 function scriptFor(text) {
+  const planted = PLANTED_ANSWERS.exec(text);
+  if (planted?.[1]) {
+    const answers = Object.fromEntries(planted[1].split(',').map((pair) => {
+      const [id = '', value = ''] = pair.split('=');
+      return [id, value === 'true' ? true : value === 'false' ? false : value];
+    }));
+    return `json: ${JSON.stringify(answers)}`;
+  }
   // `review.triage` asks one question per thread ("<id>: Who should take this review comment…"): the
   // first thread is the agent's and the rest are a person's, so a spec sees marks without a script
   const asked = [...text.matchAll(/^(\S+): Who should take this review comment/gm)].map((m) => m[1]);
@@ -423,15 +464,17 @@ function scriptFor(text) {
   // chat that was corrected goes on to the miner
   if (/^mine: Do these signals show/m.test(text)) return 'json: {"mine":true}';
   const isMiner = text.includes(MINER_FIRST_SENTENCE);
-  if (!env.CLAUDIO_FAKE_CLI_SCRIPTS) return isMiner ? EMPTY_MINER_ANSWER : text;
+  const isDraft = text.startsWith(SUPERVISOR_FIRST_WORDS);
+  if (!env.CLAUDIO_FAKE_CLI_SCRIPTS) return isMiner ? EMPTY_MINER_ANSWER : isDraft ? DEFAULT_SUPERVISOR_DRAFT : text;
   let scripts;
   try {
     scripts = JSON.parse(readFileSync(env.CLAUDIO_FAKE_CLI_SCRIPTS, 'utf8'));
   } catch {
-    return isMiner ? EMPTY_MINER_ANSWER : text;
+    return isMiner ? EMPTY_MINER_ANSWER : isDraft ? DEFAULT_SUPERVISOR_DRAFT : text;
   }
   // The lesson miner's prompt is Claudio's own text, so the scripts file names it by `"@lesson-miner"`
   if (isMiner) return typeof scripts['@lesson-miner'] === 'string' ? scripts['@lesson-miner'] : EMPTY_MINER_ANSWER;
+  if (isDraft) return typeof scripts['@supervisor-draft'] === 'string' ? scripts['@supervisor-draft'] : DEFAULT_SUPERVISOR_DRAFT;
   const key = Object.keys(scripts).find((k) => k && text.includes(k));
   return key === undefined ? text : String(scripts[key]);
 }
@@ -1094,6 +1137,7 @@ function endTurn({ result = '', error = false, structured = undefined }) {
   turn = null;
   turns++;
   costUsd += TURN_COST_USD;
+  keepTotal();
   emit({
     type: 'result',
     subtype: error ? 'error_during_execution' : 'success',

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-10-16T14:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - team
     - flow
@@ -311,11 +311,21 @@ against the Opus 5.5 and Sonnet 5.5 guides):
 - refine and verify runs on a Sonnet model end with "Think the problem through before you answer.".
 
 **A run that ends with work still owed goes on in its chat.** When its result is read, `openItems`
-checks for a missing structured result, uncommitted changes in a work run's worktree, and a last
-message that offers to continue, asks a question or announces a next step. With open items, the run
-stays `running`, `continuations` counts up, and once the chat's process exits the same chat is
-resumed with a message that names them. This happens at most `MAX_CONTINUATIONS` (3) times. After
-that, the result it has decides, as before.
+checks for a missing structured result, uncommitted changes in a work run's worktree, delegated work
+still running, and a last message that offers to continue, asks a question or announces a next step.
+With open items, the run stays `running`, `continuations` counts up, and once the chat's process
+exits the same chat is resumed with a message that names them. This happens at most
+`MAX_CONTINUATIONS` (3) times. After that, the result it has decides, as before.
+
+Each continuation has a **cause**, kept with the run (`flow_runs.continuation_effects`): `structural`
+(a fact the code reads), `phrase` (the phrase list matched the last paragraph) or `decision` (the
+`run.continuation` point read a step of the run's own task as owed and no phrase caught it). When the
+turn it started ends, core records its **effect**: whether it committed, edited or delegated anything.
+A continuation owed only to the decision is bounded by code whatever the decision answers: one per
+run, none after a continuation that changed nothing, and none unless every earlier continuation's
+effect is on record. The same rules apply to a graph task
+([orchestrations.md](orchestrations.md#a-task-that-ends-on-a-report-with-work-still-owed)), and the
+point's evidence is read from these recorded effects ([decision-engine.md](decision-engine.md#runcontinuation)).
 
 ### What a run may do
 

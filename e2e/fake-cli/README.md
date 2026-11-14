@@ -25,7 +25,7 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | `CLAUDIO_FAKE_CLI_LOG` | none | A file the fake appends JSON lines to (see below) |
 | `CLAUDIO_FAKE_CLI_HEARTBEAT_MS` | `30000` (the CLI's own pace) | How often a running command sends `tool_progress`; `0` sends none. The sandbox sets `500` |
 | `CLAUDIO_FAKE_CLI_ELAPSED_S` | `0` | Seconds added to every heartbeat's `elapsed_time_seconds` |
-| `CLAUDIO_FAKE_CLI_TURN_COST_USD` | `0` | Added to `total_cost_usd` per turn (the CLI's total is per process) |
+| `CLAUDIO_FAKE_CLI_TURN_COST_USD` | `0` | Added to `total_cost_usd` per turn. The total is the session's, as the CLI's is: a resume goes on from it and a fork starts from its parent's |
 | `CLAUDIO_FAKE_CLI_SCRIPTS` | none | A JSON object `{ "<text>": "<script>" }`: a message containing one of the texts is played as its script instead (see below) |
 | `CLAUDIO_FAKE_CLI_VERSION` | `2.1.1-fake` | The version it reports, for a recording that should not say "fake" in its footer |
 | `CLAUDIO_FAKE_CLI_AUTH` | none | A JSON object merged into what `auth status` answers (`email`, `subscriptionType`…) |
@@ -216,6 +216,15 @@ not hooked.
 
 **A `lesson.mine` question** (a line `mine: Do these signals show…`) is answered `{"mine": true}` with no
 script, so a chat a spec corrected goes on to the miner.
+
+**A replayed case** (a prompt whose state holds `E2E-REPLAY:<id>=<value>,…`, as the cases
+`e2e/specs/decision-proof.mjs` imports) is answered with exactly those answers (`true` and `false` as booleans, any other
+value as a string), with no script. A replay puts each labelled state to the provider once, so a spec
+makes the fake right or wrong, and acting or holding, case by case from the state it labels.
+
+**The Supervisor's draft** (a prompt that starts `You are watching an AI coding agent`) is answered
+`{"stuck":true,"hint":"E2E supervisor hint: look at what the command is waiting for."}`, or with the
+scripts file's `"@supervisor-draft"` line, a `json: {"stuck":false,"hint":""}` for a worker that is not stuck.
 
 **The lesson miner's prompt** (it starts `You review part of a chat between a person and a coding agent…`) is
 answered with the scripts file's `"@lesson-miner"` entry, a `json: {"lessons":[…]}` line a spec writes

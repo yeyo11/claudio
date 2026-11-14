@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - limitations
     - known-gaps
@@ -43,6 +43,11 @@ the Known gaps of its page. Until 2026-10-17 this list was the README's.
   the same ones, so a server removed since is simply left out.
 - Usage: days are the server's own, weeks start on Monday, and a cost the CLI never reported (a chat
   started from a terminal, or an execution older than the per-model figure) is missing, not zero.
+  Costs recorded before 2026-11-13 are overstated for resumed sessions (each resumed execution was
+  billed the session's history again); a migration mended the stored executions, and the spend
+  ledger and the figures it fed the daily cap with were left as they were
+  ([cli-surfaces.md](cli-surfaces.md#how-a-resumed-or-forked-session-is-billed)). A session born outside
+  Claudio has no recorded baseline, so the first turn billed here carries its earlier history.
 - Verification, health and the changes views need what they read: the checks need `worktree: true`
   on the graph engine, cancelling a command needs Linux, and "what it is doing now" is read from
   the last unanswered tool call in the transcript, so the time since its last event keeps growing

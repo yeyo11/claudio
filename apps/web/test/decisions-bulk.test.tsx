@@ -16,9 +16,18 @@ const info = (id: DecisionPointId, kind: 'act' | 'suggest', over: Partial<Decisi
   primitives: ['choice'],
   defaultThreshold: 0.85,
   savesRun: false,
+  causesRun: false,
   needsLowLatency: false,
   stateVersion: 2,
-  effective: { mode: 'off', threshold: 0.85, provider: 'cli', consent: null, limited: false },
+  effective: { mode: 'off', threshold: 0.85, provider: 'cli', consent: null, limited: false, limitedBy: null, floor: null },
+  // Proven by default: the bulk tests are about the CLI and consent, the gate has its own test below
+  standing: 'proven',
+  decidedBy: 'live',
+  evidencePossible: true,
+  gate: { enforced: true, minCases: 30, breakEven: 0.5, minPrecision: null, maxFlagRate: null },
+  live: { source: 'live', at: null, cases: 0, precision: { n: 0, hits: 0, value: null, lower90: null }, baselinePrecision: { n: 0, hits: 0, value: null, lower90: null }, actRate: { n: 0, hits: 0, value: null, lower90: null }, shortfalls: ['cases'] },
+  replay: null,
+  demoted: null,
   ...over,
 });
 
@@ -47,6 +56,23 @@ test('active on Jev sets every point', () => {
   const result = plan('active', 'jev');
   assert.equal(result.capped.length, 0);
   assert.ok(result.changes.every((change) => change.mode === 'active'));
+});
+
+test('a bulk active plans only proven points: the rest stay as they are, and an active one is never sent back', () => {
+  const unproven = [info('flow.bounce', 'act', { standing: 'unproven' }), info('team.assign', 'act', { standing: 'failing' }), info('board.triage', 'suggest', { gate: { enforced: false, minCases: 30, breakEven: null, minPrecision: 0.6, maxFlagRate: 0.3 }, standing: 'unproven' }), info('memory.triage', 'suggest')];
+  const result = planBulk(unproven, unproven.map((point) => point.id), 'active', (id) => (id === 'team.assign' ? 'active' : id === 'flow.bounce' ? 'shadow' : 'off'), () => null, 'jev');
+  // The server refuses more than one unproven step up at once, suggest points included
+  assert.deepEqual(result.unproven, ['flow.bounce', 'board.triage']);
+  assert.deepEqual(result.changes.map((change) => [change.id, change.mode]), [['memory.triage', 'active']]);
+  assert.deepEqual(result.unchanged.sort(), ['board.triage', 'flow.bounce', 'team.assign']);
+  assert.deepEqual(result.capped, []);
+});
+
+test('a point saved as active is not held back by a bulk active even when the form moved it to shadow', () => {
+  const failing = [info('flow.bounce', 'act', { standing: 'failing' })];
+  const result = planBulk(failing, ['flow.bounce'], 'active', () => 'shadow', () => jevConsent, 'jev', () => 'active');
+  assert.deepEqual(result.unproven, []);
+  assert.deepEqual(result.changes.map((change) => [change.id, change.mode]), [['flow.bounce', 'active']]);
 });
 
 test('a point already in the resulting mode does not change nor ask', () => {

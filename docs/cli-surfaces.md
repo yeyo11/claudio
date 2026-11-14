@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-10-30T02:30:00Z
+updated_at: 2026-11-13T18:00:00Z
 tags:
     - cli
     - one-rule
@@ -37,7 +37,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Signing in to Claude | `claude auth login`, relayed through pipes (open the link, paste the code the page shows) in the account's own `CLAUDE_CONFIG_DIR`; on the **default** account that is the CLI's own dir (`POST /accounts/default/login`), so the `claude` in the terminal is signed in too. `get_usage` confirms a login or token but cannot refuse one (CLI 2.1.302); an API key is checked with the SDK's free `models.list`; and `claude setup-token` is no longer offered ([accounts.md](accounts.md#checking-a-credential), [decisions/claude-sign-in-paste-code.md](decisions/claude-sign-in-paste-code.md)) |
 | Real usage of an account | the `get_usage` control request of the stream-json protocol (the sibling of `initialize` and `get_context_usage`): no prompt, no turn, no tokens, in the account's own `CLAUDE_CONFIG_DIR` or token environment. It answers the plan, the session and weekly windows, the weekly limits scoped to one model and the credits ([accounts.md](accounts.md#usage), [decisions/get-usage-control-request.md](decisions/get-usage-control-request.md)) |
 | Tool presets and per-chat MCP servers | `--allowedTools` / `--disallowedTools`, and `--mcp-config` with `--strict-mcp-config` over a file holding only the chosen servers |
-| Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock. The daily spend cap sums the `total_cost_usd` of each `result` message in the stream (the CLI's own figure; Claudio prices nothing from tokens), kept as rows in SQLite, and only holds back work that has not started |
+| Spending and time limits | `--max-budget-usd` for a cost limit; the time limit is Claudio's own clock. The daily spend cap sums what each `result` message in the stream adds to its session's `total_cost_usd` (the CLI's own figure, cumulative over the session: see [below](#how-a-resumed-or-forked-session-is-billed); Claudio prices nothing from tokens), kept as rows in SQLite, and only holds back work that has not started |
 | Instruction evals | one housekeeping chat per sample (`claude -p --input-format stream-json --output-format stream-json`, no API token, no journal) in a detached `git worktree` outside the repository, with `--max-budget-usd` as the per-sample cap. The tool calls are read from the stream and the files from the worktree, and nothing is judged by a model, except a judged expectation behind `evalsPhase2`: a schema-bound judge chat with no tools ([docs/plans/instruction-evals.md](plans/instruction-evals.md)) |
 | Path-scoped rules | `.claude/rules/*.md` files with a `paths:` list in their front matter, which the CLI loads as project memory; Claudio writes them when a person approves a `rule` proposal ([docs/team-and-flow.md](team-and-flow.md)) |
 | Model list | the `models[]` of the `initialize` control response, the only source: no prompt, no turn, no tokens, in each account's own `CLAUDE_CONFIG_DIR` or token environment. Read in the background at boot for every enabled, signed-in account, and again when the cached entry's CLI version differs from the running one. Until it arrives the list is empty, and Claudio invents no entries ([accounts.md](accounts.md#models), [plans/owner-report-fixes.md](plans/owner-report-fixes.md)) |
@@ -60,6 +60,37 @@ script run, then confirmed by `claude --version`. It lands in `/data/cli/<versio
 `/data/cli/current` is switched with a rename ([updates.md](updates.md#claude-code)). It is the same
 binary the image's installer puts in `~/.local`, from the package the vendor publishes for programs.
 Claudio asks GitHub the same way about its own releases (`CLAUDIO_UPDATE_CHECK=off` stops that one).
+
+## How a resumed or forked session is billed
+
+The CLI's `total_cost_usd` and `modelUsage` on a `result` are cumulative over the **session**, not
+over the process. `--resume` restores them from the transcript, so the first result after a resume
+reports the session's earlier turns again, and `--resume --fork-session` starts the copy from its
+parent's totals under the new session id (observed on Claude Code 2.1.322; the plan's spike S1 is in
+[plans/decision-engine-v2.md](plans/decision-engine-v2.md#m1-cost-on-a-resumed-session)).
+
+So Claudio bills a turn the growth since the session's last report, whichever process made it:
+
+- The last report is kept on the chat's record (`reported`), so it survives a spawn and a restart of
+  Claudio. A spawn that resumes a session goes on from it, a fork starts from its source's, and only a
+  session that starts new starts from zero. A total that comes back lower than the last report is
+  treated as a session that started again and counts whole.
+- An execution's `costUsd` is what its own turns cost, so a chat's executions add up to the
+  session's total; per-model costs and tokens (`modelUsage`) follow the same growth. The spend
+  ledger, the graph's and the task's cost and the Usage figures read that growth.
+- A session that was born outside Claudio (a chat started from a terminal and then resumed here) has
+  no recorded last report, so the first turn Claudio bills carries the session's earlier history:
+  the CLI writes a `cost-state` line into the transcript that Claudio does not read yet.
+
+**What the fix did to stored figures.** Before 2026-11-13 Claudio took the total to restart with every
+process and billed each resumed execution the session's history again, so costs recorded before the
+fix are **overstated for resumed sessions** (63 multi-execution tasks of one install summed 1,473 USD
+where their last execution reported 476). A migration recomputed the stored executions of every chat
+whose executions' costs only grow, oldest first, the mark the old billing left: each is now billed its
+own turns, and the chat's record got the totals it last reported. A chat whose costs ever go down is
+left as it is. The **spend ledger is left alone**: its rows are what the daily cap decided with at
+the time. The `cost_corrections` table has one row with the date the migration ran and how many chats
+and executions it mended, so a reader can tell which figures are from before.
 
 ## Related
 
