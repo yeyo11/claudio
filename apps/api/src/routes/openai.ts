@@ -579,7 +579,7 @@ export class TurnRun<Item> {
     if (event.kind === 'result') {
       const turn = this.core.runtime.lastTurn(this.chatId);
       this.costUsd = turn?.costUsd ?? null;
-      this.out(this.translator.push(event, { usage: turn?.tokens ?? null, costUsd: turn?.costUsd ?? null }));
+      this.out(this.translator.push(event, { usage: turn?.tokens ?? null, costUsd: turn?.costUsd ?? null, ...(event.outcome?.cause === 'rate-limit' ? { limitResetsAt: this.core.runtime.limitResetOf(this.chatId) } : {}) }));
       return;
     }
     this.out(this.translator.push(event));
@@ -596,7 +596,7 @@ export class TurnRun<Item> {
       result?.cause === 'stopped'
         ? { kind: 'server', message: 'The chat was stopped before it answered.' }
         : result?.cause === 'rate-limit'
-          ? { kind: 'usage-limit', resetsAt: null, ...(result.result ? { message: result.result } : {}) }
+          ? { kind: 'usage-limit', resetsAt: this.chatId === null ? null : this.core.runtime.limitResetOf(this.chatId), ...(result.result ? { message: result.result } : {}) }
           : { kind: 'server', message: `The chat's process ended before it answered${result?.result ? `: ${result.result}` : '.'}` },
     );
   }
