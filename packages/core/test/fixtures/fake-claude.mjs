@@ -18,6 +18,8 @@
 //                                 the same prompt sent again (the rotation's replay) goes on as usual
 //   FAKE-LIMIT-REPORTED-ONCE      the same, with the rejected rate_limit_event the CLI sends before the 429
 //                                 (replay/rate-limit.jsonl), which is what records the provider's limit
+//   FAKE_CLAUDE_LIMIT_ONCE_IF=<re> the same as FAKE-LIMIT-ONCE for a session whose first prompt matches the
+//                                 regular expression: a graph's integrator, synthesis, fixer or reviewer
 //
 //   FAKE-TEXT-ONCE <text>         the session's first turn ends with that text as its result, and every
 //                                 later turn answers `continued: <the prompt it got>`: a worker that
@@ -329,7 +331,9 @@ lines.on('line', async (line) => {
   }
   const limited = join(tmpdir(), `fake-claude-limit-${sessionId}`);
   const reported = /^FAKE-LIMIT-REPORTED-ONCE$/m.test(prompt);
-  if ((reported || /^FAKE-LIMIT-ONCE$/m.test(prompt)) && !existsSync(limited)) {
+  // A step of a graph is scripted by the prompt it is given, which the test does not write
+  const matching = process.env.FAKE_CLAUDE_LIMIT_ONCE_IF ? new RegExp(process.env.FAKE_CLAUDE_LIMIT_ONCE_IF, 'm').test(prompt) : false;
+  if ((reported || matching || /^FAKE-LIMIT-ONCE$/m.test(prompt)) && !existsSync(limited)) {
     writeFileSync(limited, '1');
     if (reported) {
       const resetsAt = Math.floor(Date.now() / 1000) + 3600;
