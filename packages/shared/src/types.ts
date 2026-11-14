@@ -6911,6 +6911,113 @@ export interface Account {
   checkedAt: string | null;
   /** Null until something was read */
   limits: AccountLimit | null;
+  /**
+   * Where the account's configuration comes from and how its dir stands against it, as
+   * the `/accounts` routes serve it; other listings (the overview, the account
+   * view) leave it out, since reading every item of every dir is not free. Absent for the CLI's own
+   * login (`default`), which is the source of the shared configuration and has no mode.
+   */
+  config?: AccountConfig;
+}
+
+/**
+ * Where an account's configuration comes from (docs/plans/account-configuration-and-project-rules.md
+ * §6.1): `shared` links the default dir's settings, instructions, agents, commands, skills and the
+ * rest into the account's dir, kept in sync before every run; `independent` keeps the account's own files,
+ * which Claudio leaves alone. Identity is always the account's own and history always shared,
+ * whatever the mode.
+ */
+export type AccountConfigMode = 'shared' | 'independent';
+
+/** What an account that turns `independent` starts from: a copy of the shared configuration, or nothing */
+export type AccountConfigStart = 'copy' | 'empty';
+
+/**
+ * One item of an account's dir against the default dir. `linked`: a link to the default's item.
+ * `missing`: the default has it and the next pass will link it. `own`: the account's own file or
+ * dir. `absent`: an independent account without it, which the CLI runs without. `conflict`: something is
+ * where a link should be and Claudio will not decide for the person (`reason` says what).
+ * `not-in-default`: the default dir has no such item, so there is nothing to share yet.
+ */
+export type AccountConfigItemState = 'linked' | 'missing' | 'own' | 'absent' | 'conflict' | 'not-in-default';
+
+/**
+ * Why an item stands as it does or a step is what it is. `real-file`, `real-dir`, `link-elsewhere`:
+ * what is in the way of a link. `empty`, `identical`: in the way, but empty or byte for byte the
+ * default's, so it is moved aside and linked with no question. `aside-taken`: the place it would be
+ * kept already holds something. `failed`: the file system refused (the message is in the log).
+ */
+export type AccountConfigReason = 'no-source' | 'own-item' | 'link-elsewhere' | 'real-file' | 'real-dir' | 'empty' | 'identical' | 'aside-taken' | 'failed';
+
+export interface AccountConfigItem {
+  /** The entry's name in a Claude Code config dir (`settings.json`, `agents`, `agent-memory`) */
+  name: string;
+  kind: 'file' | 'dir';
+  /** `config` follows the account's mode; `history` is shared whatever the mode */
+  class: 'config' | 'history';
+  state: AccountConfigItemState;
+  reason?: AccountConfigReason;
+}
+
+/** `Account.config` and `GET /accounts/:id/config`. */
+export interface AccountConfig {
+  mode: AccountConfigMode;
+  /** `conflict` when an item is in conflict, `repair` when an item waits for its link or a switch was left half-way, `ok` otherwise */
+  state: 'ok' | 'repair' | 'conflict';
+  items: AccountConfigItem[];
+  /** A switch that was interrupted before it ended; applying it again finishes it */
+  switching: { to: AccountConfigMode; start: AccountConfigStart } | null;
+  /** The dirs under `<account dir>/.claudio-own/` that hold what was moved aside, oldest first: never deleted by Claudio */
+  keptAside: string[];
+}
+
+/**
+ * One step of a switch or of a "use shared". `keep`: already as it should be. `link`: an absent
+ * item is linked. `copy`: a link (or an absent item) becomes a copy of the default's item. `unlink`:
+ * the link is removed and nothing replaces it (`start: 'empty'`). `replace`: the account's item is
+ * moved aside, then linked. `move-aside`: moved aside, nothing to link. `skip`: nothing to do.
+ * `conflict`: left exactly as it is.
+ */
+export type AccountConfigAction = 'keep' | 'link' | 'copy' | 'unlink' | 'replace' | 'move-aside' | 'skip' | 'conflict';
+
+export interface AccountConfigStep {
+  name: string;
+  class: 'config' | 'history';
+  action: AccountConfigAction;
+  reason?: AccountConfigReason;
+}
+
+/** `GET /accounts/:id/config/plan`: what applying the same switch would do, with nothing changed yet. */
+export interface AccountConfigPlan {
+  account: string;
+  from: AccountConfigMode;
+  to: AccountConfigMode;
+  /** For a switch to `independent`; null for `shared` */
+  start: AccountConfigStart | null;
+  /** Where moved items would be kept, relative to the account's dir (`.claudio-own/<time>`); null when nothing moves */
+  aside: string | null;
+  steps: AccountConfigStep[];
+}
+
+/** `PUT /accounts/:id/config`: switch the account's configuration, or finish a switch left half-way. */
+export interface AccountConfigRequest {
+  mode: AccountConfigMode;
+  /** Only for `independent`; `copy` when absent */
+  start?: AccountConfigStart;
+}
+
+/** `POST /accounts/:id/config/items/:name`: settle one item in conflict. Only `shared` today: the account's item is moved aside and the default's linked. */
+export interface AccountConfigItemRequest {
+  use: 'shared';
+}
+
+/** What a switch or a "use shared" did, step by step, and the account as it stands after it. */
+export interface AccountConfigResult {
+  account: Account;
+  /** Each item's step as it was carried out; a step that failed reads `conflict` with `reason: 'failed'` */
+  steps: AccountConfigStep[];
+  /** Relative to the account's dir; null when nothing was moved */
+  aside: string | null;
 }
 
 /** The account new work would start on, as Settings and the status bar name it */
@@ -6982,6 +7089,11 @@ export interface AccountsSettings {
    * may be listed too); an account added later goes after the ones named.
    */
   order: string[];
+  /**
+   * The configuration mode an account added from now on starts in; `shared` unless a person chose.
+   * An independent account starts from a copy of the shared configuration.
+   */
+  newAccountConfig: AccountConfigMode;
 }
 
 /** How far an account's sign-in can be trusted. */

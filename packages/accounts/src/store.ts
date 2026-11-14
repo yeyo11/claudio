@@ -4,9 +4,10 @@ import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Account, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
+import type { Account, AccountConfig, AccountConfigMode, AccountConfigPlan, AccountConfigStart, AccountConfigStep, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
-import { orphanDirs, reconcileAccountDir, removeLinks, type ReconcileReport } from './dirs.ts';
+import { ASIDE_DIR, asideStamp, orphanDirs, reconcileAccountDir, removeLinks, type ReconcileReport } from './dirs.ts';
+import { applySteps, describeConfig, itemClass, planSwitch, planUseShared } from './config-mode.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
 import { writeAtomic } from './fs.ts';
 import { CREDENTIALS_FILE, identify, readCredentials, type Identity } from './identify.ts';
@@ -18,7 +19,7 @@ import { isRecord, NotFoundError } from '@claudio/shared';
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
 export { DEFAULT_ID };
 
-export const DEFAULT_SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used', preferred: null, order: [] };
+export const DEFAULT_SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used', preferred: null, order: [], newAccountConfig: 'shared' };
 
 const THRESHOLD_MIN = 50;
 const THRESHOLD_MAX = 99.9;
@@ -53,6 +54,36 @@ interface StoredAccount {
   checkedAt?: string;
   /** sha256 of the API key that was checked, never the key: a changed key is unchecked again */
   checkedFingerprint?: string;
+  /** Absent on accounts made before the mode existed, which are all `shared` */
+  config?: StoredConfig;
+}
+
+interface StoredConfig {
+  mode: AccountConfigMode;
+  /**
+   * A switch begun and not yet ended: recorded before its first step, so a server stopped half-way
+   * finishes it at its next start, with the same start and the same dir for what moves aside
+   */
+  switching?: { to: AccountConfigMode; start: AccountConfigStart; aside: string };
+}
+
+const isMode = (v: unknown): v is AccountConfigMode => v === 'shared' || v === 'independent';
+
+function parseConfig(v: unknown): StoredConfig | undefined {
+  if (!isRecord(v) || !isMode(v.mode)) return undefined;
+  const sw = isRecord(v.switching) ? v.switching : null;
+  const start: AccountConfigStart | null = sw?.start === 'copy' || sw?.start === 'empty' ? sw.start : null;
+  const switching = sw && isMode(sw.to) && start && typeof sw.aside === 'string' && /^[\w-]+$/.test(sw.aside) ? { to: sw.to, start, aside: sw.aside } : undefined;
+  return { mode: v.mode, ...(switching ? { switching } : {}) };
+}
+
+/** The default account is the source of the shared configuration: it has no mode to change */
+export class DefaultAccountConfigError extends Error {
+  readonly statusCode = 400;
+  constructor() {
+    super("the default account is the CLI's own config dir, the source of the shared configuration: it has no configuration mode");
+    this.name = 'DefaultAccountConfigError';
+  }
 }
 
 interface Stored {
@@ -129,6 +160,7 @@ function checkSettings(next: AccountsSettings): void {
   if (next.preferred !== null && (typeof next.preferred !== 'string' || !next.preferred)) throw new Error('preferred must be an account id or null');
   if (!Array.isArray(next.order) || next.order.some((id) => typeof id !== 'string' || !id)) throw new Error('order must be a list of account ids');
   if (new Set(next.order).size !== next.order.length) throw new Error('order must name each account once');
+  if (!isMode(next.newAccountConfig)) throw new Error('newAccountConfig must be shared or independent');
 }
 
 function parseSettings(v: unknown): AccountsSettings {
@@ -144,6 +176,7 @@ function parseSettings(v: unknown): AccountsSettings {
     strategy: v.strategy === 'order' || v.strategy === 'least-used' ? v.strategy : d.strategy,
     preferred: typeof v.preferred === 'string' && v.preferred ? v.preferred : d.preferred,
     order: [...new Set(order)],
+    newAccountConfig: isMode(v.newAccountConfig) ? v.newAccountConfig : d.newAccountConfig,
   };
 }
 
@@ -162,6 +195,7 @@ function parse(doc: Record<string, unknown>): Stored {
         ...(typeof a.authFailedAt === 'string' && a.authFailedAt ? { authFailedAt: a.authFailedAt } : {}),
         ...(typeof a.checkedAt === 'string' && a.checkedAt ? { checkedAt: a.checkedAt } : {}),
         ...(typeof a.checkedFingerprint === 'string' && a.checkedFingerprint ? { checkedFingerprint: a.checkedFingerprint } : {}),
+        ...(parseConfig(a.config) ? { config: parseConfig(a.config) } : {}),
       });
     }
   }
@@ -306,9 +340,17 @@ export class AccountStore {
   reconcile(id: string, opts: { save?: boolean } = {}): ReconcileReport | null {
     if (id === DEFAULT_ID) return null;
     const a = this.entry(id);
+    const dir = this.dirOf(id);
     let report: ReconcileReport;
     try {
-      report = reconcileAccountDir(this.dirOf(id), this.defaultDir, { recorded: a.links });
+      report = reconcileAccountDir(dir, this.defaultDir, {
+        // An independent account's configuration is its own; while a switch is under way, the switch alone touches it
+        config: (a.config?.mode ?? 'shared') === 'shared' && !a.config?.switching,
+        recorded: a.links,
+        // A file a live process of the account may hold open is not moved; an empty dir is moved
+        // only if still empty when it goes (rmdir refuses one that is not)
+        moves: { aside: () => join(dir, ASIDE_DIR, asideStamp()), files: this.idle(id) },
+      });
     } catch (error) {
       this.say(`accounts: could not link the configuration of ${id}: ${error instanceof Error ? error.message : String(error)}`);
       return null;
@@ -317,6 +359,9 @@ export class AccountStore {
     if (fresh.length) {
       a.links = [...a.links, ...fresh];
       if (opts.save !== false) void this.save().catch((error: unknown) => this.say(`accounts: could not record the links of ${id}: ${error instanceof Error ? error.message : String(error)}`));
+    }
+    for (const moved of report.movedAside) {
+      this.say(`accounts: ${id} had ${moved.reason === 'empty' ? `an empty ${moved.item}` : `a ${moved.item} identical to the default's`} where the default's is linked; moved it to ${moved.to} and linked the default's`);
     }
     for (const step of report.conflicts) {
       const key = `${id}/${step.item}/${step.reason}`;
@@ -329,6 +374,18 @@ export class AccountStore {
     return report;
   }
 
+  /**
+   * Whether no live chat runs on the account. Unknown (the owner's runtime not built yet, at start-up)
+   * counts as not idle: a file is moved aside only when nothing can be holding it open.
+   */
+  private idle(id: string): boolean {
+    try {
+      return (this.opts.liveChatsOn?.(id) ?? []).length === 0;
+    } catch {
+      return false;
+    }
+  }
+
   /** What was already said, so a conflict is logged once rather than at every spawn */
   private readonly reported = new Set<string>();
 
@@ -338,7 +395,10 @@ export class AccountStore {
 
   /** Every account's links, at start-up, and the directories no account names */
   private reconcileAll(): void {
-    for (const a of this.stored.accounts) this.reconcile(a.id);
+    for (const a of this.stored.accounts) {
+      if (a.config?.switching) this.finishSwitch(a);
+      this.reconcile(a.id);
+    }
     for (const dir of this.orphans()) this.say(`accounts: ${dir} belongs to no account; left in place (remove it by hand if it holds nothing you need)`);
   }
 
@@ -464,10 +524,17 @@ export class AccountStore {
     if (alias && this.list().some((a) => a.alias === alias)) throw new Error(`alias ${alias} is already taken`);
     const id = `acc-${randomUUID().slice(0, 8)}`;
     const dir = this.dirOf(id);
-    this.stored.accounts.push({ id, kind: request.kind, alias, enabled: true, links: [], identity: { ...NO_IDENTITY, signedIn: request.kind !== 'login' } });
+    const mode = this.stored.settings.newAccountConfig;
+    this.stored.accounts.push({ id, kind: request.kind, alias, enabled: true, links: [], identity: { ...NO_IDENTITY, signedIn: request.kind !== 'login' }, config: { mode } });
     // The links join the record as they are made; a failure leaves no half-made account behind
     try {
       mkdirSync(dir, { recursive: true, mode: 0o700 });
+      // An account born independent starts where one that turns independent does: from a copy (D2)
+      if (mode === 'independent') {
+        const aside = join(dir, ASIDE_DIR, asideStamp());
+        const failed = applySteps(dir, this.defaultDir, planSwitch(dir, this.defaultDir, 'independent', 'copy', aside), { aside }).filter((s) => s.reason === 'failed');
+        if (failed.length) throw new Error(`could not copy the shared configuration into ${dir}: ${failed.map((s) => s.name).join(', ')}`);
+      }
       this.reconcile(id, { save: false });
       if (request.kind !== 'login') await writeAtomic(join(dir, SECRET_FILE), `${request.secret?.trim()}\n`, 0o600);
     } catch (error) {
@@ -476,6 +543,139 @@ export class AccountStore {
     }
     await this.save();
     return this.get(id);
+  }
+
+  // ---------- configuration mode ----------
+
+  /**
+   * The accounts with their configuration state, for what is served. Not part of `list()`: reading
+   * every item of every dir costs a few milliseconds per account, and `list()` is on the path of
+   * every choice of an account.
+   */
+  withConfig(accounts: readonly Account[]): Account[] {
+    return accounts.map((a) => {
+      const config = a.id === DEFAULT_ID || !this.stored.accounts.some((x) => x.id === a.id) ? null : this.configOf(a.id);
+      return config ? { ...a, config } : a;
+    });
+  }
+
+  /** One account as `withConfig` serves it */
+  getWithConfig(id: string): Account {
+    const account = this.get(id);
+    const config = this.configOf(id);
+    return config ? { ...account, config } : account;
+  }
+
+  /** How the account's dir stands against its mode; null for the default account, which has none */
+  configOf(id: string): AccountConfig | null {
+    if (id === DEFAULT_ID) return null;
+    const a = this.entry(id);
+    const sw = a.config?.switching;
+    return describeConfig(this.dirOf(id), this.defaultDir, a.config?.mode ?? 'shared', sw ? { to: sw.to, start: sw.start } : null);
+  }
+
+  private configEntry(id: string): StoredAccount {
+    if (id === DEFAULT_ID) throw new DefaultAccountConfigError();
+    return this.entry(id);
+  }
+
+  /**
+   * What `setConfigMode(id, to, start)` would do now, with nothing written. A switch that was cut
+   * short towards the same mode is planned as its finish, with the start it began with.
+   */
+  planConfig(id: string, to: AccountConfigMode, start: AccountConfigStart = 'copy'): AccountConfigPlan {
+    const a = this.configEntry(id);
+    const dir = this.dirOf(id);
+    const pending = a.config?.switching?.to === to ? a.config.switching : undefined;
+    const how = pending?.start ?? start;
+    const stamp = pending?.aside ?? asideStamp();
+    const steps = planSwitch(dir, this.defaultDir, to, how, join(dir, ASIDE_DIR, stamp));
+    const moves = steps.some((s) => s.action === 'replace' || s.action === 'move-aside');
+    return { account: id, from: a.config?.mode ?? 'shared', to, start: to === 'independent' ? how : null, aside: moves ? `${ASIDE_DIR}/${stamp}` : null, steps };
+  }
+
+  /**
+   * Switches the account's configuration to `to`, or finishes a switch to it that was cut short.
+   * The switch is recorded before its first step, carried out item by item (each atomic, a failure
+   * blocking only its item), and the mode is stored once every step ran. Running it again is safe:
+   * a step already done plans as `keep` or `skip`.
+   */
+  async setConfigMode(id: string, to: AccountConfigMode, start: AccountConfigStart = 'copy'): Promise<{ steps: AccountConfigStep[]; aside: string | null }> {
+    if (!isMode(to)) throw new Error('mode must be shared or independent');
+    if (start !== 'copy' && start !== 'empty') throw new Error('start must be copy or empty');
+    this.reload();
+    const a = this.configEntry(id);
+    const plan = this.planConfig(id, to, start);
+    const stamp = plan.aside?.slice(ASIDE_DIR.length + 1) ?? a.config?.switching?.aside ?? asideStamp();
+    a.config = { mode: a.config?.mode ?? 'shared', switching: { to, start: plan.start ?? 'copy', aside: stamp } };
+    await this.save();
+    const steps = this.runSwitch(a, plan.steps, stamp);
+    await this.save();
+    return { steps, aside: steps.some((s) => (s.action === 'replace' || s.action === 'move-aside')) ? `${ASIDE_DIR}/${stamp}` : null };
+  }
+
+  /** Carries out a switch's steps and stores its end; the caller saves */
+  private runSwitch(a: StoredAccount, steps: readonly AccountConfigStep[], stamp: string): AccountConfigStep[] {
+    const dir = this.dirOf(a.id);
+    const to = a.config?.switching?.to ?? a.config?.mode ?? 'shared';
+    const done = applySteps(dir, this.defaultDir, steps, {
+      aside: join(dir, ASIDE_DIR, stamp),
+      onError: (step, error) => this.say(`accounts: switching ${a.id} to ${to}: ${step.name} was left as it is (${error instanceof Error ? error.message : String(error)})`),
+    });
+    a.config = { mode: to };
+    // The links the switch made are Claudio's to undo when the account goes; the ones it replaced are gone
+    const linked = done.filter((s) => s.action === 'link' || s.action === 'replace' || s.action === 'keep').map((s) => s.name);
+    const unlinked = new Set(done.filter((s) => s.action === 'copy' || s.action === 'unlink' || s.action === 'move-aside').map((s) => s.name));
+    a.links = [...new Set([...a.links.filter((l) => !unlinked.has(l)), ...linked])];
+    this.reconcile(a.id, { save: false });
+    return done;
+  }
+
+  /** A switch the last server left half-way, finished at start-up with what it began with */
+  private finishSwitch(a: StoredAccount): void {
+    const sw = a.config?.switching;
+    if (!sw) return;
+    const dir = this.dirOf(a.id);
+    this.say(`accounts: finishing the switch of ${a.id} to ${sw.to}, cut short before`);
+    this.runSwitch(a, planSwitch(dir, this.defaultDir, sw.to, sw.start, join(dir, ASIDE_DIR, sw.aside)), sw.aside);
+    void this.save().catch((error: unknown) => this.say(`accounts: could not record the switch of ${a.id}: ${error instanceof Error ? error.message : String(error)}`));
+  }
+
+  private checkItem(a: StoredAccount, name: string): void {
+    const kind = itemClass(name);
+    if (kind === null) throw new Error(`${name} is not a configuration or history item`);
+    if (kind === 'config' && a.config?.mode === 'independent') throw new Error(`${a.id} keeps its own configuration: switch it to shared to use the default's ${name}`);
+  }
+
+  /** What "use shared" would do for one item, with nothing written */
+  planItem(id: string, name: string): AccountConfigPlan {
+    const a = this.configEntry(id);
+    this.checkItem(a, name);
+    const stamp = asideStamp();
+    const dir = this.dirOf(id);
+    const step = planUseShared(dir, this.defaultDir, name, join(dir, ASIDE_DIR, stamp));
+    const mode = a.config?.mode ?? 'shared';
+    return { account: id, from: mode, to: mode, start: null, aside: step.action === 'replace' ? `${ASIDE_DIR}/${stamp}` : null, steps: [step] };
+  }
+
+  /**
+   * "Use shared" for one item: the account's own item (a real `agent-memory/` an older account made,
+   * a settings file of its own) is moved aside, never deleted, and the default's linked.
+   */
+  async useShared(id: string, name: string): Promise<{ steps: AccountConfigStep[]; aside: string | null }> {
+    this.reload();
+    const a = this.configEntry(id);
+    this.checkItem(a, name);
+    const stamp = asideStamp();
+    const dir = this.dirOf(id);
+    const step = planUseShared(dir, this.defaultDir, name, join(dir, ASIDE_DIR, stamp));
+    const steps = applySteps(dir, this.defaultDir, [step], {
+      aside: join(dir, ASIDE_DIR, stamp),
+      onError: (s, error) => this.say(`accounts: ${id}: ${s.name} was left as it is (${error instanceof Error ? error.message : String(error)})`),
+    });
+    if (steps.some((s) => s.action === 'link' || s.action === 'replace') && !a.links.includes(name)) a.links = [...a.links, name];
+    await this.save();
+    return { steps, aside: steps.some((s) => s.action === 'replace') ? `${ASIDE_DIR}/${stamp}` : null };
   }
 
   /** Refused with {@link AccountInUseError} (409) while a live chat runs on the account. */

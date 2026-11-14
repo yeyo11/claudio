@@ -164,7 +164,7 @@ describe('choosing with a per-model limit', () => {
     { id: 'a', enabled: true, signedIn: true },
     { id: 'b', enabled: true, signedIn: true },
   ];
-  const settings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 0, strategy: 'order' as const, preferred: null, order: [] };
+  const settings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 0, strategy: 'order' as const, preferred: null, order: [], newAccountConfig: 'shared' as const };
 
   it('skips an account whose Fable limit is spent when the chat runs Fable', () => {
     const limits = { a: limitWith(1), b: limitWith(0.1) };

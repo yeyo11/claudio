@@ -88,7 +88,7 @@ const ROOT_TYPES = [
   // Providers
   'ProviderStatus', 'ProvidersSettings', 'ProviderMove', 'RunLimitWaitNowResponse', 'LimitWaitRunNowRefusalCode',
   // Several Claude accounts
-  'Account', 'AccountsSettings', 'AccountView', 'AccountInUseResponse', 'RotationPolicy', 'RotationPolicyRequest', 'UsageHistoryPoint', 'RotationEvent', 'AddLoginAccountRequest', 'AddTokenAccountRequest', 'UpdateAccountRequest', 'AccountLoginSession',
+  'Account', 'AccountsSettings', 'AccountView', 'AccountInUseResponse', 'AccountConfig', 'AccountConfigPlan', 'AccountConfigRequest', 'AccountConfigItemRequest', 'AccountConfigResult', 'RotationPolicy', 'RotationPolicyRequest', 'UsageHistoryPoint', 'RotationEvent', 'AddLoginAccountRequest', 'AddTokenAccountRequest', 'UpdateAccountRequest', 'AccountLoginSession',
   'AccountsRefreshResult', 'AccountLoginCodeRequest',
   // Code hosts
   'CodeHostStatus', 'CodeHostsSettings', 'TrackerStatus', 'TrackersSettings', 'YoutrackCredentialsStatus', 'PutYoutrackCredentialsRequest', 'SetupState', 'StartLoginRequest', 'LoginSession', 'SignOutResult', 'ProjectTrackerSettings', 'TrackerIssuesPage', 'TrackerImportRequest', 'TrackerImportResult', 'LinkWorkItemIssueRequest', 'ProjectCodeHost', 'ChangeRequest', 'ChangeRequestChecks', 'CheckLog', 'ChecksRerunRequest', 'OrchestrationPullRequest', 'OrchestrationPullRequestAnswer',
