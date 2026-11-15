@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-14T16:00:00Z
+updated_at: 2026-11-15T03:40:00Z
 tags:
     - plan
     - study
@@ -13,7 +13,7 @@ tags:
 # Plan: account configuration (shared or independent) and project rules
 
 Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
-`feat/account-config-mode` (2026-11-14); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
+`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
 
@@ -666,6 +666,38 @@ both wait for T9 and T10. The new routes are not served by a headless Claudio (`
 image has no page to switch from. A switch does not wait for the account's live chats: a running CLI
 sees its configuration change under it. Removing an account deletes the copies kept aside in its
 dir. Plugins (T2), the overlay (T3), the canary (T5) and the rules (T6 to T8) are untouched.
+
+**T5** (`feat/cli-canary`, 2026-11-15): the canary per CLI version. Described in
+[accounts.md](../accounts.md#the-cli-canary).
+- `runCanary` (`packages/accounts/src/canary.ts`): S1, S2 and S3c as the spikes table defines them,
+  each in its own dir of one fresh temp dir, with an environment built from nothing. S3c runs the
+  project twice, untrusted and trusted, with a loopback MCP server whose `headersHelper` leaves a
+  mark. Observed on 2.1.322: all three pass (S1 link kept and the target holds the server; S2 both
+  links kept, the plugin enabled in the linked settings and recorded in the linked `plugins/`; S3c
+  `failed` with 0 helper runs untrusted, `connected` with 1 trusted), 23 s, no sign-in and no turn.
+- Stored in SQLite, `cli_canary`, one row per version and check (`Db.saveCliCanary`, `cliCanary`).
+  A per-release record grows for as long as Claudio runs and two processes share the data dir, which
+  is CONTRIBUTING's line between rows and a settings file.
+- `CliCanaryWatch` (`packages/core/src/cli-canary.ts`) takes each CLI version the system read sees,
+  runs the canary when the version has no complete result, one at a time, and logs a failed check once.
+- Contract: `CliCanary`, `CliCanaryCheck`, `CliCanaryStatus` in `packages/shared`;
+  `GET /accounts/canary` and `POST /accounts/canary/run` (person only; 409 while one runs).
+- The Accounts page shows one line (`CliCanaryLine`), the first of T10's screens only in spirit: it
+  says the state and lists the checks that did not pass.
+
+**Differs from the plan.**
+- A failure only reports. R1's "shared mode copies and reconciles instead of linking" is a change
+  of behaviour whose trigger (which checks, how many versions) the plan does not settle, so it waits
+  for the owner. S1 is about `.claude.json`, which Claudio never links, so a failing S1 alone does not
+  threaten anything today; a failing S2 or S3c does (the links of T1, the overlay of T3).
+- A re-run button and a route for it, which the plan did not name: a check that failed by a
+  flake would otherwise stay failed until the next CLI version.
+- `CLAUDIO_CLI_CANARY=off`, set by the test preload, so a test's Core does not start processes
+  beside the ones it counts.
+
+**Stays open.** What a failing S2 or S3c should switch off (owner). The canary runs once per version
+per data dir. `needs-sign-in` was never seen: the three checks ran unsigned on 2.1.322. S2b (concurrent
+writers through a linked `plugins/`) is not a canary check.
 
 ## The owner's decisions (2026-11-13)
 

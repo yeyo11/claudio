@@ -265,5 +265,27 @@
     "team": "Team",
     "enterprise": "Enterprise",
     "apiKey": "API key"
+  },
+  "canary": {
+    "label": "Claude Code {{version}}",
+    "heading": "Checks for shared accounts",
+    "notChecked": "Not checked yet",
+    "running": "Checking…",
+    "again": "Check again",
+    "againFailed": "The checks could not be started",
+    "state": {
+      "pass": "Passed",
+      "fail": "Failed",
+      "needs-sign-in": "Needs a signed-in account",
+      "error": "Could not run"
+    },
+    "checks": {
+      "s1": "A linked state file survives a write",
+      "s2": "Linked plugins and settings survive an install",
+      "s3c": "A project's trust is read from the account"
+    },
+    "failed": "This version behaves differently from what shared accounts rely on. Nothing was changed: accounts keep working as they were.",
+    "needsSignIn": "The CLI would not run some checks without an account signed in, and none was used.",
+    "couldNotRun": "Some checks could not run, so nothing is known about them yet."
   }
 }

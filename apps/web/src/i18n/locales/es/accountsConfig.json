@@ -265,5 +265,27 @@
     "team": "Team",
     "enterprise": "Enterprise",
     "apiKey": "Clave de API"
+  },
+  "canary": {
+    "label": "Claude Code {{version}}",
+    "heading": "Comprobaciones de las cuentas compartidas",
+    "notChecked": "Aún sin comprobar",
+    "running": "Comprobando…",
+    "again": "Volver a comprobar",
+    "againFailed": "No se han podido iniciar las comprobaciones",
+    "state": {
+      "pass": "Superadas",
+      "fail": "Fallidas",
+      "needs-sign-in": "Requiere una cuenta con sesión",
+      "error": "No se han podido ejecutar"
+    },
+    "checks": {
+      "s1": "Un archivo de estado enlazado sobrevive a una escritura",
+      "s2": "Los plugins y los ajustes enlazados sobreviven a una instalación",
+      "s3c": "La confianza en un proyecto se lee de la cuenta"
+    },
+    "failed": "Esta versión se comporta distinto de lo que las cuentas compartidas necesitan. No se ha cambiado nada: las cuentas siguen funcionando como antes.",
+    "needsSignIn": "El CLI no ejecuta algunas comprobaciones sin una cuenta con sesión, y no se ha usado ninguna.",
+    "couldNotRun": "Algunas comprobaciones no se han podido ejecutar, así que aún no se sabe nada de ellas."
   }
 }

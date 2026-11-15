@@ -21,6 +21,11 @@ for (const name of ['CLAUDE_CONFIG_DIR', 'CLAUDIO_DATA_DIR', 'CLAUDIO_WORKSPACE_
   if (value !== undefined && !(resolve(value) + sep).startsWith(root)) delete process.env[name];
 }
 
+// The CLI canary (packages/core/src/cli-canary.ts) runs by itself on a CLI version it has not seen,
+// which a test's Core reads at once: it would start a few processes beside every one that test counts.
+// Its own tests give it a fake CLI and ask for it.
+process.env.CLAUDIO_CLI_CANARY ??= 'off';
+
 const made = new Set();
 const track = (dir) => {
   if (typeof dir === 'string' && resolve(dir).startsWith(root)) made.add(resolve(dir));

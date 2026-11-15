@@ -40,6 +40,7 @@
 @import './styles/decisions.css';
 @import './styles/providers.css';
 @import './styles/accounts.css';
+@import './styles/canary.css';
 @import './styles/collaborators.css';
 @import './styles/servers.css';
 @import './styles/rotation-chat.css';
