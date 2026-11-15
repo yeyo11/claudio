@@ -4022,7 +4022,7 @@ ${quoted}
    * finished task takes none: its result already fed the tasks that depend on it, so its way forward
    * is a fork.
    */
-  hintTask(id: string, taskId: string, text: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'> = 'person'): Orchestration {
+  hintTask(id: string, taskId: string, text: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'> = 'person', messageId?: string): Orchestration {
     const { orch, task } = this.decidable(id, taskId, ['running'], (t) =>
       `task ${t.id} is ${t.status}: a hint reaches a worker that is still running, and the way forward for a finished task is a fork of its chat`,
     );
@@ -4030,7 +4030,7 @@ ${quoted}
     if (!words) throw new Error('text is required');
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
     const prefix = source === 'person' ? ORCHESTRATION_HINT_PREFIX : SUPERVISOR_HINT_PREFIX;
-    this.runs.send(task.runId, `${prefix}\n\n${words}`, [], undefined, { source, words });
+    this.runs.send(task.runId, `${prefix}\n\n${words}`, [], messageId, { source, words });
     return orch;
   }
 
@@ -4039,12 +4039,12 @@ ${quoted}
    * with `SendMessage` when it could not be written to the subagent straight (D7). Framed by
    * `relayToSubagent`, so the page draws it as a system row rather than as a hint.
    */
-  relayTask(id: string, taskId: string, target: RelayTarget, text: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'> = 'supervisor'): Orchestration {
+  relayTask(id: string, taskId: string, target: RelayTarget, text: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'> = 'supervisor', messageId?: string): Orchestration {
     const { orch, task } = this.decidable(id, taskId, ['running'], (t) => `task ${t.id} is ${t.status}: only a running worker can pass a message on to its subagent`);
     const words = text?.trim();
     if (!words) throw new Error('text is required');
     if (!task.runId || this.relaunching.has(`${orch.id}:${task.id}`)) throw new Error('the worker is between two executions: try again in a moment');
-    this.runs.send(task.runId, relayToSubagent(source, target, words), [], undefined, { source, words });
+    this.runs.send(task.runId, relayToSubagent(source, target, words), [], messageId, { source, words });
     return orch;
   }
 

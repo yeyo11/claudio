@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T13:43:52Z
-updated_at: 2026-09-21T19:36:16Z
+updated_at: 2026-11-15T12:00:00Z
 tags:
     - plan
     - observability
@@ -176,6 +176,14 @@ Signals, all computed from data Claudio already receives:
 | **Tests bent to pass** | An existing test file edited to remove or loosen assertions | Yes: it was rewriting `pages.spec` |
 | **Silence** | No event at all for X minutes with no command running | A stalled API call or model |
 | **Budget** | A task past a time or cost limit set for it | If it had one, e.g. 20 min |
+
+> **Amended 2026-11-14** ([[reports/supervisor-routing-2026-11-14.md]]). For a chat that delegates:
+> *silence* counts any open tool call, and a lead's running subagents, background tasks and
+> workflows, as something in flight; it is judged per agent on that agent's own last event, fires
+> only when the whole chat is quiet, and names the subagent that is silent. *Busy without progress*
+> is not raised while a subagent runs, and counts a file written, a commit or a push by any agent and
+> a change in any checkout its subagents work in. A *hung command* that wraps itself in `timeout N`
+> is not `bad` before N.
 
 What happens when one fires:
 

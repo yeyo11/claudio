@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import type { GuardOutcome, HealthSignal, HealthSignalAgent, TaskLimits } from '@claudio/shared';
-import { commandKind, slowAfterMs, type UsualDuration } from './commands.ts';
+import { commandKind, selfBoundMs, slowAfterMs, type UsualDuration } from './commands.ts';
+import type { SilentParty } from './chat-model.ts';
 import { oneLine, said, wholeMinutes } from './health-strings.ts';
 
 // The signals that say a worker is busy and not getting anywhere, worked out from what Claudio
@@ -48,6 +49,27 @@ export interface Trace {
   guards?: GuardTraceEntry[];
   /** The subagents whose calls are in `calls`, by the id of the lead's call that launched each */
   agents?: ReadonlyMap<string, TraceAgent>;
+  /** Each agent's own last event in this execution, by the lead's call that launched it; `''` is the lead */
+  activity?: ReadonlyMap<string, string>;
+  /** What the lead has delegated and still runs: what it waits on while it says nothing */
+  delegated?: Delegated;
+}
+
+/** A subagent that has not ended, as the chat's branches know it. */
+export interface DelegatedAgent extends TraceAgent {
+  /** The lead's call that launched it */
+  toolUseId: string;
+  /** `running` while it works; `waiting` once its turn ended with its own background work still running */
+  status: 'running' | 'waiting';
+  startedAt: string;
+  /** Where it works, when its transcript said so: a worktree when started with isolation */
+  cwd?: string;
+}
+
+export interface Delegated {
+  subagents: DelegatedAgent[];
+  /** Background tasks (a command sent there, a monitor) and workflows still running */
+  background: number;
 }
 
 /** One thing the guard said about a tool call of the live execution. */
@@ -137,6 +159,88 @@ const agentPart = (trace: Trace, call: ToolCall): { agent?: HealthSignalAgent } 
   return agent ? { agent } : {};
 };
 
+// ---------- who could be silent ----------
+
+/** A call that holds its agent until it answers: any tool, except a shell command sent to the background */
+const inFlight = (call: ToolCall): boolean => call.endedAt === null && !(call.name === 'Bash' && call.input.run_in_background === true);
+
+/** A subagent as a signal names it, from what the branches know of it */
+const delegatedAgent = (sub: DelegatedAgent): HealthSignalAgent => ({
+  parentToolUseId: sub.toolUseId,
+  ...(sub.agentId ? { agentId: sub.agentId } : {}),
+  ...(sub.description ? { description: sub.description } : {}),
+  ...(sub.subagentType ? { subagentType: sub.subagentType } : {}),
+});
+
+/**
+ * Who in a chat could be silent, or null when every agent is waiting on something. An agent with an
+ * open call of any tool is waiting on it (a command is judged as a command, an MCP call such as a
+ * queued verification just takes its time), and so is a lead whose subagents, background tasks or
+ * workflows still run: before, only a foreground shell command counted, and a lead waiting on its
+ * agents or on a CI watch it sent to the background read as stalled. A running subagent with nothing
+ * in flight is the one whose own silence it is; of several, the one quiet the longest. The lead is
+ * silent only when it delegated nothing that still runs. Whether the chat as a whole is quiet long
+ * enough to say so is `chatHealth`'s to judge.
+ */
+export function quietParty(trace: Trace): SilentParty | null {
+  const open = new Set(trace.calls.filter(inFlight).map((c) => c.parentToolUseId ?? ''));
+  const delegated = trace.delegated ?? { subagents: [], background: 0 };
+  let party: SilentParty | null = null;
+  for (const sub of delegated.subagents) {
+    if (sub.status !== 'running' || open.has(sub.toolUseId)) continue;
+    const since = trace.activity?.get(sub.toolUseId) ?? sub.startedAt;
+    if (!party || ms(since) < ms(party.since)) party = { since, agent: delegatedAgent(sub) };
+  }
+  if (party) return party;
+  const leadWaits = open.has('') || delegated.subagents.length > 0 || delegated.background > 0;
+  return leadWaits ? null : { since: trace.lastEventAt };
+}
+
+// ---------- where a chat's family works ----------
+
+/** A worktree an agent works in, as a path names it: `…/.claude/worktrees/<name>` */
+const WORKTREE = /(\/[^\s'"`;|&()<>]*?\/\.claude\/worktrees\/[^/\s'"`;|&()<>]+)/g;
+/** A stage that moves into an absolute directory */
+const CD = /(?:^|[;&|(]\s*)cd\s+(["']?)(\/[^\s"';&|()]+)\1/g;
+/** The most directories of a family whose state is read for progress: each is a git status */
+export const FAMILY_DIRS_MAX = 6;
+
+/**
+ * The directories a chat's subagents work in, besides the chat's own: the `cwd` their transcript gave,
+ * the worktrees their calls name (an isolated agent's `.claude/worktrees/<name>`) and the absolute
+ * directories their commands move into. A lead that delegates commits nothing in its own checkout,
+ * and its subagents' changes there are its progress.
+ */
+export function familyDirs(trace: Trace, own: string): string[] {
+  const found = new Set<string>();
+  const add = (dir: string | undefined) => {
+    const clean = dir?.replace(/\/+$/, '');
+    if (clean && clean !== own.replace(/\/+$/, '')) found.add(clean);
+  };
+  for (const sub of trace.delegated?.subagents ?? []) add(sub.cwd);
+  for (const call of trace.calls) {
+    if (!call.parentToolUseId) continue;
+    for (const value of Object.values(call.input)) {
+      if (typeof value !== 'string') continue;
+      for (const match of value.matchAll(WORKTREE)) add(match[1]);
+      if (call.name === 'Bash') for (const match of value.matchAll(CD)) add(match[2]);
+    }
+  }
+  return [...found].slice(0, FAMILY_DIRS_MAX);
+}
+
+/** A shell command that records work: a commit, a push, a pull request */
+const RECORDS = /\bgit\b[^;&|]*\b(?:commit|push)\b|\bgh\s+pr\s+create\b/;
+
+/** The last time any agent of the chat committed, pushed or opened a pull request successfully, or null. */
+export function lastRecordAt(trace: Trace): string | null {
+  const done = trace.calls.filter((c) => c.name === 'Bash' && c.endedAt && !c.isError && typeof c.input.command === 'string' && RECORDS.test(c.input.command));
+  return done.length ? (done[done.length - 1] as ToolCall).endedAt : null;
+}
+
+/** Whether the lead has a subagent that has not ended: while one works, the lead's own progress is not asked for */
+export const delegating = (trace: Trace): boolean => (trace.delegated?.subagents.length ?? 0) > 0;
+
 // ---------- the same stall again ----------
 
 /** A command's run is a stall when it outlasted what is usual for its kind, or the fixed limit. */
@@ -189,9 +293,11 @@ export function repeatStall(trace: Trace, limits: StallLimits, nowMs: number): H
   const count = worst.stalls.length;
   const first = worst.stalls[0] as ToolCall;
   const last = worst.stalls[count - 1] as ToolCall;
+  // The command still running bounded itself and is inside that bound: a warning, never a cancel
+  const bounded = last.endedAt === null && withinOwnBound(trace, last, nowMs);
   return {
     kind: 'repeat-stall',
-    level: count >= 3 ? 'bad' : 'warn',
+    level: count >= 3 && !bounded ? 'bad' : 'warn',
     ...said('health.repeatStall', { kind: worst.kind, count, limitSeconds: Math.round(limitFor(worst.kind, limits) / 1000) }, 'health.hint.repeatStall'),
     since: first.at,
     detail: commandOf(last),
@@ -201,6 +307,14 @@ export function repeatStall(trace: Trace, limits: StallLimits, nowMs: number): H
 }
 
 const commandOf = (call: ToolCall): string => (typeof call.input.command === 'string' ? call.input.command : call.name);
+
+/** Whether a running call wraps its work in `timeout N` and has not reached N yet (`selfBoundMs`) */
+function withinOwnBound(trace: Trace, call: ToolCall, nowMs: number): boolean {
+  const bound = typeof call.input.command === 'string' ? selfBoundMs(call.input.command) : null;
+  if (bound === null) return false;
+  const start = commandClock(trace, call, nowMs) ?? call.at;
+  return nowMs - ms(start) < bound;
+}
 
 // ---------- a loop ----------
 
