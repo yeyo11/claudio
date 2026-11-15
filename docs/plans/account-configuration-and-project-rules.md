@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T12:30:00Z
+updated_at: 2026-11-15T16:00:00Z
 tags:
     - plan
     - study
@@ -759,6 +759,44 @@ sets a rule yet.
 and `strictConfig` to `RotationPolicy` with validation (preferred within `order`, percent 1 to 30, at
 most one reserve per account), the `not-allowed` refusal, and labels for `reserve` and the bases
 (today the web shows an unknown reason as its raw text).
+
+**T8** (`feat/account-rules-contract`, 2026-11-15): the rules' contract, with no screen.
+- `RotationPolicy` (and `RotationPolicyRequest`) gain `preferred?: string`, `reserve?: ProjectReserve`
+  (`{ percent }`) and `strictConfig?: boolean`; the routes stay `/accounts/policies` (GET, POST, PUT,
+  DELETE), so no new route, no new row, and their OpenAPI text and `docs/rest-api.md` rows say the
+  new fields. Everything is optional: a policy with none of them is stored and chosen exactly as
+  before.
+- Validation (`AccountStore.validPolicy`, 400): `preferred` one of `order`, or a known account when
+  there is no `order`; `reserve.percent` a number from 1 to 30 (`RESERVE_CAP`); a reserve needs a
+  `preferred` or an `order` to know its account (`reserveAccountOf`, new in `choose.ts`: the
+  preferred, else the first of the order); at most one rule reserves on an account; `strictConfig`
+  a boolean, stored only when true. A file edited by hand is read defensively. Removing an account
+  clears `preferred` and drops a reserve left with no account or on one another rule holds
+  (`settleReserves`).
+- Refusals (D10). `AccountSwitchRefusalCode` gains `not-allowed` (the person's switch, 409 with
+  `reason`), and `ChatStartRefusalCode` gains `account-not-allowed` (start, resume and fork with an
+  `account` outside the rule, 409 with `code`, raised in `ChatManager.admit` before anything is ended
+  or created). `allowsAccount(policy, account)` in `@claudio/accounts` is the one test: no rule, or a
+  rule with no `order`, allows every account.
+- Reasons: `AccountSwitchReason` gains `rule` (T7 records it). The Accounts page says `reserve` and
+  `rule` in words, and `accountsConfig.json` (`en`/`es`) has labels for every `why.basis` and every
+  `passedOver.because`, for the chat chip and event rows T10 draws; nothing renders them yet.
+
+**Differs from the plan.** The pin refusal is not only T7's: T8 raises it at the three places a pin is
+set from a request (start, resume, fork) and at the composer's switch, because the codes are
+contract. What T7 still owns is the rest of the pin story: orchestrations that pin (their start now
+fails with the 409), and the existing pins, which `choose` keeps ignoring (B16) and nothing shows yet.
+The plan wrote the start refusal as `account-not-allowed` and the switch's as `not-allowed`; both
+exist, one per surface, as the plan's two sections ask. A rule's `preferred` without an `order` is
+allowed (any known account), since without a list every account is allowed.
+
+**For T7.** `reserved` is `policies().filter((p) => p.reserve)` mapped to `{ project, account:
+reserveAccountOf(p), percent }` for each project of the rule, active only while that project has
+work in progress; pass `project` and the rule's `preferred`/`strictConfig` through `policyFor`, which
+already returns them (the policy is a `ChoosePolicy`). Record `rule` when `why.passedOver` names the
+current account `not-allowed`. A rule's `looseChats` has no project id: its work in progress is the
+chats of no project. Moving a chat whose pin a rule forbids is T7's too: its `chat.opts.account`
+was set before the rule existed, and the refusal here never sees it.
 
 ## The owner's decisions (2026-11-13)
 

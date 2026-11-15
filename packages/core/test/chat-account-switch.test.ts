@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import test from 'node:test';
 import { AccountStore, CREDENTIALS_FILE, DEFAULT_ID, readingFromEvent } from '@claudio/accounts';
 import { AccountSwitchRefusal, ChatManager } from '../src/chats.ts';
+import { ChatStartRefusal } from '../src/confined-chat.ts';
 import { Db } from '../src/db.ts';
 import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
@@ -352,6 +353,45 @@ test('an account the turn died on is passed over until its reading says its rese
   } finally {
     delete process.env.FAKE_CLAUDE_LIMITED_DIRS;
     delete process.env.FAKE_CLAUDE_LIMIT_RESETS_IN;
+    r.close();
+  }
+});
+
+// D10: a pin outside a project's rule is refused, never allowed to override the rule
+
+test('a person cannot move a chat to an account its project rule does not allow', async () => {
+  const r = await rig();
+  try {
+    r.chats.projectOf = () => 'proj';
+    await r.store.createPolicy({ projects: ['proj'], order: [DEFAULT_ID, r.ids.a] });
+    const chat = await idleChat(r, { keepAlive: false });
+    await assert.rejects(r.chats.switchAccount(chat.id, r.ids.b, 'person'), refusal('not-allowed'));
+    assert.equal(r.chats.accountOf(chat.id), DEFAULT_ID, 'the chat stays where it was');
+    // An account the rule lists is still a choice
+    const done = await r.chats.switchAccount(chat.id, r.ids.a, 'person');
+    assert.equal(done.chat.account, r.ids.a);
+  } finally {
+    r.close();
+  }
+});
+
+test('a chat is not started or resumed pinned to an account outside its project rule', async () => {
+  const r = await rig();
+  try {
+    r.chats.projectOf = () => 'proj';
+    await r.store.createPolicy({ projects: ['proj'], order: [r.ids.a] });
+    const refused = (e: unknown) => e instanceof ChatStartRefusal && e.statusCode === 409 && e.reason === 'account-not-allowed';
+    assert.throws(() => r.chats.start({ prompt: 'hello', keepAlive: false, account: r.ids.b }), refused);
+    assert.equal(r.spawns().length, 0, 'nothing started');
+    const ok = r.chats.start({ prompt: 'hello', keepAlive: false, account: r.ids.a });
+    await r.chats.waitForResult(ok.id);
+    await waitFor(() => !r.chats.get(ok.id)?.pid);
+    assert.throws(() => r.chats.resume(ok.id, { prompt: 'again', account: r.ids.b } as Parameters<typeof r.chats.resume>[1]), refused);
+    // A project with no rule, and a rule with no list, allow any pin
+    r.chats.projectOf = () => 'other';
+    const free = r.chats.start({ prompt: 'hello', keepAlive: false, account: r.ids.b });
+    await r.chats.waitForResult(free.id);
+  } finally {
     r.close();
   }
 });
