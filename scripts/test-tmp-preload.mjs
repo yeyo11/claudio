@@ -26,6 +26,9 @@ for (const name of ['CLAUDE_CONFIG_DIR', 'CLAUDIO_DATA_DIR', 'CLAUDIO_WORKSPACE_
 // Its own tests give it a fake CLI and ask for it. A flag on the process, not a variable: a variable
 // would reach the fake CLIs a test spawns, which the child-environment tests forbid.
 globalThis[Symbol.for('claudio.cliCanaryOff')] = true;
+// Same for the plugin pass over shared accounts (packages/accounts/src/plugins.ts): a test's Core
+// must not start `claude plugin` processes in the dirs of its accounts.
+globalThis[Symbol.for('claudio.accountPluginsOff')] = true;
 
 const made = new Set();
 const track = (dir) => {

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T20:00:00Z
-updated_at: 2026-11-15T20:00:00Z
+updated_at: 2026-11-15T21:00:00Z
 tags:
     - report
     - spike
@@ -125,6 +125,42 @@ proved nothing and was discarded): 0.00656056 USD in all, one turn over the "at 
 account does not inherit. External imports are rare and the CLI documents no flag for it. T2/T3:
 list it among the items the reconciler reports as "differs, cannot be supplied", and never write
 it into another process's state file. Nothing for T5.
+
+## S2b. Concurrent plugin writers through a linked `plugins/` (run 2026-11-15, T2)
+
+**Question.** Does a `plugins/` linked between accounts lose install records when several CLIs write
+it at once?
+
+**How run.** CLI 2.1.322, scratch dirs under `mktemp -d` with `HOME` there too, a local directory
+marketplace with six plugins, no sign-in, no network. Two accounts whose `plugins/` and
+`settings.json` were both links to one shared pair (as T1 links `settings.json`). Three rounds, each
+on a fresh pair: `claude plugin marketplace add`, then **twelve `claude plugin install` at once**
+(every plugin from both accounts), then ten concurrent `marketplace update`, `plugin list --json`
+and `plugin update` calls. Not run: the `-p` starts of the plan's wording, which need a sign-in;
+the plugin commands are the writers Claudio itself would add.
+
+| Round | Installs failed | Records lost in `installed_plugins.json` | `enabledPlugins` lost in `settings.json` | Records after the updates |
+|---|---|---|---|---|
+| 1 | 0 of 12 | none | 4 of 6 | 6 of 6 |
+| 2 | 0 of 12 | none | 3 of 6 | 6 of 6 |
+| 3 | 0 of 12 | none | 4 of 6 | 6 of 6 |
+
+**Result (verified, three rounds).** The install records through a linked `plugins/` survived all
+three rounds, but the **linked `settings.json` lost `enabledPlugins` entries in every round**: the
+CLI reads, modifies and writes it, so concurrent plugin writers lose each other's update. A plugin
+installed but not enabled is a silent B6. Serial runs (the reconciler's) lost nothing.
+
+**Means for.** D4 stands, and for a better reason than the records: reconcile per account with the
+CLI's own commands, **one at a time** (T2 does). Do not link `plugins/` on the strength of the
+records alone. The lost update is in `settings.json`, which T1 already links, so any two plugin
+commands (or a person's `/plugin` and a reconcile) running at the same moment in two accounts of
+the shared set can drop a setting. Against it, the reconciler starts no process when nothing differs,
+and is serial. Also confirmed in the same scratch run, with the reconciler against the real CLI: an
+install, a version bump of the marketplace (marketplace update then plugin update) and an uninstall by
+the default all reached the account, its `installPath` is under its own dir, and its `settings.json`
+stayed a link.
+
+**Cost.** None: no turn, no account.
 
 ## Cost of every turn
 

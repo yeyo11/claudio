@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T19:00:00Z
+updated_at: 2026-11-15T21:00:00Z
 tags:
     - accounts
     - rotation
@@ -62,7 +62,8 @@ account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
   on the next pass; a link made by hand that points where Claudio would point it is adopted, and
   recorded so removing the account undoes it. Anything else already there (a real file or dir, a link
   elsewhere) is a **conflict**: logged once, never overwritten, never deleted. Identity (credentials,
-  the state file, organisation policy) and `plugins/` are not linked. A directory under `accounts/`
+  the state file, organisation policy) and `plugins/` are not linked (a shared account's plugins are
+  [reconciled with the CLI's commands](#plugins-of-a-shared-account) instead). A directory under `accounts/`
   that no account names is listed in the log and left in place.
 
   Two kinds of conflict are settled before a run with no question (plan §6.2): an **empty** dir or
@@ -556,6 +557,59 @@ The status bar tells signed out from the limit with `SystemInfo.auth.inUseReason
 `limit` or null), which the server sets when no account is in use: `limit` when an enabled account
 has a credential, `signed-out` otherwise. "Not signed in" is shown only for the second case.
 
+## Plugins of a shared account
+
+`settings.json` is linked into a shared account, so `enabledPlugins` and `extraKnownMarketplaces`
+already are the default's. What is per account is `plugins/`: the install records, the marketplace
+clones and the cached versions, and a record's `installPath` lies under the dir of the account that
+installed it, so the dir is not linked (plan decision D4). Before this, an account ran only the
+plugins it was signed in with: `code-review` was missing on both of the owner's accounts and Sluice
+was 0.5.0 where the default had 0.12.1 (B6, B7).
+
+`PluginReconciler` (`packages/accounts/src/plugins.ts`) brings each shared account's plugins to the
+default's with the CLI's own commands, `CLAUDE_CONFIG_DIR=<account dir> claude plugin ...`, so the
+vendor's installer stays the only writer of an install record and Claudio only reads the default's
+(`installed_plugins.json`, `known_marketplaces.json`, `settings.json`):
+
+| The account | The commands |
+|---|---|
+| lacks a plugin the default has | `marketplace add <source>` when the account does not have the marketplace (the source is the one the default's records give: a GitHub repo, a git or https URL, or a path), `marketplace update <name>` when it does, then `install <id> --scope user` |
+| runs it at another version | `marketplace update <name>` (or the update sees the old catalog), then `update <id> --scope user`. Claudio cannot pin a version: an account whose marketplace has nothing newer stays behind, is listed as `differing`, and is not asked again until a version moves |
+| has a plugin Claudio installed that the default has dropped | `uninstall <id> --scope user` |
+| has a plugin a person installed there, that the default lacks | nothing: it is never removed. What Claudio installed is recorded in `<account dir>/.claudio-plugins.json`, and only that is ever uninstalled |
+
+Only the user-scope plugins of the default that its settings do not switch off are held to
+(`enabledPlugins[id] !== false`): a project or local plugin belongs to a folder, and an install would
+switch a disabled plugin on in the settings the two share. No command passes `-y`, so a plugin whose
+marketplace declares an install command is reported as failed, never accepted for a person.
+
+**When.** At start-up, when the default's `installed_plugins.json`, `known_marketplaces.json` or
+`settings.json` changes (a watch on the default dir and its `plugins/`, a 3 s debounce, no polling),
+and when the set of shared accounts changes (an account added, a switch to shared or back). One
+account at a time, in the background: a spawn never waits for it, and a pass that finds nothing to do
+starts no process. An account with a **live chat waits**: a CLI that is running is never given
+plugins moving under it, so the log says so once and the account is looked at again on a 2 minute timer
+that exists only while one waits. An independent account is never touched (it runs its own set).
+
+**Bounded.** Each command has a 90 s timeout and closed stdin, runs with the environment of the server
+minus its own variables and with no account credential (plugins are configuration), and is ended with
+the server. A failed command is logged once (the same failure is not logged again) and tried again at
+the next pass; a marketplace that could not be added skips its plugins' installs. `CLAUDIO_ACCOUNT_PLUGINS=off`
+stops the passes (the unit tests switch them off through the preload).
+
+**Served.** `Account.config.plugins` is `{ missing, differing }` (plugin ids), read from both dirs'
+records with no process: empty for an independent account, and for a shared one a non-empty list means
+a pass is waiting (a live chat), failed (the log says why) or cannot reach the default's version.
+
+**Concurrent writers (S2b).** The plan asked whether a linked `plugins/` survives concurrent CLIs.
+Twelve concurrent `claude plugin install` from two accounts with `plugins/` and `settings.json` both
+linked kept every install record (three rounds), but **lost `enabledPlugins` entries of `settings.json`
+in every round** (3 or 4 of 6): the CLI's read, modify and write of the settings file is a lost update.
+So two plugin writers in one config dir must never run together, and the reconciler runs one command
+at a time and only when something is missing. It also means a command that runs while the default's own
+CLI writes its settings could lose that write; the window is milliseconds and a pass that finds nothing
+to do writes nothing. [Detail](plans/account-configuration-and-project-rules.md#outcome).
+
 ## The CLI canary
 
 What a shared account stands on is behaviour no vendor documents: a rewrite of `.claude.json` that
@@ -688,6 +742,14 @@ describe it), `apps/web/test/account-card.test.tsx`, `rotation-card.test.tsx`, `
 `chat-notice.test.ts` and `notifications-text.test.ts`, and the e2e `accounts.spec.mjs` (a
 `fake-credits` token: the card's state and the setting saved from the page). No test claims the
 stream of a real paid turn: spike S2 was not run.
+
+Plugins of shared accounts are guarded by `packages/accounts/test/plugins.test.ts`, which runs the
+reconciler against `fake-plugin-claude.mjs` (a `claude` that answers only `plugin` commands, keeps its
+records and a marketplace clone per account dir, and writes `enabledPlugins` through the settings
+link): the commands and the dir they run in, a refresh before an update, what is never uninstalled,
+what the default switched off, no process when nothing differs, a live chat, a failure said once and
+retried, a hang ended at its timeout, no credential, one account at a time, the watch and the first
+pass, and the served `plugins`.
 
 The configuration mode is guarded by `packages/accounts/test/config-mode.test.ts` (the install
 default, the reconciliation per mode, history in both modes, each switch, the plan writing nothing,

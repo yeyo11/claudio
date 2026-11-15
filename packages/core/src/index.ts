@@ -96,7 +96,7 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
-import { AccountStore, DEFAULT_ID, isOut, readCache } from '@claudio/accounts';
+import { AccountStore, DEFAULT_ID, isOut, PluginReconciler, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf, probeTargets } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
@@ -529,6 +529,10 @@ export class Core {
   readonly cliVersion: CliVersionWatch;
   /** What the installed CLI did under S1, S2 and S3c; see `CliCanaryWatch` */
   readonly cliCanary: CliCanaryWatch;
+  /** Keeps every shared account's plugins at the default's with the CLI's own commands; see `PluginReconciler` */
+  private readonly accountPlugins: PluginReconciler;
+  /** The shared accounts the plugin pass last saw, so only a change of that set (not every usage reading) asks for one */
+  private pluginTargetsKey = '';
   /** Whether a newer Claudio has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
   /** Claudio updating itself inside its container: signed bundles under /data/app (docs/plans/container-polish.md, D4) */
@@ -769,6 +773,27 @@ export class Core {
       // The test preload sets the flag (scripts/test-tmp-preload.mjs); a person sets the variable
       off: process.env.CLAUDIO_CLI_CANARY === 'off' || Boolean((globalThis as Record<symbol, unknown>)[Symbol.for('claudio.cliCanaryOff')]),
     });
+    this.accountPlugins = new PluginReconciler({
+      defaultDir: config.configDir,
+      claude: () => config.claudeBin,
+      targets: () => this.accounts.pluginTargets(),
+      // A running CLI is never given plugins moving under it; the pass waits for the account to be idle
+      idle: (account) => this.runtime.liveChatsOn(account).length === 0,
+      log: (line) => console.warn(line),
+      onSpawn: (child) => this.children.add(child),
+      changed: () => this.accountsChangedSoon(),
+      closed: () => this.closed,
+    });
+    // The test preload sets the flag (scripts/test-tmp-preload.mjs); a person sets the variable
+    if (process.env.CLAUDIO_ACCOUNT_PLUGINS !== 'off' && !(globalThis as Record<symbol, unknown>)[Symbol.for('claudio.accountPluginsOff')]) {
+      this.accountPlugins.start();
+      this.accounts.onChange(() => {
+        const key = JSON.stringify(this.accounts.pluginTargets());
+        if (key === this.pluginTargetsKey) return;
+        this.pluginTargetsKey = key;
+        this.accountPlugins.nudge();
+      });
+    }
     // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
     this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events, onChecked: () => void this.serverUpdates.inspect() });
     const securityState = () => ({ mode: this.security.mode, readOnly: this.security.readOnly });
@@ -4116,6 +4141,7 @@ export class Core {
     // Before anything else ends: what is still in flight (a health check, a holders poll, a chat's
     // exit) must not start a CLI of its own on the way out
     this.chats.close();
+    this.accountPlugins.close();
     this.forgetSecrets();
     this.releaseVault();
     this.pullRequestWatcher.stop();
