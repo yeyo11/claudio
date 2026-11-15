@@ -163,12 +163,15 @@ export function AddAccountDialog({ onClose, onAdded }: { onClose: () => void; on
               <input type="password" className="mono" value={secret} onChange={(e) => setSecret(e.target.value)} placeholder="sk-ant-api03-…" autoComplete="off" spellCheck={false} />
             </Field>
           )}
+          {/* A bare switch with its consequence beside it, not inside a Field: a label inside a label
+              would make a tap on the explanation flip the choice */}
           {ruled.length > 0 && (
-            <Field label={t('dialog.rules.label')} hint={t('dialog.rules.hint', { count: ruled.length })}>
+            <div className="add-account-rules">
               <Switch checked={join} onChange={setJoin}>
-                {t('dialog.rules.join')}
+                {t('dialog.rules.join', { count: ruled.length })}
               </Switch>
-            </Field>
+              <p className="muted small">{t(join ? 'dialog.rules.on' : 'dialog.rules.off', { count: ruled.length })}</p>
+            </div>
           )}
           <ErrorBox error={start.error} title={t('dialog.startFailed')} />
         </form>

@@ -190,10 +190,11 @@
       "api-key": "Clave de API"
     },
     "rules": {
-      "label": "Reglas de proyecto",
-      "hint_one": "Una regla de proyecto indica qué cuentas pueden trabajar en sus proyectos. Activado, la cuenta nueva se añade a ella; desactivado, la regla queda como está y la cuenta no trabaja allí.",
-      "hint_other": "{{count}} reglas de proyecto indican qué cuentas pueden trabajar en sus proyectos. Activado, la cuenta nueva se añade a todas; desactivado, las reglas quedan como están y la cuenta no trabaja allí.",
-      "join": "Permitirla en los proyectos con regla"
+      "join_one": "Permitirla en los proyectos con regla",
+      "join_other": "Permitirla en los proyectos de las {{count}} reglas",
+      "on": "Se añade a la lista de cuentas permitidas allí.",
+      "off_one": "La regla queda como está: no trabaja allí.",
+      "off_other": "Las reglas quedan como están: no trabaja allí."
     },
     "joinFailed": "Se ha añadido la cuenta, pero no se ha podido añadir a todas las reglas de proyecto"
   },
@@ -414,7 +415,8 @@
     "plugins": {
       "lead": "Los plugins no coinciden con los de la cuenta predeterminada:",
       "missing": "no está instalado",
-      "differing": "está en otra versión"
+      "differing": "está en otra versión",
+      "after": "Claudio los iguala por sí solo."
     }
   },
   "configDialog": {

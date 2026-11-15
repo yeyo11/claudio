@@ -358,6 +358,10 @@
     min-width: 44px;
     min-height: 44px;
   }
+  /* A policy's edit and delete are icons only: a whole touch target each */
+  .accounts-page .row-actions .btn {
+    min-width: var(--touch);
+  }
 }
 
 /* The refresh button keeps its width while it reads: the spinner takes the icon's place */
@@ -540,6 +544,12 @@
   color: var(--warn);
 }
 
+/* An id moves to the next line whole rather than break at its hyphen; only one longer than the line breaks */
+.account-config-plugins .mono {
+  display: inline-block;
+  max-width: 100%;
+}
+
 @container (max-width: 340px) {
   .account-config-item.is-conflict {
     grid-template-columns: minmax(0, 1fr);
@@ -644,4 +654,16 @@
   .project-rule-rows .pref-row:not(.is-stacked) {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* The Add-account dialog's question about the project rules (D7): the switch, then what it does */
+.add-account-rules {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.add-account-rules p {
+  margin: 0;
 }

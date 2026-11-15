@@ -190,10 +190,11 @@
       "api-key": "API key"
     },
     "rules": {
-      "label": "Project rules",
-      "hint_one": "A project rule lists the accounts that may work on its projects. On, the new account joins it; off, the rule stays as it is and the account does not work there.",
-      "hint_other": "{{count}} project rules list the accounts that may work on their projects. On, the new account joins every one; off, the rules stay as they are and the account does not work there.",
-      "join": "Allow it on the projects with a rule"
+      "join_one": "Allow it on the projects with a rule",
+      "join_other": "Allow it on the projects of the {{count}} rules",
+      "on": "It joins the list of accounts allowed there.",
+      "off_one": "The rule stays as it is: it does not work there.",
+      "off_other": "The rules stay as they are: it does not work there."
     },
     "joinFailed": "The account was added, but it could not join every project rule"
   },
@@ -414,7 +415,8 @@
     "plugins": {
       "lead": "Plugins differ from the default:",
       "missing": "is missing",
-      "differing": "is at another version"
+      "differing": "is at another version",
+      "after": "Claudio brings them in line by itself."
     }
   },
   "configDialog": {

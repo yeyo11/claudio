@@ -833,9 +833,11 @@ The owner's T9 decisions of [plans/account-configuration-and-project-rules.md](p
   default:" in `--warn`, then each `plugin@marketplace` id in mono with "is missing" or "is at another
   version" in `--fg-2`. Warn, never bad: Claudio is bringing them in line. Nothing for an own
   account, or when both lists are empty.
-- **The Add-account dialog** asks, only while a rule lists its accounts, **Project rules**: a
-  `Switch` "Allow it on the projects with a rule", off by default, with the consequence of each side
-  as its hint.
+- **The Add-account dialog** asks, only while a rule lists its accounts, with a bare `Switch` (never
+  inside a `Field`, whose label would make a tap on the hint flip it) "Allow it on the projects with
+  a rule", off by default, and one muted line under it saying what the current side does
+  (`.add-account-rules`).
+- The plugins line ends by saying what happens next: "Claudio brings them in line by itself."
 - **The chat transcript**: a person's switch to an account of another configuration group reads
   "Switched to work, which has its own configuration" (or "…, which uses the shared configuration");
   the rotation's own move at a limit reads "At the usage limit, moved to work", with the same

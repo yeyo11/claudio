@@ -120,6 +120,8 @@ export function AccountConfigLine({
                 <span className="mono">{plugin.id}</span> {t(plugin.missing ? 'config.plugins.missing' : 'config.plugins.differing')}
               </Fragment>
             ))}
+            {'. '}
+            {t('config.plugins.after')}
           </span>
         </p>
       )}

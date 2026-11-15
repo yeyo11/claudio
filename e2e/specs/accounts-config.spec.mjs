@@ -120,7 +120,7 @@ export default async ({ page, api, check, dirs }) => {
 
     // ---------- D7: a new account is asked whether it joins the rules ----------
     await page.click('.accounts-page button', 'Add an account', 800);
-    await page.waitFor(`return [...document.querySelectorAll('.dialog')].some((d) => d.innerText.includes('Project rules') && d.innerText.includes('Allow it on the projects with a rule'))`, {
+    await page.waitFor(`return [...document.querySelectorAll('.dialog')].some((d) => d.innerText.includes('Allow it on the projects with a rule') && d.innerText.includes('does not work there'))`, {
       label: 'the Add-account dialog asks about the project rules',
     });
     await page.click('.dialog [role=radio]', 'API key', 300);

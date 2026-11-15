@@ -305,7 +305,7 @@ test('an account the project rule leaves out is offered for one turn only, and n
 test("a shared account whose plugins are not the default's says so in one warn line, the ids in mono", async () => {
   const html = await card(account({ config: config({ plugins: { missing: ['code-review@official'], differing: ['sluice@sluice'] } }) }));
   const text = words(html);
-  assert.match(text, /Plugins differ from the default: code-review@official is missing, sluice@sluice is at another version/);
+  assert.match(text, /Plugins differ from the default: code-review@official is missing, sluice@sluice is at another version\. Claudio brings them in line by itself\./);
   assert.match(html, /<span class="mono">code-review@official<\/span>/);
   assert.match(html, /account-config-plugins-word/);
   assert.match(html, /account-config-plugins-icon/, 'a status colour always comes with an icon and a word');

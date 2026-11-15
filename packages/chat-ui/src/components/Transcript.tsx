@@ -16,7 +16,7 @@ import { editChips } from '../lib/edit-chips';
 import { holdsGuardBlock, readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { justStreamed, streamedHeight } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
-import { formatDuration, formatClock, formatDateTime, truncate } from '@claudio/ui/lib/format';
+import { formatDuration, formatClock, formatDateTime, formatHour, truncate } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { CompactionDivider, type CompactionActions } from './CompactionDivider';
 import { BranchCard } from './LiveBranches';
@@ -138,7 +138,7 @@ type NoticeT = (key: string, options?: Record<string, unknown>) => string;
 function noticeDetail(notice: Notice, t: NoticeT): string {
   if (notice.kind === 'no-room') {
     const whose = notice.loose ? t('transcript.notice.noRoom.loose') : notice.detail ? t('transcript.notice.noRoom.project', { project: notice.detail }) : t('transcript.notice.noRoom.thisProject');
-    const until = notice.until ? t('transcript.notice.noRoom.until', { time: formatClock(notice.until) }) : '';
+    const until = notice.until ? t('transcript.notice.noRoom.until', { time: formatHour(notice.until) }) : '';
     return `${whose}${until}. ${t(notice.once ? 'transcript.notice.noRoom.waitOrOnce' : 'transcript.notice.noRoom.wait')}`;
   }
   if (notice.config) return t(notice.config === 'own' ? 'transcript.notice.accountOwnConfig' : 'transcript.notice.accountSharedConfig', { name: notice.detail });
