@@ -43,6 +43,7 @@ import {
   type SentMessage,
 } from './live-chat.ts';
 import { removeChatExtrasConfigs, writeChatExtrasConfigSync } from './chat-tools.ts';
+import { AccountOverlay, overlayEnabled } from './account-overlay.ts';
 import { ChatTable } from './chat-table.ts';
 import { AgentMessages } from './agent-messages.ts';
 import { writeBridgeMod } from './bridge-mod.ts';
@@ -425,6 +426,7 @@ export class ChatManager extends EventEmitter {
     for (const driver of drivers) {
       if (driver instanceof ClaudeCodeDriver) {
         driver.modelSource = { listed: () => this.accounts?.cachedModels(DEFAULT_ID) ?? null };
+        driver.accountOverlay ??= new AccountOverlay({ dataDir: config.dataDir, stateFile: config.globalConfigFile, enabled: overlayEnabled(), log: (message) => console.warn(message) });
       }
     }
     this.environments = new EnvironmentIndex(db);

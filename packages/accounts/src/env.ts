@@ -15,6 +15,11 @@ export interface AccountRef {
   kind: AccountKind;
   /** Absolute config dir of the account */
   dir: string;
+  /**
+   * A non-default account that takes the default's configuration (shared mode, no switch under way):
+   * its processes get the spawn-time overlay (`McpOverlay`) of what the default's state file holds
+   */
+  sharedConfig?: true;
 }
 
 /** Every variable that selects an account; a process never inherits another kind's. */

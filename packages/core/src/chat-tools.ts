@@ -332,10 +332,18 @@ export function writeChatExtrasConfigSync(dataDir: string, chatId: string, mcpSe
 }
 
 const EXTRAS_PREFIX = 'extra-';
-/** Only files `writeChatExtrasConfigSync` wrote match: a chat id is a UUID */
-const EXTRAS_FILE = /^extra-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-[0-9a-f]{16}\.json$/;
+/**
+ * Only files `writeChatExtrasConfigSync` wrote match, and the overlay files of a shared account's
+ * process (`account-overlay.ts`), which die with the chat as these do. A chat id is a UUID.
+ */
+const EXTRAS_FILE = /^(?:extra|overlay)-([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})-[0-9a-f]{16}(?:\.settings)?\.json$/;
 
-/** Deletes the extras files `doomed` names, by chat id and file name; the shared config files are never touched. */
+/** Removes the chat's overlay files but those named in `keep`: the process about to start reads only the new ones */
+export function removeChatOverlayFiles(dataDir: string, chatId: string, keep: readonly string[]): number {
+  return removeChatExtrasConfigs(dataDir, (id, file) => id === chatId && file.startsWith('overlay-') && !keep.includes(file));
+}
+
+/** Deletes the extras and overlay files `doomed` names, by chat id and file name; the shared config files are never touched. */
 export function removeChatExtrasConfigs(dataDir: string, doomed: (chatId: string, file: string) => boolean): number {
   const dir = join(dataDir, 'mcp');
   let names: string[];

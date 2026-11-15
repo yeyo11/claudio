@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-09T12:00:00Z
+updated_at: 2026-11-15T21:00:00Z
 tags:
     - security
     - secrets
@@ -124,6 +124,14 @@ The plan's decision 5: **a secret never goes in argv, a log, an event or an answ
   and the folder is removed when the command ends, whatever happened. tailscaled keeps the node key
   it gets in exchange, so the auth key is used once and stored nowhere
   ([setup.md](setup.md#tailscale)).
+- **MCP server definitions in files, never in argv.** A server's definition can carry headers and
+  tokens. The files Claudio hands the CLI with `--mcp-config` (a chat's chosen servers, callers'
+  additions, and a shared account's overlay of the default's servers,
+  [accounts.md](accounts.md#an-account)) and the overlay's `--settings` file are written mode 0600
+  under `<data>/mcp/` (0700); argv carries only their path. The overlay's files are per chat
+  (`overlay-<chat id>-…`), replaced at its next spawn, removed with the chat and at start-up for chats
+  with no live process; no route serves them and no log line quotes a definition. Like the CLI's own
+  state file, they are readable by anything running as the person, an agent's tools included.
 - **Write-only fields.** The key fields in the sign-in panel and YouTrack's token are never filled
   back: no route answers a secret, the field is cleared once sent, and an empty token field keeps
   the saved one.
