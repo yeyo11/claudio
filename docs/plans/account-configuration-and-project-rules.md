@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T16:00:00Z
+updated_at: 2026-11-15T16:30:00Z
 tags:
     - plan
     - study
@@ -220,10 +220,10 @@ DISABLE_AUTOUPDATER=1`, and a fresh `CLAUDE_CONFIG_DIR=$S/<name>` per case. Neve
 | Spike | Why | How | Cost |
 |---|---|---|---|
 | **S2b** Concurrent plugin writers through one linked `plugins/` | each CLI start may sync marketplaces and rewrite `installed_plugins.json` (the account caches hold many `temp_subdir_*.clone` dirs) | two scratch accounts with linked `plugins/`, 8 parallel `-p` starts with `initialize` each plus a `plugin update` in a loop; diff `installed_plugins.json` against the expected set | free, network to GitHub |
-| **S4** Name collision and strict mode | the overlay must not duplicate or shadow a project server; strict mode might drop claude.ai connectors | same-named server in `.mcp.json` and `--mcp-config`, `mcp_status`; then `--strict-mcp-config` on a signed-in scratch account | free, but needs a signed-in scratch account (a new `claude auth login`) |
-| **S5** What a session resumed on another account loses | B11 and B9 | two scratch accounts of the same person, `projects/` linked; a haiku turn that edits a file, writes a task list and a plan, then `--resume` on the other account; check rewind, tasks, plans, agent memory | two haiku turns, cents |
+| **S4** Name collision and strict mode | the overlay must not duplicate or shadow a project server; strict mode might drop claude.ai connectors | same-named server in `.mcp.json` and `--mcp-config`, `mcp_status`; then `--strict-mcp-config` on a signed-in scratch account | **Run 2026-11-15**: the flag wins, one entry; strict drops claude.ai connectors and `.mcp.json` servers. [Result](../reports/account-config-spikes.md#s4-name-collision-and-strict-mode) |
+| **S5** What a session resumed on another account loses | B11 and B9 | two scratch accounts of the same person, `projects/` linked; a haiku turn that edits a file, writes a task list and a plan, then `--resume` on the other account; check rewind, tasks, plans, agent memory | **Run 2026-11-15** (two Haiku turns, 0.014 USD): with only `projects/` linked the conversation resumes, but tasks are empty and rewind fails (backup missing); plans not exercised. [Result](../reports/account-config-spikes.md#s5-what-a-session-resumed-on-another-account-loses) |
 | **S6** OAuth MCP servers across accounts | a user-scope remote server with OAuth keeps its token per config dir [I] | add one in the default, pass it with `--mcp-config` on another account, `mcp_status` | free, needs one OAuth server sign-in |
-| **S7** External `@imports` in CLAUDE.md | `hasClaudeMdExternalIncludesApproved` is per state file | a CLAUDE.md importing a file outside the project, `-p` with and without the key | one haiku turn |
+| **S7** External `@imports` in CLAUDE.md | `hasClaudeMdExternalIncludesApproved` is per state file | a CLAUDE.md importing a file outside the project, `-p` with and without the key | **Run 2026-11-15**: without the key the import is skipped; with `projects[<path>]` set it is read. [Result](../reports/account-config-spikes.md#s7-external-imports-in-claudemd) |
 
 ## 6. End state for requirement 1: shared or independent configuration (E)
 
@@ -570,6 +570,14 @@ touch the same file are sequential (stated in "Depends on").
 Nothing is launched by this plan.
 
 ## Outcome
+
+**T0 (partial, 2026-11-15)** ([reports/account-config-spikes.md](../reports/account-config-spikes.md)).
+S4, S5 and S7 ran on CLI 2.1.322 with two scratch accounts (A and B, Max plan) the owner signed in
+for the purpose, on Haiku, for about 0.02 USD in total. S2b and S6 are still owed (S6 needs an OAuth
+server sign-in). What they change: the overlay can pass user servers with `--mcp-config` without
+fear of duplicates (T3); strict mode must never be used for the overlay (T3); the five history items
+must stay linked (T1, already so); `hasClaudeMdExternalIncludesApproved` is another per-project
+approval the reconciler cannot supply (T2/T3 note); the canary can take S4's two checks (T5).
 
 Built on `fix/account-links-reconcile`: T0b, then T1.
 
