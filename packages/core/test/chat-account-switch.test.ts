@@ -324,7 +324,7 @@ test('a chat a person moves off the account its turn died on is no longer at its
   }
 });
 
-test('an account the turn died on is passed over until its reading says its reset passed, then it is a candidate again', async () => {
+test('an account the turn died on is passed over until its reading says its reset passed, then it is a candidate again', async (t) => {
   const r = await rig();
   process.env.FAKE_CLAUDE_LIMITED_DIRS = r.dirs[r.ids.a] ?? '';
   process.env.FAKE_CLAUDE_LIMIT_RESETS_IN = '3600';
@@ -337,12 +337,15 @@ test('an account the turn died on is passed over until its reading says its rese
 
     // A later reading says the account is back sooner (what a wait's look, or the reset itself, brings):
     // out for another 100 ms only
+    // The clock is frozen from here and moved by hand: with a real 100 ms, a loaded machine spent longer
+    // than that between the reading and the first look, and the account was already back
     const at = Date.now();
+    t.mock.timers.enable({ apis: ['Date'], now: at });
     const sooner = readingFromEvent({ status: 'rejected' }, at, { cooldownMs: 100 });
     assert.ok(sooner);
     await r.chats.noteAccountReading(r.ids.a, sooner);
     assert.notEqual(r.chats.chooseNext(chat.id)?.account, r.ids.a, 'still out');
-    await waitFor(() => Date.now() > at + 100);
+    t.mock.timers.tick(101);
     // Before 2026-11-07 the failure counted until a turn went through: after a wait replayed the turn
     // and it died again, the rotation still passed over this account and waited
     assert.equal(r.chats.chooseNext(chat.id)?.account, r.ids.a, 'its reset ended the failure');
