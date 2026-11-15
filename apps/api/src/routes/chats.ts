@@ -203,10 +203,12 @@ export const chatRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { core
 
   // A person moves a chat to another account: at once when idle, after the turn when working
   app.post<{ Params: { id: string }; Body: SwitchChatAccountRequest }>('/chats/:id/account', async (req): Promise<SwitchChatAccountResponse> => {
-    const accountId = (req.body as Partial<SwitchChatAccountRequest> | undefined)?.accountId;
+    const asked = req.body as Partial<SwitchChatAccountRequest> | undefined;
+    const accountId = asked?.accountId;
     if (typeof accountId !== 'string' || accountId.trim() === '') throw Object.assign(new Error('accountId is required'), { statusCode: 400 });
+    if (asked?.once !== undefined && typeof asked.once !== 'boolean') throw Object.assign(new Error('once must be a boolean'), { statusCode: 400 });
     try {
-      return await chats.switchAccount(req.params.id, accountId, req.actor ?? 'person');
+      return await chats.switchAccount(req.params.id, accountId, req.actor ?? 'person', { once: asked?.once === true });
     } catch (err) {
       if (!(err instanceof AccountSwitchRefusal)) throw err;
       const missing = err.code === 'chat-not-found' || err.code === 'account-not-found';

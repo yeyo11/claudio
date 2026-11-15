@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isTransientRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
-import { accountState, allowsAccount, creditsCapReached, creditsSettingOf, DEFAULT_ID, isOut, outUntil, overageHint, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
+import { accountState, allowsAccount, creditsCapReached, creditsSettingOf, DEFAULT_ID, isOut, outUntil, overageHint, readingFromEvent, type AccountRef, type AccountStore, type Choice, type ChooseOptions, type Reading } from '@claudio/accounts';
+import { NO_PROJECT, noRoomWords, ProjectActivity } from './project-activity.ts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
@@ -162,6 +163,18 @@ const MAX_LIMIT_REPLAYS = 1;
  */
 const askedModel = (chat: LiveChat): string | null => chat.opts.model ?? null;
 
+/** What a project's rule adds to the account choice of a chat (`ChatManager.ruleOf`). */
+type RuleOptions = Required<Pick<ChooseOptions, 'policy' | 'project'>> & Pick<ChooseOptions, 'reserved'>;
+
+/**
+ * A choice's reason, with `rule` when it moved the work off an account its project's rule does not
+ * allow (`choose` says `threshold` there, and names the account `not-allowed` in `why.passedOver`).
+ */
+export function ruleReason(choice: Choice, current: string | null): AccountSwitchReason | null {
+  if (choice.reason === null || current === null || choice.account === current) return choice.reason;
+  return choice.why.passedOver?.some((p) => p.account === current && p.because === 'not-allowed') ? 'rule' : choice.reason;
+}
+
 /** The windows `usage_history` keeps a line for */
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
 
@@ -179,7 +192,7 @@ export interface GuardSubject {
   confined: boolean;
 }
 
-export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'confirm' | 'settings' | 'policyFor' | 'find' | 'cachedModels' | 'warmModels' | 'canRun'>;
+export type ChatAccounts = Pick<AccountStore, 'ref' | 'pick' | 'observe' | 'markAuthFailed' | 'confirm' | 'settings' | 'policyFor' | 'policies' | 'find' | 'cachedModels' | 'warmModels' | 'canRun'>;
 const MAX_ATTACHMENTS = 20;
 
 /** Why a message is lost when the chat is stopped before the agent read it */
@@ -327,6 +340,17 @@ export class ChatManager extends EventEmitter {
   /** The project a directory belongs to, for its rotation policy; Core sets it */
   projectOf: ((dir: string) => string | null) | null = null;
   /**
+   * Work in progress per project, from which the rules' reserves are active (project-activity.ts).
+   * The chats' own running turns are a source; Core adds the orchestrations and the schedules due soon.
+   */
+  readonly activity: ProjectActivity;
+  /** Pending switches the project's rule asked for rather than a person: recorded with reason `rule` (D9) */
+  private readonly ruleMoves = new WeakSet<LiveChat>();
+  /** Chats a person moved, once, to an account their rule does not allow: the account, until a turn has run on it */
+  private readonly onceOn = new WeakMap<LiveChat, string>();
+  /** The rules as `enforceRules` last saw them, so a change of any other account state costs one comparison */
+  private rulesSeen: string | null = null;
+  /**
    * What a process of an interactive chat or an orchestration worker is appended: the Lessons
    * section and the note on pasted text, or '' when the project gives none; Core sets it
    */
@@ -378,9 +402,22 @@ export class ChatManager extends EventEmitter {
     super();
     this.providers = new ProviderRegistry(PROVIDER_MANIFESTS, drivers);
     this.defaults = config;
+    this.activity = new ProjectActivity(() => this.projectOf);
+    // A turn running, starting or held at its limit is work its project has in progress
+    this.activity.add(() => {
+      const dirs: string[] = [];
+      for (const c of this.chats.values()) if (c.status === 'busy' || c.status === 'starting' || c.rateLimited) dirs.push(c.workingDir ?? c.cwd);
+      return dirs;
+    });
     // A switch asked for while a turn ran takes effect when its result arrives
     // (the result is announced before the chat is marked idle, so the check waits for the fold to finish)
-    this.on('chat-result', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
+    // An account the chat's project rule does not allow is left at the end of the turn (D9)
+    this.on('chat-result', (chatId: string) =>
+      setImmediate(() => {
+        this.settleRuleAfterTurn(chatId);
+        void this.applyPendingAccount(chatId).catch(() => undefined);
+      }),
+    );
     // What waited for the agent's background work goes ahead once it is over (D3)
     this.on('chat-background-settled', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
     this.file = join(config.dataDir, 'runs.json');
@@ -2279,7 +2316,7 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     if (!store) return null;
     // A switch still waiting for the turn to end applies now: no process is left to wait for
-    if (chat.pendingAccount) this.moveTo(chat, chat.pendingAccount, 'person');
+    if (chat.pendingAccount) this.applyPendingNow(chat, chat.pendingAccount);
     const moved = chat.forcedAccount;
     const movedFor = chat.forcedReason;
     chat.forcedAccount = null;
@@ -2291,10 +2328,15 @@ export class ChatManager extends EventEmitter {
       to = moved;
       reason = movedFor;
     } else {
-      const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-      const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), now: at, model: askedModel(chat) });
-      to = choice.account ?? chat.account ?? DEFAULT_ID;
-      reason = choice.reason;
+      const rule = this.ruleOf(chat, store);
+      if (chat.account !== null && this.onceOn.get(chat) === chat.account) {
+        // A person's one turn outside the rule runs where they put it, even on a respawn within it
+        to = chat.account;
+      } else {
+        const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, ...rule, now: at, model: askedModel(chat) });
+        to = choice.account ?? this.stayOrAllowed(chat, store, rule.policy);
+        reason = ruleReason(choice, chat.account);
+      }
     }
     let ref: AccountRef;
     try {
@@ -2415,12 +2457,110 @@ export class ChatManager extends EventEmitter {
    * to, or when none is left the earliest reset. Null for a chat that runs on none. Every account
    * the turn already died on is passed over, so a chain of moves ends by itself.
    */
+  /**
+   * What the project's rule adds to a choice for the chat: its policy, its project (the key the
+   * reserves compare with) and the reserves of the other projects' work in progress.
+   */
+  private ruleOf(chat: LiveChat, store: ChatAccounts): RuleOptions {
+    return this.ruleFor(this.projectOfDir(chat.workingDir ?? chat.cwd), store);
+  }
+
+  private ruleFor(projectId: string | null, store: ChatAccounts): RuleOptions {
+    const reserved = this.activity.reserves(store.policies());
+    return { policy: store.policyFor(projectId), project: projectId ?? NO_PROJECT, ...(reserved.length ? { reserved } : {}) };
+  }
+
+  /**
+   * Where a chat runs when no account has room: where it is, as before rules, unless its rule does
+   * not allow that account, which no lack of room makes allowed (§7.2: never silently cross a rule).
+   * The turn then meets the allowed account's limit, and the limit path waits or asks.
+   */
+  private stayOrAllowed(chat: LiveChat, store: ChatAccounts, policy: RuleOptions['policy']): string {
+    const current = chat.account ?? DEFAULT_ID;
+    if (allowsAccount(policy ?? null, current)) return current;
+    return this.allowedFallback(store, policy) ?? current;
+  }
+
+  /** The rule's preferred account, else the first of its order that can sign in, else the first of its order. */
+  private allowedFallback(store: ChatAccounts, policy: RuleOptions['policy']): string | null {
+    const order = policy?.order;
+    if (!order?.length) return null;
+    const ranked = [...(policy?.preferred && order.includes(policy.preferred) ? [policy.preferred] : []), ...order];
+    return ranked.find((id) => {
+      const a = store.find(id);
+      return !!a && a.enabled && a.signedIn;
+    }) ?? order[0] ?? null;
+  }
+
+  /**
+   * D9: a chat whose account its project's rule does not allow (the rule was set or changed under
+   * it) is given a pending switch to an account the rule allows, which the end of its turn applies,
+   * recorded with reason `rule`. Never interrupts a turn, and leaves a turn held at its limit to the rotation.
+   */
+  private settleRule(chat: LiveChat): void {
+    const store = this.accounts;
+    if (!store || !chat.account || chat.rateLimited) return;
+    const rule = this.ruleOf(chat, store);
+    if (allowsAccount(rule.policy ?? null, chat.account)) return;
+    if (chat.pendingAccount && allowsAccount(rule.policy ?? null, chat.pendingAccount)) return;
+    const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, ...rule, model: askedModel(chat) });
+    const to = choice.account && choice.account !== chat.account ? choice.account : this.allowedFallback(store, rule.policy);
+    if (!to || to === chat.account) return;
+    chat.pendingAccount = to;
+    this.ruleMoves.add(chat);
+    this.persist(chat);
+  }
+
+  /** At the end of a turn: a turn run once outside the rule is over, and the rule is applied again. */
+  private settleRuleAfterTurn(id: string): void {
+    const chat = this.chats.get(id);
+    if (!chat) return;
+    const once = this.onceOn.get(chat);
+    if (once !== undefined) {
+      // The turn that ended ran before the move: the one turn on the other account is still to come
+      if (once !== chat.account) return;
+      this.onceOn.delete(chat);
+    }
+    this.settleRule(chat);
+  }
+
+  /**
+   * Applies the project rules to the chats with a live process, after the rules changed (D9): an
+   * idle chat moves now, between turns; a working one when its turn ends. Called on every change of
+   * the accounts' state, so it compares the rules with the last ones it saw before doing anything.
+   */
+  enforceRules(): void {
+    const store = this.accounts;
+    if (!store) return;
+    const seen = JSON.stringify(store.policies().map((p) => [p.projects, p.looseChats === true, p.order ?? null]));
+    if (seen === this.rulesSeen) return;
+    this.rulesSeen = seen;
+    for (const chat of [...this.chats.values()]) {
+      if (!chat.alive || this.onceOn.has(chat)) continue;
+      this.settleRule(chat);
+      if (this.ruleMoves.has(chat) && chat.status !== 'busy' && chat.status !== 'starting') void this.applyPendingAccount(chat.id).catch(() => undefined);
+    }
+  }
+
+  /**
+   * Why automated work in `dir` should not start now: no account its project's rule allows has room
+   * (§7.2), with the earliest reset among them. Null when one has room, when no rule narrows the
+   * accounts, or when the rule kept the work off no account (then the lack of room is not the rule's).
+   */
+  noRoomUnderRule(dir: string, model: string | null = null): string | null {
+    const store = this.accounts;
+    if (!store) return null;
+    const rule = this.ruleFor(this.projectOfDir(dir), store);
+    if (!rule.policy?.order) return null;
+    const choice = store.pick({ current: null, ...rule, ...(model ? { model } : {}) });
+    return choice.account ? null : noRoomWords(choice);
+  }
+
   chooseNext(id: string): Choice | null {
     const chat = this.chats.get(id);
     const store = this.accounts;
     if (!chat || !store || !chat.account) return null;
-    const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn: this.stillFailed(chat, store, Date.now()) });
+    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, ...this.ruleOf(chat, store), model: askedModel(chat), failedOn: this.stillFailed(chat, store, Date.now()) });
   }
 
   /**
@@ -2449,7 +2589,6 @@ export class ChatManager extends EventEmitter {
     const chat = this.chats.get(id);
     const store = this.accounts;
     if (!chat || !store || !chat.account) return null;
-    const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
     const newer = (account: string): boolean => {
       const limit = store.find(account)?.limits;
       return !!limit && limit.state !== 'exhausted' && Date.parse(limit.observedAt) > (since ?? 0);
@@ -2457,7 +2596,7 @@ export class ChatManager extends EventEmitter {
     const failedOn = since === null ? [] : this.stillFailed(chat, store, Date.now()).filter((a) => !newer(a));
     // Overriding the failures, staying on the account the turn died on last is no reason of its own:
     // the order (or the most room) decides
-    return store.pick({ current: since === null ? null : chat.account, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn });
+    return store.pick({ current: since === null ? null : chat.account, pinned: chat.opts.account ?? null, ...this.ruleOf(chat, store), model: askedModel(chat), failedOn });
   }
 
   /** The live chats whose process runs on an account: what removing that account waits for. */
@@ -2811,6 +2950,8 @@ export class ChatManager extends EventEmitter {
     this.noteActivity(chat);
     this.persist(chat);
     this.maybeLimit(chat);
+    // A rule's move set at the turn's result met a chat still busy until its process closed (D9)
+    if (chat.pendingAccount && this.ruleMoves.has(chat)) setImmediate(() => void this.applyPendingAccount(chat.id).catch(() => undefined));
     chat.purpose = null;
     this.emit('chat-context', chat.id, { kind: 'ended', stopped: chat.stopRequested, error: chat.error } satisfies ContextSignal);
   }
@@ -2855,8 +2996,7 @@ export class ChatManager extends EventEmitter {
     if (creditsCapReached(store.find(id)?.limits, setting)) return 'cap';
     if (setting.use === 'last-resort') {
       // Only while no account has plan quota: one that has it takes the turn
-      const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
-      const choice = store.pick({ current: id, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn: [id] });
+      const choice = store.pick({ current: id, pinned: chat.opts.account ?? null, ...this.ruleOf(chat, store), model: askedModel(chat), failedOn: [id] });
       if (choice.account && choice.account !== id && !choice.credits) return 'quota-elsewhere';
     }
     return null;
@@ -3084,8 +3224,12 @@ export class ChatManager extends EventEmitter {
    * is ended between turns, the next message resumes the session under the new account); a working
    * one keeps its turn and moves when the turn ends. Naming the current account cancels a pending
    * switch. The choice is not a pin: the rotation still moves the chat at a limit.
+   *
+   * `once` is the person's "use another account once" (§7.2, D8): an account the project's rule does
+   * not allow takes the chat for one turn, recorded on the switch's event, and the rule moves the
+   * chat back when that turn ends. On an account the rule allows it is an ordinary switch.
    */
-  async switchAccount(id: string, accountId: string, actor: string): Promise<{ chat: ChatRuntime; pending: boolean }> {
+  async switchAccount(id: string, accountId: string, actor: string, opts: { once?: boolean } = {}): Promise<{ chat: ChatRuntime; pending: boolean }> {
     const chat = this.chats.get(id);
     const store = this.accounts;
     if (!chat) throw new AccountSwitchRefusal('chat-not-found', 'chat not found');
@@ -3095,13 +3239,18 @@ export class ChatManager extends EventEmitter {
     if (accountId === (chat.account ?? DEFAULT_ID)) {
       if (!chat.pendingAccount) throw new AccountSwitchRefusal('same-account', 'the chat already runs on this account');
       chat.pendingAccount = null;
+      this.ruleMoves.delete(chat);
+      this.onceOn.delete(chat);
       this.persist(chat);
       return { chat: chat.summary(), pending: false };
     }
     if (accountId === chat.pendingAccount) return { chat: chat.summary(), pending: true };
     if (!account.enabled) throw new AccountSwitchRefusal('disabled', `account ${accountId} is disabled`);
-    // D10: the rule of the chat's project is not the person's to override from the composer
-    if (!allowsAccount(store.policyFor(this.projectOfDir(chat.workingDir ?? chat.cwd)), accountId)) {
+    // D10: the rule of the chat's project is not the person's to override from the composer, but for
+    // one turn when they say so (D8)
+    const projectId = this.projectOfDir(chat.workingDir ?? chat.cwd);
+    const once = !allowsAccount(store.policyFor(projectId), accountId);
+    if (once && opts.once !== true) {
       throw new AccountSwitchRefusal('not-allowed', `account ${accountId} is not allowed on this project by its rule`);
     }
     // Checked before signedIn, which an unusable sign-in also clears: the person is told it needs a new sign-in
@@ -3121,6 +3270,9 @@ export class ChatManager extends EventEmitter {
     if (model && model !== 'default' && !store.canRun(accountId, model)) {
       throw new AccountSwitchRefusal('model-unavailable', `account ${accountId} does not offer ${model}`);
     }
+    this.ruleMoves.delete(chat);
+    if (once) this.onceOn.set(chat, accountId);
+    else this.onceOn.delete(chat);
     if (chat.status === 'busy' || chat.status === 'starting') {
       chat.pendingAccount = accountId;
       this.persist(chat);
@@ -3135,7 +3287,7 @@ export class ChatManager extends EventEmitter {
       return { chat: chat.summary(), pending: true };
     }
     await this.endProcessBetweenTurns(chat);
-    this.moveTo(chat, accountId, actor);
+    this.moveTo(chat, accountId, actor, 'person', this.onceData(chat, accountId, projectId));
     return { chat: chat.summary(), pending: false };
   }
 
@@ -3149,7 +3301,20 @@ export class ChatManager extends EventEmitter {
     if (chat.written().length > 0 || (chat.alive && runsInBackground(chat.branches))) return;
     await this.endProcessBetweenTurns(chat);
     // Another message may have started a turn while the process was closing
-    if (chat.pendingAccount === to && !chat.alive) this.moveTo(chat, to, 'person');
+    if (chat.pendingAccount === to && !chat.alive) this.applyPendingNow(chat, to);
+  }
+
+  /** Applies a pending switch as the person's, or as the rule's when the rule asked for it. */
+  private applyPendingNow(chat: LiveChat, to: string): void {
+    const ruled = this.ruleMoves.has(chat);
+    this.ruleMoves.delete(chat);
+    if (ruled) this.moveTo(chat, to, 'rule', 'rule', { project: this.projectOfDir(chat.workingDir ?? chat.cwd) });
+    else this.moveTo(chat, to, 'person', 'person', this.onceData(chat, to, this.projectOfDir(chat.workingDir ?? chat.cwd)));
+  }
+
+  /** What a switch's event records of a turn run once outside the rule: that it was once, and whose rule it crossed. */
+  private onceData(chat: LiveChat, to: string, projectId: string | null): Record<string, unknown> {
+    return this.onceOn.get(chat) === to ? { once: true, project: projectId } : {};
   }
 
   /**
@@ -3175,7 +3340,7 @@ export class ChatManager extends EventEmitter {
    * `atLimit` kept saying so and the web compared accounts to hide the banner (R11). The execution
    * keeps why it ended, which the rotation reads back after a restart (`limitedTail`).
    */
-  private moveTo(chat: LiveChat, to: string, actor: string): void {
+  private moveTo(chat: LiveChat, to: string, actor: string, reason: 'person' | 'rule' = 'person', data: Record<string, unknown> = {}): void {
     const from = chat.account;
     this.keepLimitCause(chat);
     chat.rateLimited = false;
@@ -3189,12 +3354,18 @@ export class ChatManager extends EventEmitter {
     if (chat.opts.account) chat.opts.account = to;
     this.persist(chat);
     try {
-      this.db.appendRotationEvent({ ts: new Date().toISOString(), event: 'switch', from, to, reason: 'person', detail: chat.name, data: { chatId: chat.id, actor } });
+      this.db.appendRotationEvent({ ts: new Date().toISOString(), event: 'switch', from, to, reason, detail: chat.name, data: { chatId: chat.id, actor, ...data } });
     } catch {
       // A closed database (shutting down) is not the switch's to report
     }
-    this.bus?.emit({ type: 'account.switched', title: `${chat.name} moves from ${from ?? DEFAULT_ID} to ${to}`, from, to, reason: 'person' });
-    this.notice(chat.id, `Switched to account ${to}.`, { account: to, from, reason: 'person' });
+    this.bus?.emit({ type: 'account.switched', title: `${chat.name} moves from ${from ?? DEFAULT_ID} to ${to}`, from, to, reason });
+    const said =
+      reason === 'rule'
+        ? `Moved to account ${to}: the rule of this chat's project does not allow account ${from ?? DEFAULT_ID}.`
+        : data.once === true
+          ? `Switched to account ${to} for one turn, outside the rule of this chat's project; the chat goes back to an account the rule allows when the turn ends.`
+          : `Switched to account ${to}.`;
+    this.notice(chat.id, said, { account: to, from, reason });
   }
 
   /**

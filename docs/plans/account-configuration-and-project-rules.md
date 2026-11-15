@@ -806,6 +806,46 @@ current account `not-allowed`. A rule's `looseChats` has no project id: its work
 chats of no project. Moving a chat whose pin a rule forbids is T7's too: its `chat.opts.account`
 was set before the rule existed, and the refusal here never sees it.
 
+**T7** (`feat/project-activity-reserves`, 2026-11-15): the rules at work. Described in
+[accounts.md](../accounts.md) (rules at work).
+- Work in progress (`packages/core/src/project-activity.ts`): `ProjectActivity` holds sources, each
+  answering with the folders its work runs in, all from memory: the chats with a turn running,
+  starting or held at a limit (`ChatManager`), the orchestrations `running` or `waiting`, and the
+  schedules whose next slot is within `RESERVE_HORIZON_MS` (one hour), computed on the scheduler's
+  tick (`Scheduler.dueSoon`). A folder's project is cached for 30 s on an injected clock.
+  `reserves(policies)` asks no source while no rule has a `reserve`; `reservesOf` places each active
+  project's reserve with `reserveAccountOf`. Chats of no project are the key `NO_PROJECT` (`''`), which
+  `choose` compares like any project and never shows as a project in `why`.
+- Every `pick` of `chats.ts` (launch, `chooseNext`, `roomFor`, the credits check) goes through
+  `ruleOf`: the policy, the project and the reserves. `ruleReason` turns a move off an account the
+  rule passed over as `not-allowed` into reason `rule`.
+- D9: `enforceRules` runs on every `AccountStore.onChange` and returns after one comparison unless
+  the rules' projects or orders changed; a chat with a live process on a forbidden account gets a
+  pending switch (`settleRule`), applied with reason `rule` between turns, and at the end of each
+  turn the chat's rule is looked at again. With no allowed account free, the chat goes to the rule's
+  first usable account (`stayOrAllowed`), never stays on a forbidden one.
+- D8: `SwitchChatAccountRequest.once`; the rotation names the rule in a person's notice and in an
+  automated wait's reason (`noRoomWords`, from `why.passedOver`); `Scheduler.accountHold` skips a
+  slot through `ChatManager.noRoomUnderRule`.
+- The default-equals-today proof at the chats level (`packages/core/test/project-rules.test.ts`): with
+  no rule, no source of work in progress is read, no reserve is passed, every choice equals the call
+  as it was before T7, and nothing moves.
+
+**Differs from the plan.**
+- Queued flow runs are not a source: a flow run's work is its chat, counted while its turn runs, and
+  the queued rows are in SQLite, which a choice must not read.
+- No orchestration pins an account in today's contract (an eval run does, and its chats meet T8's
+  refusal at start), so there was no orchestration pin to refuse.
+- Existing pins outside a rule are not marked in the API: `why.passedOver` names the pinned account
+  `not-allowed` on the chat's next choice, which is what T10's chip can read.
+- The person's notice names the project by id: the core's `projectOf` gives ids, and the page has the names.
+
+**For T10.** The banner's "use another account once" is `POST /chats/:id/account` with `once: true`
+(the account list there shows the accounts the rule does not allow); the notice and the wait's
+`reason` carry the words; rotation events have reason `rule` and `data.once`; "reserved for project
+X while it has work" needs the reserves served (`ChatManager.activity.reserves`), which no route
+does yet.
+
 **T3** (`feat/mcp-overlay`, 2026-11-15): the spawn-time overlay of a shared account. Described in
 [accounts.md](../accounts.md#an-account) and [cli-surfaces.md](../cli-surfaces.md#the-state-file-keys-the-overlay-reads).
 - `packages/accounts/src/overlay.ts`: `readStateConfig` (the state file's configuration keys, a
