@@ -26,7 +26,7 @@ export function WaitWhen({ wait }: { wait: WaitView }) {
   if (wait.resetsAt)
     return (
       <>
-        {t('limitWait.resumesAt')} <span className="tnum">{resetWhen(wait.resetsAt)}</span> ({timeUntil(Date.parse(wait.resetsAt) / 1000)})
+        {t('limitWait.resumesAt')} <span className="tnum">{resetWhen(wait.resetsAt)}</span> ({timeUntil(Math.ceil(Date.parse(wait.resetsAt) / 60_000) * 60)})
       </>
     );
   return (
@@ -80,7 +80,7 @@ export function WaitLine({
         <b>{t('limitWait.title', { name })}</b>
         {' · '}
         <WaitWhen wait={wait} />
-        {account && <span className="faint">{` · ${t('limitWait.account', { account })}`}</span>}
+        {account && ` · ${t('limitWait.account', { account })}`}
         {why && <span className="why">{why}</span>}
         {children}
       </span>

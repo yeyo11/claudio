@@ -566,6 +566,11 @@
   overflow-wrap: anywhere;
 }
 
+/* Last in the card: the card's own edge closes it */
+.now-widget .wait-list:last-child {
+  border-bottom: 0;
+}
+
 @media (max-width: 900px) {
   .now-widget .wait-list .btn {
     min-height: var(--touch);

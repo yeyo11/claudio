@@ -2111,6 +2111,10 @@
   font-size: var(--fs-small);
 }
 
+.wait-line.is-banner b {
+  font-weight: var(--fw-strong);
+}
+
 .wait-line.is-banner > svg {
   margin-top: 0;
 }

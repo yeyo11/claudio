@@ -6,7 +6,7 @@ import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Tag } from '@claudio/ui/components/ui';
-import { formatCost, formatDateTime } from '@claudio/ui/lib/format';
+import { formatCost } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import type { ProgressCounts, ProgressStatus } from '@claudio/ui/lib/progress';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
