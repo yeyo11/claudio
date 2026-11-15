@@ -355,8 +355,8 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 | PUT | `/accounts/:id/config` | `{ mode, start? }`: carry the switch out, one atomic step per item, a failure blocking only its item; a second call finishes a switch cut short. Nothing of the default dir is written and nothing of the account's deleted: replaced items go to `.claudio-own/<time>/` in its dir |
 | GET | `/accounts/:id/config/items/:name/plan` | What "use shared" would do for one configuration or history item (a real `agent-memory/`): `replace`, `link`, `keep` or `skip`; writes nothing |
 | POST | `/accounts/:id/config/items/:name` | `{ use: 'shared' }`: move the account's item aside to `.claudio-own/<time>/` and link the default's |
-| GET | `/accounts/settings` | `rotateOnLimit`, `threshold`, `hysteresis`, `cooldownSeconds`, `strategy`, `preferred`, `order` and `newAccountConfig` (the mode a new account starts in, `shared` by default) from `accounts.json` |
-| PUT | `/accounts/settings` | Change them, validated: `preferred` an enabled account or null, `order` every enabled account once, `newAccountConfig` `shared` or `independent` |
+| GET | `/accounts/settings` | `rotateOnLimit`, `threshold`, `hysteresis`, `cooldownSeconds`, `strategy`, `preferred`, `order`, `newAccountConfig` (the mode a new account starts in, `shared` by default) and `credits` (per account: `never`, the default, `last-resort` or `allow`, with an optional `capMinor`) from `accounts.json` |
+| PUT | `/accounts/settings` | Change them, validated: `preferred` an enabled account or null, `order` every enabled account once, `newAccountConfig` `shared` or `independent`, `credits` naming accounts only (it replaces the whole map) |
 | GET | `/accounts/:id/models` | The models an account can run, from the CLI's `initialize` (no tokens), cached per account; `?refresh=true` reads it again; `404` for an unknown account |
 | GET | `/accounts/model-fallbacks` | The accepted `{ from, to, origin, at }` model fallbacks from `model-fallbacks.json` |
 | PUT | `/accounts/model-fallbacks` | Replace the list: `{ fallbacks: [{ from, to, origin? }] }`, validated |
