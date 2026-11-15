@@ -29,9 +29,12 @@ const SETTLE_MS = 600;
  * settles, clamped to 1-30. It is never disabled by a save in flight, so a quick second step is not
  * lost, and a value out of range shows the clamped one it was saved as.
  */
-function ReservePoints({ saved, label, onSave }: { saved: number; label: string; onSave: (percent: number) => void }) {
+function ReservePoints({ saved, label, unit, onSave }: { saved: number; label: string; unit: (count: number) => string; onSave: (percent: number) => void }) {
   const [value, setValue] = useState<number | undefined>(saved);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // The save made when the field settles writes the rule as it is then, not as it was at the first keystroke
+  const save = useRef(onSave);
+  save.current = onSave;
   // A save from elsewhere (or the clamp coming back) shows once nobody is typing
   useEffect(() => {
     if (!timer.current) setValue(saved);
@@ -40,27 +43,30 @@ function ReservePoints({ saved, label, onSave }: { saved: number; label: string;
     if (timer.current) clearTimeout(timer.current);
   }, []);
   return (
-    <NumberInput
-      aria-label={label}
-      min={RESERVE_MIN}
-      max={RESERVE_MAX}
-      step={1}
-      value={value}
-      onChange={(next) => {
-        setValue(next);
-        if (timer.current) clearTimeout(timer.current);
-        timer.current = setTimeout(() => {
-          timer.current = null;
-          if (next === undefined) {
-            setValue(saved);
-            return;
-          }
-          const clamped = Math.min(RESERVE_MAX, Math.max(RESERVE_MIN, Math.round(next)));
-          setValue(clamped);
-          if (clamped !== saved) onSave(clamped);
-        }, SETTLE_MS);
-      }}
-    />
+    <span className="project-rule-points">
+      <NumberInput
+        aria-label={label}
+        min={RESERVE_MIN}
+        max={RESERVE_MAX}
+        step={1}
+        value={value}
+        onChange={(next) => {
+          setValue(next);
+          if (timer.current) clearTimeout(timer.current);
+          timer.current = setTimeout(() => {
+            timer.current = null;
+            if (next === undefined) {
+              setValue(saved);
+              return;
+            }
+            const clamped = Math.min(RESERVE_MAX, Math.max(RESERVE_MIN, Math.round(next)));
+            setValue(clamped);
+            if (clamped !== saved) save.current(clamped);
+          }, SETTLE_MS);
+        }}
+      />
+      <span className="muted small">{unit(value ?? saved)}</span>
+    </span>
   );
 }
 
@@ -256,10 +262,12 @@ export function ProjectRuleCard({ project }: { project: Project }) {
               {t('projectRule.reserveSwitch')}
             </Switch>
             {rule.reserve && (
-              <span className="project-rule-points">
-                <ReservePoints saved={rule.reserve.percent} label={t('projectRule.reservePoints')} onSave={(percent) => write({ ...request, reserve: { percent } })} />
-                <span className="muted small">{t('projectRule.points', { count: rule.reserve.percent })}</span>
-              </span>
+              <ReservePoints
+                saved={rule.reserve.percent}
+                label={t('projectRule.reservePoints')}
+                unit={(count) => t('projectRule.points', { count })}
+                onSave={(percent) => write({ ...request, reserve: { percent } })}
+              />
             )}
           </div>
         </PrefRow>
