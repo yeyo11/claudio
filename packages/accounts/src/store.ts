@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Account, AccountConfig, AccountConfigMode, AccountConfigPlan, AccountConfigStart, AccountConfigStep, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
+import type { Account, AccountConfig, AccountConfigMode, AccountConfigPlan, AccountConfigStart, AccountConfigStep, AccountCreditsSetting, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
 import { choose, type Choice, type ChooseOptions } from './choose.ts';
 import { ASIDE_DIR, asideStamp, orphanDirs, reconcileAccountDir, removeLinks, type ReconcileReport } from './dirs.ts';
 import { applySteps, describeConfig, itemClass, planSwitch, planUseShared } from './config-mode.ts';
@@ -19,7 +19,13 @@ import { isRecord, NotFoundError } from '@claudio/shared';
 /** The CLI's own config dir: the account a fresh install already has, with nothing to set up. */
 export { DEFAULT_ID };
 
-export const DEFAULT_SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used', preferred: null, order: [], newAccountConfig: 'shared' };
+/** `credits` names no account: every account's credits are `never` spent (D3 of docs/plans/limit-resume-and-credits.md) */
+export const DEFAULT_SETTINGS: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'least-used', preferred: null, order: [], newAccountConfig: 'shared', credits: {} };
+
+/** A copy that shares no list or record with `s`: the defaults are one object every store starts from */
+function copySettings(s: AccountsSettings): AccountsSettings {
+  return { ...s, order: [...s.order], credits: Object.fromEntries(Object.entries(s.credits).map(([id, c]) => [id, { ...c }])) };
+}
 
 const THRESHOLD_MIN = 50;
 const THRESHOLD_MAX = 99.9;
@@ -151,6 +157,16 @@ function parseIdentity(v: unknown): Identity {
 
 const SETTING_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof AccountsSettings)[];
 
+const CREDITS_USES = new Set<unknown>(['never', 'last-resort', 'allow']);
+
+/** One account's credits setting as stored, or null when it is not one */
+function creditsSettingOf(v: unknown): AccountCreditsSetting | null {
+  if (!isRecord(v) || !CREDITS_USES.has(v.use)) return null;
+  const cap = v.capMinor ?? null;
+  if (cap !== null && !(typeof cap === 'number' && Number.isInteger(cap) && cap >= 0)) return null;
+  return { use: v.use as AccountCreditsSetting['use'], capMinor: cap };
+}
+
 function checkSettings(next: AccountsSettings): void {
   if (typeof next.rotateOnLimit !== 'boolean') throw new Error('rotateOnLimit must be a boolean');
   if (!(next.threshold >= THRESHOLD_MIN && next.threshold <= THRESHOLD_MAX)) throw new Error(`threshold must be between ${THRESHOLD_MIN} and ${THRESHOLD_MAX}`);
@@ -161,11 +177,15 @@ function checkSettings(next: AccountsSettings): void {
   if (!Array.isArray(next.order) || next.order.some((id) => typeof id !== 'string' || !id)) throw new Error('order must be a list of account ids');
   if (new Set(next.order).size !== next.order.length) throw new Error('order must name each account once');
   if (!isMode(next.newAccountConfig)) throw new Error('newAccountConfig must be shared or independent');
+  if (!isRecord(next.credits)) throw new Error('credits must map account ids to a credits setting');
+  for (const [id, c] of Object.entries(next.credits)) {
+    if (!creditsSettingOf(c)) throw new Error(`credits of ${id} must have a use of never, last-resort or allow, and a capMinor that is null or a whole number of minor units`);
+  }
 }
 
 function parseSettings(v: unknown): AccountsSettings {
   const d = DEFAULT_SETTINGS;
-  if (!isRecord(v)) return { ...d, order: [...d.order] };
+  if (!isRecord(v)) return copySettings(d);
   const n = (x: unknown, fallback: number): number => (typeof x === 'number' && Number.isFinite(x) ? x : fallback);
   const order = Array.isArray(v.order) ? v.order.filter((id): id is string => typeof id === 'string' && !!id) : d.order;
   return {
@@ -177,6 +197,10 @@ function parseSettings(v: unknown): AccountsSettings {
     preferred: typeof v.preferred === 'string' && v.preferred ? v.preferred : d.preferred,
     order: [...new Set(order)],
     newAccountConfig: isMode(v.newAccountConfig) ? v.newAccountConfig : d.newAccountConfig,
+    credits: isRecord(v.credits) ? Object.fromEntries(Object.entries(v.credits).flatMap(([id, c]) => {
+      const setting = creditsSettingOf(c);
+      return setting ? [[id, setting]] : [];
+    })) : {},
   };
 }
 
@@ -205,8 +229,12 @@ function parse(doc: Record<string, unknown>): Stored {
         .filter((p): p is RotationPolicy => isRecord(p) && typeof p.id === 'string' && Array.isArray(p.projects))
         .map(({ looseChats, ...p }) => ({ ...p, ...(looseChats === true ? { looseChats: true } : {}) }))
     : [];
+  const settings = parseSettings(doc.settings);
+  // A setting for an account removed by hand from the file is no setting
+  const known = new Set([DEFAULT_ID, ...accounts.map((a) => a.id)]);
+  settings.credits = Object.fromEntries(Object.entries(settings.credits).filter(([id]) => known.has(id)));
   return {
-    settings: parseSettings(doc.settings),
+    settings,
     default: { enabled: def.enabled !== false, alias: str(def.alias), identity: isRecord(def.identity) ? parseIdentity(def.identity) : { ...ASSUMED_IDENTITY },
       ...(typeof def.authFailedAt === 'string' && def.authFailedAt ? { authFailedAt: def.authFailedAt } : {}),
       ...(typeof def.checkedAt === 'string' && def.checkedAt ? { checkedAt: def.checkedAt } : {}),
@@ -232,7 +260,7 @@ export class AccountStore {
     return this.claudeOf();
   }
   private readonly env: NodeJS.ProcessEnv;
-  private stored: Stored = { settings: { ...DEFAULT_SETTINGS }, default: { enabled: true, alias: null, identity: { ...ASSUMED_IDENTITY } }, accounts: [], policies: [] };
+  private stored: Stored = { settings: copySettings(DEFAULT_SETTINGS), default: { enabled: true, alias: null, identity: { ...ASSUMED_IDENTITY } }, accounts: [], policies: [] };
   private readonly listeners = new Set<() => void>();
   /** The settings keys the file names: what the person stored, as opposed to what the defaults fill in */
   private settingKeys = new Set<keyof AccountsSettings>();
@@ -693,6 +721,7 @@ export class AccountStore {
     const { settings } = this.stored;
     if (settings.preferred === id) settings.preferred = null;
     settings.order = settings.order.filter((x) => x !== id);
+    settings.credits = Object.fromEntries(Object.entries(settings.credits).filter(([x]) => x !== id));
     await this.readings.forget(id);
     await this.save();
   }
@@ -894,7 +923,7 @@ export class AccountStore {
   // ---------- settings and policies ----------
 
   settings(): AccountsSettings {
-    return { ...this.stored.settings, order: [...this.stored.settings.order] };
+    return copySettings(this.stored.settings);
   }
 
   /**
@@ -920,7 +949,16 @@ export class AccountStore {
       const missing = accounts.find((a) => a.enabled && !next.order.includes(a.id));
       if (missing) throw new Error(`order must name every enabled account; ${missing.id} is missing`);
     }
-    this.stored.settings = { ...next, order: [...next.order] };
+    if (patch.credits !== undefined) {
+      const known = new Set(accounts.map((a) => a.id));
+      const unknown = Object.keys(next.credits).find((id) => !known.has(id));
+      if (unknown) throw new Error(`credits must name accounts only; ${unknown} is none`);
+    }
+    // Normalized: a cap left out of a setting is none
+    this.stored.settings = copySettings({ ...next, credits: Object.fromEntries(Object.entries(next.credits).flatMap(([id, c]) => {
+      const setting = creditsSettingOf(c);
+      return setting ? [[id, setting]] : [];
+    })) });
     for (const key of SETTING_KEYS) if (patch[key] !== undefined) this.settingKeys.add(key);
     await this.save();
     return this.settings();
@@ -945,7 +983,7 @@ export class AccountStore {
     const next: AccountsSettings = { ...this.stored.settings };
     for (const key of keys) Object.assign(next, { [key]: DEFAULT_SETTINGS[key] });
     checkSettings(next);
-    this.stored.settings = next;
+    this.stored.settings = copySettings(next);
     for (const key of keys) this.settingKeys.delete(key);
     await this.save();
     return this.settings();

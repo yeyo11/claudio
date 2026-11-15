@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-14T18:00:00Z
+updated_at: 2026-11-15T00:30:00Z
 tags:
     - plan
     - study
@@ -530,6 +530,14 @@ Written up in [credits-in-the-stream](decisions/credits-in-the-stream.md); docs 
 - **S1.** SDK 0.3.325 types the three overage fields with no comment; the reference prose documents `errorCode: credits_required` (CLI 2.1.181+, "included usage exhausted, user must buy credits") and `overageEnabled` (only on `allowed_warning`, 2.1.295+), not the other three. `unifiedWindows` is not typed at all. No recorded event has `isUsingOverage: true`.
 - **S4.** `get_usage` types `extra_usage.is_enabled`, `monthly_limit`, `used_credits` (experimental); `disabled_reason` and `spend_limit_reached` are observed only. No account was at a limit on 2026-11-14, so what it answers at a limit and its time then are **not observed**; below a limit it answered the windows, resets and credits on all three accounts, in 5 s (decision of 2026-10-17) to 11-15 s (loaded, four accounts).
 - **For t6 and t7.** Build the `overage` state on `get_usage` `extra_usage`; take the stream's overage fields as optional hints; stop a turn under `never` on a hint or a fresh `get_usage`; also map `seven_day_overage_included` apart (it shows as a model "Overage_included" today). S2 is still needed to know the stream of a paid turn.
+
+### t6, the `overage` state and the credits setting (branch `feat/overage-state`)
+
+- **Reading.** `AccountLimit.creditsCover` (set only while `state` is `exhausted`) and `overageHints` (the stream's overage fields, carried over events that lack them); `AccountLimitState` adds `overage`, which `accountState()` derives. `state` stays `exhausted` on purpose: everything that does not read `creditsCover` keeps treating the account as out. `get_usage`'s `extra_usage.is_enabled` decides `enabled` over the observed `spend.enabled`; the stream never decides alone.
+- **Cause 10.** `seven_day_overage_included` (and any `*overage*` key) is no scoped model any more; it is kept as `overageHints.included`. A rejection of it leaves the account out with no window and no model.
+- **Setting.** `AccountsSettings.credits`: per account `{ use: never | last-resort | allow, capMinor }`, default none (= `never`). `choose` honours it as `accounts.md` says; `Choice.credits` marks a choice that runs on credits.
+- **Where the plan was wrong.** The plan says the stream's `isUsingOverage` with `overageStatus` allowed can make the state; S1 shows no recorded event has `isUsingOverage: true` and the fields are undocumented, so only `get_usage` does.
+- **For t7.** The setting is validated by `PUT /accounts/settings`, with no UI. Left to t7: rotation reason `credits`, the notice, stopping a turn under `never` on `overageHints` or a fresh `get_usage`, the paid-turn mark and the states in the web. `choose` returns `credits: true` for t7 to word the reason. Nothing in `rotation.ts`, `db.ts` or the chat's stop logic was touched.
 
 ## The owner's decisions (2026-11-13)
 

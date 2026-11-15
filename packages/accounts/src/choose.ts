@@ -1,4 +1,4 @@
-import type { AccountLimit, AccountSignInState, AccountsSettings, AccountSwitchReason, RotationPolicy } from '@claudio/shared';
+import type { AccountCreditsUse, AccountLimit, AccountSignInState, AccountsSettings, AccountSwitchReason, RotationPolicy } from '@claudio/shared';
 import { EXHAUSTED, isOut, outUntil } from './thresholds.ts';
 
 /** What `choose` needs of an account; the rest of it is not its business. */
@@ -44,6 +44,11 @@ export interface Choice {
   reason: AccountSwitchReason | null;
   /** Epoch ms of the earliest reset among the accounts that are out, when none can take the work */
   waitUntil: number | null;
+  /**
+   * The account's plan is spent and the work runs on its usage credits, which its credits setting
+   * allows; absent otherwise
+   */
+  credits?: true;
 }
 
 /** An unknown reading is allowed, but ranks behind any account known to have room. */
@@ -91,6 +96,12 @@ export function globalOrder(listed: readonly string[], order: readonly string[])
  * An account out until its reset (or for its cooldown, which the reading records as `outUntil`) is
  * skipped, and so is one the work's turn already failed on (`failedOn`); one with no reading is
  * allowed.
+ *
+ * An account whose plan is spent and whose credits cover it (the `overage` state) follows its
+ * credits setting (`settings.credits`, D3 of docs/plans/limit-resume-and-credits.md): under `never`,
+ * the default, it is out like any spent account; under `allow` it is taken as an account over the
+ * threshold is, after those with room; under `last-resort` only once no account has plan quota left.
+ * Either stops at Claudio's cap (`capMinor`). A choice that runs on credits says so (`credits`).
  */
 export function choose(
   accounts: readonly Candidate[],
@@ -111,13 +122,30 @@ export function choose(
     const l = limits[id];
     return l && l.state !== 'unknown' ? l.utilization : null;
   };
-  const out = (id: string): boolean => isOut(limits[id], now) || !!opts.failedOn?.includes(id);
+  const failed = (id: string): boolean => !!opts.failedOn?.includes(id);
+  /**
+   * Whether the account's credits may pay for the work, past its spent plan, under `use`: they cover
+   * its sends (`creditsCover`), and the month's spend is under Claudio's cap when one is set
+   */
+  const creditsFor = (id: string, use: AccountCreditsUse): boolean => {
+    const limit = limits[id];
+    const setting = settings.credits[id];
+    if (setting?.use !== use || !limit?.creditsCover || !isOut(limit, now)) return false;
+    if (setting.capMinor === null) return true;
+    const spent = limit.cli?.credits?.usedMinor;
+    return spent !== undefined && spent < setting.capMinor;
+  };
+  // Under `allow`, an account on its credits is not out; under `last-resort` it is, until the last step
+  const out = (id: string): boolean => (isOut(limits[id], now) && !creditsFor(id, 'allow')) || failed(id);
   const model = opts.model && opts.model !== 'default' ? opts.model : null;
   const runs = (id: string): boolean => !model || !opts.canRun || opts.canRun(id, model);
   const usable = (id: string): boolean => ready(id) && !out(id) && runs(id) && scopedOutUntil(limits[id] ?? null, model, now) === null;
 
+  /** The choice of `account`, marked when it runs on credits */
+  const take = (account: string, reason: AccountSwitchReason | null): Choice => ({ account, reason, waitUntil: null, ...(isOut(limits[account], now) ? { credits: true as const } : {}) });
+
   const pinned = opts.pinned ?? null;
-  if (pinned && usable(pinned)) return { account: pinned, reason: pinned === current ? null : 'person', waitUntil: null };
+  if (pinned && usable(pinned)) return take(pinned, pinned === current ? null : 'person');
 
   const reasonFor = (): AccountSwitchReason => {
     const a = current ? byId.get(current) : undefined;
@@ -132,18 +160,18 @@ export function choose(
     const room = util(preferred) ?? 0;
     if (preferred === current ? room < threshold : room <= margin) {
       const reason = preferred === current || current === null ? null : currentUnder ? 'person' : reasonFor();
-      return { account: preferred, reason, waitUntil: null };
+      return take(preferred, reason);
     }
   }
 
-  if (current !== null && currentUnder) return { account: current, reason: null, waitUntil: null };
+  if (current !== null && currentUnder) return take(current, null);
 
   const pool = order.filter((id) => id !== current && usable(id) && (util(id) ?? 0) <= margin);
   const pick = settings.strategy === 'least-used' ? [...pool].sort((a, b) => (util(a) ?? UNKNOWN_RANK) - (util(b) ?? UNKNOWN_RANK))[0] : pool[0];
-  if (pick) return { account: pick, reason: current === null ? null : reasonFor(), waitUntil: null };
+  if (pick) return take(pick, current === null ? null : reasonFor());
 
   // Nobody better: an account over the threshold but not out still beats stopping
-  if (current !== null && usable(current)) return { account: current, reason: null, waitUntil: null };
+  if (current !== null && usable(current)) return take(current, null);
 
   // The current account is out (or there is none): the margin keeps a chat from flapping between two
   // accounts near the threshold, it is not a reason to stop while another one still has room. Any
@@ -151,7 +179,13 @@ export function choose(
   // two accounts at 83 % and 90 % could have gone on)
   const spare = order.filter((id) => id !== current && usable(id));
   const fallback = settings.strategy === 'least-used' ? [...spare].sort((a, b) => (util(a) ?? UNKNOWN_RANK) - (util(b) ?? UNKNOWN_RANK))[0] : spare[0];
-  if (fallback) return { account: fallback, reason: current === null ? null : reasonFor(), waitUntil: null };
+  if (fallback) return take(fallback, current === null ? null : reasonFor());
+
+  // No account has plan quota left: one whose credits the person allows as a last resort beats
+  // waiting. The account the work is on, then the pin, keep it; else the order decides
+  const resort = order.filter((id) => ready(id) && runs(id) && !failed(id) && scopedOutUntil(limits[id] ?? null, model, now) === null && creditsFor(id, 'last-resort'));
+  const last = current !== null && resort.includes(current) ? current : pinned !== null && resort.includes(pinned) ? pinned : resort[0];
+  if (last) return take(last, last === current || current === null ? null : last === pinned ? 'person' : reasonFor());
 
   // Only an account that can run the model is worth waiting for: another one coming back changes nothing
   const resets = order
