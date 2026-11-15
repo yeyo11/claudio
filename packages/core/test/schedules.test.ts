@@ -628,3 +628,44 @@ test('a slot over the daily spend cap is skipped with its reason, never run late
   await scheduler.runNow(created.id);
   assert.equal(state.chats.length, 2, 'run now is a person\'s decision');
 });
+
+// Project rules (§7.2 of docs/plans/account-configuration-and-project-rules.md): a schedule skips a
+// slot that no account its rule allows has room for, and its next slot is work in progress
+
+test('a slot that no account its project rule allows has room for is skipped and recorded, and a person\'s run now still goes', async () => {
+  const { scheduler, state } = rig();
+  const asked: Array<{ dir: string; model: string | null }> = [];
+  let held: string | null = 'no account allowed on project p1 has room until 2026-09-20T10:00:00.000Z';
+  scheduler.accountHold = (dir, model) => (asked.push({ dir, model }), held);
+  const created = await scheduler.create({ ...daily, target: { kind: 'chat', chat: { prompt: 'p', cwd: '/w/p1', model: 'haiku' } } });
+
+  state.now = at('2026-09-20T09:00:10Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 0, 'nothing was started, and nothing waits');
+  const [run] = scheduler.history(created.id);
+  assert.equal(run?.status, 'skipped');
+  assert.equal(run?.error, 'Skipped: no account allowed on project p1 has room until 2026-09-20T10:00:00.000Z. A schedule does not wait at a limit; the next slot is judged afresh.');
+  assert.deepEqual(asked, [{ dir: '/w/p1', model: 'haiku' }]);
+
+  await scheduler.runNow(created.id);
+  assert.equal(state.chats.length, 1, "a person's run now is theirs to decide");
+
+  held = null;
+  state.now = at('2026-09-21T09:00:10Z');
+  await scheduler.tick();
+  assert.equal(state.chats.length, 2, 'with room again the next slot runs');
+  scheduler.close();
+});
+
+test('a schedule whose next slot is within the hour is its folder\'s work in progress, as of the last tick', async () => {
+  const { scheduler, state, config } = rig();
+  await scheduler.create(daily);
+  await scheduler.create({ ...daily, name: 'p1', target: { kind: 'orchestration', spec: { name: 'p1', cwd: '/w/p1', tasks: [{ id: 'a', name: 'check', prompt: 'check' }] } } });
+  state.now = at('2026-09-20T07:30:00Z');
+  await scheduler.tick();
+  assert.deepEqual(scheduler.dueSoon(), [], 'an hour and a half ahead is not soon');
+  state.now = at('2026-09-20T08:10:00Z');
+  await scheduler.tick();
+  assert.deepEqual([...scheduler.dueSoon()].sort(), [config.workspaceDir, '/w/p1'].sort());
+  scheduler.close();
+});
