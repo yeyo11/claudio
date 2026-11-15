@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-11-10T23:45:00Z
+updated_at: 2026-11-15T18:00:00Z
 tags:
     - updates
     - docker
@@ -106,7 +106,10 @@ a desktop dev build) and shows the host commands of
 4. **Apply** (`POST /system/server-update/apply`). If chats are working or waiting, or orchestrations
    are running, it answers `409 update.live-work` with the counts and the card asks: **Restart now** or
    **Restart when nothing is running** (checked every 15 s; **Cancel** undoes it). The rule is the
-   desktop's `installDecision`, counted as the desktop counts. Then the server exits 75.
+   desktop's `installDecision`, counted as the desktop counts. Then the server exits 75. Work that
+   restart cuts is continued by the next start: a person's turn cut less than an hour ago goes on by
+   itself, an older one offers **Continue** in its chat, and workflows resume from their cache
+   ([plans/survive-restarts.md](plans/survive-restarts.md), layer 3).
 5. **Trial boot.** The launcher verifies the bundle again and starts it. If `/api/health` answers within
    60 s the bundle is kept (it becomes `active`, the old one `previous`). After two failed boots it is
    marked `bad`, the rollback is recorded and the next candidate is tried: the previous update, then

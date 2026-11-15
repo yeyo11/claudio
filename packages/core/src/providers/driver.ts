@@ -62,6 +62,11 @@ export interface ProviderDriver {
 
   /** How one process of a session starts: binary, argv and environment */
   launch(spec: SessionLaunch): LaunchPlan;
+  /**
+   * The agent continues a turn a restart cut when launched with `continueCut`, through an interface
+   * its vendor documents for programs. Absent: a cut turn waits for a person's next message.
+   */
+  readonly continuesCutTurns?: boolean;
   /** Speaks the protocol to one process; events come out already neutral */
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession;
   /** Per chat, across its processes: background tasks, subagents, workflows */
@@ -157,6 +162,13 @@ export interface SessionLaunch {
   policy: ToolPolicy | null;
   /** The Claude account this process runs on; absent leaves the environment as the CLI's own login */
   account?: AccountRef;
+  /**
+   * The process continues the turn a restart cut, by itself and with no message written to it
+   * (docs/plans/survive-restarts.md, layer 3): only on a driver that `continuesCutTurns`, and only
+   * with `created`. `maxAgeMs` is how old the cut may be for the agent to still continue it, and
+   * `prompt` what the agent reads in place of the turn's prompt.
+   */
+  continueCut?: { maxAgeMs: number; prompt: string };
 }
 
 /** The process to start. `ChatManager` adds `CLAUDIO_CHAT_ID`, `CLAUDIO_API_URL` and the minted token itself. */

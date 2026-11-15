@@ -38,6 +38,7 @@ import { ChatLoading } from './chat/ChatLoading';
 import { ChatHeader, type HeaderActions } from './chat/Header';
 import { LimitStopped } from './chat/LimitStopped';
 import { BlockedComposer, LimitBanner, useLimitState } from './chat/LimitBanner';
+import { RestartCutBanner, restartCut } from './chat/RestartCut';
 import { ContextControlProvider } from './chat/ContextPanel';
 import { Inspector, useInspector } from './chat/Inspector';
 import { PartOf } from './chat/PartOf';
@@ -386,6 +387,7 @@ export function ChatView() {
   const composer: ComposerKind | null = forking ? 'fork' : control.mode === 'interactive' ? 'send' : control.mode === 'resumable' ? 'resume' : null;
   // While the agent writes the answer after its calls, the step above is done, not current
   const stepCurrent = working && !writing;
+  const cut = composer === 'resume' ? restartCut(chat) : null;
 
   return (
     <AgentScope chat={chat}>
@@ -531,6 +533,7 @@ export function ChatView() {
             <BlockedComposer chat={chat} state={limit} />
           </div>
         )}
+        {cut && limit.phase === 'none' && <RestartCutBanner chat={chat} cut={cut} />}
         {composer && composer !== 'fork' && limit.phase === 'none' && (
           // Keyed by the chat: a draft and its files belong to the chat they were written in
           <Composer

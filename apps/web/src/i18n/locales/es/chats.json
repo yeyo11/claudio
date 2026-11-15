@@ -346,5 +346,12 @@
     "mineConfirm": "Buscar lecciones",
     "mining": "Buscando lecciones…",
     "mineFailed": "No se han podido buscar lecciones"
+  },
+  "restartCut": {
+    "title": "Claudio se reinició mientras este chat trabajaba",
+    "body": "Su turno se detuvo {{ago}}. Continúalo donde se quedó.",
+    "bodyOn": "Su turno se detuvo el {{date}}. Continúalo donde se quedó.",
+    "continue": "Continuar",
+    "failed": "No se ha podido continuar el chat: {{error}}"
   }
 }

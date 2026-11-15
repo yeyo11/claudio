@@ -19,7 +19,7 @@ import type {
   SessionLaunch,
   UserTurn,
 } from '../driver.ts';
-import { buildArgs } from './args.ts';
+import { buildArgs, resumeEnv } from './args.ts';
 import { ClaudeBranches } from './branches.ts';
 import { ControlChannel, stillQueuedOf, type BackgroundTasksRequest, type CancelAsyncMessageRequest, type InterruptRequest } from './control.ts';
 import { liveMcpServers, mcpSetServersResult } from './mcp.ts';
@@ -143,6 +143,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
   readonly manifest = claudeCodeManifest;
   /** Claudio names the session and the CLI takes the name (`--session-id`), so the native id is the chat id */
   readonly sessionIds = 'imposed';
+  /** `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` (`resumeEnv`) */
+  readonly continuesCutTurns = true;
   /** Claude's JSONL transcripts, once Core has handed over the store it reads them with */
   transcripts: TranscriptStore | null = null;
 
@@ -175,7 +177,7 @@ export class ClaudeCodeDriver implements ProviderDriver {
   }
 
   launch(spec: SessionLaunch): LaunchPlan {
-    return { bin: typeof this.claudeBin === 'function' ? this.claudeBin() : this.claudeBin, args: buildArgs(spec), env: childEnv('claude-code', process.env, spec.account), unsetEnv: [] };
+    return { bin: typeof this.claudeBin === 'function' ? this.claudeBin() : this.claudeBin, args: buildArgs(spec), env: resumeEnv(spec, childEnv('claude-code', process.env, spec.account)), unsetEnv: [] };
   }
 
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession {

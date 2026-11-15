@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-15T12:00:00Z
+updated_at: 2026-11-15T18:00:00Z
 tags:
     - plan
     - study
@@ -9,12 +9,12 @@ tags:
     - desktop
     - updates
     - orchestration
-    - proposed
+    - in-progress
 ---
 # Study: work that keeps running when Claudio closes, restarts or updates
 
-**Status: proposed (study only, no code). Waiting for the owner's decisions D1–D10 before anything is
-queued.**
+**Status: in progress. The owner approved approach D on 2026-11-15 ([decisions](#the-owners-decisions-2026-11-15));
+t1 (layer 3) is built ([Outcome](#outcome)).**
 
 ## The problem, in the owner's words
 
@@ -580,6 +580,47 @@ Taken in the chat that commissioned the study:
 - **S3:** authorised, one Haiku turn capped at 0.05 USD, in a scratch directory.
 - **D2, D3, D4, D6, D7, D8, D9, D10:** the recommended option of section 7 (not discussed one by one;
   the owner accepted the plan as recommended).
+
+## Outcome
+
+### t1: layer 3, the lossless resume (2026-11-15)
+
+What a start does with the work the server before it left cut, by who the work was for:
+
+| Cut work | What the next start does |
+|---|---|
+| A person's chat (`claudio` or `external`, its execution started for a `person`), cut less than an hour ago | Respawned with `--resume` and `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` (bound: an hour plus five minutes, so the CLI's clock does not overrule Claudio's), nothing written to stdin. The CLI continues the turn, reading `RESTART_CONTINUE_TEXT` (`CLAUDE_CODE_RESUME_PROMPT`), which the page draws as Claudio's line |
+| A person's chat cut longer ago, cut more than `MAX_RESTART_CHAIN` (3) times in a row, refused a place, or whose execution recorded no purpose (written before this) | Stays `interrupted`; the chat shows "Claudio restarted while this chat was working" with **Continue**, which resumes it with `RESTART_CONTINUE_TEXT` |
+| A workflow orchestration | Resumed from its cache in its own session (`Orchestrator.resumeCutWorkflow`), no task attempt spent; at most `MAX_WORKFLOW_RESTARTS` (3) times |
+| A graph's tasks, flow runs, assistant runs | Unchanged: their owners continue them under their existing gates (`maxAttempts`, `MAX_FLOW_RESTARTS`, one restart), as D7 says |
+| A chat at its usage limit (an open wait) | The rotation's sweeper (t8 of [limit-resume-and-credits](limit-resume-and-credits.md#outcome)); never continued here |
+| `api` chats | Never replayed: the client sends the request again |
+| `internal` housekeeping | Ends with the server |
+
+- **Nothing is continued twice.** Each continuation is claimed in a new `restart_continuations`
+  table (`INSERT OR IGNORE`, keyed by the cut execution or the workflow lead's cut execution), as
+  the sweeper claims a wait. Two servers on one data dir, or a second pass, find the claim taken.
+- **A CLI that declines** (the transcript's last message older than the bound, a session not
+  mid-turn after all, a CLI before 2.1.211) starts idle, which no line says: a process that shows no
+  sign of the turn within `CLAUDIO_CONTINUE_START_MS` (two minutes) is taken as idle and the chat
+  waits for the person.
+- **The variables never leak.** `resumeEnv` strips every `CLAUDE_CODE_RESUME_*` from any other
+  process's environment, so a value in the server's own environment cannot make a plain resume run
+  the old turn beside its new prompt.
+- **Executions record their purpose** (`Execution.purpose`), which is what tells a person's turn from
+  an owner's after a restart.
+- **Vendor facts**, read 2026-11-15 against CLI 2.1.322: [env-vars](https://code.claude.com/docs/en/env-vars)
+  (`CLAUDE_CODE_RESUME_INTERRUPTED_TURN`, `_MAX_AGE_MS`: "A positive value bounds every turn… Requires
+  Claude Code v2.1.211 or later", `CLAUDE_CODE_RESUME_PROMPT`), and the VS Code page, which documents
+  the same continuation happening with no new input. Recorded in [cli-surfaces.md](../cli-surfaces.md).
+- **Not verified with a real CLI**: no real turn was spent. That a `-p --input-format stream-json`
+  process starts the continued turn before any stdin line is the documented SDK behaviour, and the
+  fakes model it; the two-minute fallback covers the case where it does not.
+- **Tests:** `packages/core/test/restart-resume.test.ts` (D7 on an injected clock, the respawn over the
+  fake CLI with no prompt written, owners and limits left alone, one continuation across two servers,
+  the chain bound, a CLI that declines, a cut workflow resumed from its cache). The browser spec that
+  restarts the server mid-turn is left to t8, which needs the slow fake turn layer 2 also needs.
+- **Not built here:** layers 2 and 1 (t2–t9).
 
 ## Related
 

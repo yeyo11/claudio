@@ -577,10 +577,11 @@
 }
 
 /* ---- the composer: a card, and the chips under it ---- */
-/* The box, the cards over it and the fork's are as wide as the column and a little more */
+/* The box, the cards over it, the fork's and the restart's Continue are as wide as the column and a little more */
 .composer-wrap,
 .chat-queued,
-.chat-fork {
+.chat-fork,
+.restart-cut {
   align-self: center;
   width: 100%;
   max-width: 780px;

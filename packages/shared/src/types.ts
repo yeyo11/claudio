@@ -1066,6 +1066,12 @@ export interface Execution {
   modelCosts?: Record<string, number>;
   tokens: TokenUsage;
   turns: number;
+  /**
+   * What its process was started for, as the spend ledger reads it: `person` when a person's chat ran
+   * it. A restart reads it to tell a person's cut turn, which goes on by itself, from automated work,
+   * whose owner continues it (docs/plans/survive-restarts.md, D7). Absent on one recorded before it was kept.
+   */
+  purpose?: SpendPurpose;
 }
 
 /** From here on the CLI is close enough to compacting that a person should know before it happens. */
