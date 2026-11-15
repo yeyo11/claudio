@@ -348,7 +348,10 @@ test('a wait for a reset days away sleeps until its next look instead of passing
     // A pass and its schedule read the rows twice; a poll every 50 ms is some sixteen reads here
     assert.ok(passes.n <= 30, `the sweeper read the waits ${String(passes.n)} times in 400 ms`);
     assert.equal(r.db.providerMove(row.id)?.state, 'waiting');
-    assert.ok(Date.parse(r.db.providerMove(row.id)?.nextLookAt ?? '') > r.now(), 'it says when it looks again');
+    // Against when it last looked, not against now: with a 50 ms poll, a loaded machine reached this
+    // line more than 50 ms after the last pass, and a look still due read as none scheduled
+    const after = r.db.providerMove(row.id);
+    assert.ok(Date.parse(after?.nextLookAt ?? '') > Date.parse(after?.updatedAt ?? ''), 'it says when it looks again');
   } finally {
     r.close();
   }
