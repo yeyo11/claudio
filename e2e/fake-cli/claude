@@ -511,7 +511,7 @@ function startTurn(message, uuid = null) {
   // `FAKE-LIMIT-ACCOUNT` is the same, but only on the account whose token starts with `fake-limited`
   // (`CLAUDE_CODE_OAUTH_TOKEN`): on any other account the line is an ordinary prompt, so a spec can see
   // a chat leave the limited account and be replayed on one with room
-  const limitedHere = /^FAKE-LIMIT\s*$/m.test(text) || (/^FAKE-LIMIT-ACCOUNT\s*$/m.test(text) && (env.CLAUDE_CODE_OAUTH_TOKEN ?? '').startsWith('fake-limited'));
+  const limitedHere = /^FAKE-LIMIT\s*$/m.test(text) || (/^FAKE-LIMIT-ACCOUNT\s*$/m.test(text) && /^fake-(limited|held)/.test(env.CLAUDE_CODE_OAUTH_TOKEN ?? ''));
   if (limitedHere) {
     emit({ type: 'rate_limit_event', rate_limit_info: { status: 'rejected', rateLimitType: 'five_hour', resetsAt: Math.floor(Date.now() / 1000) + 3600, unifiedWindows: { '5h': { utilization: 1 } } } });
     turn = null;
@@ -1443,17 +1443,19 @@ function control(message) {
     // are on, 3.20 of 40.00 USD this month: the `overage` state, read with no turn (no paid turn was ever recorded)
     const reset = (hours) => new Date(Date.now() + hours * 3_600_000).toISOString();
     const credits = (env.CLAUDE_CODE_OAUTH_TOKEN ?? '').startsWith('fake-credits');
+    // `fake-held` is limited like `fake-limited`, and its reading says so too (five hours spent, reset in 4 h), so a wait on it is held
+    const held = (env.CLAUDE_CODE_OAUTH_TOKEN ?? '').startsWith('fake-held');
     reply({
       subscription_type: 'max',
       rate_limits_available: true,
       rate_limits: {
-        five_hour: { utilization: credits ? 100 : 5, resets_at: reset(4) },
+        five_hour: { utilization: credits || held ? 100 : 5, resets_at: reset(4) },
         seven_day: { utilization: 27, resets_at: reset(96) },
         extra_usage: credits
           ? { is_enabled: true, monthly_limit: 4000, used_credits: 320, currency: 'USD', decimal_places: 2, disabled_reason: null, spend_limit_reached: false, credits_ever_enabled: true }
           : { is_enabled: false, monthly_limit: null, used_credits: null, currency: null, decimal_places: null, disabled_reason: null, spend_limit_reached: false, credits_ever_enabled: false },
         limits: [
-          { kind: 'session', group: 'session', percent: credits ? 100 : 5, resets_at: reset(4), scope: null },
+          { kind: 'session', group: 'session', percent: credits || held ? 100 : 5, resets_at: reset(4), scope: null },
           { kind: 'weekly_all', group: 'weekly', percent: 27, resets_at: reset(96), scope: null },
           { kind: 'weekly_scoped', group: 'weekly', percent: 5, resets_at: reset(96), scope: { model: { id: null, display_name: 'Fable' }, surface: null } },
         ],

@@ -1,15 +1,16 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Account, Chat, ProviderMove, ProviderStatus } from '@claudio/shared';
-import { ArrowRight, Hourglass, Repeat, TriangleAlert } from 'lucide-react';
+import { Hourglass, Repeat, TriangleAlert } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { AccountPicker, useChatAccounts } from '@claudio/chat-ui/composer/AccountPicker';
+import { accountLabel } from '@claudio/chat-ui/lib/account-choice';
 import { Sheet } from '@claudio/ui/components/controls/Sheet';
-import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { formatDateTime, formatDuration, formatHour, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { api, keys } from '../../api';
+import { WaitActions, WaitLine } from '../../components/WaitLine';
 import { useAccountView } from '../../lib/accounts';
 import { useProviders } from '../../lib/providers';
 import { isKnownLimitWindow, useLimitWindowName } from '../../lib/limit-words';
@@ -22,7 +23,7 @@ export interface LimitState {
   status: ProviderStatus | undefined;
   /** The open wait for this chat, when there is one */
   wait: ProviderMove | null;
-  /** When the limit the turn died on resets; the wait's own time wins, since it is what will be replayed */
+  /** When the limit the turn died on resets. With a wait it is the wait's own, null included (the line then says when it looks again): a reading's reset is another account's fact, and the page must not say two things about one wait */
   resetsAt: string | null;
   /** The binding window of the account the turn died on, when its reading names one */
   window: string | null;
@@ -51,16 +52,16 @@ export function limitStateOf(chat: Chat, status: ProviderStatus | undefined, wai
   const phase = limitPhase(chat, wait);
   const from = ranOn(chat) ?? chat.account ?? null;
   const reading = phase === 'none' ? null : (accounts.find((a) => a.id === from)?.limits ?? null);
-  return { phase, status, wait, resetsAt: wait?.resetsAt ?? reading?.resetsAt ?? null, window: reading?.window ?? null, observedAt: reading?.observedAt ?? null };
+  return { phase, status, wait, resetsAt: wait ? wait.resetsAt : (reading?.resetsAt ?? null), window: reading?.window ?? null, observedAt: reading?.observedAt ?? null };
 }
 
 export function useLimitState(chat: Chat | undefined): LimitState {
   const providers = useProviders();
   const view = useAccountView();
   const id = chat?.id ?? '';
-  const waits = useQuery({ queryKey: keys.chatWaits(id), queryFn: () => api.limitWaits({ chatId: id, state: 'waiting' }), enabled: Boolean(chat) });
+  const waits = useQuery({ queryKey: keys.chatWaits(id), queryFn: () => api.limitWaits({ chatId: id, limit: 10 }), enabled: Boolean(chat) });
   const status = providers.data?.find((p) => p.id === chat?.provider);
-  const wait = waits.data?.find((move) => move.fromChat === id && move.state === 'waiting') ?? null;
+  const wait = waits.data?.find((move) => move.fromChat === id && (move.state === 'waiting' || move.state === 'resuming')) ?? null;
   if (!chat) return { phase: 'none', status, wait, resetsAt: null, window: null, observedAt: null };
   return limitStateOf(chat, status, wait, view?.accounts ?? []);
 }
@@ -115,8 +116,12 @@ export function LimitBanner({ chat, state }: { chat: Chat; state: LimitState }) 
   const toast = useToast();
   const providers = useProviders();
   const resetWords = useResetWords(state);
+  const accountView = useAccountView();
   const windowOf = useLimitWindowName();
   const { phase, status, wait } = state;
+  const accountId = ranOn(chat) ?? chat.account ?? null;
+  const account = accountView?.accounts.find((a) => a.id === accountId);
+  const accountName = account ? accountLabel(account) : null;
 
   const name = status?.label ?? providers.data?.find((p) => p.id === chat.provider)?.label ?? chat.provider;
   const refresh = () => {
@@ -124,44 +129,20 @@ export function LimitBanner({ chat, state }: { chat: Chat; state: LimitState }) 
     void queryClient.invalidateQueries({ queryKey: keys.chatScope(chat.id) });
   };
   const waitMutation = useMutation({ mutationFn: () => api.waitForLimit(chat.id), onSuccess: refresh, onError: (error) => toast.error(t('limit.waitFailed'), error) });
-  const stopMutation = useMutation({
-    mutationFn: (moveId: string) => api.cancelLimitWait(moveId),
-    onSuccess: refresh,
-    onError: (error) => toast.error(t('limit.stopWaitingFailed'), error),
-  });
-  const runNowMutation = useMutation({
-    mutationFn: (moveId: string) => api.runLimitWaitNow(moveId),
-    onSuccess: refresh,
-    onError: (error) => toast.error(t('limit.runNowFailed'), error),
-  });
-
   if (phase === 'none') return null;
   // A window the app has no words for is not named: "reached its usage limit" says it
   const title = isKnownLimitWindow(state.window) ? t('limit.titleWindow', { name, window: windowOf(state.window) }) : t('limit.title', { name });
 
   if (phase === 'waiting') {
-    const pending = stopMutation.isPending || runNowMutation.isPending;
+    const shown = { provider: wait?.fromProvider ?? chat.provider, resetsAt: state.resetsAt, nextLookAt: wait?.nextLookAt ?? null, state: wait?.state === 'resuming' ? ('resuming' as const) : ('waiting' as const) };
     return (
-      <section className="lim" aria-label={t('limit.region')}>
-        <div className="lim-head">
-          <Hourglass {...ICON} className="lim-icon" />
-          <div className="lim-text">
-            <span className="lim-title">{t('limit.waitingTitle', { name })}</span>
-            <span className="lim-reset">{resetWords}</span>
-            <span>{t('limit.waitingNote')}</span>
-          </div>
-        </div>
-        <div className="lim-acts">
-          <button type="button" className="btn" disabled={!wait || pending} onClick={() => wait && stopMutation.mutate(wait.id)}>
-            {t('limit.stopWaiting')}
-          </button>
-          <Tooltip content={t('limit.runNowHint')}>
-            <button type="button" className="btn" disabled={!wait || pending} onClick={() => wait && runNowMutation.mutate(wait.id)}>
-              <ArrowRight {...ICON_SM} /> {t('limit.runNow')}
-            </button>
-          </Tooltip>
-        </div>
-      </section>
+      <WaitLine
+        banner
+        wait={shown}
+        account={accountName}
+        why={t('limit.waitingNote')}
+        actions={wait && <WaitActions moveId={wait.id} quiet="btn-quiet" invalidate={[keys.chatWaits(chat.id), keys.chatScope(chat.id)]} />}
+      />
     );
   }
 

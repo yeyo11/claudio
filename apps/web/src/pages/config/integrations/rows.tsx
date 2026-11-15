@@ -411,7 +411,7 @@ export function BinaryEditor({
           {t('bin.cancel')}
         </button>
         <span className="grow" />
-        <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={() => void usePath()}>
+        <button type="button" className="btn btn-small btn-quiet" disabled={busy} onClick={() => void usePath()}>
           {words?.usePath ?? t('bin.usePath')}
         </button>
       </div>

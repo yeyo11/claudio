@@ -142,7 +142,7 @@ function AddressDialog({ pr, list, onClose }: { pr: WorkItemPullRequest; list: C
           )}
           <span className="grow" />
           {marked && (
-            <button type="button" className="btn btn-small btn-ghost" onClick={() => setChosen(preselected(threads, marks))}>
+            <button type="button" className="btn btn-small btn-quiet" onClick={() => setChosen(preselected(threads, marks))}>
               {t('address.dialog.onlyAgent')}
             </button>
           )}
@@ -311,7 +311,7 @@ function FollowUp({ pr, threads, sha, lead, onDone }: { pr: WorkItemPullRequest;
           <Check {...ICON_SM} />
           {t('address.followUp.replyAndResolve', { count: threads.length })}
         </button>
-        <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={() => onDone(threads.map((thread) => thread.id))}>
+        <button type="button" className="btn btn-small btn-quiet" disabled={busy} onClick={() => onDone(threads.map((thread) => thread.id))}>
           {t('address.followUp.dismiss')}
         </button>
       </div>

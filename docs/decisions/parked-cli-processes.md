@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T14:00:00Z
-updated_at: 2026-11-15T14:00:00Z
+updated_at: 2026-11-15T20:00:00Z
 tags:
     - decision
     - spike
@@ -18,7 +18,7 @@ desktop (systemd 259, user manager lingering, ext4 `/home`, tmpfs `/tmp`). Every
 scratch directories under `/tmp/t2` and `~/.cache`, with a scratch `CLAUDE_CONFIG_DIR` and `env -i`.
 The owner's running app, `~/.config/Claudio` and `~/.claude` were never signalled, written or
 copied (S6 read transcript sizes only). Every process, unit and mount created was ended by name or
-pid and checked afterwards. No tokens were spent.
+pid and checked afterwards. No tokens were spent, except S3, which ran later the same day on one Haiku turn (below).
 
 Confidence marks as in the plan: **verified** (measured here), **inferred**, **not determined**.
 
@@ -28,7 +28,7 @@ Confidence marks as in the plan: **verified** (measured here), **inferred**, **n
 |---|---|---|
 | S1 adoption | A prototype of layer 2 (wrapper, row, tail, fold, guarded takeover) adopts a CLI after a server `SIGKILL` mid-turn, with the same pid, no duplicate event and one spend row per turn; a pending prompt is answered by the successor | Verified with the fake CLI; the production code does not exist yet (t3, t4) |
 | S2 real CLI behind a FIFO | Works: FIFO stdin, file stdout, `initialize` answered by two successive writers, `pending_permission_requests: []` | Verified, real CLI 2.1.322 |
-| S3 pending prompt, real CLI | **Not run.** It needs a signed-in account and the only one on this machine is the owner's, which the task forbids using. The commands for the owner are below | Not determined |
+| S3 pending prompt, real CLI | Works: after a `SIGKILL` of the writer and a 5 s gap, a re-sent `initialize` returns the pending request in `pending_permission_requests` with the same id; both prompts were answered, the turn ended `success`, 0.0012 USD; the guard hook fired for both tools, the second after the gap | Verified, real CLI 2.1.322, one run |
 | S4 scopes | Scopes survive a stop, a restart and a `SIGKILL` of the launcher's unit; stopping a scope leaves nothing, double forks included | Verified |
 | S5 AppImage mount | A process running from a mount keeps running after a lazy unmount, but a plain unmount is refused while it runs. A real AppImage's FUSE server dying is **inferred** to fault it | Partly verified (tmpfs stand-in), the FUSE part inferred |
 | S6 volume and holes | Transcripts: median 68 MB/day, peak 120 MB/day over 14 days. `fallocate --punch-hole` on a file a process is appending to works on ext4 | Verified for the holes; volume is a proxy |
@@ -131,21 +131,42 @@ wrapper of M3 (`exec 0<>in.fifo`, `>>out.jsonl`), no prompt, no turn, no tokens.
 `response.pending_permission_requests` of the `control_response`. The CLI's start with no account
 is fine, so `initialize` also works as the liveness probe for an adopted process.
 
-## S3. A pending prompt across the gap (not run)
+## S3. A pending prompt across the gap
 
 **Question.** With a permission request pending, does killing the server, then re-sending
 `initialize`, deliver the same request again and accept the answer? Do guard hooks keep firing?
 
-**Status.** Not run: the only signed-in account on this machine is the owner's, and the task
-forbids using or copying it. Spent: **0 USD**. The cap the owner authorised is one Haiku turn at
-0.05 USD: the commands below use `--model haiku`, `--max-budget-usd 0.05`, `--max-turns 4` and
-`--tools Bash`, in a scratch config directory the owner signs in to himself.
+**How run (2026-11-15, CLI 2.1.322, Haiku).** The driver below, unchanged except that the CLI ran in
+a scratch config directory the owner had signed in to for the spikes (account A, Max plan) instead of
+a fresh `claude auth login`, and with `HOME` and every working directory in a scratch directory.
+`--model haiku --max-budget-usd 0.05 --max-turns 4 --tools Bash`, a PreToolUse hook on Bash that
+appends `date +%s` to `hook.log`. The prompt asked for two `touch` calls.
 
-The driver below was tested against the fake CLI (it prompts twice, the first writer dies, the
-second answers both and sees the result); against the real CLI the thing to read is whether
-`pending_permission_requests` is non-empty after the kill.
+**Result (verified, one run).**
 
-Run it in zsh (nothing here touches the real `~/.claude`):
+- Phase 1 saw the first `can_use_tool` request and died by `SIGKILL` with the request unanswered.
+- Phase 2 waited 5 s with no server, then re-sent `initialize`. The `control_response` came back and
+  `response.pending_permission_requests` held **the same request** (same `request_id`, the tool
+  name, the full input and the description), so the vendor's list is enough for `PermissionBroker`
+  to rebuild a prompt after adoption. It held the one request that was pending at that time.
+- Answering it with `allow` and then the second request (which arrived afterwards on the same
+  stream) ended the turn: `result subtype=success is_error=false`, `prompts_answered=2`, files `a`
+  and `b` created. The CLI had not exited at the `SIGKILL` of the writer, as in S2.
+- `total_cost_usd` was **0.00122627** (limit 0.05).
+- `hook.log` has **two lines**, six seconds apart (1794751601, 1794751606): the second hook ran
+  after the gap, so guard hooks keep firing across a hand-over.
+
+**Confidence.** Verified on the real CLI, but one run, one tool, one prompt at a time. Several
+simultaneous pending prompts were not tried, so the list's order and completeness stay inferred for
+that case.
+
+**Means for t4.** The first path (rebuild the prompts from `pending_permission_requests` after the
+re-sent `initialize`) works and is the one to implement; the replay-based path stays as the
+fallback for an empty list. The guard needs nothing more across the gap. The "inferred" mark on
+guard hooks in the plan (section 6, section 11) becomes verified.
+
+The script that was run (the adaptation was removing the `claude auth login` line and the final
+`rm -rf` of the config; zsh):
 
 ```zsh
 T=$(mktemp -d /tmp/claudio-s3.XXXXXX); export T
@@ -304,7 +325,7 @@ upper bound only.
 **What this is not.** Stdout carries what the transcript lacks (the `stream_event` deltas that
 `--include-partial-messages` adds, an 18 KB `initialize` answer per adoption) and the transcript
 carries what stdout lacks. The stdout-to-transcript ratio is **not determined**: one real turn
-measures it (S3's run can: compare the size of `out.jsonl` with the transcript in `$T/cfg`).
+measures it (S3 did not record it; the script can: compare the size of `out.jsonl` with the transcript in the account directory).
 
 **Hole punching (verified, ext4, `/home`).** A writer opened `out.jsonl` with `O_APPEND` and wrote
 4000 lines of 1 KB every 2 ms while another process punched the already-read prefix every 200 ms
@@ -347,8 +368,8 @@ same call freed the prefix and the next 18 KB answer landed at the new end.
 - Scopes make the launcher restartable at will (S4); without a user manager the fallback gives up
   the cgroup guarantee.
 
-**Still open.** S3 on the real CLI (the owner's run), the stdout-to-transcript ratio, and the
-container's `setsid` path.
+**Still open.** The stdout-to-transcript ratio, several simultaneous pending prompts, and the
+container's `setsid` path. S3 is closed (above).
 
 ## Related
 
