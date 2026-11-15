@@ -7,3 +7,5 @@ Raw `get_usage` control responses, recorded on Claude Code 2.1.302 with `control
 - `get-usage-refused-offline.json`: the invalid OAuth token with `HTTPS_PROXY` on a closed port (the CLI waited 18 s, then answered the same).
 
 All four "refused" files answer success with `rate_limits_available: false`: the request cannot tell a refused credential from an unreachable network, so it can confirm a credential but never refuse one.
+
+`choose-before-rules.ts` is not a recording: it is the account choice as it was before the project rules (T6 of `docs/plans/account-configuration-and-project-rules.md`), frozen as the oracle of `choose-rules.test.ts`. Never edit it to make a test pass.

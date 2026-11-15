@@ -7239,9 +7239,62 @@ export interface SwitchChatAccountResponse {
 /**
  * Why the chosen account changed. `credits`: the work left an account whose plan is spent because
  * its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the
- * credits setting).
+ * credits setting). `reserve`: the account is under the work's threshold but another project with
+ * work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2).
  */
-export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits';
+export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits' | 'reserve';
+
+/**
+ * On what grounds the account choice took its account, so a person never meets an arbitrary one.
+ *
+ * - `pin`: the chat is pinned to it. `current`: the work stays where it is, under the threshold.
+ * - `preferred`: the person's preferred account; `project-preferred`: the preferred account of the
+ *   project's rule, which replaces it there.
+ * - `order`, `least-used`: the strategy among the accounts with room; `only-one`: it was the only one
+ *   with room; `same-config`: the strategy would have taken an account of another configuration
+ *   group, and this one shares the configuration of the account the work is on.
+ * - `over-threshold`: no account was under the threshold, and running beats waiting.
+ * - `reserve-released`: the headroom another project reserves on it is used, because every other
+ *   account is out.
+ * - `credits`: no account has plan quota left, and its credits setting allows it as a last resort.
+ * - `none`: no account can take the work now.
+ */
+export type AccountChoiceBasis =
+  | 'pin'
+  | 'current'
+  | 'preferred'
+  | 'project-preferred'
+  | 'order'
+  | 'least-used'
+  | 'only-one'
+  | 'same-config'
+  | 'over-threshold'
+  | 'reserve-released'
+  | 'credits'
+  | 'none';
+
+/**
+ * Why an account a rule touched was not chosen. `not-allowed`: the project's rule does not list it;
+ * `reserved`: another project with work in progress reserves headroom on it; `other-config`: the rule
+ * rotates only within the configuration group of the account the work is on.
+ */
+export type AccountChoicePassReason = 'not-allowed' | 'reserved' | 'other-config';
+
+export interface AccountChoicePass {
+  account: string;
+  because: AccountChoicePassReason;
+  /** The project whose rule or reserve kept the work off it, when known */
+  project?: string;
+}
+
+/** The explanation every account choice carries (`Choice.why`). */
+export interface AccountChoiceWhy {
+  basis: AccountChoiceBasis;
+  /** The project whose rule (`project-preferred`) or reserve (`reserve-released`) decided it */
+  project?: string;
+  /** Accounts a project rule or reserve kept the work off; absent when none did */
+  passedOver?: AccountChoicePass[];
+}
 
 /**
  * Which accounts the chats of some projects may use, in what order, and when to move on. A project

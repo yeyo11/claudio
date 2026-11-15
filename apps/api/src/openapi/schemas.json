@@ -9153,9 +9153,10 @@
       "disabled",
       "signed-out",
       "auth",
-      "credits"
+      "credits",
+      "reserve"
     ],
-    "description": "Why the chosen account changed. `credits`: the work left an account whose plan is spent because its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the credits setting)."
+    "description": "Why the chosen account changed. `credits`: the work left an account whose plan is spent because its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the credits setting). `reserve`: the account is under the work's threshold but another project with work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2)."
   },
   "AccountCreditsEvent": {
     "type": "object",

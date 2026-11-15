@@ -6,6 +6,7 @@ import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { AccountCredits, AccountLimit, AccountsSettings } from '@claudio/shared';
 import { accountState, AccountStore, choose, fold, isOut, parseUsage, readingFromEvent, Readings, type Reading } from '../src/index.ts';
+import { bare } from './bare-choice.ts';
 
 /*
  * The `overage` state and the credits setting (t6 of docs/plans/limit-resume-and-credits.md, on the
@@ -186,24 +187,24 @@ describe('choose and the credits setting', () => {
 
   it('never, the default: an account in overage is out, and its plan reset is the one to wait for', () => {
     const limits = { a: spent(true), b: out(2 * HOUR), c: out(3 * HOUR) };
-    assert.deepEqual(choose(ACCOUNTS, limits, SETTINGS, { current: 'a', now: NOW }), { account: null, reason: null, waitUntil: NOW + HOUR });
-    assert.deepEqual(choose(ACCOUNTS, limits, withCredits('never'), { current: 'a', now: NOW }), { account: null, reason: null, waitUntil: NOW + HOUR });
+    assert.deepEqual(bare(choose(ACCOUNTS, limits, SETTINGS, { current: 'a', now: NOW })), { account: null, reason: null, waitUntil: NOW + HOUR });
+    assert.deepEqual(bare(choose(ACCOUNTS, limits, withCredits('never'), { current: 'a', now: NOW })), { account: null, reason: null, waitUntil: NOW + HOUR });
     assert.equal(choose(ACCOUNTS, limits, SETTINGS, { current: null, now: NOW, pinned: 'a' }).account, null, 'a pin does not spend credits either');
   });
 
   it('last-resort: taken only when no account has plan quota left', () => {
     const settings = withCredits('last-resort');
     assert.equal(choose(ACCOUNTS, { a: spent(true), b: room(0.95), c: out(HOUR) }, settings, { current: 'a', now: NOW }).account, 'b', 'an account over the threshold still has plan quota');
-    assert.deepEqual(choose(ACCOUNTS, { a: spent(true), b: out(2 * HOUR), c: out(HOUR) }, settings, { current: 'b', now: NOW }), { account: 'a', reason: 'limit', waitUntil: null, credits: true });
-    assert.deepEqual(choose(ACCOUNTS, { a: spent(true), b: out(2 * HOUR), c: out(HOUR) }, settings, { current: 'a', now: NOW }), { account: 'a', reason: null, waitUntil: null, credits: true }, 'it stays where it runs');
+    assert.deepEqual(bare(choose(ACCOUNTS, { a: spent(true), b: out(2 * HOUR), c: out(HOUR) }, settings, { current: 'b', now: NOW })), { account: 'a', reason: 'limit', waitUntil: null, credits: true });
+    assert.deepEqual(bare(choose(ACCOUNTS, { a: spent(true), b: out(2 * HOUR), c: out(HOUR) }, settings, { current: 'a', now: NOW })), { account: 'a', reason: null, waitUntil: null, credits: true }, 'it stays where it runs');
   });
 
   it('allow: taken after the accounts with room, before waiting, and kept while it runs there', () => {
     const settings = withCredits('allow');
     assert.equal(choose(ACCOUNTS, { a: spent(true), b: room(0.2), c: out(HOUR) }, settings, { current: 'a', now: NOW }).account, 'b', 'plan quota first');
-    assert.deepEqual(choose(ACCOUNTS, { a: spent(true), b: room(0.95), c: out(HOUR) }, settings, { current: 'a', now: NOW }), { account: 'a', reason: null, waitUntil: null, credits: true }, 'as an account over the threshold stays');
-    assert.deepEqual(choose(ACCOUNTS, { a: spent(true), b: out(2 * HOUR), c: out(HOUR) }, settings, { current: 'c', now: NOW }), { account: 'a', reason: 'limit', waitUntil: null, credits: true });
-    assert.deepEqual(choose(ACCOUNTS, { a: spent(true), b: out(2 * HOUR), c: out(HOUR) }, settings, { current: null, now: NOW, pinned: 'a' }), { account: 'a', reason: 'person', waitUntil: null, credits: true }, 'a pinned chat keeps it');
+    assert.deepEqual(bare(choose(ACCOUNTS, { a: spent(true), b: room(0.95), c: out(HOUR) }, settings, { current: 'a', now: NOW })), { account: 'a', reason: null, waitUntil: null, credits: true }, 'as an account over the threshold stays');
+    assert.deepEqual(bare(choose(ACCOUNTS, { a: spent(true), b: out(2 * HOUR), c: out(HOUR) }, settings, { current: 'c', now: NOW })), { account: 'a', reason: 'limit', waitUntil: null, credits: true });
+    assert.deepEqual(bare(choose(ACCOUNTS, { a: spent(true), b: out(2 * HOUR), c: out(HOUR) }, settings, { current: null, now: NOW, pinned: 'a' })), { account: 'a', reason: 'person', waitUntil: null, credits: true }, 'a pinned chat keeps it');
   });
 
   it('no setting spends credits that do not cover: off, at the claude.ai cap, or at Claudio\'s cap', () => {

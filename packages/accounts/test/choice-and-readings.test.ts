@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { AccountLimit, AccountsSettings } from '@claudio/shared';
 import { AccountInUseError, AccountStore, barTone, choose, DEFAULT_ID, fold, isOut, NEAR, parseUsage, readingFromEvent, Readings } from '../src/index.ts';
 import { cliLogin } from '../src/usage.ts';
+import { bare } from './bare-choice.ts';
 
 /*
  * The account behaviour the regression audit of 2026-10-29 (§2) found missing or wrong: the
@@ -60,9 +61,9 @@ describe('the preferred account and the order', () => {
 
   it('stays on the preferred account under the threshold, and comes back to it only under the margin', () => {
     const preferB = { ...SETTINGS, preferred: 'b' };
-    assert.deepEqual(choose(ACCOUNTS, { a: lim(0.1), b: lim(0.85) }, preferB, { current: 'b', now: NOW }), { account: 'b', reason: null, waitUntil: null });
+    assert.deepEqual(bare(choose(ACCOUNTS, { a: lim(0.1), b: lim(0.85) }, preferB, { current: 'b', now: NOW })), { account: 'b', reason: null, waitUntil: null });
     assert.equal(choose(ACCOUNTS, { a: lim(0.1), b: lim(0.85) }, preferB, { current: 'a', now: NOW }).account, 'a', 'at 85 % it is not taken back: the hysteresis holds');
-    assert.deepEqual(choose(ACCOUNTS, { a: lim(0.1), b: lim(0.7) }, preferB, { current: 'a', now: NOW }), { account: 'b', reason: 'person', waitUntil: null });
+    assert.deepEqual(bare(choose(ACCOUNTS, { a: lim(0.1), b: lim(0.7) }, preferB, { current: 'a', now: NOW })), { account: 'b', reason: 'person', waitUntil: null });
   });
 
   it('a project policy that does not list the preferred account wins over it', () => {
@@ -173,7 +174,7 @@ describe('stream readings', () => {
     assert.equal(fold(r, NOW + 300_001).state, 'unknown', 'back once the cooldown is over');
     // Under `choose`, the account is skipped until then and gives that time to wait for
     const c = choose([{ id: 'a', enabled: true, signedIn: true }], { a: l }, SETTINGS, { current: 'a', now: NOW });
-    assert.deepEqual(c, { account: null, reason: null, waitUntil: NOW + 300_000 });
+    assert.deepEqual(bare(c), { account: null, reason: null, waitUntil: NOW + 300_000 });
   });
 
   it('a scoped rejection goes to the model\'s limit, never to the account\'s windows', () => {
