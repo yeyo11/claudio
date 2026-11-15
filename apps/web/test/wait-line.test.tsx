@@ -19,9 +19,10 @@ import { OpenWaitList, type OpenWait } from '../src/pages/dashboard/widgets/wait
 const text = (html: string) => html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const claude = { id: 'claude-code', label: 'Claude Code', state: 'ready' } as unknown as ProviderStatus;
 
-const render = (node: React.ReactNode): string => {
+const render = (node: React.ReactNode, chatRead = true): string => {
   const client = new QueryClient();
   client.setQueryData(keys.providers, [claude]);
+  if (chatRead) client.setQueryData(['home', 'wait-chat', 'c1'], { chat: { id: 'c1', title: 'Review the PWA', firstPrompt: 'Review the PWA', account: null } } as never);
   return renderToStaticMarkup(
     <QueryClientProvider client={client}>
       <MemoryRouter>
@@ -104,4 +105,10 @@ test('Home links a task\'s wait to its orchestration and shows nothing when no w
   assert.match(text(html), /Ship it/);
   assert.match(text(html), /going on now/);
   assert.doesNotMatch(render(<OpenWaitList waits={[]} />), /wait-list/);
+});
+
+test('Home holds a chat wait as a skeleton while the chat is read, so the row does not jump', () => {
+  const html = render(<OpenWaitList waits={[{ move: move(), orchestration: null }]} />, false);
+  assert.match(html, /skeleton/);
+  assert.doesNotMatch(text(html), /Waiting for Claude Code/);
 });

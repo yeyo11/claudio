@@ -11,6 +11,7 @@ import type {
   AccountLoginSession,
   AccountsRefreshResult,
   AccountsSettings,
+  CliCanaryStatus,
   ModelFallback,
   ModelFallbackSuggestion,
   ModelOption,
@@ -229,6 +230,15 @@ export const accountRoutes: FastifyPluginAsync<{ core: Core }> = async (app, { c
   app.get<{ Params: { id: string }; Querystring: { refresh?: string } }>('/accounts/:id/models', (req): Promise<ModelOption[]> => {
     core.accounts.get(req.params.id); // 404 before the CLI is asked anything
     return core.accounts.models(req.params.id, { refresh: req.query.refresh === 'true' || req.query.refresh === '1' });
+  });
+
+  // What the installed CLI did under the canary's three checks (T5 of the same plan). A re-run is a
+  // write, so a chat's token cannot start one; it answers at once, the checks take a while.
+  app.get('/accounts/canary', (): CliCanaryStatus => core.cliCanary.status());
+  app.post('/accounts/canary/run', (_req, reply): CliCanaryStatus => {
+    // Refused while one is running (or when no CLI was read yet): a second run would only queue behind it
+    if (!core.cliCanary.recheck()) reply.status(409);
+    return core.cliCanary.status();
   });
 
   // The configuration mode (docs/plans/account-configuration-and-project-rules.md §6): every change is

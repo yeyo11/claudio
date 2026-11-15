@@ -7,6 +7,7 @@ import { useTranslation } from 'react-i18next';
 import { accountLabel } from '@claudio/chat-ui/lib/account-choice';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { ICON_SM } from '@claudio/ui/components/icons';
+import { Skeleton } from '@claudio/ui/components/ui';
 import { api, keys, useOrchestrations } from '../../../api';
 import { WaitWhen } from '../../../components/WaitLine';
 import { useAccountView } from '../../../lib/accounts';
@@ -50,6 +51,7 @@ function WaitRow({ wait: { move, orchestration } }: { wait: OpenWait }) {
   const chatId = move.subjectKind === 'task' ? null : move.fromChat;
   const [chat] = useQueries({ queries: [{ queryKey: ['home', 'wait-chat', chatId], queryFn: () => api.chat(chatId ?? '', { limit: 1 }), enabled: chatId !== null, staleTime: 60_000 }] });
   const account = chat.data?.chat.account ? accounts?.accounts.find((a) => a.id === chat.data?.chat.account) : undefined;
+  const loading = chatId !== null && chat.isLoading;
   const title: ReactNode = orchestration ? orchestration.name : chat.data ? displayTitle(chat.data.chat) : t('home:widgets.waits.untitled');
   const to = move.subjectKind === 'task' ? `/orchestration/${encodeURIComponent(orchestrationOf(move))}` : `/chats/${encodeURIComponent(move.fromChat)}`;
   const view = { provider: move.fromProvider, resetsAt: move.resetsAt, nextLookAt: move.nextLookAt ?? null, state: move.state === 'resuming' ? ('resuming' as const) : ('waiting' as const) };
@@ -59,16 +61,23 @@ function WaitRow({ wait: { move, orchestration } }: { wait: OpenWait }) {
         <Clock {...ICON_SM} />
       </span>
       <div className="inbox-main">
-        <div className="inbox-what">
-          <strong>{title}</strong> <span className="faint">{t(`home:widgets.waits.kind.${move.subjectKind}`)}</span>
-        </div>
-        <div className="small muted wait-row-detail">
-          {t('components:limitWait.title', { name: label(move.fromProvider) })}
-          {' · '}
-          <WaitWhen wait={view} />
-          {` · ${t('home:widgets.waits.since', { when: resetWhen(move.at) })}`}
-          {account && ` · ${t('components:limitWait.account', { account: accountLabel(account) })}`}
-        </div>
+        {/* A chat's title and account arrive with its read: a skeleton holds the two lines, so the row does not jump */}
+        {loading ? (
+          <Skeleton rows={2} height={14} />
+        ) : (
+          <>
+            <div className="inbox-what">
+              <strong>{title}</strong> <span className="faint">{t(`home:widgets.waits.kind.${move.subjectKind}`)}</span>
+            </div>
+            <div className="small muted wait-row-detail">
+              {t('components:limitWait.title', { name: label(move.fromProvider) })}
+              {' · '}
+              <WaitWhen wait={view} />
+              {` · ${t('home:widgets.waits.since', { when: resetWhen(move.at) })}`}
+              {account && ` · ${t('components:limitWait.account', { account: accountLabel(account) })}`}
+            </div>
+          </>
+        )}
       </div>
       <Link to={to} className="btn btn-small">
         {t('common:actions.open')}

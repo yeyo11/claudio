@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-14T16:00:00Z
+updated_at: 2026-11-15T12:30:00Z
 tags:
     - plan
     - study
@@ -13,7 +13,8 @@ tags:
 # Plan: account configuration (shared or independent) and project rules
 
 Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
-`feat/account-config-mode` (2026-11-14); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
+`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
+(2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
 
@@ -666,6 +667,98 @@ both wait for T9 and T10. The new routes are not served by a headless Claudio (`
 image has no page to switch from. A switch does not wait for the account's live chats: a running CLI
 sees its configuration change under it. Removing an account deletes the copies kept aside in its
 dir. Plugins (T2), the overlay (T3), the canary (T5) and the rules (T6 to T8) are untouched.
+
+**T5** (`feat/cli-canary`, 2026-11-15): the canary per CLI version. Described in
+[accounts.md](../accounts.md#the-cli-canary).
+- `runCanary` (`packages/accounts/src/canary.ts`): S1, S2 and S3c as the spikes table defines them,
+  each in its own dir of one fresh temp dir, with an environment built from nothing. S3c runs the
+  project twice, untrusted and trusted, with a loopback MCP server whose `headersHelper` leaves a
+  mark. Observed on 2.1.322: all three pass (S1 link kept and the target holds the server; S2 both
+  links kept, the plugin enabled in the linked settings and recorded in the linked `plugins/`; S3c
+  `failed` with 0 helper runs untrusted, `connected` with 1 trusted), 23 s, no sign-in and no turn.
+- Stored in SQLite, `cli_canary`, one row per version and check (`Db.saveCliCanary`, `cliCanary`).
+  A per-release record grows for as long as Claudio runs and two processes share the data dir, which
+  is CONTRIBUTING's line between rows and a settings file.
+- `CliCanaryWatch` (`packages/core/src/cli-canary.ts`) takes each CLI version the system read sees,
+  runs the canary when the version has no complete result, one at a time, and logs a failed check once.
+- Contract: `CliCanary`, `CliCanaryCheck`, `CliCanaryStatus` in `packages/shared`;
+  `GET /accounts/canary` and `POST /accounts/canary/run` (person only; 409 while one runs).
+- The Accounts page shows one line (`CliCanaryLine`), the first of T10's screens only in spirit: it
+  says the state and lists the checks that did not pass.
+
+**Differs from the plan.**
+- A failure only reports. R1's "shared mode copies and reconciles instead of linking" is a change
+  of behaviour whose trigger (which checks, how many versions) the plan does not settle, so it waits
+  for the owner. S1 is about `.claude.json`, which Claudio never links, so a failing S1 alone does not
+  threaten anything today; a failing S2 or S3c does (the links of T1, the overlay of T3).
+- A re-run button and a route for it, which the plan did not name: a check that failed by a
+  flake would otherwise stay failed until the next CLI version.
+- `CLAUDIO_CLI_CANARY=off`, switched off for tests by their preload, so a test's Core does not start processes
+  beside the ones it counts.
+
+**Stays open.** What a failing S2 or S3c should switch off (owner). The canary runs once per version
+per data dir. `needs-sign-in` was never seen: the three checks ran unsigned on 2.1.322. S2b (concurrent
+writers through a linked `plugins/`) is not a canary check.
+
+**T6** (`feat/account-rules-engine`, 2026-11-15): the rules engine in `choose`, with nothing that
+sets a rule yet.
+- Contract (`packages/shared/src/types.ts`): `AccountSwitchReason` gains `reserve`;
+  `AccountChoiceWhy { basis; project?; passedOver? }` with `AccountChoiceBasis` (`pin`, `current`,
+  `preferred`, `project-preferred`, `order`, `least-used`, `only-one`, `same-config`,
+  `over-threshold`, `reserve-released`, `credits`, `none`) and `AccountChoicePass { account;
+  because: 'not-allowed' | 'reserved' | 'other-config'; project? }`. Every `Choice` carries `why`.
+- Engine (`packages/accounts/src/choose.ts`): `ChooseOptions.policy` is a `ChoosePolicy`, today's
+  `threshold` and `order` plus `preferred?` and `strictConfig?`, so `RotationPolicy` passes as it is
+  and T8 only adds the same names to it. `ChooseOptions` gains `project?` and `reserved?:
+  AccountReserve[]` (`{ project, account, percent }`); `Candidate` gains `configGroup?`
+  (`SHARED_CONFIG_GROUP` when absent). `RESERVE_CAP` is 30.
+- Precedence, unchanged in its steps: pin; preferred account (the rule's, else the person's); the
+  current account under its threshold; the accounts with room (the work's configuration group
+  first, then the strategy); the current account over its threshold; any account not out (unreserved
+  first); credits as a last resort; wait. An account the rule does not list is never a candidate in
+  any step, credits included.
+- Reserve (D12): for work of any project other than the reserving one, the reserved account's
+  threshold and margin are `percent` points lower (largest reserve on the account, capped at 30).
+  Off it under the work's own threshold, the reason is `reserve`. When nothing has room, work goes
+  to any unreserved account that is not out, over its threshold too, before the reserved one; the
+  reserved headroom is used only when every other account is out (`why.basis: 'reserve-released'`,
+  with the reserving project). A pin beats a reserve.
+- Configuration groups (D11): `AccountStore.configGroupOf` reads the stored mode (shared and the
+  default are one group, each independent account its own; mid-switch keeps the mode it leaves), no
+  dir read, and `pick` passes it. Among accounts with room, and among the spare ones, the current
+  account's group ranks first; never over room; new work (no current account) is unaffected.
+  `strictConfig` keeps rotation inside the group (a pin is exempt) and waits for the group's resets.
+- Credits compose by exclusion: the rule's allow list filters every step, the last-resort step and
+  the resets to wait for, so credits never let an excluded account run; an account on `allow`
+  credits is "not out" and meets the reserve like any account over its threshold; the last-resort
+  step ignores reserves (a spent plan has no headroom left to keep).
+- The default-equals-today proof (`packages/accounts/test/choose-rules.test.ts`): the choice as it
+  was before T6 (main after #141, the credits stop) is frozen in `test/fixtures/choose-before-rules.ts`, and 20 000 generated situations
+  (sign-in states, readings, overage, scoped limits, both strategies, preferred, order, credits and
+  caps, today's policies, pins, models, failed accounts) give the same account, reason, wait and
+  credits; again with every account in the shared group and with reserves of the work's own project.
+  The tests written before T6 pass unchanged but for `bare()`, which drops `why` from their
+  `deepEqual`s.
+
+**Differs from the plan.**
+- `reserve-released` is a `why.basis`, not an `AccountSwitchReason`: a switch's reason says why the
+  work left its account (`limit`), which the destination's reserve does not replace.
+- `rule` is not produced by `choose`: a current account outside the rule still reads `threshold`
+  (today's reason, so today's policies behave exactly as before); `why.passedOver` names it
+  `not-allowed`, from which T7 records `rule` when it moves a chat at turn end.
+- §7.2's "a reserve only diverts work while another allowed account is under its own threshold"
+  yields to D12 ("released when the other accounts are out"): work goes to an account over its
+  threshold before it uses reserved headroom.
+- "Only one with room" is `only-one` when exactly one account had room; a configuration group
+  changes ranking only, so with every account shared nothing changes, and an install with an
+  independent account sees the tie-breaker without any rule (D11).
+
+**For T7 and T8.** T7 computes `reserved` from work in progress (the reserve's account is the rule's
+`preferred`, else the first of its `order`), passes `project` with the policy, records `rule` from
+`passedOver`, and uses `why` for the no-room messages. T8 adds `preferred`, `reserve: { percent }`
+and `strictConfig` to `RotationPolicy` with validation (preferred within `order`, percent 1 to 30, at
+most one reserve per account), the `not-allowed` refusal, and labels for `reserve` and the bases
+(today the web shows an unknown reason as its raw text).
 
 ## The owner's decisions (2026-11-13)
 

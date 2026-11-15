@@ -15,7 +15,7 @@ export function RunState({ item }: { item: Pick<WorkItemDetail, 'id' | 'links' |
   return (
     <div className="workitem-runstate">
       {waiting.map((run) => (
-        <WaitLine key={run.id} wait={run.waiting} why={<WaitWhy />} actions={<WaitActions moveId={run.waiting.moveId} quiet="btn-ghost" invalidate={[keys.workItemRuns(item.id)]} />} />
+        <WaitLine key={run.id} wait={run.waiting} why={<WaitWhy />} actions={<WaitActions moveId={run.waiting.moveId} quiet="btn-quiet" invalidate={[keys.workItemRuns(item.id)]} />} />
       ))}
     </div>
   );

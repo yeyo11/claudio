@@ -281,7 +281,7 @@
   },
   "limitWait": {
     "title": "Esperando a {{name}}",
-    "resumesAt": "vuelve a las",
+    "resumesAt": "se reanuda a las",
     "unknown": "no se sabe cuándo se restablece",
     "why": "Llegó a su límite de uso. Conserva su sitio y sigue sola cuando se restablezca.",
     "stop": "Dejar de esperar",
@@ -290,7 +290,7 @@
     "runNowTitle": "Enviar el turno ya, en la primera cuenta con margen, sin esperar a que se restablezca el límite",
     "runNowFailed": "No se ha podido ejecutar ahora",
     "resuming": "continuando ahora",
-    "lookAgain": "vuelve a mirar:",
+    "lookAgain": "próxima comprobación:",
     "account": "cuenta {{account}}",
     "badge": "esperando"
   },

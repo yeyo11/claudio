@@ -109,9 +109,9 @@
       "about": "Lo que está en marcha y lo que te espera primero."
     },
     "waits": {
-      "title": "Esperando a un límite de uso",
-      "count_one": "{{n}} esperando a un límite",
-      "count_other": "{{n}} esperando a un límite",
+      "title": "Esperando a que se restablezca un límite de uso",
+      "count_one": "{{n}} con límite",
+      "count_other": "{{n}} con límite",
       "since": "desde {{when}}",
       "untitled": "Chat",
       "kind": {

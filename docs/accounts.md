@@ -369,8 +369,15 @@ tell a refused credential from an unreachable network. The four raw answers are 
   older than its last look (`probeTargets`: its pinned account, else every enabled, signed-in
   subscription account), at 5, 15, 30 and then every 60 min, one probe per account at a time and
   bounded by 30 s; what they answer reaches the waits as any reading does. `maxWaitHours` gives such
-  a wait up only once a probe taken past it answered nothing. A sign-in failure is not probed: only
-  a person signs in again. A restarted process takes its rows over at its first pass: a claim a
+  a wait up only once a probe taken past it answered nothing. A wait that knows its reset probes
+  too, more sparsely: 15 min after it began, 30 min after that, then every 60 min, and never when
+  the reset comes before the next probe. A person can reset an account's quota early from Claude's
+  settings, and the window then starts again before the reset the refusal announced; only a
+  reading says so, and before 2026-11-15 nothing asked for one, so a chat waited for the old reset
+  (cause 12 of [limit-resume-and-credits](plans/limit-resume-and-credits.md)). The probe's answer is
+  the account's stored reading, so the Accounts page shows the reset too. When the last probe was
+  is kept in memory; after a restart the next one is counted from when the wait began, which costs
+  one probe at most. A sign-in failure is not probed: only a person signs in again. A restarted process takes its rows over at its first pass: a claim a
   restart cut short is taken again once it lapses, and a row an older Claudio opened (no
   `next_look_at`) is due at once.
 - **A limit survives a restart.** An execution that died on a limit records the reset it knew
@@ -390,12 +397,14 @@ tell a refused credential from an unreachable network. The four raw answers are 
 - **A failure ends at its reset.** Each failure keeps when it happened and the reset it was
   refused with (the chat's `limitedAccounts`, and the end and `limitResetsAt` of each failed
   execution in `limitedTailAt`). It stops counting once that reset has passed, or once the
-  account's reading said it was out then and says it is not now (`resetSince` in `chats.ts`);
+  account's reading said it was out then and says it is not now, or once a reading taken after the
+  failure does not call the account exhausted (an early reset; `resetSince` in `chats.ts`);
   `chooseNext`, `roomFor` and a person's switch read the same set (`stillFailed`). The recorded
   reset decides first because the reading is the latest one: a reading taken after the reset says
   "not out" about a time the account was out, and the failure then counted until a turn went
   through. A failure with no reset recorded (a bare 429, or a reset not after the failure) counts
-  until the reading says otherwise, as before. Until 2026-11-07 every failure counted until then, so once a wait replayed a
+  until the reading says otherwise, as before. A reading taken at or before the failure (the
+  refusal's own, or one kept from before the turn) is never evidence that the account is back. Until 2026-11-07 every failure counted until then, so once a wait replayed a
   turn that died again the rotation still skipped accounts whose reset had passed, and waited
   instead of moving (R11 of [ci-and-regression-open](plans/ci-and-regression-open.md)).
 - **A fork keeps its account** and its pin; a fork of a chat that ran on account B does not start
@@ -490,6 +499,46 @@ The status bar tells signed out from the limit with `SystemInfo.auth.inUseReason
 `limit` or null), which the server sets when no account is in use: `limit` when an enabled account
 has a credential, `signed-out` otherwise. "Not signed in" is shown only for the second case.
 
+## The CLI canary
+
+What a shared account stands on is behaviour no vendor documents: a rewrite of `.claude.json` that
+keeps a link, a `plugins/` that survives an install, project trust read from the account's state
+file. A CLI release can change any of it, so the first time Claudio reads a CLI version it has not
+checked, it runs three checks again (`runCanary`, `packages/accounts/src/canary.ts`; the spikes S1,
+S2 and S3c of [the plan](plans/account-configuration-and-project-rules.md)):
+
+| Check | What it does in a temp dir | Passes when |
+|---|---|---|
+| `s1` | links `acc/.claude.json` to a file of `shared/`, then `claude mcp add --scope user` | the state file is still a link and the target holds the new server |
+| `s2` | links `plugins/` and `settings.json`; adds a directory marketplace (no network), installs its plugin, raises its version, updates the marketplace and the plugin | both are still links, the plugin is enabled in the linked settings and recorded in the linked `plugins/` |
+| `s3c` | a project with one HTTP server whose `headersHelper` leaves a mark; `initialize` then `mcp_status` control requests, with no turn, with and without `projects[<dir>].hasTrustDialogAccepted` | untrusted: the server fails and the helper never runs; trusted: it connects and the helper runs |
+
+It costs nothing and touches nothing of a person's: every process gets an environment built from
+nothing (a `PATH`, and a `HOME`, `XDG_*`, `TMPDIR` and `CLAUDE_CONFIG_DIR` under one fresh temp dir,
+which is removed afterwards), so no token, key or real config dir can reach it. No check starts a
+turn or needs an account; one the CLI refuses for a missing sign-in reads `needs-sign-in` and is not
+retried, and one that could not run (no binary, a timeout, a server that never settled) reads
+`error`, which says nothing of the CLI. The local server it talks to listens on loopback only. On
+2.1.322 all three pass in about 25 seconds.
+
+- **Stored** per version and check in SQLite (`cli_canary`: `version`, `check_id`, `state`,
+  `observed`, `checked_at`), because there is one more per release for as long as Claudio runs and
+  the binary and the app share the data dir. A version with a complete result is never run again
+  by itself, so a restart costs nothing; a re-run replaces the rows of its version.
+- **When.** `CliCanaryWatch` (`packages/core/src/cli-canary.ts`) is told each CLI version the
+  system read sees, one run at a time, in the background. `CLAUDIO_CLI_CANARY=off` stops the
+  automatic runs (the unit tests switch it off through the preload).
+- **Where it shows.** `GET /accounts/canary` answers the version, whether a run is going and the
+  result; `POST /accounts/canary/run` runs it again. The Accounts page has one line for it ("Checks
+  for shared accounts": the CLI version, passed, failed, needs a signed-in account or could not run,
+  and its age, with **Check again**; under it only the checks that did not pass, each a neutral name
+  and a sentence in the person's language. What the server observed stays in the API and the log.
+  Under "needs a signed-in account" the button is hidden: only signing in changes that), and
+  `accounts.changed` refreshes it.
+- **What a failure changes: nothing.** It is said once in the server log and on that line. The plan
+  (R1) says that a canary showing links replaced for `settings.json` should make shared mode copy
+  and reconcile instead of linking; that is the owner's decision, so Claudio only reports.
+
 ## Where it shows
 
 - **API:** `/accounts` and its sub-routes, in the [Accounts](rest-api.md#accounts) table of the REST API. A chat's token reads
@@ -546,6 +595,8 @@ has a credential, `signed-out` otherwise. "Not signed in" is shown only for the 
     credits".
 
 ## Tests
+
+The canary is guarded by `packages/accounts/test/canary.test.ts` (a fake CLI that breaks each check in turn, the environment it is given, and the installed CLI when there is one), `packages/core/test/cli-canary.test.ts` and the accounts route tests.
 
 The unit tests run against `packages/accounts/test/fake-claude.mjs`, which honours
 `CLAUDE_CONFIG_DIR`. The end-to-end spec `e2e/specs/accounts.spec.mjs` uses the fake CLI of

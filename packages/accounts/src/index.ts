@@ -1,4 +1,4 @@
-export { choose, globalOrder, type Candidate, type Choice, type ChooseOptions } from './choose.ts';
+export { choose, globalOrder, RESERVE_CAP, SHARED_CONFIG_GROUP, type AccountReserve, type Candidate, type Choice, type ChooseOptions, type ChoosePolicy } from './choose.ts';
 export { ASIDE_DIR, CONFIG_ITEMS, FILE_ITEMS, HISTORY, HISTORY_ITEMS, orphanDirs, planAccountDir, prepareAccountDir, reconcileAccountDir, removeLinks, SHARED_SETTINGS, type ReconcileReport, type ReconcileStep } from './dirs.ts';
 export { throughLinks } from './fs.ts';
 export { applySteps, describeConfig, itemClass, keptAside, planSwitch, planUseShared, STAGING_DIR } from './config-mode.ts';
@@ -11,3 +11,4 @@ export { accountState, BAR_BAD, BAR_WARN, barTone, creditsCapReached, creditsSet
 export { cliConfigFile, fold, readCache, readingFromEvent, Readings, type EventReadingOptions, type Reading } from './usage.ts';
 export { apiKeyOf, checkApiKey, checkCredential, parseUsage, usageOf, type CredentialCheck, type KeyCheckOptions } from './cli-usage.ts';
 export { controlRequest, type ControlOptions } from './control.ts';
+export { runCanary, type CanaryOptions } from './canary.ts';

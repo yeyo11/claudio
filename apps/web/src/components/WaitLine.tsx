@@ -26,7 +26,7 @@ export function WaitWhen({ wait }: { wait: WaitView }) {
   if (wait.resetsAt)
     return (
       <>
-        {t('limitWait.resumesAt')} <span className="tnum">{resetWhen(wait.resetsAt)}</span> ({timeUntil(Math.ceil(Date.parse(wait.resetsAt) / 60_000) * 60)})
+        {t('limitWait.resumesAt')} <span className="tnum">{resetWhen(wait.resetsAt)}</span> ({timeUntil(Math.ceil(Date.parse(wait.resetsAt) / 60_000) * 60).replace(/ /g, '\u00a0')})
       </>
     );
   return (
@@ -74,9 +74,10 @@ export function WaitLine({
   const name = label(wait.provider);
   const at = action ?? (actions ? <span className="wait-line-go">{actions}</span> : null);
   return (
-    <div className={banner ? 'wait-line is-banner' : 'wait-line'} role="status">
+    <div className={banner ? 'wait-line is-banner' : 'wait-line'}>
       <Clock {...ICON_SM} aria-hidden />
-      <span className="wait-line-text">
+      {/* Only the words are announced: the countdown and the buttons are not news */}
+      <span className="wait-line-text" role="status">
         <b>{t('limitWait.title', { name })}</b>
         {' · '}
         <WaitWhen wait={wait} />

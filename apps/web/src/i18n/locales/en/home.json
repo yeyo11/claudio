@@ -110,8 +110,8 @@
     },
     "waits": {
       "title": "Waiting for a usage limit",
-      "count_one": "{{n}} waiting for a limit",
-      "count_other": "{{n}} waiting for a limit",
+      "count_one": "{{n}} at a limit",
+      "count_other": "{{n}} at a limit",
       "since": "since {{when}}",
       "untitled": "Chat",
       "kind": {

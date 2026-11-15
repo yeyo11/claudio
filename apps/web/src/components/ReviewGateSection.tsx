@@ -326,7 +326,7 @@ export function ReviewGateSection({ orch }: { orch: Orchestration }) {
         </span>
       </div>
 
-      {state.waiting && <WaitLine wait={state.waiting} actions={<WaitActions moveId={state.waiting.moveId} quiet="btn-ghost" invalidate={[keys.orchestration(orch.id), keys.orchestrationReview(orch.id)]} />} />}
+      {state.waiting && <WaitLine wait={state.waiting} actions={<WaitActions moveId={state.waiting.moveId} quiet="btn-quiet" invalidate={[keys.orchestration(orch.id), keys.orchestrationReview(orch.id)]} />} />}
       <Reason state={state} />
 
       {state.runs.total > 0 && (

@@ -7081,6 +7081,46 @@ export interface AccountConfigResult {
   aside: string | null;
 }
 
+/**
+ * The three checks of the CLI canary (docs/plans/account-configuration-and-project-rules.md §5, §6.7):
+ * `s1` the CLI's rewrite of `.claude.json` keeps a symlink, `s2` a linked `plugins/` and `settings.json`
+ * survive a plugin install and update, `s3c` project MCP trust is read from the account's state file
+ * in Claudio's own stream-json mode.
+ */
+export type CliCanaryCheckId = 's1' | 's2' | 's3c';
+
+/**
+ * `pass` and `fail` are what the CLI did; `needs-sign-in` is a check the CLI would not run without an
+ * account signed in (none is run with one); `error` is a check that could not run at all (a timeout, no
+ * binary), which says nothing about the CLI.
+ */
+export type CliCanaryState = 'pass' | 'fail' | 'needs-sign-in' | 'error';
+
+export interface CliCanaryCheck {
+  id: CliCanaryCheckId;
+  state: CliCanaryState;
+  /** What the check saw, in English and without any credential: a path under the temp dir, a status */
+  observed: string;
+}
+
+/** What one CLI version did under the canary: all three checks, run together in a temp dir */
+export interface CliCanary {
+  version: string;
+  checkedAt: string;
+  /** `fail` if any check failed, else the first check that could not pass, else `pass` */
+  state: CliCanaryState;
+  checks: CliCanaryCheck[];
+}
+
+/** `GET /accounts/canary`: the installed CLI's version, whether a check is running now, and what it found */
+export interface CliCanaryStatus {
+  /** The CLI version Claudio last read; null when no CLI is installed */
+  version: string | null;
+  running: boolean;
+  /** For `version`; null until the canary has run on it */
+  result: CliCanary | null;
+}
+
 /** The account new work would start on, as Settings and the status bar name it */
 export interface AccountInUse {
   id: string;
@@ -7201,9 +7241,62 @@ export interface SwitchChatAccountResponse {
 /**
  * Why the chosen account changed. `credits`: the work left an account whose plan is spent because
  * its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the
- * credits setting).
+ * credits setting). `reserve`: the account is under the work's threshold but another project with
+ * work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2).
  */
-export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits';
+export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits' | 'reserve';
+
+/**
+ * On what grounds the account choice took its account, so a person never meets an arbitrary one.
+ *
+ * - `pin`: the chat is pinned to it. `current`: the work stays where it is, under the threshold.
+ * - `preferred`: the person's preferred account; `project-preferred`: the preferred account of the
+ *   project's rule, which replaces it there.
+ * - `order`, `least-used`: the strategy among the accounts with room; `only-one`: it was the only one
+ *   with room; `same-config`: the strategy would have taken an account of another configuration
+ *   group, and this one shares the configuration of the account the work is on.
+ * - `over-threshold`: no account was under the threshold, and running beats waiting.
+ * - `reserve-released`: the headroom another project reserves on it is used, because every other
+ *   account is out.
+ * - `credits`: no account has plan quota left, and its credits setting allows it as a last resort.
+ * - `none`: no account can take the work now.
+ */
+export type AccountChoiceBasis =
+  | 'pin'
+  | 'current'
+  | 'preferred'
+  | 'project-preferred'
+  | 'order'
+  | 'least-used'
+  | 'only-one'
+  | 'same-config'
+  | 'over-threshold'
+  | 'reserve-released'
+  | 'credits'
+  | 'none';
+
+/**
+ * Why an account a rule touched was not chosen. `not-allowed`: the project's rule does not list it;
+ * `reserved`: another project with work in progress reserves headroom on it; `other-config`: the rule
+ * rotates only within the configuration group of the account the work is on.
+ */
+export type AccountChoicePassReason = 'not-allowed' | 'reserved' | 'other-config';
+
+export interface AccountChoicePass {
+  account: string;
+  because: AccountChoicePassReason;
+  /** The project whose rule or reserve kept the work off it, when known */
+  project?: string;
+}
+
+/** The explanation every account choice carries (`Choice.why`). */
+export interface AccountChoiceWhy {
+  basis: AccountChoiceBasis;
+  /** The project whose rule (`project-preferred`) or reserve (`reserve-released`) decided it */
+  project?: string;
+  /** Accounts a project rule or reserve kept the work off; absent when none did */
+  passedOver?: AccountChoicePass[];
+}
 
 /**
  * Which accounts the chats of some projects may use, in what order, and when to move on. A project

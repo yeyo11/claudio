@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { DatabaseSync, type SQLInputValue, type StatementSync } from 'node:sqlite';
-import { DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@claudio/shared';
+import { canaryState, DEFAULT_LEVEL, KINDS, LEVELS, type NotificationKind, type NotificationLevel } from '@claudio/shared';
 import type {
   AgentReadEntry,
   AuditEntry,
@@ -51,6 +51,9 @@ import type {
   SupervisorProposalStatus,
   UsageHistoryPoint,
   SystemSample,
+  CliCanary,
+  CliCanaryCheck,
+  CliCanaryState,
 } from '@claudio/shared';
 import { chatsFromRuns, LEGACY_PROVIDER, type ChatRecord, type LegacyRun, type StoredChat } from './chat-records.ts';
 import { recomputeResumedCosts } from './session-totals.ts';
@@ -1708,6 +1711,19 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // A turn paid from an account's usage credits (t7 of docs/plans/limit-resume-and-credits.md): no
   // field of the CLI says who paid, so Claudio marks the row from its own state when it writes it
   `ALTER TABLE spend_ledger ADD COLUMN credits INTEGER NOT NULL DEFAULT 0;`,
+
+  // What the CLI canary found per CLI version (docs/plans/account-configuration-and-project-rules.md,
+  // T5): one row per version and check, kept for good because a regression is read against the version
+  // that introduced it. Rows, not a settings file: one more per release for as long as Claudio runs,
+  // and the binary and the app share the data dir. A re-run replaces the rows of its version.
+  `CREATE TABLE cli_canary (
+     version    TEXT NOT NULL,
+     check_id   TEXT NOT NULL,
+     state      TEXT NOT NULL,
+     observed   TEXT NOT NULL,
+     checked_at TEXT NOT NULL,
+     PRIMARY KEY (version, check_id)
+   );`,
 ];
 
 /**
@@ -2227,6 +2243,25 @@ export class Db {
       .prepare('DELETE FROM rotation_events WHERE seq <= COALESCE((SELECT seq FROM rotation_events ORDER BY seq DESC LIMIT 1 OFFSET ?), -1)')
       .run(keep);
     return Number(result.changes);
+  }
+
+  // ---------- CLI canary ----------
+
+  /** Replaces what is stored for the result's version: a re-run is the newer word, not a second one */
+  saveCliCanary(result: CliCanary): void {
+    const insert = prepared(this.db, 'INSERT OR REPLACE INTO cli_canary (version, check_id, state, observed, checked_at) VALUES (?, ?, ?, ?, ?)');
+    this.tx(() => {
+      this.db.prepare('DELETE FROM cli_canary WHERE version = ?').run(result.version);
+      for (const c of result.checks) insert.run(result.version, c.id, c.state, c.observed, result.checkedAt);
+    });
+  }
+
+  /** What the canary found for one CLI version; null when it never ran on it */
+  cliCanary(version: string): CliCanary | null {
+    const rows = this.db.prepare('SELECT check_id, state, observed, checked_at FROM cli_canary WHERE version = ? ORDER BY check_id').all(version) as unknown as Array<{ check_id: CliCanaryCheck['id']; state: CliCanaryState; observed: string; checked_at: string }>;
+    if (!rows.length) return null;
+    const checks: CliCanaryCheck[] = rows.map((r) => ({ id: r.check_id, state: r.state, observed: r.observed }));
+    return { version, checkedAt: rows.reduce((latest, r) => (r.checked_at > latest ? r.checked_at : latest), ''), state: canaryState(checks), checks };
   }
 
   // ---------- usage history ----------

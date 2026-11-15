@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import type { FastifyInstance } from 'fastify';
 import { Core, loadConfig } from '@claudio/core';
-import type { Account, AccountConfig, AccountConfigPlan, AccountConfigResult, AccountLoginSession, AuthStatus, AccountsSettings, RotationEvent, RotationPolicy, UsageHistoryPoint } from '@claudio/shared';
+import type { Account, AccountConfig, AccountConfigPlan, AccountConfigResult, AccountLoginSession, AuthStatus, AccountsSettings, CliCanaryStatus, RotationEvent, RotationPolicy, UsageHistoryPoint } from '@claudio/shared';
 import { AccountLogins } from '../src/account-logins.ts';
 import { buildApp } from '../src/app.ts';
 
@@ -312,7 +312,7 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
       ...(body === undefined ? {} : { payload: JSON.stringify(body) }),
     });
 
-    for (const url of ['/api/accounts', '/api/accounts/settings', '/api/accounts/policies', '/api/accounts/usage-history', '/api/accounts/events', '/api/accounts/model-fallbacks', '/api/accounts/default/models']) {
+    for (const url of ['/api/accounts', '/api/accounts/settings', '/api/accounts/policies', '/api/accounts/usage-history', '/api/accounts/events', '/api/accounts/model-fallbacks', '/api/accounts/default/models', '/api/accounts/canary']) {
       assert.equal((await guarded.inject({ url, ...as(chat) })).statusCode, 200, url);
     }
     const created = await guarded.inject({ method: 'POST', url: '/api/accounts/token', ...as(owner, { kind: 'token', alias: 'ci', secret: 's' }) });
@@ -328,6 +328,7 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
       ['PATCH', `/api/accounts/${id}`, { enabled: false }],
       ['DELETE', `/api/accounts/${id}`, undefined],
       ['POST', '/api/accounts/refresh', undefined],
+      ['POST', '/api/accounts/canary/run', undefined],
       ['POST', `/api/accounts/${id}/refresh`, undefined],
       ['PUT', '/api/accounts/settings', { threshold: 80 }],
       ['PUT', '/api/accounts/model-fallbacks', { fallbacks: [] }],
@@ -499,4 +500,14 @@ test('removing an account a live chat runs on answers 409 account-in-use with th
   assert.ok((await accounts()).some((a) => a.id === doomed.id), 'it is still there');
   live.mock.restore();
   assert.equal((await app.inject({ method: 'DELETE', url: `/api/accounts/${doomed.id}` })).statusCode, 200);
+});
+
+test('the canary route answers the status of the installed CLI, and a run asked for while none can start is a 409', async () => {
+  const res = await app.inject('/api/accounts/canary');
+  assert.equal(res.statusCode, 200);
+  const status = res.json<CliCanaryStatus>();
+  assert.equal(typeof status.running, 'boolean');
+  assert.ok(status.version === null || typeof status.version === 'string');
+  // Nothing read the CLI's version yet in this core, or a run is under way: either way a second one is refused
+  if (status.version === null || status.running) assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/canary/run' })).statusCode, 409);
 });

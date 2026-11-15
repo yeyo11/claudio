@@ -1,7 +1,7 @@
 // The one wait line (docs/plans/limit-resume-and-credits.md, t9), against the fake CLI: a chat whose
 // only account is at its limit opens a wait by itself (rotation on, no account with room), the chat
 // shows the wait line with its two ways out, and Home lists the open wait with a link to the chat.
-// Stopping the wait takes both away. The spec removes the account and the chat it added.
+// The account's own reading says it is spent too (`fake-held`), so nothing resumes the wait while the page is read. Stopping the wait takes both away. The spec removes the account and the chat it added.
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 
@@ -25,7 +25,7 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
   const openWaits = async () => (await api.get('/limits/waits?state=waiting')).body ?? [];
 
   try {
-    const limited = await api.post('/accounts/token', { kind: 'token', alias: 'e2e-wait-limited', secret: 'fake-limited-wait' });
+    const limited = await api.post('/accounts/token', { kind: 'token', alias: 'e2e-wait-limited', secret: 'fake-held-wait' });
     check(limited.status === 201, `the account at its limit is added (${limited.status})`);
     added.push(limited.body.id);
     await api.put('/accounts/settings', { ...settings, rotateOnLimit: true });
@@ -51,6 +51,9 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     await page.waitFor(`return !!document.querySelector('.wait-list .inbox-row')`, { label: 'the open wait on Home' });
     const row = await page.eval(`const el = document.querySelector('.wait-list .inbox-row'); return { text: el.innerText.replace(/\\s+/g, ' '), href: el.querySelector('a')?.getAttribute('href') }`);
     check(/Waiting for Claude Code/.test(row.text) && /since/.test(row.text), `Home says what waits and since when (${row.text})`);
+    // One wait, one story: the chat and Home give the same hour (or both say it is not known)
+    const when = (text) => /resumes at ([\d/: ]+\d)/.exec(text)?.[1]?.trim() ?? 'not known';
+    check(when(line.text) === when(row.text), `the chat and Home say the same of the wait (${when(line.text)} / ${when(row.text)})`);
     check(row.href === `/chats/${id}`, `and links to the chat (${row.href})`);
     await page.shot('limit-wait-line-home');
 

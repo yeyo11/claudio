@@ -180,7 +180,7 @@ function Notice({ run, onResume, onStop, busy }: { run: EvalRun; onResume: () =>
         wait={{ provider: CLAUDE_CODE_ID, resetsAt: run.resetsAt ?? null }}
         why={t('notice.waiting.body')}
         actions={
-          <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={onStop}>
+          <button type="button" className="btn btn-small btn-quiet" disabled={busy} onClick={onStop}>
             <OctagonX {...ICON_SM} />
             {t('run.stop')}
           </button>

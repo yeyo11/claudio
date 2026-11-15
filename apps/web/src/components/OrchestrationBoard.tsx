@@ -755,7 +755,7 @@ export function WorkflowWaitNotice({ orch }: { orch: Orchestration }) {
       why={t('board.workflowWaitWhy')}
       action={
         <span className="wait-line-go">
-          <WaitWayOut orchId={orch.id} moveId={wait.moveId} quiet="btn-ghost" />
+          <WaitWayOut orchId={orch.id} moveId={wait.moveId} quiet="btn-quiet" />
         </span>
       }
     />
@@ -778,7 +778,7 @@ export function StepWaitNotice({ orch }: { orch: Orchestration }) {
           key={step.moveId}
           wait={step}
           why={t('board.stepWaitWhy', { step: t(step.role === 'integration' ? 'board.stepWaitIntegration' : step.role === 'verification' ? 'board.stepWaitVerification' : 'board.stepWaitSynthesis') })}
-          actions={<WaitWayOut orchId={orch.id} moveId={step.moveId} quiet="btn-ghost" />}
+          actions={<WaitWayOut orchId={orch.id} moveId={step.moveId} quiet="btn-quiet" />}
         />
       ))}
     </>

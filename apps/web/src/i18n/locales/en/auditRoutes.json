@@ -74,6 +74,7 @@
   "POST /accounts/:id/config/items/:name": "Use the shared item instead of the account's own",
   "POST /accounts/:id/login": "Sign an existing login account in again",
   "POST /accounts/:id/refresh": "Read the real usage of one account",
+  "POST /accounts/canary/run": "Run the CLI canary again",
   "POST /accounts/logins/:id/code": "Give the sign-in the code the page showed",
   "POST /accounts/model-fallbacks/suggest": "Ask for a fallback for a model",
   "POST /accounts/policies": "Create a rotation policy",

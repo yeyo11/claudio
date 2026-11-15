@@ -775,6 +775,21 @@ the "continued in another provider" divider of Claudio are gone
     badge. An unknown reading is never drawn as good.
 - **Cost.** Claude Code reports cost, so the cost block always has a number.
 
+### The CLI canary line on Accounts
+
+One `.card.canary-line` under the account cards, shown only while an account exists: the heading
+"Checks for shared accounts" (an `h2` at `--fs-section`, like the other cards) with the CLI version, a
+state, the age of the result and **Check again** (**Check now** before the first result;
+`.btn-small`, `aria-busy` while it runs so keyboard focus stays on it; absent under "needs a signed-in
+account", which only signing in changes). The state is a badge with a word and an icon, never colour alone: **Passed**
+(`badge-ok`), **Failed** (`badge-bad`), and **Needs a signed-in account** or **Could not run**
+(`badge-warn`: the canary could not say). While a run goes the braille spinner and "Checking…"
+replace the badge, in a status region that stays mounted so the outcome is read out. Under the line,
+only the checks that did not pass, each a neutral name and a sentence in the person's language ("Project trust: needs a signed-in account"); what the server
+observed is English text and stays in the API and the log. The list stays while a run goes on, so
+nothing below it moves. It only reports: a failure changes nothing about how accounts work, and the
+copy says so (`.canary-row`, `.canary-state`, `.canary-result`, `.canary-detail`, `.canary-check`).
+
 ### Queued messages over the composer
 
 A message sent while the agent works is a card over the composer (`.chat-queued`) from the moment
@@ -1586,8 +1601,8 @@ New classes `.wait-line` and `.statusbar .lim`. Nothing here is live: waiting do
   The chat's waiting banner is no longer a `.lim` panel of its own: it is the same `.wait-line` with
   the variant `.is-banner` (roomier: padding 14 × 16, `--radius-lg`, a semibold title, the actions
   dropping under the words on a phone as 44 px targets). The words are one set: "Esperando a Claude
-  Code · vuelve a las 14:05 (en 1 h)", "· continuando ahora" while the turn is sent, or "· no se sabe
-  cuándo se restablece · vuelve a mirar 17:15" when no reset is known, then the account where the page
+  Code · se reanuda a las 14:05 (en 1 h)", "· continuando ahora" while the turn is sent, or "· no se sabe
+  cuándo se restablece · próxima comprobación: 17:15" when no reset is known, then the account where the page
   knows it. Stop waiting and Run now (`WaitActions`) sit in `.wait-line-go`. The review gate's card
   holds it as `.rg > .wait-line`. Warn and still: a probe is never drawn as live.
 - **Home's open waits** (`.wait-list`, in "In progress"). The inbox row (`.inbox-row`) with the warn
