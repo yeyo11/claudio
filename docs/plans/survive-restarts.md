@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-15T12:00:00Z
+updated_at: 2026-11-15T14:00:00Z
 tags:
     - plan
     - study
@@ -353,6 +353,9 @@ And C is the cheapest way to stop the bleeding now.
 - **The lease.** The wrapper's `sh` also runs a watchdog. When the lease file is older than the
   hand-over window (D6), it sends **SIGINT**, which the vendor documents as ending the turn rather
   than abandoning it, and the chat is then layer 3's.
+  - **Only while a turn is open** (S2, [parked-cli-processes](../decisions/parked-cli-processes.md)):
+    SIGINT on an idle `-p` CLI ends the process (exit 0). The watchdog acts only when the tail shows
+    a turn with no `result` yet; an idle parked CLI waits for the lease like any other.
 - **What has to change to keep running across a restart:**
   - **Chat tokens** are in memory by design. Their hashes go to the row, bound to the pid and start
     time, and are revoked when the process ends (D5).
@@ -511,6 +514,8 @@ dir and the e2e fake CLI (`e2e/fake-cli/claude.mjs`) or a scratch `CLAUDE_CONFIG
   - Pass decides whether the AppImage launcher copies itself to `<dataDir>/app/` before it detaches.
 - **S6. Stdout volume and punching holes (free).**
   - Count the bytes the server reads from each CLI's stdout for a day (a counter; nothing stored).
+    *Done as a proxy in t2:* the app must not be touched, so the transcripts' bytes per day were read
+    instead (see the Outcome of t2).
   - Check that `fallocate --punch-hole` on an `O_APPEND` file the CLI is writing keeps the CLI's
     writes and offsets intact.
 
@@ -569,6 +574,31 @@ distribution, the container included. `t6` adds case (a) and (b) on the desktop.
   - the stdout share of a CLI's writes (S6);
   - whether the vendor will open `--bg` to programs.
 
+## Outcome of t2 (spikes, 2026-11-15)
+
+Written up in [parked-cli-processes](../decisions/parked-cli-processes.md), CLI 2.1.322:
+
+| Spike | Result |
+|---|---|
+| S1 | Verified with a prototype and the fake CLI: adoption after a `SIGKILL` keeps the pid, applies each event once (effects keyed by process and byte offset, offset committed with the spend row), survives a successor dying mid-replay, and answers a pending prompt through the replay |
+| S2 | Verified on the real CLI: FIFO stdin and file stdout work, two writers get `initialize` answers, `pending_permission_requests: []`, no credential needed |
+| S3 | **Not run**: no sign-in other than the owner's. The commands for him are in the decision document; 0 USD spent |
+| S4 | Verified: scopes survive a stop, restart and `SIGKILL` of the launcher's unit; stopping a scope leaves nothing |
+| S5 | A stand-in verified the kernel side; the AppImage FUSE fault stays inferred, so the daemon runs from `<dataDir>/app/` |
+| S6 | Transcripts: median 68 MB/day, peak 120; hole punching on a file being appended to works on ext4 |
+
+**What the spikes changed in this plan.**
+
+- The lease watchdog sends SIGINT only while a turn is open (S2: it ends an idle CLI). Fixed in §6.
+- `pending_permission_requests` sits at `response.pending_permission_requests` of the
+  `control_response`, not inside `response.response`; `initialize` answers are about 18 KB, so an
+  adoption's own answer is not turn output. A successor must also keep the request ids it answered,
+  to rebuild prompts from the replay when the list is empty (t4).
+- A wrapper that backgrounds the CLI must give it `<&3` (a held descriptor): a background job in `sh`
+  reads `/dev/null` otherwise and the CLI exits (t3). M3's foreground form is unaffected.
+- Every `scope` needs `-p TimeoutStopSec` and a `reset-failed` on reaping (t3).
+- Still open: S3 on the real CLI, the stdout-to-transcript ratio, and the container's `setsid` path.
+
 ## The owner's decisions (2026-11-15)
 
 Taken in the chat that commissioned the study:
@@ -583,4 +613,4 @@ Taken in the chat that commissioned the study:
 
 ## Related
 
-[[plans/process-isolation.md]] · [[plans/limit-resume-and-credits.md]] · [[plans/unified-updates.md]] · [[plans/remote-updates.md]] · [[plans/headless-image.md]] · [[plans/claudio-servers.md]] · [[updates.md]] · [[desktop.md]] · [[deploy.md]] · [[resource-control.md]] · [[providers.md]] · [[cli-surfaces.md]] · [[orchestrations.md]] · [[accounts.md]] · [[security-model.md]] · [[terminal.md]] · [[servers.md]]
+[[decisions/parked-cli-processes.md]] · [[plans/process-isolation.md]] · [[plans/limit-resume-and-credits.md]] · [[plans/unified-updates.md]] · [[plans/remote-updates.md]] · [[plans/headless-image.md]] · [[plans/claudio-servers.md]] · [[updates.md]] · [[desktop.md]] · [[deploy.md]] · [[resource-control.md]] · [[providers.md]] · [[cli-surfaces.md]] · [[orchestrations.md]] · [[accounts.md]] · [[security-model.md]] · [[terminal.md]] · [[servers.md]]
