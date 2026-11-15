@@ -10,6 +10,7 @@ import { useOptionalChatUi } from '@claudio/chat-ui/lib/context';
 import { SubagentComposer } from '@claudio/chat-ui/composer/SubagentComposer';
 import { useAgentDetail, useChatTasks, useChatTranscript, useTaskOutput, type AgentRef } from '@claudio/chat-ui/lib/chats';
 import { keys } from '../api';
+import { EffortName, ModelName } from './AgentFacts';
 import { useDetailPanel, type DetailRef } from '../lib/detail';
 import { durationBetween, formatCost, formatDateTime, formatDuration, formatNumber } from '@claudio/ui/lib/format';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
@@ -289,7 +290,17 @@ function AgentBody({ target }: { target: AgentTarget }) {
         {data.model && (
           <>
             <dt>{t('detail.model')}</dt>
-            <dd>{data.model}</dd>
+            <dd>
+              <ModelName model={data.model} />
+            </dd>
+          </>
+        )}
+        {data.effort && (
+          <>
+            <dt>{t('detail.effort')}</dt>
+            <dd>
+              <EffortName effort={data.effort} named={false} />
+            </dd>
           </>
         )}
         {data.cwd && (

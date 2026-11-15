@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T14:00:00Z
-updated_at: 2026-10-19T12:00:00Z
+updated_at: 2026-11-14T15:10:00Z
 tags:
     - chat
     - transcript
@@ -51,6 +51,61 @@ and leaves. On a phone the bar is 44 px and the list is a `Sheet` titled "En mar
 workflow card included. A card stays after its branch ended, with its final word and duration: it is
 the conversation's record. A subagent that is running reads its own activity in the strip, the
 inspector's Branches card and the subagent panel's status line.
+
+**What a subagent's card says of the agent.** Its secondary line reads `type · model · effort`, then
+what it is doing and its clock. Only what the CLI reports for programs is shown, never a guess:
+
+| Fact | Where it comes from | When it is missing |
+| --- | --- | --- |
+| Model | the model on the subagent's own assistant messages (its sidechain in the stream, its first reply in its own transcript on disk); until it has written one, the `model` its launching `Agent`/`Task` call named (`ChatSubagent.model`) | an agent that inherited the choice and has not replied yet shows no model, because "inherit" is not a model |
+| Effort | the `effort` its launching call named (`ChatSubagent.effort`); the CLI reports none of its own for an agent | no word: an agent that was not given one runs on whatever the model's default is, which nothing reports |
+
+The model is named the way the app names models elsewhere: the CLI's own name from its model list
+("Sonnet"), matched on the alias, the id it resolves to or any id it was reported under (the
+`default` row is not a name); a model the list does not name is drawn as the id it is, in mono. The
+effort is the word of the effort picker ("Medium", "Medio"), with "Effort" read out before it. The
+subagent's panel lists both in its facts. A workflow's own card shows neither: its agents report a
+model in their progress, which its panel shows, and no effort.
+
+On a card wide enough the facts are one line, and only two of its parts give way, in this order: what
+the agent is doing, down to its floor (`--launch-doing-floor`, 12ch: the separator, the verb and a few
+characters of its target), then the model, down to its own (none for a name; for a long unnamed id,
+cut **in the middle** by `MiddleCut`, 10 mono characters: its last eight, the ellipsis and one of its
+start). The type beside a model, the effort and the clock never give way (`flex: none`). The identity
+is not a box of its own there (`.chat-launch-ident` is `display: contents`): the model and the activity
+grow on the same line: the model from its floor (`flex: 1000 1 0`), the activity from its floor (its
+`width`, inside `.chat-launch-tail`, the one item that holds the activity and the clock), each to its
+text at most (`max-width: max-content`), the model with a thousand times the weight, so the room goes
+to the model first and the activity is the part left short. A short activity leaves no empty room
+behind it. Where even the two floors do not fit beside the parts that never give way, the line wraps
+(`flex-wrap: wrap`) instead of clipping one, and it wraps before the tail: what the agent is stays on
+the first line, what it is doing and the clock go to the second together, which starts with the
+activity's separator. The clock is never alone on a line.
+
+Two earlier layouts failed in ways this one rules out, and both were found by measuring: a share of the
+shortfall split by flex weight cut the model by a fifth of a pixel while the activity still had room,
+and left the activity at no width beside a long id; a cap on the identity as a whole (the line minus
+the activity's floor and the clock's room) clipped the effort with no ellipsis between the wide and the
+narrow layout. Without an activity (a finished agent, a task's command) the model, or a task's command
+alone, is what gives way. The clock is a box of its own (`.chat-launch-clockbox`), and each separator
+belongs to the part that follows it, so none is left at the end of a line. A sweep of the window from
+300 to 1440 px in 20 px steps, with the detail panel open and closed and in both themes, holds all of
+this for six cards (a short name, a long unnamed id, a long target, both, `general-purpose` with
+"Extra high" and a long id, and a command).
+
+Every part that can be cut carries its full text as a `title` while it is cut (`FullText`; the id's
+start carries it for the id), which `ui-invariants` and `overflow` seed with a long id to hold
+(invariant I3). Whether a part is cut is read from its unrounded widths (the span of its text's
+rectangles against its box, text for screen readers only left out), not only from `scrollWidth` and
+`clientWidth`, which are whole pixels and read a box 0.2 px short of its text as fitting while the
+browser already draws the ellipsis.
+
+A card narrower than 30 rem (a container query on the card, so the open side panel counts) gives the
+state a row of its own, from under the mark to the card's edge, and makes the facts two lines: the
+identity first, a box again, wrapping at its facts' edges with no separators (a long id stays on the
+type's line, cut in the middle to the room left there), then the activity and the clock, whose target
+is the part cut by an ellipsis. A card with no activity (a background command) keeps its clock on the
+identity's line rather than on a line of its own.
 
 ## The lenses
 

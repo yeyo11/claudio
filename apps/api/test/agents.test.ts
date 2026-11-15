@@ -38,6 +38,7 @@ before(async () => {
     join(projectDir, `${SESSION}.jsonl`),
     [
       { type: 'user', uuid: 'm1', timestamp: '2026-01-01T10:00:00.000Z', cwd: '/work/demo', message: { role: 'user', content: 'survey the build' } },
+      { type: 'assistant', uuid: 'm2', timestamp: '2026-01-01T10:00:00.200Z', message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_explore01', name: 'Agent', input: { description: 'Read the scripts', subagent_type: 'Explore', model: 'opus', effort: 'low' } }] } },
       { type: 'user', uuid: 'm3', timestamp: '2026-01-01T10:00:00.500Z', message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_explore01', content: 'ok' }] }, toolUseResult: { agentId: AGENT } },
       { type: 'user', uuid: 'm4', timestamp: '2026-01-01T10:00:30.000Z', message: { role: 'user', content: `<task-notification><task-id>${AGENT}</task-id><status>completed</status><summary>done</summary></task-notification>` } },
     ].map((l) => JSON.stringify(l)).join('\n'),
@@ -79,6 +80,16 @@ test('a subagent comes back with its prompt, usage, result and the tasks it laun
   const tail = (await app.inject(`/api/chats/${SESSION}/subagents/${AGENT}?after=4`)).json<AgentTranscript>();
   assert.equal(tail.from, 4);
   assert.equal(tail.entries.length, 1);
+});
+
+test('a subagent is served with the model it ran on and the effort its launch named', async () => {
+  const listed = (await app.inject(`/api/chats/${SESSION}/subagents`)).json<ChatSubagentEntry[]>().find((s) => s.id === AGENT);
+  // Its own transcript says haiku: that is what it ran on, whatever the launch asked for
+  assert.equal(listed?.model, 'claude-haiku-4-5-20251001');
+  assert.equal(listed?.effort, 'low');
+  const detail = (await app.inject(`/api/chats/${SESSION}/subagents/${AGENT}`)).json<AgentTranscript>();
+  assert.equal(detail.model, 'claude-haiku-4-5-20251001');
+  assert.equal(detail.effort, 'low');
 });
 
 test('a subagent reads the same, sessionId included, in its chat and in the list of its chat', async () => {

@@ -12,11 +12,52 @@ interface Box {
   clientWidth: number;
   scrollHeight: number;
   clientHeight: number;
+  /** The laid-out width of its content and of its inner box, unrounded, when the browser can tell them */
+  contentWidth?: number;
+  innerWidth?: number;
 }
 
-/** Whether the box hides part of its content: wider than it (an ellipsis) or taller (a clamp) */
+/** Less than this past its box is the rounding of layout, not a cut a person could see */
+const SUBPIXEL = 0.01;
+
+/**
+ * Whether the box hides part of its content: wider than it (an ellipsis) or taller (a clamp). The
+ * scroll and client sizes are whole pixels, so a box a fifth of a pixel short of its text reads as
+ * fitting while the browser already draws the ellipsis: the unrounded widths decide when they are known.
+ */
 export function isCut(box: Box): boolean {
-  return box.scrollWidth > box.clientWidth || box.scrollHeight > box.clientHeight;
+  if (box.scrollWidth > box.clientWidth || box.scrollHeight > box.clientHeight) return true;
+  return box.contentWidth !== undefined && box.innerWidth !== undefined && box.contentWidth > box.innerWidth + SUBPIXEL;
+}
+
+/**
+ * The element's sizes, with its content's unrounded width: the span of the rectangles of its text as
+ * laid out, the part past the ellipsis included. Text read only to a screen reader (`.sr-only`) is
+ * left out: it sits in a clipped box of a pixel, and its rectangle would make any label look cut; so is
+ * text that is not drawn at all.
+ */
+function measure(el: HTMLElement): Box {
+  const box: Box = { scrollWidth: el.scrollWidth, clientWidth: el.clientWidth, scrollHeight: el.scrollHeight, clientHeight: el.clientHeight };
+  if (typeof document === 'undefined' || typeof document.createRange !== 'function' || typeof document.createTreeWalker !== 'function' || typeof getComputedStyle !== 'function') return box;
+  const range = document.createRange();
+  if (typeof range.getBoundingClientRect !== 'function') return box;
+  const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+  let left = Infinity;
+  let right = -Infinity;
+  for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+    if (!node.textContent?.trim() || node.parentElement?.closest('.sr-only')) continue;
+    range.selectNodeContents(node);
+    const rect = range.getBoundingClientRect();
+    // Text that is not drawn (inside a part hidden with `display: none`) has an empty rectangle at 0, 0
+    if (rect.width === 0 && rect.height === 0) continue;
+    left = Math.min(left, rect.left);
+    right = Math.max(right, rect.right);
+  }
+  if (right < left) return box;
+  const style = getComputedStyle(el);
+  const edges = ['paddingLeft', 'paddingRight', 'borderLeftWidth', 'borderRightWidth'] as const;
+  const inset = edges.reduce((sum, edge) => sum + (Number.parseFloat(style[edge]) || 0), 0);
+  return { ...box, contentWidth: right - left, innerWidth: el.getBoundingClientRect().width - inset };
 }
 
 // What the caller says the full text is, for a label made of parts its textContent runs together
@@ -24,7 +65,7 @@ const given = new WeakMap<HTMLElement, string>();
 
 function sync(el: HTMLElement): void {
   const text = given.get(el) ?? (el.textContent ?? '').replace(/\s+/g, ' ').trim();
-  if (text && isCut(el)) {
+  if (text && isCut(measure(el))) {
     if (el.title !== text) el.title = text;
   } else if (el.hasAttribute('title')) {
     el.removeAttribute('title');

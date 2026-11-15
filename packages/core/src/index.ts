@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { ChatNotFoundError } from './chat-errors.ts';
 import { mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
@@ -955,13 +956,20 @@ export class Core {
         if (agent) return (this.runtime.messages(chatId) ?? []).filter((entry) => entry.parentToolUseId === agent.parentToolUseId).slice(-60);
         return (await this.sessions.getSession(chatId, { limit: 60 }))?.entries ?? [];
       },
+      // Each names the message it queues for the lead, so one whose signal clears before it is read can be taken back
       hint: async (proposal, source) => {
-        if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint, source);
-        else await this.chats.hint(proposal.chatId, proposal.hint, { source });
+        const messageId = randomUUID();
+        if (proposal.orchestrationId && proposal.taskId) this.orchestrator.hintTask(proposal.orchestrationId, proposal.taskId, proposal.hint, source, messageId);
+        else await this.chats.hint(proposal.chatId, proposal.hint, { source, messageId });
+        return messageId;
       },
       relay: async (proposal, target, words, source) => {
-        if (proposal.orchestrationId && proposal.taskId) this.orchestrator.relayTask(proposal.orchestrationId, proposal.taskId, target, words, source);
-        else await this.chats.relay(proposal.chatId, target, words, { source });
+        if (proposal.orchestrationId && proposal.taskId) {
+          const messageId = randomUUID();
+          this.orchestrator.relayTask(proposal.orchestrationId, proposal.taskId, target, words, source, messageId);
+          return messageId;
+        }
+        return (await this.chats.relay(proposal.chatId, target, words, { source })).id;
       },
       messageAgent: async (chatId, agentId, words, source) => {
         const receipt = await this.chats.messageAgent(chatId, agentId, words, { source });
@@ -974,9 +982,16 @@ export class Core {
           await new Promise<void>((resolve) => setTimeout(resolve, 250).unref());
         }
       },
+      // The notice goes to whichever agent ran the command: `cancelCommand` reads it from the call itself
       cancel: async (proposal, toolUseId) => {
         await this.chats.cancelCommand(proposal.chatId, toolUseId, { reason: proposal.hint }, { source: 'supervisor' });
       },
+      // The monitor is built below; until it is, nothing is known and nothing is held back
+      current: (chatId) => (this.healthMonitor as HealthMonitor | undefined)?.current(chatId) ?? null,
+      withdraw: (chatId, messageId) => this.runtime.cancelMessage(chatId, messageId).then(
+        () => true,
+        () => false,
+      ),
       emit: (event) => this.events.emit(event),
       spendOpen: () => this.spend.allows('supervisor'),
       charge: (orchestrationId, costUsd) => this.orchestrator.chargeSupervisor(orchestrationId, costUsd),
@@ -1046,6 +1061,9 @@ export class Core {
       taskOf: (chat) => this.orchestrator.taskContext(chat.id),
       onBad: (chat, task, signals) => {
         if (runsIn(this.profile, 'supervisor')) void this.supervisor.wake(chat, task, signals);
+      },
+      onChecked: (chat, signals) => {
+        if (runsIn(this.profile, 'supervisor')) void this.supervisor.premise(chat.id, signals);
       },
     });
     this.startSubsystem('healthMonitor', () => this.healthMonitor.start());

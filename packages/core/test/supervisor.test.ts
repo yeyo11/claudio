@@ -10,7 +10,7 @@ import { DecisionCredentialStore, DecisionSettingsStore, DEFAULT_DECISION_SETTIN
 import type { ClaudioEventInput } from '../src/events.ts';
 import { HealthMonitor, REWAKE_MS, type TaskContext } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';
-import { draftOf, hintFrom, lastSteps, relayHint, Supervisor, SUPERVISOR_SCHEMA, SupervisorConflictError, supervisorModeOf, NOT_STUCK_MAX_DRAFTS, NOT_STUCK_RETRY_MS, type SupervisorAnswer, type SupervisorDeps, type SupervisorQuestion } from '../src/supervisor.ts';
+import { draftOf, hintFrom, lastSteps, premiseHolds, relayHint, SAME_TARGET_WINDOW_MS, saysNothingWrong, supervisorPrompt, Supervisor, SUPERVISOR_SCHEMA, SupervisorConflictError, supervisorModeOf, NOT_STUCK_MAX_DRAFTS, NOT_STUCK_RETRY_MS, type SupervisorAnswer, type SupervisorDeps, type SupervisorQuestion } from '../src/supervisor.ts';
 import { MemoryRefusal, RunSlotRefusal } from '../src/chat-errors.ts';
 import { tempConfig } from './helpers.ts';
 import { PASTED_NOTE } from '../src/prompt-rules.ts';
@@ -64,7 +64,16 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
   const stepsAsked: Array<HealthSignal['agent']> = [];
   let steps: TranscriptEntry[] = [];
   const spend = { open: true };
+  /** The chat's stuck signals as the monitor would read them now; null is a chat not watched */
+  const live: { signals: HealthSignal[] | null } = { signals: null };
+  /** Messages taken back from a lead's queue, and whether the lead had read them already */
+  const withdrawal = { taken: false, ids: [] as string[] };
   const deps: SupervisorDeps = {
+    current: () => live.signals,
+    withdraw: (_chatId, messageId) => {
+      withdrawal.ids.push(messageId);
+      return Promise.resolve(!withdrawal.taken);
+    },
     spendOpen: () => spend.open,
     now: () => clock.now,
     roomRetryMs: 5,
@@ -86,7 +95,7 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
     },
     hint: (p) => {
       hints.push(p);
-      return Promise.resolve();
+      return Promise.resolve(`msg-${p.id}`);
     },
     relay: (proposal, target, words, source) => {
       relays.push({ proposal, target, words, source });
@@ -106,7 +115,7 @@ function harness(answer: (q: SupervisorQuestion) => SupervisorAnswer | Promise<S
     await settings.set({ ...structuredClone(DEFAULT_DECISION_SETTINGS), cli: { ...DEFAULT_DECISION_SETTINGS.cli, ...cli }, supervisor: { autoSignals } });
     await settings.setPointMode('supervisor.intervene', mode);
   };
-  return { config, db, settings, supervisor, restarted: () => new Supervisor(deps), direct, asked, events, hints, relays, charged, spend, enable, cancelled, cancel, clock, stepsAsked, setSteps: (s: TranscriptEntry[]) => (steps = s) };
+  return { config, db, settings, supervisor, live, withdrawal, restarted: () => new Supervisor(deps), direct, asked, events, hints, relays, charged, spend, enable, cancelled, cancel, clock, stepsAsked, setSteps: (s: TranscriptEntry[]) => (steps = s) };
 }
 
 test('the deprecated body maps onto the point\'s mode, and the view is derived from the point and the engine', async () => {
@@ -759,6 +768,8 @@ test('Active cancels a hung command with the hint as the reason, and sends the h
   assert.equal(h.db.proposal(proposal?.id ?? '')?.status, 'sent');
   assert.equal(h.db.proposal(proposal?.id ?? '')?.sentBy, 'supervisor', 'the Supervisor sent it, not a person');
 
+  // Past the window in which one message to an agent holds every other signal about it
+  h.clock.now += SAME_TARGET_WINDOW_MS;
   h.cancel.refuse = true;
   const refused = await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_2')]);
   assert.equal(refused?.status, 'sent');
@@ -766,12 +777,14 @@ test('Active cancels a hung command with the hint as the reason, and sends the h
   assert.deepEqual(h.hints.map((p) => p.id), [refused?.id]);
 
   // A signal that is not about one running command is a message, as before
+  h.clock.now += SAME_TARGET_WINDOW_MS;
   const looped = await h.supervisor.wake(chatOf('c1'), null, [looping]);
   assert.equal(looped?.status, 'sent');
   assert.equal(h.cancelled.length, 1);
   assert.equal(h.hints.length, 2);
 
   // Shadow cancels nothing: a person decides
+  h.clock.now += SAME_TARGET_WINDOW_MS;
   await h.enable('shadow');
   h.cancel.refuse = false;
   assert.equal((await h.supervisor.wake(chatOf('c1'), null, [hungCall('toolu_3')]))?.status, 'proposed');
@@ -907,4 +920,105 @@ test('a chat that stays bad wakes the Supervisor again every few minutes, so a b
   assert.equal(woken.length, 2, 'still bad: the Supervisor looks again');
   monitor.check(t0 + REWAKE_MS + 60_000);
   assert.equal(woken.length, 2);
+});
+
+// ---------- routing and restraint (docs/reports/supervisor-routing-2026-11-14.md) ----------
+
+test('a draft whose own words say nothing is wrong is not stuck, whatever its flag says', () => {
+  assert.deepEqual(draftOf({ stuck: true, hint: 'Nothing is stalled: the agent is waiting on its subagents, as it should.' }), { stuck: false });
+  assert.deepEqual(draftOf({ stuck: true, hint: 'The silence is expected while CI runs.' }), { stuck: false });
+  assert.deepEqual(draftOf({ stuck: true, hint: 'No action is needed; the build is progressing.' }), { stuck: false });
+  assert.deepEqual(draftOf({ stuck: true, hint: 'The suite waits on port 5432: start the database first.' }), { stuck: true, hint: 'The suite waits on port 5432: start the database first.' });
+  // Pure status is caught; a hint that names what to do is not, even when it says what is fine
+  assert.equal(saysNothingWrong('The agent is working as expected.'), true);
+  assert.equal(saysNothingWrong('Stop polling: the PR checks already failed, read the log instead.'), false);
+});
+
+test('the prompt forbids facts it was not given: numbers, budgets, rules', () => {
+  const prompt = supervisorPrompt(hung, '(nothing recorded yet)', null);
+  assert.match(prompt, /Do not state a number, a limit, a budget, a cost, a duration, a rule or a convention that is not written above/);
+  assert.match(prompt, /only describes what it is doing or waiting for, is not a hint: answer not stuck/);
+});
+
+test('one message per agent per event: a cancel holds a later silence or no-progress about the same agent', async () => {
+  const h = harness();
+  await h.enable('active', {}, ['hung-command', 'silence', 'no-progress']);
+  const agent = { parentToolUseId: 'toolu_agent', description: 'Run the slow suite' };
+  const chat = chatOf('c1');
+  const cancelled = await h.supervisor.wake(chat, null, [{ ...hungCall('toolu_1'), agent }]);
+  assert.equal(cancelled?.status, 'sent');
+  assert.equal(h.cancelled.length, 1);
+
+  // The silence its hang caused, about the same subagent, is not drafted within the window
+  const silence: HealthSignal = { kind: 'silence', level: 'bad', reason: 'Silent for 10 min.', since: '2026-10-30T09:50:00.000Z', agent };
+  assert.equal(await h.supervisor.wake(chat, null, [silence]), null);
+  // A second hang of the same subagent is not cancelled again within it either
+  h.clock.now += 12 * 60_000;
+  assert.equal(await h.supervisor.wake(chat, null, [{ ...hungCall('toolu_2', '2026-10-30T10:05:00.000Z'), agent }]), null);
+  assert.equal(h.cancelled.length, 1);
+  assert.equal(h.asked.length, 1, 'nothing was even drafted');
+
+  // Another target of the same chat, the lead, is its own
+  const lead: HealthSignal = { kind: 'no-progress', level: 'bad', reason: 'No change in 50 min.', since: '2026-10-30T09:00:00.000Z' };
+  assert.equal((await h.supervisor.wake(chat, null, [lead]))?.status, 'sent');
+
+  // The window holds across a restart, from the sent rows
+  assert.equal(await h.restarted().wake(chat, null, [{ ...hungCall('toolu_3', '2026-10-30T10:10:00.000Z'), agent }]), null);
+  h.clock.now += SAME_TARGET_WINDOW_MS;
+  assert.equal((await h.supervisor.wake(chat, null, [{ ...hungCall('toolu_3', '2026-10-30T10:10:00.000Z'), agent }]))?.status, 'sent');
+});
+
+test('a hint whose signal cleared while it was drafted is not sent on its own', async () => {
+  const h = harness(() => ({ structured: { stuck: true, hint: 'Look at the loop.' }, costUsd: 0.01, isError: false }));
+  await h.enable('active');
+  h.live.signals = [];
+  const proposal = await h.supervisor.wake(chatOf('c1'), null, [looping]);
+  assert.equal(proposal?.status, 'proposed', 'left for a person; the panel shows it only while its signal does');
+  assert.equal(h.hints.length, 0);
+  // Still there: it goes
+  h.live.signals = [looping];
+  h.clock.now += SAME_TARGET_WINDOW_MS;
+  const later: HealthSignal = { ...looping, since: '2026-10-30T09:59:00.000Z' };
+  h.live.signals = [later];
+  assert.equal((await h.supervisor.wake(chatOf('c1'), null, [later]))?.status, 'sent');
+});
+
+test("a hint queued for the lead is taken back when its signal clears before the lead reads it", async () => {
+  const h = harness();
+  await h.enable('active');
+  const signal: HealthSignal = { ...looping, since: '2026-10-30T09:30:00.000Z' };
+  const sent = await h.supervisor.wake(chatOf('c1'), null, [signal]);
+  assert.equal(sent?.status, 'sent');
+  // The signal holds: nothing is taken back
+  assert.equal(await h.supervisor.premise('c1', [signal]), 0);
+  assert.deepEqual(h.withdrawal.ids, []);
+  // Another chat's pass says nothing about this one
+  assert.equal(await h.supervisor.premise('c2', []), 0);
+  // Gone: the unread hint is withdrawn, once
+  assert.equal(await h.supervisor.premise('c1', []), 1);
+  assert.deepEqual(h.withdrawal.ids, [`msg-${sent?.id ?? ''}`]);
+  assert.equal(await h.supervisor.premise('c1', []), 0);
+  assert.equal(h.withdrawal.ids.length, 1);
+});
+
+test("a person's Send is never taken back, and a hint the lead already read is left alone", async () => {
+  const h = harness();
+  await h.enable('shadow');
+  const proposal = await h.supervisor.wake(chatOf('c1'), null, [looping]);
+  await h.supervisor.send(proposal?.id ?? '', { chatId: 'c1' });
+  assert.equal(await h.supervisor.premise('c1', []), 0);
+  assert.deepEqual(h.withdrawal.ids, []);
+
+  const active = harness();
+  await active.enable('active');
+  active.withdrawal.taken = true;
+  await active.supervisor.wake(chatOf('c1'), null, [looping]);
+  assert.equal(await active.supervisor.premise('c1', []), 0, 'refused: the lead had it already');
+});
+
+test('premiseHolds matches the occurrence, and a hung command and its stall run as one', () => {
+  const row: SupervisorProposal = { id: 'p', chatId: 'c1', signal: 'hung-command', occurrence: 'toolu_1', hint: 'x', costUsd: 0, at: '2026-10-30T10:00:00.000Z', status: 'sent' };
+  assert.equal(premiseHolds(row, [hungCall('toolu_1')]), true);
+  assert.equal(premiseHolds(row, [hungCall('toolu_2')]), false);
+  assert.equal(premiseHolds(row, [{ kind: 'repeat-stall', level: 'bad', reason: 'r', toolUseId: 'toolu_1' }]), true);
 });

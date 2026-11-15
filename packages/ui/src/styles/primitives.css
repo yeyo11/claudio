@@ -1404,3 +1404,28 @@ button.step:hover {
     linear-gradient(var(--bg-elev), var(--bg-elev)) padding-box,
     var(--grad-border) border-box;
 }
+
+/* A literal cut in the middle (`MiddleCut`): the start takes the ellipsis and the end never shrinks */
+.middle-cut {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  vertical-align: bottom;
+}
+
+/* Cut, it keeps its end (eight characters), the ellipsis and a character of its start */
+.middle-cut.is-split {
+  min-width: 10ch;
+}
+
+.middle-cut-head {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.middle-cut-tail {
+  flex: none;
+  white-space: nowrap;
+}

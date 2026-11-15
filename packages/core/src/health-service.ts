@@ -8,7 +8,7 @@ import type { ClaudioEventInput } from './events.ts';
 import { gitAsyncText, headCommitAsync, isGitRepoAsync } from './git.ts';
 import { HEALTH_REASONS, said } from './health-strings.ts';
 import type { DecisionEngine } from './decisions/engine.ts';
-import { agentOf, budget, commandClock, guardSignals, judgedWeakening, lastFileChangeAt, loop, noProgress, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
+import { agentOf, budget, commandClock, delegating, familyDirs, guardSignals, judgedWeakening, lastFileChangeAt, lastRecordAt, loop, noProgress, quietParty, repeatStall, runningCommands, semanticLoopState, unflaggedTestEdits, weakenedTests, type ToolCall, type Trace } from './health.ts';
 
 /** What a chat's health needs beyond what its process shows: the parts only the chat service knows. */
 export interface HealthBase {
@@ -44,7 +44,7 @@ const FINGERPRINT_TTL_MS = 10_000;
  * so a UI polling for it and the monitor watching for it agree.
  */
 export class HealthService {
-  /** What a worktree looked like when last read, and since when it has looked like that */
+  /** What a worktree looked like when last read, and since when it has looked like that; by chat and directory */
   private readonly worktrees = new Map<string, { execution: string; fingerprint: string; changedAt: string; checkedAt: number }>();
   private readonly repos = new Map<string, boolean>();
   /** Chats whose checkout git is reading now, each with a token of that read */
@@ -105,44 +105,50 @@ export class HealthService {
   }
 
   /**
-   * The last time anything moved in the worker's checkout, or the start of the execution while nothing
-   * has. A read never waits for git: past the fingerprint's TTL it asks in the background and answers
-   * with what it knew, and the next read (the monitor's, every 15 s) sees what git found.
+   * The last time anything moved in the chat's family of checkouts (its own, and those its subagents
+   * work in), or the start of the execution while nothing has. A read never waits for git: past the
+   * fingerprint's TTL it asks in the background and answers with what it knew, and the next read (the
+   * monitor's, every 15 s) sees what git found.
    */
-  private progressAt(chat: ChatRuntime, executionStartedAt: string, nowMs: number): string {
-    const entry = this.worktrees.get(chat.id);
-    const current = entry !== undefined && entry.execution === executionStartedAt;
-    if (current && nowMs - entry.checkedAt < FINGERPRINT_TTL_MS) return entry.changedAt;
-    this.refreshFingerprint(chat.id, chat.workingDir, executionStartedAt, nowMs);
-    return current ? entry.changedAt : executionStartedAt;
+  private progressAt(chatId: string, dirs: readonly string[], executionStartedAt: string, nowMs: number): string {
+    let latest = executionStartedAt;
+    for (const dir of dirs) {
+      const key = `${chatId}\0${dir}`;
+      const entry = this.worktrees.get(key);
+      const current = entry !== undefined && entry.execution === executionStartedAt;
+      if (!current || nowMs - entry.checkedAt >= FINGERPRINT_TTL_MS) this.refreshFingerprint(key, dir, executionStartedAt, nowMs);
+      if (current && entry.changedAt > latest) latest = entry.changedAt;
+    }
+    return latest;
   }
 
-  /** Reads a chat's fingerprint in the background, one read per chat at a time. */
-  private refreshFingerprint(chatId: string, dir: string, execution: string, nowMs: number): void {
-    if (this.fingerprinting.has(chatId)) return;
+  /** Reads one directory's fingerprint in the background, one read per chat and directory at a time. */
+  private refreshFingerprint(key: string, dir: string, execution: string, nowMs: number): void {
+    if (this.fingerprinting.has(key)) return;
     const read = {};
-    this.fingerprinting.set(chatId, read);
+    this.fingerprinting.set(key, read);
     const work = this.fingerprint(dir)
       .then((fingerprint) => {
         // A chat forgotten while git ran keeps nothing of it
-        if (fingerprint === null || this.fingerprinting.get(chatId) !== read) return;
-        const entry = this.worktrees.get(chatId);
+        if (fingerprint === null || this.fingerprinting.get(key) !== read) return;
+        const entry = this.worktrees.get(key);
         if (!entry || entry.execution !== execution) {
-          this.worktrees.set(chatId, { execution, fingerprint, changedAt: execution, checkedAt: nowMs });
+          this.worktrees.set(key, { execution, fingerprint, changedAt: execution, checkedAt: nowMs });
           return;
         }
         if (entry.fingerprint !== fingerprint) Object.assign(entry, { fingerprint, changedAt: new Date(nowMs).toISOString() });
         entry.checkedAt = nowMs;
       })
       .finally(() => {
-        if (this.fingerprinting.get(chatId) === read) this.fingerprinting.delete(chatId);
+        if (this.fingerprinting.get(key) === read) this.fingerprinting.delete(key);
       });
     this.track(work);
   }
 
   forget(id: string): void {
-    this.fingerprinting.delete(id);
-    this.worktrees.delete(id);
+    const prefix = `${id}\0`;
+    for (const key of [...this.fingerprinting.keys()]) if (key.startsWith(prefix)) this.fingerprinting.delete(key);
+    for (const key of [...this.worktrees.keys()]) if (key.startsWith(prefix)) this.worktrees.delete(key);
     this.loops.delete(id);
     this.tests.delete(id);
   }
@@ -249,16 +255,18 @@ export class HealthService {
           ...(agent ? { agent } : {}),
         };
       }),
+      silent: quietParty(trace),
     };
 
     const busy: Array<HealthSignal | null> = [repeatStall(trace, { fallbackMs: HUNG_COMMAND_MS, usualOf }, nowMs), loop(trace)];
     // The exact rule comes first: the judged one only speaks where it is silent
     if (!busy[1]) busy.push(this.semanticLoop(id, trace));
-    // Progress is only asked of a chat that is working: one waiting for a person is not slow
-    if (base.state === 'working') {
-      const written = lastFileChangeAt(trace);
-      const moved = this.progressAt(chat, trace.executionStartedAt, nowMs);
-      busy.push(noProgress(written && written > moved ? written : moved, nowMs));
+    // Progress is only asked of a chat that is working: one waiting for a person is not slow, and
+    // neither is a lead while a subagent it delegated to works, since the work is the subagent's
+    if (base.state === 'working' && !delegating(trace)) {
+      // Anywhere in the family: a file written or a commit by any agent, a change in any checkout
+      const moved = [this.progressAt(id, [chat.workingDir, ...familyDirs(trace, chat.workingDir)], trace.executionStartedAt, nowMs), lastFileChangeAt(trace), lastRecordAt(trace)];
+      busy.push(noProgress(moved.reduce<string>((a, b) => (b && b > a ? b : a), trace.executionStartedAt), nowMs));
     }
     facts.extra = [...busy.filter((s): s is HealthSignal => s !== null), ...guardSignals(trace, nowMs)];
     // What a worker did to its tests, and how much of its allowance is left, stay true while it waits
@@ -328,6 +336,8 @@ export interface HealthMonitorDeps {
   taskOf: (chat: ChatRuntime) => TaskContext | null;
   /** Told when an announced change leaves a chat `bad`, with its stuck signals worst first: what wakes the supervisor */
   onBad?: (chat: ChatRuntime, task: TaskContext | null, signals: HealthSignal[]) => void;
+  /** Told on every pass of every watched chat with its stuck signals, and once with none when it stops being watched */
+  onChecked?: (chat: ChatRuntime, signals: HealthSignal[]) => void;
 }
 
 /**
@@ -357,31 +367,53 @@ export class HealthMonitor {
     this.timer = null;
   }
 
+  /** Whether the monitor watches a chat: one with a process of ours that is working or waiting on a person */
+  private static watched(chat: ChatRuntime): boolean {
+    return chat.pid !== null && (chat.status === 'busy' || chat.status === 'starting' || chat.pendingPrompts > 0);
+  }
+
+  /** A watched chat's stuck signals, worst first */
+  private stuck(chat: ChatRuntime, task: TaskContext | null, nowMs: number): HealthSignal[] {
+    const health = this.deps.health.read(
+      chat.id,
+      {
+        state: stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }),
+        lastEnded: null,
+        context: null,
+        failedBranches: 0,
+        ...(task ? { limits: task.limits, taskElapsedMs: task.elapsedMs, taskSpentUsd: task.spentUsd } : {}),
+      },
+      nowMs,
+    );
+    return health.signals.filter((s) => STUCK.has(s.kind));
+  }
+
+  /** A chat's stuck signals now, read as a pass reads them; null when the monitor does not watch it */
+  current(chatId: string, nowMs = Date.now()): HealthSignal[] | null {
+    const chat = this.deps.runtime.get(chatId);
+    if (!chat || !HealthMonitor.watched(chat)) return null;
+    return this.stuck(chat, this.deps.taskOf(chat), nowMs);
+  }
+
   /** One pass over the chats; exposed so that a test can drive it with a clock of its own. */
   check(nowMs = Date.now()): void {
     const live = new Set<string>();
     for (const chat of this.deps.runtime.list()) {
-      if (chat.pid === null || (chat.status !== 'busy' && chat.status !== 'starting' && chat.pendingPrompts === 0)) continue;
+      if (!HealthMonitor.watched(chat)) continue;
       live.add(chat.id);
       const task = this.deps.taskOf(chat);
-      const health = this.deps.health.read(
-        chat.id,
-        {
-          state: stateFromRun({ status: chat.status, pendingPrompts: chat.pendingPrompts }),
-          lastEnded: null,
-          context: null,
-          failedBranches: 0,
-          ...(task ? { limits: task.limits, taskElapsedMs: task.elapsedMs, taskSpentUsd: task.spentUsd } : {}),
-        },
-        nowMs,
-      );
-      this.announce(chat, task, health.signals.filter((s) => STUCK.has(s.kind)), nowMs);
+      const signals = this.stuck(chat, task, nowMs);
+      this.deps.onChecked?.(chat, signals);
+      this.announce(chat, task, signals, nowMs);
     }
     // A chat whose process is gone is not stuck any more: say so once, so a badge does not stay lit
     for (const id of [...this.announced.keys()]) {
       if (live.has(id)) continue;
       const chat = this.deps.runtime.get(id);
-      if (chat) this.announce(chat, this.deps.taskOf(chat), [], nowMs);
+      if (chat) {
+        this.deps.onChecked?.(chat, []);
+        this.announce(chat, this.deps.taskOf(chat), [], nowMs);
+      }
       this.announced.delete(id);
       this.deps.health.forget(id);
     }
