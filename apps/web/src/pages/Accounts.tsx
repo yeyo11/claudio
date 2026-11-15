@@ -122,6 +122,10 @@ export function Accounts() {
         return t('reason.auth');
       case 'credits':
         return t('reason.credits');
+      case 'reserve':
+        return t('reason.reserve');
+      case 'rule':
+        return t('reason.rule');
       default:
         return reason;
     }

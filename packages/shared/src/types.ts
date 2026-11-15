@@ -613,9 +613,11 @@ export interface ApiChatPolicy {
 /**
  * Why a chat start was refused, beside the workspace codes: the `code` of the error answer.
  * `cwd-missing`: its working directory does not exist (D9). `policy-mismatch`: a continuation named
- * a confined chat with another policy than its own.
+ * a confined chat with another policy than its own. `account-not-allowed`: the request pins an
+ * account that the rule of the chat's project does not allow (409; the pin is refused, never allowed
+ * to override the rule).
  */
-export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown' | 'agent-unknown';
+export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown' | 'agent-unknown' | 'account-not-allowed';
 
 /**
  * Where a user-role line came from, as the CLI records it (the SDK's `SDKMessageOrigin`, plus the fields
@@ -7228,7 +7230,7 @@ export interface SwitchChatAccountRequest {
 }
 
 /** Why an account cannot be chosen for a chat. `sign-in-expired`: its `signInState` is `expired` or `incomplete`. */
-export type AccountSwitchRefusalCode = 'disabled' | 'sign-in-expired' | 'signed-out' | 'exhausted' | 'model-unavailable' | 'same-account';
+export type AccountSwitchRefusalCode = 'disabled' | 'sign-in-expired' | 'signed-out' | 'exhausted' | 'model-unavailable' | 'same-account' | 'not-allowed';
 
 /** `pending`: the chat is working, so the switch waits for its turn to end. */
 export interface SwitchChatAccountResponse {
@@ -7241,8 +7243,10 @@ export interface SwitchChatAccountResponse {
  * its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the
  * credits setting). `reserve`: the account is under the work's threshold but another project with
  * work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2).
+ * `rule`: the account the work was on is not one its project's rule allows (a rule was set or changed
+ * under a running chat), so it moved at the end of its turn.
  */
-export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits' | 'reserve';
+export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits' | 'reserve' | 'rule';
 
 /**
  * On what grounds the account choice took its account, so a person never meets an arbitrary one.
@@ -7306,15 +7310,37 @@ export interface RotationPolicy {
   threshold?: number;
   /** Account ids a chat of these projects may use, in order of preference; every account when absent */
   order?: string[];
+  /**
+   * The account these projects prefer, which replaces the person's preferred account for them. One
+   * of `order` when it is set, else any account.
+   */
+  preferred?: string;
+  /**
+   * Headroom kept on the account the rule prefers (else the first of `order`) while these projects
+   * have work in progress: the other projects' work leaves it `percent` points of utilization earlier.
+   * At most one rule reserves on an account. Absent: no reserve.
+   */
+  reserve?: ProjectReserve;
+  /** Rotate only among accounts that share the configuration of the one the work is on; absent: it may cross */
+  strictConfig?: boolean;
   /** Project ids this policy governs; at most one policy governs a project */
   projects: string[];
   /** It also governs the chats that belong to no project; at most one policy does */
   looseChats?: boolean;
 }
 
+/** The headroom a project's rule keeps on its preferred account (docs/accounts.md, project rules). */
+export interface ProjectReserve {
+  /** Points of utilization (1-30) the account's threshold drops by for work of other projects */
+  percent: number;
+}
+
 export interface RotationPolicyRequest {
   threshold?: number;
   order?: string[];
+  preferred?: string;
+  reserve?: ProjectReserve;
+  strictConfig?: boolean;
   projects: string[];
   looseChats?: boolean;
 }

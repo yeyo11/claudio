@@ -33,6 +33,19 @@ export const SHARED_CONFIG_GROUP = 'shared';
 export const RESERVE_CAP = 30;
 
 /**
+ * The account a rule's reserve sits on: its preferred account, else the first of its order. Absent
+ * when it names neither, and then the reserve has nowhere to be.
+ */
+export function reserveAccountOf(policy: Pick<RotationPolicy, 'preferred' | 'order'>): string | undefined {
+  return policy.preferred ?? policy.order?.[0];
+}
+
+/** Whether a project's rule lets work run on `account`: no rule, or a rule with no list, allows every account. */
+export function allowsAccount(policy: Pick<RotationPolicy, 'order'> | null, account: string): boolean {
+  return !policy?.order || policy.order.includes(account);
+}
+
+/**
  * A project's rule as the choice reads it: today's policy (`order` is the allow list and its order,
  * `threshold` the project's own), plus the rule fields the policy contract adds (T8). Every one is
  * optional, and a rule with none of them is today's policy.
