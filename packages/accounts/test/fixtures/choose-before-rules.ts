@@ -1,11 +1,11 @@
 /*
  * The account choice exactly as it was before the project rules (T6 of
- * docs/plans/account-configuration-and-project-rules.md), frozen on 2026-11-15 from commit a41a5952c.
- * It is the oracle of choose-rules.test.ts: with no rule configured, `choose` must answer what this
- * answers. Never edit it to make that test pass.
+ * docs/plans/account-configuration-and-project-rules.md), frozen on 2026-11-15 from main at b234fa923 (after
+ * the credits stop of #141). It is the oracle of choose-rules.test.ts: with no rule configured,
+ * `choose` must answer what this answers. Never edit it to make that test pass.
  */
 import type { AccountCreditsUse, AccountLimit, AccountSignInState, AccountsSettings, AccountSwitchReason, RotationPolicy } from '@claudio/shared';
-import { EXHAUSTED, isOut, outUntil } from '../../src/thresholds.ts';
+import { creditsCapReached, EXHAUSTED, isOut, outUntil } from '../../src/thresholds.ts';
 
 /** What `choose` needs of an account; the rest of it is not its business. */
 export interface Candidate {
@@ -137,9 +137,7 @@ export function chooseBeforeRules(
     const limit = limits[id];
     const setting = settings.credits[id];
     if (setting?.use !== use || !limit?.creditsCover || !isOut(limit, now)) return false;
-    if (setting.capMinor === null) return true;
-    const spent = limit.cli?.credits?.usedMinor;
-    return spent !== undefined && spent < setting.capMinor;
+    return !creditsCapReached(limit, setting);
   };
   // Under `allow`, an account on its credits is not out; under `last-resort` it is, until the last step
   const out = (id: string): boolean => (isOut(limits[id], now) && !creditsFor(id, 'allow')) || failed(id);

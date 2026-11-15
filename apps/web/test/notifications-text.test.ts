@@ -55,6 +55,7 @@ const spendAlert = (level: 'warn' | 'exhausted', spentUsd: number): ClaudioEvent
     unreported: 0,
     byPurpose: {},
     byAccountKind: { login: 0, token: 0, apiKey: 0, unknown: 0 },
+    creditsUsd: 0,
     waiting: { flowRuns: 0, orchestrationTasks: 0 },
   },
 });
@@ -92,6 +93,10 @@ const EVENTS: ClaudioEvent[] = [
   spendAlert('exhausted', 20),
   joinRequest(null),
   joinRequest({ endpointId: 'b'.repeat(64), name: 'Ben' }),
+  // An account on its credits: with the month's amounts, with no cap, and before `get_usage` said any
+  { type: 'account.credits', ...base('credits'), account: 'acc-1', label: 'work', day: '2026-01-01', usedMinor: 320, limitMinor: 4000, currency: 'USD', exponent: 2 },
+  { type: 'account.credits', ...base('credits'), account: 'acc-1', label: 'work', day: '2026-01-01', usedMinor: 320, limitMinor: null, currency: 'EUR', exponent: 2 },
+  { type: 'account.credits', ...base('credits'), account: 'acc-1', label: 'work', day: '2026-01-01' },
 ];
 
 for (const [index, event] of EVENTS.entries()) {

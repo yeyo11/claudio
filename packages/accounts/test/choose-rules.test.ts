@@ -60,7 +60,8 @@ interface Case {
 
 /**
  * One random situation over everything the choice read before the rules: sign-in states, readings
- * (unknown, near the threshold, spent with or without a reset, in overage, a spent scoped limit),
+ * (unknown, near the threshold, spent with or without a reset, in overage with a known spend or none,
+ * a spent scoped limit),
  * both strategies, the preferred account and the order, the credits setting and its cap, a policy's
  * allow list and threshold, a pin, a model some accounts cannot run, and failed accounts.
  */
@@ -90,7 +91,7 @@ function situation(rand: () => number): Case {
       case 'overage':
         return {
           ...out(HOUR),
-          cli: { observedAt: new Date(NOW).toISOString(), plan: 'max', available: true, scoped: [], credits: { enabled: true, usedMinor, limitMinor: null, currency: 'USD', exponent: 2, limitReached: false, disabledReason: null, everEnabled: true } },
+          cli: { observedAt: new Date(NOW).toISOString(), plan: 'max', available: true, scoped: [], credits: rand() < 0.2 ? null : { enabled: true, usedMinor, limitMinor: null, currency: 'USD', exponent: 2, limitReached: false, disabledReason: null, everEnabled: true } },
           creditsCover: rand() < 0.8,
         };
       case 'scoped':

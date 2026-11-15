@@ -1704,6 +1704,10 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   `ALTER TABLE provider_moves ADD COLUMN next_look_at TEXT;
    ALTER TABLE provider_moves ADD COLUMN turn TEXT;
    ALTER TABLE provider_moves ADD COLUMN probe_count INTEGER NOT NULL DEFAULT 0;`,
+
+  // A turn paid from an account's usage credits (t7 of docs/plans/limit-resume-and-credits.md): no
+  // field of the CLI says who paid, so Claudio marks the row from its own state when it writes it
+  `ALTER TABLE spend_ledger ADD COLUMN credits INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 /**
@@ -1784,6 +1788,8 @@ export const PROVIDER_ROTATION_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => type
 
 /** The migration that gave the waits their next look, their turn and their probe count: a test starts a database from just before it */
 export const LIMIT_HOLDS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN next_look_at')) + 1;
+/** The schema version the spend ledger marks a turn paid from credits in */
+export const SPEND_CREDITS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('spend_ledger ADD COLUMN credits')) + 1;
 
 /** The migration that rewrote the values stored under the old product name: a test starts a database from just before it */
 export const RENAME_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes("'$.agentryAssistant'")) + 1;
@@ -2014,6 +2020,8 @@ export interface SpendRow {
   accountKind: string | null;
   projectId: string | null;
   orchestrationId: string | null;
+  /** The turn ran on the account's usage credits, its plan being spent */
+  credits?: boolean;
 }
 
 /** How long a claimed compaction is held before another process may take it for lost */
@@ -2977,13 +2985,13 @@ export class Db {
   addSpend(row: SpendRow): void {
     prepared(
       this.db,
-      `INSERT INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId);
+      `INSERT INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id, credits)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId, row.credits ? 1 : 0);
   }
 
-  /** What the ledger holds in `[from, to)`, by purpose and account kind, and how many results carried no cost. */
-  spendBetween(from: string, to: string): { groups: Array<{ purpose: string; accountKind: string | null; usd: number }>; unreported: number } {
+  /** What the ledger holds in `[from, to)`, by purpose and account kind, how much of it ran on credits, and how many results carried no cost. */
+  spendBetween(from: string, to: string): { groups: Array<{ purpose: string; accountKind: string | null; usd: number }>; unreported: number; creditsUsd: number } {
     const groups = (
       this.db.prepare('SELECT purpose, account_kind, SUM(usd) AS usd FROM spend_ledger WHERE at >= ? AND at < ? GROUP BY purpose, account_kind').all(from, to) as Array<{
         purpose: string;
@@ -2992,7 +3000,8 @@ export class Db {
       }>
     ).map((g) => ({ purpose: g.purpose, accountKind: g.account_kind, usd: g.usd }));
     const { n } = this.db.prepare('SELECT COUNT(*) AS n FROM spend_ledger WHERE at >= ? AND at < ? AND reported = 0').get(from, to) as { n: number };
-    return { groups, unreported: n };
+    const { usd } = this.db.prepare('SELECT COALESCE(SUM(usd), 0) AS usd FROM spend_ledger WHERE at >= ? AND at < ? AND credits = 1').get(from, to) as { usd: number };
+    return { groups, unreported: n, creditsUsd: usd };
   }
 
   /** True only for the process that wrote the row: the alert of that day and level is its to raise. */

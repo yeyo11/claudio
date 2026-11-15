@@ -7197,10 +7197,12 @@ export interface SwitchChatAccountResponse {
 }
 
 /**
- * Why the chosen account changed. `reserve`: the account is under the work's threshold but another
- * project with work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2).
+ * Why the chosen account changed. `credits`: the work left an account whose plan is spent because
+ * its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the
+ * credits setting). `reserve`: the account is under the work's threshold but another project with
+ * work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2).
  */
-export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'reserve';
+export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits' | 'reserve';
 
 /**
  * On what grounds the account choice took its account, so a person never meets an arbitrary one.
@@ -7705,6 +7707,25 @@ export interface AccountSwitchedEvent extends ClaudioEventBase {
   from: string | null;
   to: string | null;
   reason: AccountSwitchReason;
+}
+
+/**
+ * A turn began running on an account's usage credits, its plan being spent and its credits setting
+ * allowing it: once per account and local day, whichever process saw it first. Amounts are the
+ * month's, in minor units, as `get_usage` last said them; absent when it never did.
+ */
+export interface AccountCreditsEvent extends ClaudioEventBase {
+  type: 'account.credits';
+  /** Account id */
+  account: string;
+  /** The account's alias, else its id: never its email */
+  label: string;
+  /** Local `YYYY-MM-DD` */
+  day: string;
+  usedMinor?: number;
+  limitMinor?: number | null;
+  currency?: string | null;
+  exponent?: number;
 }
 
 /**
@@ -9766,6 +9787,11 @@ export interface SpendState {
   byPurpose: Partial<Record<SpendPurpose, number>>;
   /** For subscription accounts (`login`, `token`) the figure is the API price of the use, not a bill */
   byAccountKind: { login: number; token: number; apiKey: number; unknown: number };
+  /**
+   * The part of `spentUsd` whose turns ran on an account's usage credits (its plan spent): the CLI's
+   * estimate of those turns, marked from Claudio's own state, since no field of the CLI says who paid
+   */
+  creditsUsd: number;
   waiting: { flowRuns: number; orchestrationTasks: number };
 }
 
@@ -10302,6 +10328,7 @@ export type ClaudioEvent =
   | RunLimitWaitingEvent
   | RunAccountRotatedEvent
   | AccountSwitchedEvent
+  | AccountCreditsEvent
   | AccountsChangedEvent
   | TaskStartedEvent
   | TaskEndedEvent

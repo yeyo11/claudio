@@ -480,6 +480,8 @@
       "interrupt": "Interrupted",
       "compaction-failed": "Compaction failed",
       "account": "Switched to",
+      "credits": "Paid from the credits of",
+      "credits-stopped": "Stopped before spending the credits of",
       "guard": "Guard blocked",
       "guardMissing": "Guard did not run for this call"
     },

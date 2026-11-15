@@ -701,7 +701,7 @@ sets a rule yet.
   credits is "not out" and meets the reserve like any account over its threshold; the last-resort
   step ignores reserves (a spent plan has no headroom left to keep).
 - The default-equals-today proof (`packages/accounts/test/choose-rules.test.ts`): the choice as it
-  was before T6 is frozen in `test/fixtures/choose-before-rules.ts`, and 20 000 generated situations
+  was before T6 (main after #141, the credits stop) is frozen in `test/fixtures/choose-before-rules.ts`, and 20 000 generated situations
   (sign-in states, readings, overage, scoped limits, both strategies, preferred, order, credits and
   caps, today's policies, pins, models, failed accounts) give the same account, reason, wait and
   credits; again with every account in the shared group and with reserves of the work's own project.

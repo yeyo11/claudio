@@ -1,6 +1,6 @@
 import { displayTitle } from './chat-title.ts';
 import { detailHref } from './detail.ts';
-import type { ClaudioEvent, ChatSummary, LocalizedParams, PermissionRequest, RunWaitingReason } from './types.ts';
+import type { AccountCreditsEvent, ClaudioEvent, ChatSummary, LocalizedParams, PermissionRequest, RunWaitingReason } from './types.ts';
 
 /*
  * What a notification is and which events make one. Pure on purpose (no React, no DOM, no storage,
@@ -75,6 +75,10 @@ export interface NotificationText {
   spendWarnTitle?(): string;
   spendExhaustedTitle?(): string;
   spendBody?(spentUsd: number, capUsd: number): string;
+  /** An account began running work on its usage credits; optional, with the English below standing in */
+  creditsTitle?(name: string): string;
+  /** Its body: the month's amounts as `get_usage` said them, when it did */
+  creditsBody?(amounts: CreditsAmounts): string;
   orchestrationFinished(name: string): string;
   orchestrationFailed(name: string): string;
   orchestrationDoneBody(): string;
@@ -103,6 +107,28 @@ const spendWarnTitleEnglish = (): string => `Today's spend is at ${WARN_SHARE} o
 const spendExhaustedTitleEnglish = (): string => 'Daily spend cap reached: automatic work waits until 00:00';
 const spendBodyEnglish = (spentUsd: number, capUsd: number): string => `$${spentUsd.toFixed(2)} of $${capUsd.toFixed(2)}, as the CLI reported it.`;
 
+/** The month's credits as an `account.credits` event carries them, in minor units */
+export type CreditsAmounts = Pick<AccountCreditsEvent, 'usedMinor' | 'limitMinor' | 'currency' | 'exponent'>;
+
+const creditsTitleEnglish = (name: string): string => `${name} is running work on its usage credits`;
+const creditsBodyEnglish = (amounts: CreditsAmounts): string => {
+  const plan = 'Its plan is spent; the turn is paid from its credits.';
+  if (amounts.usedMinor === undefined) return plan;
+  const exponent = amounts.exponent ?? 2;
+  // As the web's `formatCredits` says it in English, so the push and the toast read the same
+  const digits = { minimumFractionDigits: exponent, maximumFractionDigits: exponent };
+  const money = (minor: number): string => {
+    const value = minor / 10 ** exponent;
+    try {
+      return new Intl.NumberFormat('en', amounts.currency ? { style: 'currency', currency: amounts.currency, ...digits } : digits).format(value);
+    } catch {
+      return `${new Intl.NumberFormat('en', digits).format(value)} ${amounts.currency ?? ''}`.trim();
+    }
+  };
+  const limit = amounts.limitMinor ?? null;
+  return `${plan} ${limit !== null && limit > 0 ? `${money(amounts.usedMinor)} of ${money(limit)}` : money(amounts.usedMinor)} this month.`;
+};
+
 const joinRequestEnglish = (name: string, group: string): string => `${name} asks to join ${group}`;
 const joinRequestBodyEnglish = (relayedBy: string | null): string =>
   relayedBy ? `Relayed by ${relayedBy}. Accept or deny it on the Collaborators page.` : 'Accept or deny it on the Collaborators page.';
@@ -128,6 +154,8 @@ export const englishNotificationText: NotificationText = {
   spendWarnTitle: spendWarnTitleEnglish,
   spendExhaustedTitle: spendExhaustedTitleEnglish,
   spendBody: spendBodyEnglish,
+  creditsTitle: creditsTitleEnglish,
+  creditsBody: creditsBodyEnglish,
   orchestrationFinished: (name) => `Orchestration ${name} finished`,
   orchestrationFailed: (name) => `Orchestration ${name} failed`,
   orchestrationDoneBody: () => 'Every task completed.',
@@ -195,6 +223,8 @@ export const chatHref = (chatId: string, promptId?: string): string =>
   `/chats/${encodeURIComponent(chatId)}${promptId ? `?${PROMPT_PARAM}=${encodeURIComponent(promptId)}` : ''}`;
 /** Where the daily spend cap is set: Settings → Runs & spend (the web's `settingsHref('runs', { section: 'spend-cap' })`) */
 export const SPEND_CAP_HREF = '/settings/runs#spend-cap';
+/** The Accounts page, where each account's credits setting is */
+export const ACCOUNTS_HREF = '/accounts';
 /** Where a decision point's mode is set: Settings → Decisions (the web's `settingsHref('decisions')`) */
 export const DECISIONS_HREF = '/settings/decisions';
 export const orchestrationHref = (id: string): string => `/orchestration/${encodeURIComponent(id)}`;
@@ -369,6 +399,21 @@ export function notificationsFor(event: ClaudioEvent, text: NotificationText = e
         }),
       ];
     }
+
+    case 'account.credits':
+      return [
+        draft(event, {
+          // Once per account and day: the server raises it once, and the day tells two apart
+          key: `credits:${event.day}:${event.account}`,
+          dedupeMs: 0,
+          kind: 'limit',
+          priority: 'normal',
+          tone: 'warn',
+          title: (text.creditsTitle ?? creditsTitleEnglish)(event.label),
+          body: (text.creditsBody ?? creditsBodyEnglish)(event),
+          href: ACCOUNTS_HREF,
+        }),
+      ];
 
     case 'decision.demoted':
       return [

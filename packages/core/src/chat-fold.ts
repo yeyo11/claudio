@@ -396,6 +396,8 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
   if (isError && !chat.interruptRequested) chat.error = event.failure;
   chat.interruptRequested = false;
   chat.turnOpen = false;
+  // Its spend is recorded above: the next turn is paid by whatever it runs on
+  chat.paidTurn = false;
   chat.foreground.clear();
   chat.activity.turnEnded();
   // A foreground agent the turn ended on without its answer (an interrupt) is not running any more,

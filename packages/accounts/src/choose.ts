@@ -9,7 +9,7 @@ import type {
   AccountSwitchReason,
   RotationPolicy,
 } from '@claudio/shared';
-import { EXHAUSTED, isOut, outUntil } from './thresholds.ts';
+import { creditsCapReached, EXHAUSTED, isOut, outUntil } from './thresholds.ts';
 
 /** What `choose` needs of an account; the rest of it is not its business. */
 export interface Candidate {
@@ -216,9 +216,7 @@ export function choose(
     const limit = limits[id];
     const setting = settings.credits[id];
     if (setting?.use !== use || !limit?.creditsCover || !isOut(limit, now)) return false;
-    if (setting.capMinor === null) return true;
-    const spent = limit.cli?.credits?.usedMinor;
-    return spent !== undefined && spent < setting.capMinor;
+    return !creditsCapReached(limit, setting);
   };
   // Under `allow`, an account on its credits is not out; under `last-resort` it is, until the last step
   const out = (id: string): boolean => (isOut(limits[id], now) && !creditsFor(id, 'allow')) || failed(id);

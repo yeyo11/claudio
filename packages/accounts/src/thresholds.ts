@@ -1,4 +1,4 @@
-import type { AccountLimit, AccountLimitState } from '@claudio/shared';
+import type { AccountCreditsSetting, AccountLimit, AccountLimitState, AccountsSettings, RateLimitInfo } from '@claudio/shared';
 
 /*
  * The one place the account thresholds live. Before 2026-10-29 an account was `near` at 0.75 by its
@@ -48,4 +48,44 @@ export function outUntil(limit: Pick<AccountLimit, 'state' | 'resetsAt'> | null 
 export function accountState(limit: Pick<AccountLimit, 'state' | 'creditsCover'> | null | undefined): AccountLimitState {
   if (!limit) return 'unknown';
   return limit.state === 'exhausted' && limit.creditsCover === true ? 'overage' : limit.state;
+}
+
+/** An account the credits setting does not name: its credits are never spent (D3 of docs/plans/limit-resume-and-credits.md) */
+const NEVER: AccountCreditsSetting = { use: 'never', capMinor: null };
+
+/** The credits setting of an account, `never` where the settings do not name it. */
+export function creditsSettingOf(settings: Pick<AccountsSettings, 'credits'>, id: string): AccountCreditsSetting {
+  return settings.credits[id] ?? NEVER;
+}
+
+/**
+ * Whether Claudio's own cap (D5) stops the account's credits: a cap is set and the month's spend
+ * reached it, or nobody knows the spend (`get_usage` never said it), since money is never spent on a
+ * guess. The same rule `choose` applies before work starts there.
+ */
+export function creditsCapReached(limit: Pick<AccountLimit, 'cli'> | null | undefined, setting: AccountCreditsSetting): boolean {
+  if (setting.capMinor === null) return false;
+  const spent = limit?.cli?.credits?.usedMinor;
+  return spent === undefined || spent >= setting.capMinor;
+}
+
+const PLAN_WINDOWS = new Set(['five_hour', 'seven_day']);
+const COVERING = new Set(['allowed', 'allowed_warning']);
+
+/**
+ * Whether a `rate_limit_event` hints that the turn now runs on usage credits: `isUsingOverage`, or an
+ * `overageStatus` that covers (`allowed`, `allowed_warning`) beside a spent plan window. A hint only
+ * (docs/decisions/credits-in-the-stream.md): the fields are typed with no meaning and no recorded
+ * event ever had them so. It is enough to stop a turn whose credits may not be spent, where a false
+ * positive costs a move, and never enough to call an account `overage`. An `overageStatus` of
+ * `rejected` says credits do not cover, whatever else the event says.
+ */
+export function overageHint(info: Pick<RateLimitInfo, 'status' | 'rateLimitType' | 'utilization' | 'windows' | 'isUsingOverage' | 'overageStatus'>): boolean {
+  if (info.overageStatus === 'rejected') return false;
+  if (info.isUsingOverage === true) return true;
+  if (!info.overageStatus || !COVERING.has(info.overageStatus)) return false;
+  const type = info.rateLimitType ?? '';
+  if (info.status === 'rejected' && PLAN_WINDOWS.has(type)) return true;
+  if ((info.utilization ?? 0) >= EXHAUSTED && !type.includes('overage')) return true;
+  return Object.entries(info.windows).some(([key, w]) => !key.includes('overage') && w.utilization >= EXHAUSTED);
 }

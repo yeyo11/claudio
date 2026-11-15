@@ -4,6 +4,7 @@ import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
 import { serverText } from './server-strings';
 import { resetWhen } from './reset-when';
 import { formatCost, formatPercent } from '@claudio/ui/lib/format';
+import { formatCredits } from './credits';
 
 /*
  * The browser's own bookkeeping around notifications: the stored list, what is a repeat of what,
@@ -63,6 +64,16 @@ const text: NotificationText = {
   spendWarnTitle: () => i18n.t('components:notificationText.spendWarnTitle', { percent: formatPercent(75) }),
   spendExhaustedTitle: () => i18n.t('components:notificationText.spendExhaustedTitle'),
   spendBody: (spentUsd, capUsd) => i18n.t('components:notificationText.spendBody', { spent: formatCost(spentUsd), cap: formatCost(capUsd) }),
+  creditsTitle: (name) => i18n.t('components:notificationText.creditsTitle', { name }),
+  creditsBody: (amounts) => {
+    if (amounts.usedMinor === undefined) return i18n.t('components:notificationText.creditsBody.plan');
+    const unit = { currency: amounts.currency ?? null, exponent: amounts.exponent ?? 2 };
+    const used = formatCredits(amounts.usedMinor, unit);
+    const limit = amounts.limitMinor ?? null;
+    return limit !== null && limit > 0
+      ? i18n.t('components:notificationText.creditsBody.amount', { used, limit: formatCredits(limit, unit) })
+      : i18n.t('components:notificationText.creditsBody.used', { used });
+  },
   orchestrationFinished: (name) => i18n.t('components:notificationText.orchestrationFinished', { name }),
   orchestrationFailed: (name) => i18n.t('components:notificationText.orchestrationFailed', { name }),
   orchestrationDoneBody: () => i18n.t('components:notificationText.orchestrationDoneBody'),

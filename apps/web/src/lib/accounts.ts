@@ -3,6 +3,7 @@ import { currentLanguage, intlLocale } from '@claudio/ui/i18n/language';
 import { formatDuration, toMs } from '@claudio/ui/lib/format';
 import { useOverview } from '../api';
 import type { LimitReading } from './shell-live';
+import { formatCredits } from './credits';
 
 // ---------- The account view (contract C4 of docs/plans/regression-fixes-2026-10-29.md) ----------
 // The server computes one view of the accounts and serves it as `overview.accounts`; every account
@@ -45,6 +46,12 @@ export const usagePct = (limit: AccountLimit | null | undefined): number | null 
 
 /** An account that hit its limit: nothing can start on it until the window resets. */
 export const accountExhausted = (account: Account): boolean => account.limits?.state === 'exhausted';
+
+/**
+ * The `overage` state: the plan is spent and the account's usage credits pay for what runs there.
+ * Warn, never bad: work may go on there, at a price, where its credits setting allows it.
+ */
+export const onCredits = (limit: Pick<AccountLimit, 'state' | 'creditsCover'> | null | undefined): boolean => limit?.state === 'exhausted' && limit.creditsCover === true;
 
 /** An account that cannot be used until the person signs in again: its session expired or its stored sign-in is incomplete. */
 export const signInProblem = (account: Pick<Account, 'signInState'>): 'expired' | 'incomplete' | null =>
@@ -120,17 +127,7 @@ export function planOf(account: Pick<Account, 'kind' | 'plan'>): { key: PlanKey 
   return known ? { key: known } : { raw: raw.charAt(0).toUpperCase() + raw.slice(1) };
 }
 
-/** An amount in minor units in its own currency and decimal places; a currency the CLI did not state is a plain number. */
-export function formatCredits(minor: number, credits: Pick<AccountCredits, 'currency' | 'exponent'>): string {
-  const value = minor / 10 ** credits.exponent;
-  const digits = { minimumFractionDigits: credits.exponent, maximumFractionDigits: credits.exponent };
-  try {
-    return new Intl.NumberFormat(intlLocale(), credits.currency ? { style: 'currency', currency: credits.currency, ...digits } : digits).format(value);
-  } catch {
-    // A code Intl does not know: still the amount, with the code beside it
-    return `${new Intl.NumberFormat(intlLocale(), digits).format(value)} ${credits.currency ?? ''}`.trim();
-  }
-}
+export { formatCredits } from './credits';
 
 /**
  * What the credits line says. Credits never set up say nothing (most accounts: it would be noise on
@@ -162,7 +159,7 @@ export function usageStale(accounts: readonly Account[], now = Date.now(), maxAg
  * limit and "could not check" are separate questions: a limit or a failed probe never reads as a
  * missing sign-in, which only the credentials decide.
  */
-export type ConnectionKind = 'ready' | 'no-cli' | 'signed-out' | 'expired' | 'limit' | 'near' | 'unchecked' | 'unready';
+export type ConnectionKind = 'ready' | 'no-cli' | 'signed-out' | 'expired' | 'limit' | 'credits' | 'near' | 'unchecked' | 'unready';
 
 export interface ConnectionFacts {
   cliInstalled: boolean;
@@ -188,6 +185,8 @@ export function connectionOf(facts: ConnectionFacts): ConnectionKind {
   if (inUse === null && facts.inUseReason === 'limit') return 'limit';
   const signedIn = inUse !== null || facts.accounts.some((a) => a.enabled && a.signedIn);
   if (!signedIn || (inUse === null && facts.inUseReason === 'signed-out')) return 'signed-out';
+  // New work starts on an account whose plan is spent only where its credits may pay: they are paying
+  if (onCredits(inUse?.limit)) return 'credits';
   if (inUse?.limit?.state === 'exhausted') return 'limit';
   if (inUse?.limit?.state === 'near') return 'near';
   if (!provider || provider.state === 'ready') return 'ready';

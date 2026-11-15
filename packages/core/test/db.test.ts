@@ -844,7 +844,8 @@ test('the spend ledger upgrade adds its tables and columns, and backfills the ex
   insert.run('e-broken', 'c1', yesterday, 'not json');
   migrate(raw);
 
-  assert.deepEqual(columns('spend_ledger'), ['seq', 'at', 'chat_id', 'execution_id', 'usd', 'reported', 'purpose', 'account', 'account_kind', 'project_id', 'orchestration_id']);
+  // `credits` came later (t7 of docs/plans/limit-resume-and-credits.md): a turn paid from usage credits
+  assert.deepEqual(columns('spend_ledger'), ['seq', 'at', 'chat_id', 'execution_id', 'usd', 'reported', 'purpose', 'account', 'account_kind', 'project_id', 'orchestration_id', 'credits']);
   assert.deepEqual(columns('spend_alerts'), ['day', 'level', 'at']);
   assert.ok(columns('flow_runs').includes('checks'));
   assert.ok(columns('memory_proposals').includes('target_paths'));

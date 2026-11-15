@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 import { ChatNotFoundError, isTransientRefusal } from './chat-errors.ts';
 import type { Account, LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
-import type { ChatManager, ChatRuntime, LimitTurnMessage } from './chats.ts';
+import { CREDITS_STOP_WORDS, type ChatManager, type ChatRuntime, type LimitTurnMessage } from './chats.ts';
+import type { CreditsStop } from './live-chat.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
 import type { Db, OpenHold } from './db.ts';
 import type { ClaudioEventInput } from './events.ts';
@@ -30,6 +31,9 @@ import { LIMIT_CONTINUE_TEXT, errorMessage } from '@claudio/shared';
  *   keeps refusing for room.
  * - A person's wait ends when the person takes the chat over: a turn started on it since the wait
  *   began would otherwise be followed by the replay of the one that died.
+ * - A turn stopped because it ran on its account's usage credits where the account's credits setting
+ *   does not let it (D4 of docs/plans/limit-resume-and-credits.md) takes the limit's path, recorded
+ *   with `reason: 'credits'`; so is a move onto an account whose credits pay for the turn.
  * - A chat of housekeeping (`internal`) runs with no persisted session, so there is nothing to
  *   resume: it ends at a limit and its owner runs it again (D6). A `/v1` client's chat is moved,
  *   never held: its request was answered already.
@@ -113,6 +117,8 @@ export interface RotationDeps {
    * returns the unsubscribe. Without it a wait only looks again on its own timer.
    */
   accountsChanged?: (listener: () => void) => () => void;
+  /** Why the chat's last turn was stopped on its account's credits; null when it was not (a limit) */
+  creditsStop?: (chatId: string) => CreditsStop | null;
   /** A wait is over: the turn was replayed, it could not be, or a person stopped waiting */
   ended?: (move: ProviderMove, end: WaitEnd, reason: string | null) => void;
   /**
@@ -298,6 +304,8 @@ export class ProviderRotation {
   async onLimitHit(run: ChatRuntime, limitResetsAt: string | null): Promise<void> {
     const provider = run.provider ?? LEGACY_PROVIDER;
     const auth = this.deps.runtime.signInFailed(run.id);
+    // Read now: the replay's launch clears it
+    const credits = auth ? null : (this.deps.creditsStop?.(run.id) ?? null);
     // A sign-in failure is no limit: it has its notice below, and the account's own state says it needs signing in
     if (!auth) this.deps.emit({ type: 'run.rateLimited', title: `${run.name} hit its rate limit`, ...runRef(run), provider, resetsAt: limitResetsAt });
     // A sample is run again from scratch on whichever account has room: replaying it would mix two accounts' behaviour
@@ -330,13 +338,13 @@ export class ProviderRotation {
           return;
         }
       }
-      const moved = await this.moveToAccount(run, auth);
+      const moved = await this.moveToAccount(run, auth, credits);
       if (moved.moved) return;
       // The accounts know when the first of them that can take the turn is back (`chooseNext`); else
       // the reset the account the turn died on gave (`limitResetOf`: that account's reading, or the refusal),
       // which may have passed by now: the wait then goes on at once
       const resetsAt = moved.waitUntil !== null ? new Date(moved.waitUntil).toISOString() : limitResetsAt;
-      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : null, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
+      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason: auth ? AUTH_WAIT : credits ? `its credits may not pay for the turn: ${CREDITS_STOP_WORDS[credits]}` : null, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
     } catch (error) {
       const why = errorMessage(error);
       this.deps.runtime.notice(run.id, `Handling the ${auth ? 'sign-in failure' : 'usage limit'} failed: ${why}`);
@@ -361,7 +369,7 @@ export class ProviderRotation {
    * earliest reset among the accounts when it is known, when the chat runs on no account or none
    * other can take it.
    */
-  private async moveToAccount(run: ChatRuntime, auth = false): Promise<{ moved: boolean; waitUntil: number | null }> {
+  private async moveToAccount(run: ChatRuntime, auth = false, credits: CreditsStop | null = null): Promise<{ moved: boolean; waitUntil: number | null }> {
     const from = this.deps.runtime.accountOf(run.id);
     // The choice looks at which account can run the chat's model: read the lists it has not seen yet
     await this.deps.runtime.warmModels();
@@ -370,13 +378,20 @@ export class ProviderRotation {
     const to = choice.account;
     if (!to || to === from) {
       if (!to && run.model) this.deps.runtime.notice(run.id, `No other account can run ${run.model} now; the turn waits for one that can.`);
-      this.record('wait', from, null, auth ? 'auth' : 'limit', run, { waitUntil: choice.waitUntil });
+      this.record('wait', from, null, auth ? 'auth' : credits ? 'credits' : 'limit', run, { waitUntil: choice.waitUntil, ...(credits ? { credits } : {}) });
       return { moved: false, waitUntil: choice.waitUntil };
     }
     const resumed = await (this.deps.replay?.(run.id, to) ?? this.deps.runtime.replayLastTurn(run.id, to));
     if (!resumed) return { moved: false, waitUntil: choice.waitUntil };
-    this.record('switch', from, to, auth ? 'auth' : (choice.reason ?? 'limit'), run, null);
-    this.deps.runtime.notice(run.id, auth ? `The sign-in of account ${from} expired; the turn goes on with account ${to}.` : `Account ${from} reached its usage limit; the turn goes on with account ${to}.`);
+    // A move off credits the setting refuses, or onto credits it allows, is the credits' doing
+    const onCredits = !auth && choice.credits === true;
+    this.record('switch', from, to, auth ? 'auth' : credits || onCredits ? 'credits' : (choice.reason ?? 'limit'), run, credits || onCredits ? { credits: credits ?? 'paid' } : null);
+    const left = auth
+      ? `The sign-in of account ${from} expired`
+      : credits
+        ? `Account ${from} has no plan quota left and its credits may not pay for this turn (${CREDITS_STOP_WORDS[credits]})`
+        : `Account ${from} reached its usage limit`;
+    this.deps.runtime.notice(run.id, `${left}; the turn goes on with account ${to}${onCredits ? ', paid from its credits' : ''}.`);
     this.deps.emit({ type: 'run.accountRotated', title: `${run.name} moved from account ${from} to ${to}`, ...runRef(run), from, to, resumed });
     return { moved: true, waitUntil: null };
   }
