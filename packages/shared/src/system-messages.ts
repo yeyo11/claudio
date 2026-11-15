@@ -26,6 +26,12 @@ export const CONTINUATION_PREFIX = 'Your turn ended, but the work is not finishe
 export const FLOW_RESTART_PREFIX = 'Claudio restarted while you were on this run.';
 /** What a chat is told once its provider limit has reset and no turn of its own is left to replay */
 export const LIMIT_CONTINUE_TEXT = "The provider's usage limit has reset. Continue the work you were doing where you left off.";
+/**
+ * What a person's chat reads when its turn, cut by a restart of Claudio, goes on: the CLI's own
+ * continuation message (`CLAUDE_CODE_RESUME_PROMPT`) when it continues by itself, and the message the
+ * chat's Continue button sends once that is too old to do on its own (docs/plans/survive-restarts.md, D7)
+ */
+export const RESTART_CONTINUE_TEXT = 'Claudio restarted while you were working on this. Continue from where you left off.';
 /** Told to a run's chat continued after Claudio restarted in the middle of it */
 export const RESUME_PROMPT = 'Claudio restarted while you were working on this. Carry on from where you were, still read-only, and end with the structured result.';
 /** How a person's message written straight to one subagent begins, which says the lead does not see it */
@@ -77,6 +83,7 @@ export type SystemMessageKind =
   | 'continuation'
   | 'flow-restart'
   | 'limit-continue'
+  | 'restart-continue'
   | 'assistant-resume'
   | 'agent-message-person'
   | 'agent-message-auto'
@@ -91,9 +98,9 @@ export interface SystemMessage {
   source: SystemMessageSource;
   /**
    * What follows the prefix, trimmed. A kind whose whole sentence is the prefix (`limit-continue`,
-   * `assistant-resume`) or whose prefix is part of the sentence (`cancel`, `auto-cancel`, `continuation`,
+   * `restart-continue`, `assistant-resume`) or whose prefix is part of the sentence (`cancel`, `auto-cancel`, `continuation`,
    * `flow-restart`) keeps the sentence: `words` is what follows the prefix, trimmed, which is empty for
-   * the two whole-sentence kinds, so a reader falls back to the full text there.
+   * the whole-sentence kinds, so a reader falls back to the full text there.
    */
   words: string;
   /** For a relay (`relay-person`, `relay-supervisor`): the subagent the lead was asked to pass it to */
@@ -115,6 +122,7 @@ const READERS: readonly { prefix: string; kind: SystemMessageKind; source: Syste
   { prefix: CONTINUATION_PREFIX, kind: 'continuation', source: 'claudio' },
   { prefix: FLOW_RESTART_PREFIX, kind: 'flow-restart', source: 'claudio' },
   { prefix: LIMIT_CONTINUE_TEXT, kind: 'limit-continue', source: 'claudio' },
+  { prefix: RESTART_CONTINUE_TEXT, kind: 'restart-continue', source: 'claudio' },
   { prefix: RESUME_PROMPT, kind: 'assistant-resume', source: 'claudio' },
 ];
 
@@ -153,4 +161,4 @@ export const PERSON_HINT_PREFIXES: readonly string[] = [CHAT_HINT_PREFIX, ORCHES
  * The prefixes of the nudges nobody typed, which the lessons' signals skip, and of the relays the lead
  * only passes on to a subagent: neither is the person correcting the lead.
  */
-export const NUDGE_PREFIXES: readonly string[] = [CONTINUATION_PREFIX, FLOW_RESTART_PREFIX, RESUME_PROMPT, RELAY_PERSON_HEAD, RELAY_SUPERVISOR_HEAD];
+export const NUDGE_PREFIXES: readonly string[] = [CONTINUATION_PREFIX, FLOW_RESTART_PREFIX, RESTART_CONTINUE_TEXT, RESUME_PROMPT, RELAY_PERSON_HEAD, RELAY_SUPERVISOR_HEAD];

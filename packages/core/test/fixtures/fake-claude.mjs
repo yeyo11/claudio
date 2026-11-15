@@ -4,7 +4,8 @@
 //
 //   FAKE-WRITE <file> <content>   writes a file and leaves it uncommitted, like most workers
 //   (integrator prompt)           merges the listed branches, taking the incoming side on conflict
-//   FAKE-HANG                     never answers, like a worker someone has to stop
+//   FAKE-HANG                     never answers, like a worker someone has to stop; it leaves the session
+//                                 marked mid-turn (`cutMark`), as a CLI killed in that turn would leave it
 //   FAKE-SLEEP <ms>               waits that long before the turn goes on, so a test can act while it works
 //   FAKE-WAIT-FOR <file>          waits until <file> exists before the turn goes on: a turn that is
 //                                 still working whatever the test does first, however loaded the machine
@@ -99,6 +100,11 @@
 //                                 `default` to the account's model (`claude-opus-…`)
 //   FAKE_CLAUDE_LINGER_MS=<ms>    stays up that long after stdin closes, the way the CLI does while
 //                                 background work finishes
+//   CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1 with --resume, of a session marked mid-turn: continues that turn at
+//                                 once, with nothing written to it, as the CLI documents: its result reads
+//                                 `continued: <CLAUDE_CODE_RESUME_PROMPT>`, and FAKE_CLAUDE_PROMPTS gets a line
+//                                 with `continued: true`. A mark older than CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS
+//                                 (or FAKE_CLAUDE_CUT_AGE_MS, the age it pretends the mark has) starts idle instead
 //   FAKE_CLAUDE_TIMELINE=<file>   appends what happened, one word a line: `armed`, `message`, and
 //                                 `background-ended` and `eof` for a FAKE-BG-AGENT's end and its input's
 //
@@ -109,7 +115,7 @@
 // It reports the files it could see and its working directory, which is what the tests check.
 import { execFileSync, spawn, spawnSync } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
-import { appendFileSync, existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { appendFileSync, existsSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { createInterface } from 'node:readline';
@@ -198,6 +204,25 @@ if (settingsFile && process.env.FAKE_CLAUDE_NO_ARM !== '1') {
   if (process.env.FAKE_CLAUDE_ARM_DELAY_MS) Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, Number(process.env.FAKE_CLAUDE_ARM_DELAY_MS));
   runHook('SessionStart', `SessionStart:${flag('--resume') ? 'resume' : 'startup'}`, { source: flag('--resume') ? 'resume' : 'startup' }, startedSession, true);
   mark('armed');
+}
+// A session whose turn did not end: the CLI reads that from its transcript; the fake keeps a file per
+// session, named by the process that spawned it like the totals, so a test run never reads another's
+const cutMark = join(tmpdir(), `fake-claude-cut-${String(process.ppid)}-${startedSession}`);
+const resumesCut = !probe && flag('--resume') && process.env.CLAUDE_CODE_RESUME_INTERRUPTED_TURN === '1' && existsSync(cutMark);
+if (resumesCut) {
+  const age = Number(process.env.FAKE_CLAUDE_CUT_AGE_MS ?? 0);
+  const bound = Number(process.env.CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS ?? 0);
+  if (!(bound > 0 && age > bound)) {
+    const prompt = process.env.CLAUDE_CODE_RESUME_PROMPT || 'Continue from where you left off.';
+    rmSync(cutMark, { force: true });
+    if (process.env.FAKE_CLAUDE_PROMPTS) appendFileSync(process.env.FAKE_CLAUDE_PROMPTS, `${JSON.stringify({ cwd: dir, resume: flag('--resume'), prompt, continued: true })}\n`);
+    // After the start's own lines, as the CLI does: the turn is the process's first work
+    setTimeout(() => {
+      out({ type: 'system', subtype: 'init', session_id: startedSession, cwd: dir, model: flag('--model') || 'fake', tools: [] });
+      out({ type: 'assistant', session_id: startedSession, message: { role: 'assistant', content: [{ type: 'text', text: 'Carrying on.' }] } });
+      out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: `continued: ${prompt}` });
+    }, 50);
+  }
 }
 const git = (...a) => execFileSync('git', ['-C', dir, '-c', 'user.name=Worker', '-c', 'user.email=w@example.com', ...a], { stdio: 'pipe' });
 
@@ -320,7 +345,10 @@ lines.on('line', async (line) => {
     return;
   }
 
-  if (/^FAKE-HANG$/m.test(prompt)) return;
+  if (/^FAKE-HANG$/m.test(prompt)) {
+    writeFileSync(cutMark, new Date().toISOString());
+    return;
+  }
   if (/^FAKE-BUDGET$/m.test(prompt)) {
     out({ type: 'result', subtype: 'error_max_budget_usd', is_error: true, num_turns: 1, total_cost_usd: 0.01, result: 'budget reached' });
     return;

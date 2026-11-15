@@ -370,6 +370,15 @@ function bashBlock(id, command) {
 
 init();
 log('started', { argv, cwd: process.cwd() });
+// `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` on a resume: the CLI continues the turn its previous process did
+// not finish, with nothing written to it, reading `CLAUDE_CODE_RESUME_PROMPT` in place of the prompt. The
+// fake keeps no record of a cut turn, so a resume with the variable always continues one: Claudio sets it
+// only for a turn a restart cut (docs/plans/survive-restarts.md)
+if (flag('--resume') && env.CLAUDE_CODE_RESUME_INTERRUPTED_TURN === '1') {
+  setTimeout(() => {
+    if (!turn) startTurn(env.CLAUDE_CODE_RESUME_PROMPT || 'Continue from where you left off.');
+  }, 50);
+}
 
 /** Every descendant of a pid, children before parents, read from /proc: a command's tree, never matched by name. */
 function descendants(root) {

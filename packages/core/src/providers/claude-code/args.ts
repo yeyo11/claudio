@@ -86,3 +86,20 @@ export function buildArgs(spec: SessionLaunch): string[] {
   if (spec.internal) args.push('--no-session-persistence');
   return args;
 }
+
+/**
+ * The variables of Claude Code's own continuation of a turn its process did not finish
+ * (`CLAUDE_CODE_RESUME_INTERRUPTED_TURN`, documented at https://code.claude.com/docs/en/env-vars,
+ * CLI 2.1.211 or later): set for a process that continues a cut turn, and removed from every other
+ * one, so a value in the server's own environment never makes a plain resume run the old turn again
+ * beside the message it was started for (docs/cli-surfaces.md).
+ */
+export function resumeEnv(spec: Pick<SessionLaunch, 'continueCut' | 'created'>, env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  for (const name of Object.keys(env)) if (name.startsWith('CLAUDE_CODE_RESUME_')) delete env[name];
+  if (!spec.continueCut || !spec.created) return env;
+  env.CLAUDE_CODE_RESUME_INTERRUPTED_TURN = '1';
+  // A positive bound applies to every turn, those the CLI would otherwise only continue within six hours included
+  env.CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS = String(Math.max(1, Math.round(spec.continueCut.maxAgeMs)));
+  env.CLAUDE_CODE_RESUME_PROMPT = spec.continueCut.prompt;
+  return env;
+}
