@@ -289,6 +289,9 @@
     "runNow": "Run now",
     "runNowTitle": "Send the turn on now, on the first account with room, without waiting for the limit to reset",
     "runNowFailed": "Could not run it now",
+    "resuming": "going on now",
+    "lookAgain": "looking again at",
+    "account": "account {{account}}",
     "badge": "waiting"
   },
   "notificationText": {

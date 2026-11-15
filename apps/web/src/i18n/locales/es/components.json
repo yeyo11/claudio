@@ -289,6 +289,9 @@
     "runNow": "Ejecutar ahora",
     "runNowTitle": "Enviar el turno ya, en la primera cuenta con margen, sin esperar a que se restablezca el límite",
     "runNowFailed": "No se ha podido ejecutar ahora",
+    "resuming": "continuando ahora",
+    "lookAgain": "vuelve a mirar a las",
+    "account": "cuenta {{account}}",
     "badge": "esperando"
   },
   "notificationText": {

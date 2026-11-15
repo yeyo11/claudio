@@ -13,6 +13,8 @@ import { ErrorBox, Segmented, Skeleton, Tag } from '@claudio/ui/components/ui';
 import { formatCost, formatDateTime } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { api, keys, useEvalGate, useEvalRun } from '../../../api';
+import { WaitLine } from '../../../components/WaitLine';
+import { CLAUDE_CODE_ID } from '../../../lib/provider-state';
 import { teamSearch } from '../model';
 import { GateCard } from './Gate';
 import { MetricsTable } from './Metrics';
@@ -173,19 +175,17 @@ function Notice({ run, onResume, onStop, busy }: { run: EvalRun; onResume: () =>
   const unrun = unrunSamples(run.samples);
   if (stage === 'waiting')
     return (
-      <div className="alert alert-warn" role="status">
-        <Hourglass size={16} strokeWidth={1.75} aria-hidden className="alert-icon" />
-        <div className="alert-body">
-          <strong>{t('notice.waiting.title')}</strong>
-          <div>{run.resetsAt ? t('notice.waiting.until', { time: formatDateTime(run.resetsAt) }) : t('notice.waiting.body')}</div>
-          <div className="evals-actions">
-            <button type="button" className="btn" disabled={busy} onClick={onStop}>
-              <OctagonX {...ICON_SM} />
-              {t('run.stop')}
-            </button>
-          </div>
-        </div>
-      </div>
+      <WaitLine
+        // An eval runs on Claude Code; its wait is the run's own, so stopping it is the run's Stop
+        wait={{ provider: CLAUDE_CODE_ID, resetsAt: run.resetsAt ?? null }}
+        why={t('notice.waiting.body')}
+        actions={
+          <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={onStop}>
+            <OctagonX {...ICON_SM} />
+            {t('run.stop')}
+          </button>
+        }
+      />
     );
   if (stage === 'capped' || stage === 'interrupted')
     return (

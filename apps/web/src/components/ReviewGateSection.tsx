@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { FindingCard } from './changes/ReviewFindings';
+import { WaitActions, WaitLine } from './WaitLine';
 
 // The review of the merged branch, inside the verification card (docs/plans/review-gate.md, Web
 // item 3; design system §18, `.rg`). The energy border turns only while reviewers run: no task is
@@ -325,14 +326,7 @@ export function ReviewGateSection({ orch }: { orch: Orchestration }) {
         </span>
       </div>
 
-      {state.waiting && (
-        <div className="rg-reason warn" role="status">
-          <Clock className="ico" {...ICON_SM} />
-          <span>
-            {t('review.waiting')} <span className="tnum">{state.waiting.resetsAt ? formatDateTime(state.waiting.resetsAt) : ''}</span>
-          </span>
-        </div>
-      )}
+      {state.waiting && <WaitLine wait={state.waiting} actions={<WaitActions moveId={state.waiting.moveId} quiet="btn-ghost" invalidate={[keys.orchestration(orch.id), keys.orchestrationReview(orch.id)]} />} />}
       <Reason state={state} />
 
       {state.runs.total > 0 && (

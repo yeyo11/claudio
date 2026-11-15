@@ -154,7 +154,7 @@ export function effectiveOnLimit(settings: Pick<ProvidersSettings, 'rotation'>, 
 export function openWaitOf(db: { providerMoves(filter: { chatId?: string; limit?: number }): ProviderMove[] }, chatId: string | null): LimitWait | null {
   if (!chatId) return null;
   const open = db.providerMoves({ chatId, limit: 10 }).find((m) => m.fromChat === chatId && (m.state === 'waiting' || m.state === 'resuming'));
-  return open ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id, nextLookAt: open.nextLookAt ?? null } : null;
+  return open ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id, nextLookAt: open.nextLookAt ?? null, state: open.state === 'resuming' ? 'resuming' : 'waiting' } : null;
 }
 
 /**

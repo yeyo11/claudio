@@ -557,6 +557,10 @@
   color: var(--idle);
 }
 
+.now-widget .wait-list .inbox-icon {
+  color: var(--warn);
+}
+
 .now-widget .attention-list {
   padding: 4px 18px;
   border-bottom: 1px solid var(--line);

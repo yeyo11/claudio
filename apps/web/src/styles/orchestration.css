@@ -2097,6 +2097,51 @@
   gap: 6px;
 }
 
+.wait-line .wait-line-text {
+  min-width: 0;
+  flex: 1 1 auto;
+  overflow-wrap: anywhere;
+}
+
+/* The chat's banner above the composer: the same line, roomier, as the limit banner beside it */
+.wait-line.is-banner {
+  align-items: center;
+  padding: 14px 16px;
+  border-radius: var(--radius-lg);
+  font-size: var(--fs-small);
+}
+
+.wait-line.is-banner > svg {
+  margin-top: 0;
+}
+
+/* Inside the review gate's card, where the card's own padding is 14 */
+.rg > .wait-line {
+  margin: 12px 14px 0;
+}
+
+@media (max-width: 900px) {
+  /* The actions drop under the words and are touch targets */
+  .wait-line {
+    flex-wrap: wrap;
+  }
+
+  .wait-line .wait-line-text {
+    flex-basis: calc(100% - 32px);
+  }
+
+  .wait-line span.wait-line-go {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .wait-line span.wait-line-go .btn {
+    flex: 1 1 0;
+    min-height: 44px;
+    justify-content: center;
+  }
+}
+
 /* The review gate on the verification card (docs/plans/review-gate.md). The energy border turns only while reviewers run. */
 .rg { display: flex; flex-direction: column; border: 1px solid var(--line-2); border-radius: var(--radius-lg); background: var(--bg-1); font-size: var(--fs-small); color: var(--fg-2); }
 .rg.live-energy { border-color: transparent; }

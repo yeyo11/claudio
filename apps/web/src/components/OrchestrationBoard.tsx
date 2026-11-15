@@ -42,7 +42,7 @@ import { withoutKey } from '../lib/work-item-links';
 import { ActivityTicker } from '@claudio/ui/components/ActivityTicker';
 import { Collapsible, Tooltip } from '@claudio/ui/components/controls';
 import { DecisionMark } from './DecisionMark';
-import { WaitLine } from './WaitLine';
+import { WaitActions, WaitLine } from './WaitLine';
 import { useProviderLabel } from '../lib/provider-status';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { useLinkedWorkItem, WorkItemKeyLink } from './WorkItemKeyLink';
@@ -171,44 +171,9 @@ function HintForm({ orchId, task, onDone }: { orchId: string; task: Orchestratio
   );
 }
 
-/**
- * The two ways out of a wait for a reset: stop waiting (the task or graph ends stopped), or run it
- * now on an account with room (R11). Both refetch the graph; a refusal says why in a toast.
- */
-function useWaitWayOut(orchId: string, moveId: string | null) {
-  const { t } = useTranslation('components');
-  const queryClient = useQueryClient();
-  const toast = useToast();
-  const refetch = () => queryClient.invalidateQueries({ queryKey: keys.orchestration(orchId) });
-  const stop = useMutation({
-    mutationFn: () => api.cancelLimitWait(moveId ?? ''),
-    onSuccess: refetch,
-    onError: (error) => toast.error(t('limitWait.stopFailed'), error),
-  });
-  const runNow = useMutation({
-    mutationFn: () => api.runLimitWaitNow(moveId ?? ''),
-    onSuccess: refetch,
-    onError: (error) => toast.error(t('limitWait.runNowFailed'), error),
-  });
-  return { stop, runNow, pending: stop.isPending || runNow.isPending };
-}
-
 /** Stop waiting and Run now, quiet then plain, as the reference draws them at a waiting task's foot. */
 function WaitWayOut({ orchId, moveId, quiet }: { orchId: string; moveId: string; quiet: string }) {
-  const { t } = useTranslation('components');
-  const way = useWaitWayOut(orchId, moveId);
-  return (
-    <>
-      <button type="button" className={`btn btn-small ${quiet}`} disabled={way.pending} onClick={() => way.stop.mutate()}>
-        {t('limitWait.stop')}
-      </button>
-      <Tooltip content={t('limitWait.runNowTitle')}>
-        <button type="button" className="btn btn-small" disabled={way.pending} onClick={() => way.runNow.mutate()}>
-          <ArrowRight {...ICON_SM} /> {t('limitWait.runNow')}
-        </button>
-      </Tooltip>
-    </>
-  );
+  return <WaitActions moveId={moveId} quiet={quiet} invalidate={[keys.orchestration(orchId)]} />;
 }
 
 /**
@@ -794,6 +759,29 @@ export function WorkflowWaitNotice({ orch }: { orch: Orchestration }) {
         </span>
       }
     />
+  );
+}
+
+/**
+ * The steps of a graph that are no task (the integration, the verification fix, the synthesis) held
+ * at a usage limit: the server serves them as `stepWaits`, and each is one wait line with the same
+ * two ways out as a task's. The review gate's reviewers say theirs on the gate's own card.
+ */
+export function StepWaitNotice({ orch }: { orch: Orchestration }) {
+  const { t } = useTranslation('orchestration');
+  const steps = (orch.stepWaits ?? []).filter((step) => step.role === 'integration' || step.role === 'verification' || step.role === 'synthesis');
+  if (steps.length === 0) return null;
+  return (
+    <>
+      {steps.map((step) => (
+        <WaitLine
+          key={step.moveId}
+          wait={step}
+          why={t('board.stepWaitWhy', { step: t(step.role === 'integration' ? 'board.stepWaitIntegration' : step.role === 'verification' ? 'board.stepWaitVerification' : 'board.stepWaitSynthesis') })}
+          actions={<WaitWayOut orchId={orch.id} moveId={step.moveId} quiet="btn-ghost" />}
+        />
+      ))}
+    </>
   );
 }
 

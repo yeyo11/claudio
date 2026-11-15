@@ -108,6 +108,19 @@
       "retry": "Reintentar",
       "about": "Lo que está en marcha y lo que te espera primero."
     },
+    "waits": {
+      "title": "Esperando a un límite de uso",
+      "count_one": "{{n}} esperando a un límite",
+      "count_other": "{{n}} esperando a un límite",
+      "since": "desde {{when}}",
+      "untitled": "Chat",
+      "kind": {
+        "chat": "chat",
+        "task": "orquestación",
+        "flow_run": "ejecución del flujo",
+        "assistant_run": "asistente"
+      }
+    },
     "orchestrations": {
       "title": "Orquestaciones",
       "tasks": "tareas",

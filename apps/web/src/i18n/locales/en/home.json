@@ -108,6 +108,19 @@
       "retry": "Try again",
       "about": "What is working now and what waits for you first."
     },
+    "waits": {
+      "title": "Waiting for a usage limit",
+      "count_one": "{{n}} waiting for a limit",
+      "count_other": "{{n}} waiting for a limit",
+      "since": "since {{when}}",
+      "untitled": "Chat",
+      "kind": {
+        "chat": "chat",
+        "task": "orchestration",
+        "flow_run": "flow run",
+        "assistant_run": "assistant"
+      }
+    },
     "orchestrations": {
       "title": "Orchestrations",
       "tasks": "tasks",
