@@ -242,3 +242,22 @@ test('the header says the limit in a warn badge, with the hour it resumes when i
   assert.equal(badge('waiting', null).trim(), 'waiting');
   assert.match(render(<LimitBadge phase="limit" resetsAt={null} />, seeded()), /badge-warn/);
 });
+
+test("a waiting chat says what its wait says: a usage reading's reset never replaces the wait's own", () => {
+  // The wait has no reset (it looks again at 17:15); the account's reading names one days away
+  const accounts = [{ id: 'acc-a', limits: limit({ resetsAt: FUTURE }) }] as unknown as Account[];
+  const c = chat({ executions: [execution({ account: 'acc-a' })] });
+  const noReset = wait({ resetsAt: null, nextLookAt: '2099-01-01T17:15:00Z' });
+  const stated = limitStateOf(c, claude, noReset, accounts);
+  assert.equal(stated.resetsAt, null, 'the wait is the source of its own reset');
+  const words = text(render(<LimitBanner chat={c} state={stated} />, seeded(accounts)));
+  assert.match(words, /the reset time is not known · looking again at/);
+  assert.doesNotMatch(words, /resumes at/);
+  // With no wait the reading still says when the limit resets
+  assert.equal(limitStateOf(chat({ atLimit: true, executions: [execution({ account: 'acc-a' })] }), claude, null, accounts).resetsAt, FUTURE);
+});
+
+test('a wait whose turn is being sent says it goes on now in the banner', () => {
+  const words = text(render(<LimitBanner chat={chat()} state={state('waiting', wait({ state: 'resuming' }))} />, seeded()));
+  assert.match(words, /going on now/);
+});

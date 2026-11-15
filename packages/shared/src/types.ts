@@ -4513,6 +4513,8 @@ export interface LimitWait {
   moveId: string;
   /** ISO time the wait looks again (its reset, or the next probe of an unknown one); null when due now */
   nextLookAt?: string | null;
+  /** `resuming` while the turn is being sent again; `waiting` otherwise. Absent on a wait an older Claudio served */
+  state?: 'waiting' | 'resuming';
 }
 
 /** A step of a graph that is no task (its integrator, synthesis, a fixer, a reviewer) waiting for its usage limit to reset */

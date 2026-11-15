@@ -4904,6 +4904,14 @@
           "null"
         ],
         "description": "ISO time the wait looks again (its reset, or the next probe of an unknown one); null when due now"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "waiting",
+          "resuming"
+        ],
+        "description": "`resuming` while the turn is being sent again; `waiting` otherwise. Absent on a wait an older Claudio served"
       }
     },
     "required": [
@@ -5474,6 +5482,14 @@
           "null"
         ],
         "description": "ISO time the wait looks again (its reset, or the next probe of an unknown one); null when due now"
+      },
+      "state": {
+        "type": "string",
+        "enum": [
+          "waiting",
+          "resuming"
+        ],
+        "description": "`resuming` while the turn is being sent again; `waiting` otherwise. Absent on a wait an older Claudio served"
       },
       "role": {
         "$ref": "#/components/schemas/OrchestrationChatRole"

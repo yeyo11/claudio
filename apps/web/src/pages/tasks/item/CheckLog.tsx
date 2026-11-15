@@ -163,7 +163,7 @@ export function CheckLogPanel({
         <span className="check-log-meta">{checkFacts(check, now)}</span>
         <span className="grow" />
         {check.url && (
-          <a className="btn btn-small btn-ghost" href={check.url} target="_blank" rel="noreferrer">
+          <a className="btn btn-small btn-quiet" href={check.url} target="_blank" rel="noreferrer">
             <ExternalLink {...ICON_SM} />
             {t('openOn', { host: hostLabel })}
           </a>

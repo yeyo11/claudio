@@ -263,8 +263,6 @@
   },
   "notice": {
     "waiting": {
-      "title": "Esperando a que se reinicie un límite de uso",
-      "until": "Mientras tanto no se gasta nada. Continúa a las {{time}}.",
       "body": "Mientras tanto no se gasta nada. Continúa cuando se reinicie el límite."
     },
     "capped_one": "Detenida en el tope; {{count}} intento sin ejecutar.",

@@ -324,7 +324,6 @@
     },
     "facts": "ronda {{round}} de {{max}}",
     "costOf": "{{cost}} de {{limit}}",
-    "waiting": "Esperando a que se restablezca un límite de uso el",
     "runsUnit": "ejecuciones de revisión",
     "runsOf": "{{done}} de {{total}} ejecuciones",
     "runState": {
