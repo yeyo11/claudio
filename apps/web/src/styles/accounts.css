@@ -371,6 +371,11 @@
   color: var(--fg-2);
 }
 
+/* What Claudio may do with them: a line of its own under the amount, never a dot that wraps alone */
+.account-credits-use {
+  flex-basis: 100%;
+}
+
 /* Usage credits per account, under the order: a row of its own, one line per account that has them */
 .rotation-credits {
   grid-column: 1 / -1;
@@ -406,18 +411,23 @@
   min-width: 0;
 }
 
+.rotation-credits-cap.is-unused {
+  visibility: hidden;
+}
+
 .rotation-credits-hint {
   grid-column: 1 / -1;
   font-size: var(--fs-small);
   color: var(--fg-2);
 }
 
-/* A narrow card: the name over its two controls */
+/* A narrow card: one column, so the cap keeps room for an amount between its steppers; an unused
+   cap takes none there, since nothing beside it would move */
 @container (max-width: 480px) {
   .rotation-credits-row {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
   }
-  .rotation-credits-name {
-    grid-column: 1 / -1;
+  .rotation-credits-cap.is-unused {
+    display: none;
   }
 }

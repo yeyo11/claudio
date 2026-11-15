@@ -44,20 +44,19 @@ export function CreditsRows({ accounts, value, onChange, labelledBy }: { account
               onChange={(use) => set(account.id, { use, capMinor: use === 'never' ? null : setting.capMinor })}
               options={USES.map((use) => ({ value: use, label: t(`rotation.credits.use.${use}`) }))}
             />
-            {/* Reserved when it does not apply, so the row never changes height as the use changes */}
-            <span className="rotation-credits-cap" aria-hidden={setting.use === 'never'}>
-              {setting.use !== 'never' && (
-                <NumberInput
-                  compact
-                  decimal
-                  aria-label={t('rotation.credits.capFor', { name })}
-                  placeholder={t('rotation.credits.noCap')}
-                  min={0}
-                  step={1}
-                  value={setting.capMinor === null ? undefined : setting.capMinor / scale}
-                  onChange={(major) => set(account.id, { use: setting.use, capMinor: major === undefined ? null : Math.max(0, Math.round(major * scale)) })}
-                />
-              )}
+            {/* Kept, hidden and disabled, when it does not apply: the row never changes height as the use changes */}
+            <span className={`rotation-credits-cap${setting.use === 'never' ? ' is-unused' : ''}`} aria-hidden={setting.use === 'never'}>
+              <NumberInput
+                compact
+                decimal
+                disabled={setting.use === 'never'}
+                aria-label={t('rotation.credits.capFor', { name })}
+                placeholder={t('rotation.credits.noCap')}
+                min={0}
+                step={1}
+                value={setting.capMinor === null ? undefined : setting.capMinor / scale}
+                onChange={(major) => set(account.id, { use: setting.use, capMinor: major === undefined ? null : Math.max(0, Math.round(major * scale)) })}
+              />
             </span>
             <span className="field-hint rotation-credits-hint tnum">{consequence}</span>
           </li>

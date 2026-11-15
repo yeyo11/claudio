@@ -19,11 +19,13 @@ function useResetText() {
   };
 }
 
-function WindowMeter({ row }: { row: WindowRow | ScopedRow }) {
+/** `paying`: the account's credits cover its spent plan, which the card's own tag says once */
+function WindowMeter({ row, paying = false }: { row: WindowRow | ScopedRow; paying?: boolean }) {
   const { t } = useTranslation('accountsConfig');
   const resetText = useResetText();
   const spent = row.pct >= 100;
-  const tone = usageTone(row.pct, spent);
+  // A spent window the account's credits cover is a price, not a stop: warn, with its word
+  const tone = spent && paying ? 'warn' : usageTone(row.pct, spent);
   const label = 'model' in row ? t('window.scoped', { model: row.model }) : row.key === 'five_hour' ? t('window.fiveHour') : row.key === 'seven_day' ? t('window.sevenDay') : row.key;
   const reset = resetText(row.resetsAt, spent);
   return (
@@ -31,7 +33,7 @@ function WindowMeter({ row }: { row: WindowRow | ScopedRow }) {
       <div className="account-meter-head">
         <span className="account-meter-label">{label}</span>
         {/* Near the limit is a warning whatever the bar's colour: only a spent window is bad */}
-        {spent ? <Tag tone="bad">{t('card.exhausted')}</Tag> : tone !== 'neutral' ? <Tag tone="warn">{t('card.runningHigh')}</Tag> : null}
+        {spent ? <Tag tone={paying ? 'warn' : 'bad'}>{t(paying ? 'card.onCredits' : 'card.exhausted')}</Tag> : tone !== 'neutral' ? <Tag tone="warn">{t('card.runningHigh')}</Tag> : null}
         {reset && <span className="account-meter-reset">{reset}</span>}
         {row.resetsAt && <span className="sr-only">({formatDateTime(row.resetsAt)})</span>}
         <span className="account-meter-pct">
@@ -59,7 +61,7 @@ function CreditsLine({ account, use }: { account: Account; use: AccountCreditsUs
     <p className="account-credits tnum">
       {view.limit ? t('card.credits.used', { used: view.used, limit: view.limit }) : t('card.credits.usedNoLimit', { used: view.used })}
       {view.kind === 'reached' && <Tag tone="warn">{t('card.credits.limitReached')}</Tag>}
-      {view.kind === 'on' && <span>{t(`card.credits.use.${use}`)}</span>}
+      {view.kind === 'on' && <span className="account-credits-use">{t(`card.credits.use.${use}`)}</span>}
     </p>
   );
 }
@@ -143,7 +145,7 @@ export function AccountCard({
           </span>
           {sub && (
             <span className="account-sub">
-              <span className="account-org">{sub}</span>
+              <span className="account-org" title={sub}>{sub}</span>
             </span>
           )}
         </span>
@@ -167,7 +169,7 @@ export function AccountCard({
 
       <div className="account-meters">
         {rows.length > 0 ? (
-          rows.map((row) => <WindowMeter key={row.key} row={row} />)
+          rows.map((row) => <WindowMeter key={row.key} row={row} paying={paying && !('model' in row)} />)
         ) : (
           <p className="muted small">{account.kind === 'api-key' ? t('card.noLimitsApiKey') : account.limits?.cli?.available === false ? t('card.noLimitsToken') : t('card.noUsage')}</p>
         )}

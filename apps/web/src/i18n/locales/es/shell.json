@@ -69,7 +69,7 @@
       "none": "{{provider}} no informa de su límite"
     },
     "account": "Cuenta en la que empiezan los chats nuevos",
-    "onCredits": "con créditos",
+    "onCredits": "usando créditos",
     "spend": {
       "label": "tope diario",
       "percent": "{{percent}}",
