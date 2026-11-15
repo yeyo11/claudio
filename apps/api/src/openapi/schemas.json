@@ -9149,9 +9149,10 @@
       "person",
       "disabled",
       "signed-out",
-      "auth"
+      "auth",
+      "reserve"
     ],
-    "description": "Why the chosen account changed."
+    "description": "Why the chosen account changed. `reserve`: the account is under the work's threshold but another project with work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2)."
   },
   "AccountsChangedEvent": {
     "type": "object",

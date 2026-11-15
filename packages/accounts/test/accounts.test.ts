@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import type { AccountLimit, AccountsSettings } from '@claudio/shared';
 import { AccountStore, choose, envFor, fold, identify, login, ModelCache, parseInitialize, readCache, readingFromEvent, Readings } from '../src/index.ts';
 import { main } from '../src/commands.ts';
+import { bare } from './bare-choice.ts';
 
 const FAKE = join(dirname(fileURLToPath(import.meta.url)), 'fake-claude.mjs');
 const NOW = Date.parse('2026-10-15T12:00:00Z');
@@ -297,21 +298,21 @@ describe('choose', () => {
     const opts = { current: 'a', now: NOW, model: 'opus', canRun };
     assert.equal(choose(accts, { a: lim(1), b: lim(0), c: lim(0.2) }, settings, opts).account, 'c', 'b is free but has no opus');
     const waits = choose(accts, { a: lim(1), b: lim(1), c: lim(1, { resetsAt: new Date(NOW + 7200_000).toISOString() }) }, settings, opts);
-    assert.deepEqual(waits, { account: null, reason: null, waitUntil: NOW + 7200_000 }, 'b is back sooner but cannot run it');
+    assert.deepEqual(bare(waits), { account: null, reason: null, waitUntil: NOW + 7200_000 }, 'b is back sooner but cannot run it');
     assert.equal(choose(accts, { a: lim(1), b: lim(0) }, settings, { ...opts, model: 'default' }).account, 'b', 'the default model runs anywhere');
     assert.equal(choose(accts, { a: lim(0), b: lim(0), c: lim(0) }, settings, { ...opts, current: null, pinned: 'b' }).account, 'c', 'a pinned account that cannot run it is not kept');
   });
 
   it('passes over the accounts the turn already failed on, whatever their readings say, with no reset to wait for', () => {
     const opts = { current: 'a', now: NOW, failedOn: ['a'] };
-    assert.deepEqual(choose(accts, { a: lim(0.1), b: lim(0.5) }, settings, opts), { account: 'b', reason: 'limit', waitUntil: null });
+    assert.deepEqual(bare(choose(accts, { a: lim(0.1), b: lim(0.5) }, settings, opts)), { account: 'b', reason: 'limit', waitUntil: null });
     assert.equal(choose(accts, {}, settings, { ...opts, current: 'b', failedOn: ['a', 'b'] }).account, 'c', 'no reading at all');
-    assert.deepEqual(choose(accts, {}, settings, { ...opts, failedOn: ['a', 'b', 'c'] }), { account: null, reason: null, waitUntil: null });
+    assert.deepEqual(bare(choose(accts, {}, settings, { ...opts, failedOn: ['a', 'b', 'c'] })), { account: null, reason: null, waitUntil: null });
   });
 
   it('keeps the current account while under the threshold, even when an earlier one is free', () => {
     const c = choose(accts, { a: lim(0), b: lim(0.5) }, settings, { current: 'b', now: NOW });
-    assert.deepEqual(c, { account: 'b', reason: null, waitUntil: null });
+    assert.deepEqual(bare(c), { account: 'b', reason: null, waitUntil: null });
   });
 
   it('moves on over the threshold, to a candidate with hysteresis headroom', () => {
@@ -324,8 +325,8 @@ describe('choose', () => {
   it('moves off an account over the threshold at once: the cooldown is per account, not a gap between switches', () => {
     const limits = { a: lim(0.95), b: lim(0.1) };
     const opts = { current: 'a', now: NOW };
-    assert.deepEqual(choose(accts, limits, settings, opts), { account: 'b', reason: 'threshold', waitUntil: null });
-    assert.deepEqual(choose(accts, { ...limits, a: lim(1) }, settings, opts), { account: 'b', reason: 'limit', waitUntil: null });
+    assert.deepEqual(bare(choose(accts, limits, settings, opts)), { account: 'b', reason: 'threshold', waitUntil: null });
+    assert.deepEqual(bare(choose(accts, { ...limits, a: lim(1) }, settings, opts)), { account: 'b', reason: 'limit', waitUntil: null });
   });
 
   it('allows an unknown account, ranks it behind a known one under least-used', () => {
@@ -338,7 +339,7 @@ describe('choose', () => {
     const list = [{ id: 'a', enabled: true, signedIn: true }, { id: 'b', enabled: false, signedIn: true }, { id: 'c', enabled: true, signedIn: false }];
     const reset = NOW + 600_000;
     const c = choose(list, { a: lim(1, { resetsAt: new Date(reset).toISOString() }) }, settings, { current: 'a', now: NOW });
-    assert.deepEqual(c, { account: null, reason: null, waitUntil: reset });
+    assert.deepEqual(bare(c), { account: null, reason: null, waitUntil: reset });
     // Past its reset it is usable again
     assert.equal(choose(list, { a: lim(1, { resetsAt: new Date(reset).toISOString() }) }, settings, { current: 'a', now: reset + 1 }).account, 'a');
   });

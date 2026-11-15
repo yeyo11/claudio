@@ -5,7 +5,7 @@ import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Account, AccountConfig, AccountConfigMode, AccountConfigPlan, AccountConfigStart, AccountConfigStep, AccountCreditsSetting, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
-import { choose, type Choice, type ChooseOptions } from './choose.ts';
+import { choose, SHARED_CONFIG_GROUP, type Choice, type ChooseOptions } from './choose.ts';
 import { ASIDE_DIR, asideStamp, orphanDirs, reconcileAccountDir, removeLinks, type ReconcileReport } from './dirs.ts';
 import { applySteps, describeConfig, itemClass, planSwitch, planUseShared } from './config-mode.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
@@ -1066,6 +1066,18 @@ export class AccountStore {
     const now = rest.now ?? Date.now();
     const accounts = given ?? this.list(now);
     const limits = Object.fromEntries(accounts.map((a) => [a.id, a.limits]));
-    return choose(accounts, limits, this.stored.settings, { canRun: (id, model) => this.canRunAmong(id, model, accounts), ...rest, now });
+    const candidates = accounts.map((a) => ({ ...a, configGroup: this.configGroupOf(a.id) }));
+    return choose(candidates, limits, this.stored.settings, { canRun: (id, model) => this.canRunAmong(id, model, accounts), ...rest, now });
+  }
+
+  /**
+   * The account's configuration group for the choice's tie-breaker: one for every account that shares
+   * the default's configuration (the default among them), one per independent account. Read from the
+   * stored mode, never from the dir: this is on the path of every choice. An account mid-switch keeps
+   * the group of the mode it is leaving until the switch ends.
+   */
+  configGroupOf(id: string): string {
+    const mode = id === DEFAULT_ID ? 'shared' : (this.stored.accounts.find((a) => a.id === id)?.config?.mode ?? 'shared');
+    return mode === 'shared' ? SHARED_CONFIG_GROUP : `independent:${id}`;
   }
 }
