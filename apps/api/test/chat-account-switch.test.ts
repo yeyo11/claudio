@@ -144,6 +144,25 @@ test('an account whose sign-in expired is 409 sign-in-expired, and is chosen aga
   assert.equal((await switchTo(id, other)).statusCode, 200);
 });
 
+test('an account outside the rule of the chat is refused as not-allowed on a switch and account-not-allowed on a start', async () => {
+  const id = await idleChat();
+  const current = (await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.account ?? 'default';
+  const other = current === alpha ? beta : alpha;
+  // A chat in a folder that is no project is the rule's `looseChats`
+  const made = await app.inject({ method: 'POST', url: '/api/accounts/policies', ...json({ projects: [], looseChats: true, order: [current] }) });
+  assert.equal(made.statusCode, 201, made.body);
+  try {
+    const moved = await switchTo(id, other);
+    assert.equal(moved.statusCode, 409);
+    assert.equal(moved.json().code, 'not-allowed');
+    const started = await app.inject({ method: 'POST', url: '/api/chats', ...json({ prompt: 'hello', cwd, account: other }) });
+    assert.equal(started.statusCode, 409);
+    assert.equal(started.json().code, 'account-not-allowed');
+  } finally {
+    await app.inject({ method: 'DELETE', url: `/api/accounts/policies/${made.json<{ id: string }>().id}` });
+  }
+});
+
 test("a chat's own token gets 403 and the chat stays where it was", async () => {
   const id = await idleChat();
   const before = (await app.inject(`/api/chats/${id}`)).json<{ chat: Chat }>().chat.account;

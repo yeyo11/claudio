@@ -34,7 +34,7 @@ const room = (u: number | null): AccountLimit => ({
 const out = (resetIn: number): AccountLimit => ({ ...room(1), state: 'exhausted', resetsAt: new Date(NOW + resetIn).toISOString() });
 
 /** A rule for the work's project: today's policy fields plus the rule's */
-const rule = (over: Partial<RotationPolicy> & { preferred?: string | null; strictConfig?: boolean } = {}): ChooseOptions['policy'] => ({ id: 'p1', projects: ['proj-a'], ...over });
+const rule = (over: Omit<Partial<RotationPolicy>, 'preferred'> & { preferred?: string | null } = {}): ChooseOptions['policy'] => ({ id: 'p1', projects: ['proj-a'], ...over });
 
 // ---------- the default: no rule, the same choice as before ----------
 

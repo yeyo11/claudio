@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T12:30:00Z
+updated_at: 2026-11-15T16:30:00Z
 tags:
     - plan
     - study
@@ -220,10 +220,10 @@ DISABLE_AUTOUPDATER=1`, and a fresh `CLAUDE_CONFIG_DIR=$S/<name>` per case. Neve
 | Spike | Why | How | Cost |
 |---|---|---|---|
 | **S2b** Concurrent plugin writers through one linked `plugins/` | each CLI start may sync marketplaces and rewrite `installed_plugins.json` (the account caches hold many `temp_subdir_*.clone` dirs) | two scratch accounts with linked `plugins/`, 8 parallel `-p` starts with `initialize` each plus a `plugin update` in a loop; diff `installed_plugins.json` against the expected set | free, network to GitHub |
-| **S4** Name collision and strict mode | the overlay must not duplicate or shadow a project server; strict mode might drop claude.ai connectors | same-named server in `.mcp.json` and `--mcp-config`, `mcp_status`; then `--strict-mcp-config` on a signed-in scratch account | free, but needs a signed-in scratch account (a new `claude auth login`) |
-| **S5** What a session resumed on another account loses | B11 and B9 | two scratch accounts of the same person, `projects/` linked; a haiku turn that edits a file, writes a task list and a plan, then `--resume` on the other account; check rewind, tasks, plans, agent memory | two haiku turns, cents |
+| **S4** Name collision and strict mode | the overlay must not duplicate or shadow a project server; strict mode might drop claude.ai connectors | same-named server in `.mcp.json` and `--mcp-config`, `mcp_status`; then `--strict-mcp-config` on a signed-in scratch account | **Run 2026-11-15**: the flag wins, one entry; strict drops claude.ai connectors and `.mcp.json` servers. [Result](../reports/account-config-spikes.md#s4-name-collision-and-strict-mode) |
+| **S5** What a session resumed on another account loses | B11 and B9 | two scratch accounts of the same person, `projects/` linked; a haiku turn that edits a file, writes a task list and a plan, then `--resume` on the other account; check rewind, tasks, plans, agent memory | **Run 2026-11-15** (two Haiku turns, 0.014 USD): with only `projects/` linked the conversation resumes, but tasks are empty and rewind fails (backup missing); plans not exercised. [Result](../reports/account-config-spikes.md#s5-what-a-session-resumed-on-another-account-loses) |
 | **S6** OAuth MCP servers across accounts | a user-scope remote server with OAuth keeps its token per config dir [I] | add one in the default, pass it with `--mcp-config` on another account, `mcp_status` | free, needs one OAuth server sign-in |
-| **S7** External `@imports` in CLAUDE.md | `hasClaudeMdExternalIncludesApproved` is per state file | a CLAUDE.md importing a file outside the project, `-p` with and without the key | one haiku turn |
+| **S7** External `@imports` in CLAUDE.md | `hasClaudeMdExternalIncludesApproved` is per state file | a CLAUDE.md importing a file outside the project, `-p` with and without the key | **Run 2026-11-15**: without the key the import is skipped; with `projects[<path>]` set it is read. [Result](../reports/account-config-spikes.md#s7-external-imports-in-claudemd) |
 
 ## 6. End state for requirement 1: shared or independent configuration (E)
 
@@ -571,6 +571,14 @@ Nothing is launched by this plan.
 
 ## Outcome
 
+**T0 (partial, 2026-11-15)** ([reports/account-config-spikes.md](../reports/account-config-spikes.md)).
+S4, S5 and S7 ran on CLI 2.1.322 with two scratch accounts (A and B, Max plan) the owner signed in
+for the purpose, on Haiku, for about 0.02 USD in total. S2b and S6 are still owed (S6 needs an OAuth
+server sign-in). What they change: the overlay can pass user servers with `--mcp-config` without
+fear of duplicates (T3); strict mode must never be used for the overlay (T3); the five history items
+must stay linked (T1, already so); `hasClaudeMdExternalIncludesApproved` is another per-project
+approval the reconciler cannot supply (T2/T3 note); the canary can take S4's two checks (T5).
+
 Built on `fix/account-links-reconcile`: T0b, then T1.
 
 **T0b** ([reports/test-writes-real-dirs.md](../reports/test-writes-real-dirs.md)). The cause was
@@ -759,6 +767,44 @@ sets a rule yet.
 and `strictConfig` to `RotationPolicy` with validation (preferred within `order`, percent 1 to 30, at
 most one reserve per account), the `not-allowed` refusal, and labels for `reserve` and the bases
 (today the web shows an unknown reason as its raw text).
+
+**T8** (`feat/account-rules-contract`, 2026-11-15): the rules' contract, with no screen.
+- `RotationPolicy` (and `RotationPolicyRequest`) gain `preferred?: string`, `reserve?: ProjectReserve`
+  (`{ percent }`) and `strictConfig?: boolean`; the routes stay `/accounts/policies` (GET, POST, PUT,
+  DELETE), so no new route, no new row, and their OpenAPI text and `docs/rest-api.md` rows say the
+  new fields. Everything is optional: a policy with none of them is stored and chosen exactly as
+  before.
+- Validation (`AccountStore.validPolicy`, 400): `preferred` one of `order`, or a known account when
+  there is no `order`; `reserve.percent` a number from 1 to 30 (`RESERVE_CAP`); a reserve needs a
+  `preferred` or an `order` to know its account (`reserveAccountOf`, new in `choose.ts`: the
+  preferred, else the first of the order); at most one rule reserves on an account; `strictConfig`
+  a boolean, stored only when true. A file edited by hand is read defensively. Removing an account
+  clears `preferred` and drops a reserve left with no account or on one another rule holds
+  (`settleReserves`).
+- Refusals (D10). `AccountSwitchRefusalCode` gains `not-allowed` (the person's switch, 409 with
+  `reason`), and `ChatStartRefusalCode` gains `account-not-allowed` (start, resume and fork with an
+  `account` outside the rule, 409 with `code`, raised in `ChatManager.admit` before anything is ended
+  or created). `allowsAccount(policy, account)` in `@claudio/accounts` is the one test: no rule, or a
+  rule with no `order`, allows every account.
+- Reasons: `AccountSwitchReason` gains `rule` (T7 records it). The Accounts page says `reserve` and
+  `rule` in words, and `accountsConfig.json` (`en`/`es`) has labels for every `why.basis` and every
+  `passedOver.because`, for the chat chip and event rows T10 draws; nothing renders them yet.
+
+**Differs from the plan.** The pin refusal is not only T7's: T8 raises it at the three places a pin is
+set from a request (start, resume, fork) and at the composer's switch, because the codes are
+contract. What T7 still owns is the rest of the pin story: orchestrations that pin (their start now
+fails with the 409), and the existing pins, which `choose` keeps ignoring (B16) and nothing shows yet.
+The plan wrote the start refusal as `account-not-allowed` and the switch's as `not-allowed`; both
+exist, one per surface, as the plan's two sections ask. A rule's `preferred` without an `order` is
+allowed (any known account), since without a list every account is allowed.
+
+**For T7.** `reserved` is `policies().filter((p) => p.reserve)` mapped to `{ project, account:
+reserveAccountOf(p), percent }` for each project of the rule, active only while that project has
+work in progress; pass `project` and the rule's `preferred`/`strictConfig` through `policyFor`, which
+already returns them (the policy is a `ChoosePolicy`). Record `rule` when `why.passedOver` names the
+current account `not-allowed`. A rule's `looseChats` has no project id: its work in progress is the
+chats of no project. Moving a chat whose pin a rule forbids is T7's too: its `chat.opts.account`
+was set before the rule existed, and the refusal here never sees it.
 
 ## The owner's decisions (2026-11-13)
 
