@@ -1724,6 +1724,17 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      checked_at TEXT NOT NULL,
      PRIMARY KEY (version, check_id)
    );`,
+
+  // What a restart continued (t1 of docs/plans/survive-restarts.md): one row per cut turn or cut
+  // workflow that a start went on with, keyed by what was cut. Rows, because two processes on one data
+  // dir must not both continue it: the insert that lands is the one that continues. `subject` is the
+  // chat or the orchestration, whose rows bound how often a restart may continue it.
+  `CREATE TABLE restart_continuations (
+     key        TEXT PRIMARY KEY,
+     subject    TEXT NOT NULL,
+     claimed_at TEXT NOT NULL
+   );
+   CREATE INDEX restart_continuations_subject ON restart_continuations (subject);`,
 ];
 
 /**
@@ -2892,6 +2903,23 @@ export class Db {
   providerMoveTurn(id: string): string | null {
     const row = this.db.prepare('SELECT turn FROM provider_moves WHERE id = ?').get(id) as { turn: string | null } | undefined;
     return row?.turn ?? null;
+  }
+
+  /**
+   * Takes what a restart cut (`key`: the cut execution, or the cut workflow) for this process to
+   * continue. True for the one insert that lands: of two processes, or two starts, only one continues
+   * it. Rows older than `keepDays` go first; nothing reads them after that.
+   */
+  claimRestartContinuation(key: string, subject: string, at: string, keepDays = 30): boolean {
+    this.db.prepare('DELETE FROM restart_continuations WHERE claimed_at < ?').run(new Date(Date.parse(at) - keepDays * 86_400_000).toISOString());
+    const result = this.db.prepare('INSERT OR IGNORE INTO restart_continuations (key, subject, claimed_at) VALUES (?, ?, ?)').run(key, subject, at);
+    return Number(result.changes) > 0;
+  }
+
+  /** How many cuts of `subject` (a chat or an orchestration) a restart has continued since `since`. */
+  restartContinuations(subject: string, since: string): number {
+    const row = this.db.prepare('SELECT COUNT(*) AS n FROM restart_continuations WHERE subject = ? AND claimed_at >= ?').get(subject, since) as { n: number } | undefined;
+    return Number(row?.n ?? 0);
   }
 
   /** Waits not yet resumed, and resumes whose claim ran out: what a start-up replays. Oldest first. */

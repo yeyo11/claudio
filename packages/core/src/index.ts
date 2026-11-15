@@ -98,6 +98,7 @@ import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountStore, DEFAULT_ID, isOut, readCache } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf, probeTargets } from './rotation.ts';
+import { continueCutTurns } from './restart-resume.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { createSettingsRegistry, type SettingsRegistry } from './settings-registry.ts';
@@ -1626,6 +1627,11 @@ export class Core {
         this.startSubsystem('flow', () => this.flow.recover());
         // The waits this process owns: its chats are back, so the sweeper can take their rows over
         void this.rotation.recover();
+        // A person's turn the restart cut goes on by itself, or offers Continue (docs/plans/survive-restarts.md, D7)
+        this.startSubsystem('restartResume', () => {
+          const report = continueCutTurns({ runtime: this.runtime, db: this.db, now: () => Date.now(), held: (chatId) => openWaitOf(this.db, chatId) !== null });
+          for (const { chatId, error } of report.failed) console.warn(`restart: the cut turn of chat ${chatId} was not continued: ${error}`);
+        });
         // After the chats are back, so a merge moves an item nothing is about to resume on
         this.startSubsystem('pullRequestWatcher', () => this.pullRequestWatcher.start());
       } catch {

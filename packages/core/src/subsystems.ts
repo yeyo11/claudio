@@ -37,6 +37,7 @@ export const SUBSYSTEMS = {
   evals: { full: true, headless: false, why: 'Loads the instruction evals; no eval routes in headless' },
   flow: { full: true, headless: false, why: "Resumes the work items' flow runs; no work items in headless" },
   assistant: { full: true, headless: false, why: 'Resumes the Claudio assistant; no assistant in headless' },
+  restartResume: { full: true, headless: false, why: "Continues the turns a restart cut in a person's chats; headless runs only API chats, which are never replayed" },
   transcriptWarmRead: { full: true, headless: true, why: "Reads every transcript once at start, so the first `GET /api/chats` does not wait for it" },
   chatRetention: { full: false, headless: true, why: 'Deletes chats 30 days after their last activity, rows and transcripts, since both hold what they read of a repository (D15)' },
   cliVersionWatch: { full: true, headless: false, why: "Asks the registry for Claude Code's latest version daily; the image pins the CLI and serves no install route" },
