@@ -1467,8 +1467,8 @@ export class ChatService {
   }
 
   /** Moves a chat to another account on a person's request; `pending` while the running turn has to end first. */
-  async switchAccount(id: string, accountId: string, actor: string): Promise<{ chat: ChatSummary; pending: boolean }> {
-    const { pending } = await this.deps.runtime.switchAccount(id, accountId, actor);
+  async switchAccount(id: string, accountId: string, actor: string, opts: { once?: boolean } = {}): Promise<{ chat: ChatSummary; pending: boolean }> {
+    const { pending } = await this.deps.runtime.switchAccount(id, accountId, actor, opts);
     return { chat: await this.require(id), pending };
   }
 

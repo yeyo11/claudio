@@ -7227,6 +7227,12 @@ export type AccountSignInState = 'ok' | 'expired' | 'incomplete' | 'unknown';
 /** `POST /chats/:id/account`: the account the chat's next execution runs on. The chat's current one cancels a pending switch. */
 export interface SwitchChatAccountRequest {
   accountId: string;
+  /**
+   * "Use another account once": an account the rule of the chat's project does not allow takes the
+   * chat for one turn, and the rule moves it back when the turn ends. A person's choice only, recorded
+   * on the switch's rotation event (`data.once`). Ignored for an account the rule allows.
+   */
+  once?: boolean;
 }
 
 /** Why an account cannot be chosen for a chat. `sign-in-expired`: its `signInState` is `expired` or `incomplete`. */

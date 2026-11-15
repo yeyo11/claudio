@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T16:00:00Z
+updated_at: 2026-11-15T19:00:00Z
 tags:
     - accounts
     - rotation
@@ -330,6 +330,31 @@ tell a refused credential from an unreachable network. The four raw answers are 
     allows: recorded when a chat moves at the end of its turn). Every `Choice` carries `why.basis`;
     the Accounts page says the reasons in words and `accountsConfig.json` has a label for each
     `basis` and `passedOver.because`.
+- **Rules at work** (`packages/core/src/project-activity.ts`, `ChatManager`, `ProviderRotation`,
+  `Scheduler`). Every account choice of a chat passes its project and its rule to `pick`.
+  - **Work in progress** per project is read from memory only, never from a file or a row: a chat
+    whose turn is running, starting or held at its limit; an orchestration `running` or `waiting`;
+    a schedule whose next slot is within the hour (as of the scheduler's last tick). A folder's
+    project is remembered for 30 s. While no rule has a `reserve`, nothing of this is read.
+  - **Reserves.** A rule with a `reserve` holds it on its account (`preferred`, else the first of
+    `order`) while one of its projects has work in progress; chats of no project are the key `''`
+    for a `looseChats` rule. Other work leaves that account `percent` points earlier (reason
+    `reserve`), and uses it when every other account is out.
+  - **A rule set or changed under a chat (D9).** Never an interruption: on every change of the
+    accounts' state the rules are compared with the last ones seen, and a chat with a live process
+    on an account its rule no longer allows gets a pending switch to an allowed one, applied between
+    turns (at once when idle, at the end of the turn when working). A chat with no process starts its
+    next turn on an allowed one. Both are recorded with reason `rule` and a notice in the transcript.
+    With no allowed account free, the chat goes to the rule's first usable account and meets its
+    limit there, rather than stay on an account the rule forbids.
+  - **No allowed account has room (D8)**, by origin. A person's chat gets a notice naming the rule
+    ("no account allowed on project X has room"), with the reset and "use another account once"
+    (`POST /chats/:id/account` with `once: true`: one turn on an account outside the rule, recorded
+    with `data.once`, then the rule takes the chat back with reason `rule`). Automated work
+    (orchestration tasks, flow runs) waits as before, and the wait's reason says
+    `waiting: no account allowed on project X has room`. A schedule's slot is skipped and recorded in
+    its history (a person's "run now" still goes). An OpenAI-compatible request gets its 429 as
+    today. When the rule kept the work off no account, the lack of room is told as before.
 - An account whose binding window is at the threshold (90 % by default) is skipped until it falls
   `hysteresis` points under it, and one that hit a limit is left alone until its reset. When a
   rejection gave no reset, `cooldownSeconds` leaves *that account* alone for the time: it is written
