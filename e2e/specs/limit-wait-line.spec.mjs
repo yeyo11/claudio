@@ -36,8 +36,6 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
       if (off.status === 200) others.push(other.id);
     }
     await api.put('/accounts/settings', { ...settings, rotateOnLimit: true });
-    // Home is All projects here, whatever an earlier spec selected
-    await page.eval(`localStorage.removeItem('claudio:project'); return true`);
 
     const created = await api.post('/chats', { prompt: 'FAKE-LIMIT-ACCOUNT', account: limited.body.id, cwd: dirs.workspaceDir });
     check(created.status === 201, `the chat starts on the limited account (${created.status})`);
@@ -55,7 +53,8 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(!line.moving, 'nothing in it moves');
     await page.shot('limit-wait-line-chat');
 
-    // Home: the open wait, with a link to the chat
+    // Home: the open wait, with a link to the chat (All projects, whatever an earlier spec selected)
+    await page.eval(`localStorage.removeItem('claudio:project'); return true`);
     await page.goto('/', 1200);
     await page.waitFor(`return !!document.querySelector('.wait-list .inbox-row a[href="/chats/${id}"]')`, { label: 'the open wait on Home' });
     const row = await page.eval(`const el = [...document.querySelectorAll('.wait-list .inbox-row')].find((r) => r.querySelector('a')?.getAttribute('href') === ${JSON.stringify(`/chats/${id}`)}); return { text: el.innerText.replace(/\\s+/g, ' '), href: el.querySelector('a')?.getAttribute('href') }`);
