@@ -224,14 +224,14 @@ export function useImportForm(project: Project, tracker: ProjectTrackerSettings,
           )}
           <span className="grow" />
           {pickable > 0 && (!narrow || selecting) && (
-            <button type="button" className="btn btn-small btn-ghost" onClick={() => setSelected(toggleAll(list.issues, selected))}>
+            <button type="button" className="btn btn-small btn-quiet" onClick={() => setSelected(toggleAll(list.issues, selected))}>
               {picks.length === pickable ? t('import.clear') : t('import.all')}
             </button>
           )}
           {marked && (!narrow || selecting) && (
             <button
               type="button"
-              className="btn btn-small btn-ghost"
+              className="btn btn-small btn-quiet"
               onClick={() => setSelected(new Set(list.issues.filter((issue) => issue.triage === 'ready' && isSelectable(issue)).map((issue) => issue.key)))}
             >
               <Wand2 {...ICON_SM} />

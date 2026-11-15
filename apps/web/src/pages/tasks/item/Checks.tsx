@@ -328,7 +328,7 @@ export function Checks({ pr, itemId, lead }: { pr: WorkItemPullRequest | null | 
             </button>
           )}
           {actions.cancel && (
-            <button type="button" className="btn btn-small btn-ghost" disabled={busy} onClick={() => cancel.mutate()}>
+            <button type="button" className="btn btn-small btn-quiet" disabled={busy} onClick={() => cancel.mutate()}>
               <SquareX {...ICON_SM} />
               {t('actions.cancel')}
             </button>

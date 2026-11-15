@@ -1,4 +1,4 @@
-import type { CodeHostId, FlowRunCause, LimitWait, WorkItem } from '@claudio/shared';
+import type { CodeHostId, FlowRunCause, WorkItem } from '@claudio/shared';
 import { Check, CircleAlert, Clock, ExternalLink, GitPullRequest, Workflow, X } from 'lucide-react';
 import { useMemo, type CSSProperties } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -6,9 +6,7 @@ import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { Monogram } from '@claudio/ui/components/icons';
 import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Spinner } from '@claudio/ui/components/Spinner';
-import { timeUntil } from '@claudio/ui/lib/format';
 import { useProviderLabel } from '../../../lib/provider-status';
-import { resetWhen } from '../../../lib/reset-when';
 import { activityTarget, activityVerb, elapsedSince, formatElapsed } from '@claudio/ui/lib/live';
 import { useClockTick } from '@claudio/ui/lib/motion';
 import { chatActivity, orchestrationProgress } from '../../../lib/shell-live';
@@ -20,6 +18,7 @@ import type { LiveSources } from './LiveLine';
 import { CiBadge, NotReadyNote, reasonValues, useBoardReadiness, useChangeRequestWords, useOpenPullRequest } from './PullRequest';
 import { useBoardTeam } from './team';
 import { SpendQueuedLine } from '../../../components/SpendWait';
+import { WaitWhen, type WaitView } from '../../../components/WaitLine';
 import { useMoveWorkItem } from './useMoveWorkItem';
 
 const MARK = { size: 13, strokeWidth: 1.75, 'aria-hidden': true } as const;
@@ -94,20 +93,14 @@ function PrLink({ url, number, refText, host }: { url: string | null; number: nu
 }
 
 /** "Waiting for Claude Code · resumes at 14:05 (in 2 h)": the wait line's words, on the strip's own line. */
-export function RunWaitWords({ wait }: { wait: Pick<LimitWait, 'provider' | 'resetsAt'> }) {
+export function RunWaitWords({ wait }: { wait: WaitView }) {
   const { t } = useTranslation('components');
   const label = useProviderLabel();
   return (
     <span className="workitem-strip-verb">
       <b>{t('limitWait.title', { name: label(wait.provider) })}</b>
       {' · '}
-      {wait.resetsAt ? (
-        <>
-          {t('limitWait.resumesAt')} <span className="tnum">{resetWhen(wait.resetsAt)}</span> ({timeUntil(Date.parse(wait.resetsAt) / 1000)})
-        </>
-      ) : (
-        t('limitWait.unknown')
-      )}
+      <WaitWhen wait={wait} />
     </span>
   );
 }

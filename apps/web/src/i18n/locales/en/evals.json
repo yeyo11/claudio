@@ -263,8 +263,6 @@
   },
   "notice": {
     "waiting": {
-      "title": "Waiting for a usage limit to reset",
-      "until": "Nothing spends meanwhile. It continues at {{time}}.",
       "body": "Nothing spends meanwhile. It continues when the limit resets."
     },
     "capped_one": "Stopped at the ceiling; {{count}} attempt not run.",

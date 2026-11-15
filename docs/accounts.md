@@ -616,6 +616,24 @@ retried, and one that could not run (no binary, a timeout, a server that never s
     longer at that limit and its composer is usable again: the move clears the chat's limit flags on
     the server (`moveTo`), and the banner compares no accounts of its own. The box under the banner
     takes the height of its sentence, at least a touch target on a phone.
+  - **One wait line** (t9 of [limit-resume-and-credits](plans/limit-resume-and-credits.md)).
+    Wherever work waits for a usage limit to reset, the page draws the same `WaitLine`
+    (`apps/web/src/components/WaitLine.tsx`): the chat's banner, a task's row, a workflow's or a
+    graph step's notice, the review gate's card, a flow run on its item, an eval run. Same words
+    everywhere: "Waiting for Claude Code", then **"resumes at 17:00 (in 2 h)"** when the reset is
+    known, **"going on now"** while the turn is being sent (`LimitWait.state`, `resuming`), or **"the
+    reset time is not known · looking again at 17:15"** (`LimitWait.nextLookAt`, the next
+    `get_usage` probe) when nobody has said when it resets. The account is named where the page knows
+    it (the chat's). It is warn and still: the clock, no spinner, since the server does not say when
+    a probe is in flight. The person's actions are the two that already exist, **Stop waiting** and
+    **Run now** (`WaitActions`: `POST /limits/waits/:id/cancel` and `/run-now`); on a phone they
+    drop under the words as touch targets. A wait that has ended is not drawn: the chat goes on, or
+    the task or run says how it ended.
+  - **Home lists the open waits** inside "In progress", beside what needs a person: every
+    `waiting` or `resuming` row of `GET /limits/waits`, oldest first, narrowed to the project a Home
+    is about, each with what waits (a chat's title, or the orchestration), since when, when it goes on
+    or looks again, the account for a chat, and a link to it. With none open the list is not drawn,
+    and it does not stop the welcome from showing for nothing else.
   - The Accounts page: **Use this account** sets the preferred account and the card shows a
     **Preferred** tag; holding out the preferred account, or the last usable one, asks first. A card
     says how old its reading is only when it is older than 10 minutes. The Rotation card lists the

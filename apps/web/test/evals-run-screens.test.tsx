@@ -214,7 +214,7 @@ test('running: the one energy border, ring spinners on running attempts, the bra
 test('queued, waiting for a reset, capped, interrupted, cancelled, completed and failed each say so; none but running moves', () => {
   const cases: [Partial<EvalRunSummary>, RegExp][] = [
     [{ state: 'queued', outcome: null }, /Queued/],
-    [{ state: 'waiting', outcome: null, resetsAt: '2026-10-17T10:00:00.000Z' }, /Waiting for a usage limit to reset/],
+    [{ state: 'waiting', outcome: null, resetsAt: '2026-10-17T10:00:00.000Z' }, /Waiting for .* · resumes at/],
     [{ outcome: 'capped' }, /Stopped at the ceiling; 1 attempt not run/],
     [{ outcome: 'interrupted' }, /Interrupted; 1 attempt not run/],
     [{ outcome: 'cancelled' }, /This run was cancelled/],

@@ -52,6 +52,7 @@ import {
 import { NEW_ORCHESTRATION_PATH, WAITING_ORIGINS } from '../pulse';
 import type { WidgetProps } from '../registry';
 import { WidgetCard } from '../WidgetCard';
+import { OpenWaitList, useOpenWaits } from './waits';
 
 /** A command running this long in the background is worth a look; there is no baseline to compare it with yet. */
 const HUNG_TASK_MS = 15 * 60_000;
@@ -250,6 +251,8 @@ export function NowWidget({ project, title, id }: WidgetProps) {
   const waitingChats = useChats({ project: scope, state: 'waiting', origin: [...WAITING_ORIGINS] });
   const workingChats = useChats({ project: scope, state: 'working' });
   const tasks = useQuery({ queryKey: keys.tasks, queryFn: api.tasks, refetchInterval: 30_000 });
+  // Work held at a usage limit: still, in warn, and listed beside what needs a person
+  const openWaits = useOpenWaits(project).waits;
   const waiting = waitingChats.data ?? [];
   const permissions = useQueries({
     queries: waiting.map((chat) => ({ queryKey: keys.chatPermissions(chat.id), queryFn: () => api.chatPermissions(chat.id) })),
@@ -368,8 +371,8 @@ export function NowWidget({ project, title, id }: WidgetProps) {
   // plain: two gradient buttons for one action broke the screen's budget of two gradient surfaces.
   // On a phone the head has no buttons and the welcome stands in for the FAB, so it keeps it.
   const phone = useMediaQuery(NARROW);
-  const onlySetup = setupKind !== null && rows.length === 1 && working.length === 0 && liveOrchestrations.length === 0;
-  const empty = rows.length === 0 && working.length === 0 && liveOrchestrations.length === 0;
+  const onlySetup = setupKind !== null && rows.length === 1 && working.length === 0 && liveOrchestrations.length === 0 && openWaits.length === 0;
+  const empty = rows.length === 0 && working.length === 0 && liveOrchestrations.length === 0 && openWaits.length === 0;
 
   const aside =
     running > 0 ? (
@@ -379,6 +382,8 @@ export function NowWidget({ project, title, id }: WidgetProps) {
       </span>
     ) : rows.length > 0 && !onlySetup ? (
       <span className="small muted tnum">{t('widgets.now.needYou', { count: rows.length, n: formatNumber(rows.length) })}</span>
+    ) : openWaits.length > 0 ? (
+      <span className="small muted tnum">{t('widgets.waits.count', { count: openWaits.length, n: formatNumber(openWaits.length) })}</span>
     ) : undefined;
 
   let body: ReactNode;
@@ -475,6 +480,7 @@ export function NowWidget({ project, title, id }: WidgetProps) {
             })}
           </ul>
         )}
+        <OpenWaitList waits={openWaits} />
         {liveOrchestrations.length > 0 && (
           <ul className="orch-items" aria-label={t('widgets.orchestrations.title')}>
             {liveOrchestrations.map((o) => (

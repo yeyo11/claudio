@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-11-14T12:00:00Z
+updated_at: 2026-11-15T18:00:00Z
 tags:
     - orchestration
     - planner
@@ -226,6 +226,11 @@ wait (`LimitWait`) on it ([accounts.md](accounts.md#choosing-and-switching)).
 - **A wait goes on with the first account that has room**, not only at the reset it began with
   (R10): every change of an account's reading or state, every reset and every poll makes it look
   again.
+- **The task says it with the one wait line** ([accounts.md](accounts.md#where-it-shows)): the
+  reset when it is known, else the hour the wait looks again (`nextLookAt`), in warn and still. The
+  integration, the verification fix and the synthesis say theirs once above the graph (`stepWaits`,
+  `StepWaitNotice`), each with the same two ways out; the review gate's reviewers say theirs on the
+  gate's card; Home lists the graph's open waits.
 - **The ways out are two**, at the task's foot: "Stop waiting" ends the task `stopped`, and "Run
   now" sends the turn on at once on an account with room (`POST /limits/waits/:id/run-now`).
 - **A stopped task has its way back** (R11). Retry, Retry clean and Skip branch take a `stopped`

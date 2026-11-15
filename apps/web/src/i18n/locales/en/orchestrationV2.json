@@ -324,7 +324,6 @@
     },
     "facts": "round {{round}} of {{max}}",
     "costOf": "{{cost}} of {{limit}}",
-    "waiting": "Waiting for a usage limit to reset at",
     "runsUnit": "review runs",
     "runsOf": "{{done}} of {{total}} runs",
     "runState": {

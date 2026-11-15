@@ -12,7 +12,7 @@ import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { ClampText } from '../components/ClampText';
 import { PhoneHeader, useOwnPhoneHeader } from '../components/shell/PhoneHeader';
-import { BoardStatusBadge, StageHead, TaskCard, TaskRow, WaitingNotice, WorkflowEndedNotice, WorkflowWaitNotice } from '../components/OrchestrationBoard';
+import { BoardStatusBadge, StageHead, TaskCard, TaskRow, StepWaitNotice, WaitingNotice, WorkflowEndedNotice, WorkflowWaitNotice } from '../components/OrchestrationBoard';
 import { SaveTemplateDialog } from '../components/OrchestrationTemplates';
 import { OrchestrationSpendWait } from '../components/SpendWait';
 import { RelaunchPanel } from '../components/RelaunchPanel';
@@ -958,6 +958,7 @@ export function OrchestrationDetail() {
       <ErrorBox error={error ?? stop.error ?? resume.error ?? remove.error} />
       <WaitingNotice orch={orch} />
       <WorkflowWaitNotice orch={orch} />
+      <StepWaitNotice orch={orch} />
       <WorkflowEndedNotice orch={orch} />
       <OrchestrationSpendWait orch={orch} />
       <FailedByChecksNotice orch={orch} />

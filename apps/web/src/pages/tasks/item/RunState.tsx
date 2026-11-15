@@ -1,6 +1,7 @@
 import type { FlowRun, WorkItemDetail } from '@claudio/shared';
 import { useTranslation } from 'react-i18next';
-import { WaitLine } from '../../../components/WaitLine';
+import { WaitActions, WaitLine } from '../../../components/WaitLine';
+import { keys } from '../../../api';
 import { useItemRuns } from './Activity';
 
 /**
@@ -14,7 +15,7 @@ export function RunState({ item }: { item: Pick<WorkItemDetail, 'id' | 'links' |
   return (
     <div className="workitem-runstate">
       {waiting.map((run) => (
-        <WaitLine key={run.id} wait={run.waiting} why={<WaitWhy />} />
+        <WaitLine key={run.id} wait={run.waiting} why={<WaitWhy />} actions={<WaitActions moveId={run.waiting.moveId} quiet="btn-quiet" invalidate={[keys.workItemRuns(item.id)]} />} />
       ))}
     </div>
   );
