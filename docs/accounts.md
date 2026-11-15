@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-14T16:00:00Z
+updated_at: 2026-11-14T18:00:00Z
 tags:
     - accounts
     - rotation
@@ -313,12 +313,29 @@ tell a refused credential from an unreachable network. The four raw answers are 
   sends the turn that died, not the nudge, because a refused replay is no replay (`replayLastTurn`
   puts the flags, the count and the account it chose back). A wait whose chat no process has any
   more is closed `failed`.
+- **The wait row is the hold** (t8 of [limit-resume-and-credits](plans/limit-resume-and-credits.md)).
+  A wait is its `provider_moves` row and nothing in memory: the row keeps when it looks again
+  (`next_look_at`), the turn it replays (`turn`: the text and upload ids of each message of the
+  turn that died) and how many times it probed (`probe_count`). One sweeper per process
+  (`ProviderRotation.sweep`) looks at the open rows whose chat it has: at the earliest
+  `next_look_at`, every 30 s at the latest, and over every row when an account's reading changes.
+  A known reset is looked at by then, a poll (5 min) away at the latest. A wait that knows no reset
+  asks `get_usage` (no turn, no tokens) for the accounts the chat could go on with whose reading is
+  older than its last look (`probeTargets`: its pinned account, else every enabled, signed-in
+  subscription account), at 5, 15, 30 and then every 60 min, one probe per account at a time and
+  bounded by 30 s; what they answer reaches the waits as any reading does. `maxWaitHours` gives such
+  a wait up only once a probe taken past it answered nothing. A sign-in failure is not probed: only
+  a person signs in again. A restarted process takes its rows over at its first pass: a claim a
+  restart cut short is taken again once it lapses, and a row an older Claudio opened (no
+  `next_look_at`) is due at once.
 - **A limit survives a restart.** An execution that died on a limit records the reset it knew
   (`Execution.limitResetsAt`) beside its `cause` and account. A restored chat whose last execution
   died that way, on the account the chat is still on, is at its limit again (`LiveChat.restore`):
   the banner shows, `POST /chats/:id/wait` opens the wait, and the reset it waits for is the recorded
-  one. It is not retired from memory while it is. The turn that died is not kept, so the replay
-  after a restart is the nudge (`LIMIT_CONTINUE_TEXT`): the CLI's session has the person's last
+  one. It is not retired from memory while it is. A wait opened before the restart replays the
+  turn its row kept, word for word (`ChatManager.replayLastTurn` with the stored turn); only a wait
+  that kept none (opened by an older Claudio, or after the restart, when the chat no longer knows
+  its turn) sends the nudge (`LIMIT_CONTINUE_TEXT`): the CLI's session has the person's last
   message.
 - **The replay count** (`MAX_LIMIT_REPLAYS`, one per execution) counts replays that landed on no new
   account, between two turns that went through. A turn that completes without error resets it, and a
@@ -351,7 +368,7 @@ tell a refused credential from an unreachable network. The four raw answers are 
   stops the limited process (`keepLimitCause` in `chats.ts`): stopped without it, the execution
   ended with no cause and a restart forgot the account it died on
   (`orchestration-limit-account-switch.test.ts`). A reading that leaves every account out but brings a reset
-  closer moves the wait's timer to it. Graph tasks and workflow leads go through the same path.
+  closer moves the wait's next look to it, and the row keeps that reset. Graph tasks and workflow leads go through the same path.
 - **Run now.** Beside "Stop waiting", a person can end a wait by sending its turn on at once
   (`POST /limits/waits/:id/run-now`, `ProviderRotation.runNow`): on an account a newer reading
   gives room if there is one, else on the first the readings allow, passing over the accounts the

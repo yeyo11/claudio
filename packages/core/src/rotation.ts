@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { ChatNotFoundError, isTransientRefusal } from './chat-errors.ts';
-import type { LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
+import type { Account, LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
-import type { ChatManager, ChatRuntime } from './chats.ts';
+import type { ChatManager, ChatRuntime, LimitTurnMessage } from './chats.ts';
 import { LEGACY_PROVIDER } from './chat-records.ts';
-import type { Db } from './db.ts';
+import type { Db, OpenHold } from './db.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { runRef } from './event-sources.ts';
 import { defaultRotationSettings } from './providers/settings.ts';
@@ -33,14 +33,22 @@ import { LIMIT_CONTINUE_TEXT, errorMessage } from '@claudio/shared';
  * - A chat of housekeeping (`internal`) runs with no persisted session, so there is nothing to
  *   resume: it ends at a limit and its owner runs it again (D6). A `/v1` client's chat is moved,
  *   never held: its request was answered already.
- * - A wait is a row in `provider_moves`. A timer in the process that owns the chat claims it at the
- *   reset with a guarded update, so two processes on one data directory replay the turn once, and
- *   `recover()` re-arms the timers of a restarted process and closes the row of a chat that is gone.
+ * - A wait is a row in `provider_moves`, the hold, and the row is all there is to it (t8 of
+ *   docs/plans/limit-resume-and-credits.md): it keeps when it looks again (`next_look_at`), the turn
+ *   it replays (`turn`) and how many times it asked `get_usage` (`probe_count`). One sweeper per
+ *   process looks over the open rows whose chat it has: at the earliest `next_look_at`, at least every
+ *   `sweepMs`, and over every row when an account's reading changes. It claims a row with a guarded
+ *   update, so two processes on one data directory replay the turn once. Nothing lives in a timer a
+ *   restart could lose: the first pass of a restarted process takes its rows over, a claim that
+ *   lapsed included, and closes the row of a chat that is gone.
  * - A resume the runtime refuses for run slots or memory keeps its claim, which is the back-off: the
  *   wait looks again when the claim lapses instead of ending failed.
  * - A wait is not tied to the reset it began with. Whenever an account's reading or state changes
  *   (`accountsChanged`), at the earliest reset any account now gives, and on every look, each open
  *   wait asks the accounts again (`roomFor`) and goes on with the first one that has room (R10).
+ * - A wait that knows no reset asks `get_usage` (no turn, no tokens) for the accounts it could go on
+ *   with whose reading is older than its last look, backing off 5, 15, 30 then every 60 min; it never
+ *   starts a turn to find out. `maxWaitHours` ends it only once a probe past the cap answered nothing.
  */
 
 /** A reset is taken as passed a moment late: the provider's own clock may differ from ours */
@@ -49,6 +57,12 @@ const RESET_SLACK_MS = 5_000;
 const POLL_MS = 5 * 60_000;
 /** How long a claim holds a wait before another process may take it again */
 const CLAIM_MS = 2 * 60_000;
+/** The sweeper passes at least this often: rows a restart left, or another process's claim that lapsed */
+const SWEEP_MS = 30_000;
+/** 5, 15, 30, then every 60 min: a `get_usage` takes seconds, and an account out for hours says so at the first one */
+const PROBE_BACKOFF_MS = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000] as const;
+/** The least a sweeper sleeps: a row a pass could not move on is never looked at in a tight loop */
+const MIN_SWEEP_GAP_MS = 5;
 /** `setTimeout` takes a signed 32-bit number */
 const MAX_TIMER_MS = 2 ** 31 - 1;
 const HOUR_MS = 3_600_000;
@@ -73,8 +87,8 @@ export class RunNowRefusal extends Error {
 }
 
 export interface RotationDeps {
-  db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'claimProviderMove' | 'closeProviderMove' | 'openProviderMoves' | 'appendRotationEvent' | 'storedChats'>;
-  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'providers' | 'limitResetOf' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'roomFor' | 'warmModels' | 'accountOf' | 'rotatesOnLimit' | 'signInFailed'>;
+  db: Pick<Db, 'insertProviderMove' | 'providerMove' | 'providerMoveTurn' | 'claimProviderMove' | 'closeProviderMove' | 'openHolds' | 'scheduleProviderMove' | 'appendRotationEvent' | 'storedChats'>;
+  runtime: Pick<ChatManager, 'on' | 'off' | 'get' | 'providers' | 'limitResetOf' | 'limitTurnOf' | 'replayLastTurn' | 'send' | 'notice' | 'heldToSchema' | 'limitComing' | 'chooseNext' | 'roomFor' | 'warmModels' | 'accountOf' | 'rotatesOnLimit' | 'signInFailed'>;
   /** `providers.json`, as it stands now */
   settings: () => ProvidersSettings;
   /** A project's own providers settings; null when it sets none */
@@ -101,9 +115,20 @@ export interface RotationDeps {
   accountsChanged?: (listener: () => void) => () => void;
   /** A wait is over: the turn was replayed, it could not be, or a person stopped waiting */
   ended?: (move: ProviderMove, end: WaitEnd, reason: string | null) => void;
+  /**
+   * Asks `get_usage` (no turn, no tokens) for the accounts a waiting chat could go on with whose
+   * reading is not newer than `since` (epoch ms), and records what they answer; settles when they
+   * have. Without it a wait with no known reset only polls, as before the sweeper.
+   */
+  probe?: (chatId: string, since: number) => Promise<void>;
+  /** The one clock of the rotation: every look, claim, reset and expiry reads it */
   now?: () => number;
-  /** How often a wait with no known reset looks again; five minutes by default */
+  /** How often a wait looks again at the most: a reset not passed yet, a poll with no probe; five minutes by default */
   pollMs?: number;
+  /** How long the sweeper sleeps at the most between two passes; thirty seconds by default */
+  sweepMs?: number;
+  /** The probe back-off of a wait with no known reset: the first look, then after each probe; the last one repeats */
+  probeBackoffMs?: readonly number[];
   /** How long after a reset the turn is replayed; five seconds by default */
   slackMs?: number;
   /** How long a claim holds a wait, which is also how long a resume the runtime refused for room waits to try again; two minutes by default */
@@ -123,30 +148,67 @@ export function effectiveOnLimit(settings: Pick<ProvidersSettings, 'rotation'>, 
 export function openWaitOf(db: { providerMoves(filter: { chatId?: string; limit?: number }): ProviderMove[] }, chatId: string | null): LimitWait | null {
   if (!chatId) return null;
   const open = db.providerMoves({ chatId, limit: 10 }).find((m) => m.fromChat === chatId && (m.state === 'waiting' || m.state === 'resuming'));
-  return open ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id } : null;
+  return open ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id, nextLookAt: open.nextLookAt ?? null } : null;
+}
+
+/**
+ * The accounts a probe for a waiting chat asks `get_usage` of: the one it is pinned to, else every
+ * enabled, signed-in subscription account (an API key has no plan limits to read), less those whose
+ * reading is newer than `since`, which already say what a probe would.
+ */
+export function probeTargets(run: Pick<ChatRuntime, 'account' | 'accountPinned'>, accounts: readonly Pick<Account, 'id' | 'kind' | 'enabled' | 'signedIn' | 'limits'>[], since: number): string[] {
+  const usable = accounts.filter((a) => a.enabled && a.signedIn && a.kind !== 'api-key');
+  const candidates = run.accountPinned && run.account ? usable.filter((a) => a.id === run.account) : usable;
+  return candidates.filter((a) => !a.limits || Date.parse(a.limits.observedAt) <= since).map((a) => a.id);
+}
+
+const SOURCES = new Set<string>(['person', 'supervisor', 'claudio']);
+
+/** The turn a row kept, if it is one: a row is data, and an older or damaged one replays with the nudge rather than throw */
+function turnOf(json: string | null): LimitTurnMessage[] | undefined {
+  if (!json) return undefined;
+  try {
+    const parsed: unknown = JSON.parse(json);
+    if (!Array.isArray(parsed)) return undefined;
+    const turn: LimitTurnMessage[] = [];
+    for (const m of parsed as unknown[]) {
+      if (typeof m !== 'object' || m === null) return undefined;
+      const { text, attachments, source, words } = m as Record<string, unknown>;
+      if (typeof text !== 'string' || !Array.isArray(attachments) || !attachments.every((a) => typeof a === 'string') || typeof source !== 'string' || !SOURCES.has(source)) return undefined;
+      turn.push({ text, attachments: attachments as string[], source: source as LimitTurnMessage['source'], ...(typeof words === 'string' ? { words } : {}) });
+    }
+    return turn.length ? turn : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 /** How far a chat has got: the turns its executions ran, and whether one is running now */
 const progressOf = (run: ChatRuntime): { turns: number; busy: boolean } => ({ turns: run.executions.length + run.turns, busy: run.status === 'busy' });
 
 export class ProviderRotation {
-  /** Move id → its timer */
-  private readonly timers = new Map<string, NodeJS.Timeout>();
-  /** Chat id → the open wait it is in */
+  /** The sweeper's one timer: the next pass */
+  private timer: NodeJS.Timeout | null = null;
+  /** The pass under way, and whether another one was asked for meanwhile (`all`: every row, not only the due ones) */
+  private passing: Promise<void> | null = null;
+  private again: 'due' | 'all' | null = null;
+  /** Chat id → the open wait it is in, for the rows whose chat this process has */
   private readonly waits = new Map<string, string>();
   /** Chats whose limit is being decided now */
   private readonly handling = new Set<string>();
-  /** A reset learned from a later reading, for a wait that began without one: move id → ISO time */
-  private readonly learned = new Map<string, string>();
   private readonly now: () => number;
   private readonly pollMs: number;
   private readonly slackMs: number;
   private readonly claimMs: number;
+  private readonly sweepMs: number;
+  private readonly backoff: readonly number[];
   private readonly listener = (run: ChatRuntime, limitResetsAt: string | null): void => {
     void this.onLimitHit(run, limitResetsAt);
   };
   /** A person wrote to a chat (`person-message`): the wait it is in is over now, not at the next look */
   private readonly onPerson = (chatId: string): void => this.personWrote(chatId);
+  /** Waits whose probe is under way: one at a time each */
+  private readonly probing = new Set<string>();
   /** Chats whose claimed wait is being replayed now: the turn it sends is no person's, and one that arrives meanwhile queues behind it */
   private readonly resuming = new Set<string>();
   private started = false;
@@ -166,6 +228,8 @@ export class ProviderRotation {
     this.pollMs = deps.pollMs ?? POLL_MS;
     this.slackMs = deps.slackMs ?? RESET_SLACK_MS;
     this.claimMs = deps.claimMs ?? CLAIM_MS;
+    this.sweepMs = deps.sweepMs ?? SWEEP_MS;
+    this.backoff = deps.probeBackoffMs?.length ? deps.probeBackoffMs : PROBE_BACKOFF_MS;
   }
 
   /** Starts listening for `limit-hit`. */
@@ -176,6 +240,7 @@ export class ProviderRotation {
     this.deps.runtime.on('limit-hit', this.listener);
     this.deps.runtime.on('person-message', this.onPerson);
     this.unsubscribe = this.deps.accountsChanged?.(() => this.recheckSoon()) ?? null;
+    this.schedule();
   }
 
   /**
@@ -191,8 +256,8 @@ export class ProviderRotation {
     this.unsubscribe = null;
     this.started = false;
     this.closing = true;
-    for (const timer of this.timers.values()) clearTimeout(timer);
-    this.timers.clear();
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
     this.waits.clear();
     this.refused.clear();
     this.progress.clear();
@@ -343,7 +408,8 @@ export class ProviderRotation {
   }
 
   private startWait(run: ChatRuntime, work: ChatWork | null, opts: { decidedBy: ProviderMoveDecider; decisionId: string | null; reason: string | null; resetsAt: string | null; projectId: string | null }): ProviderMove | null {
-    const at = new Date(this.now()).toISOString();
+    const now = this.now();
+    const at = new Date(now).toISOString();
     const provider = run.provider ?? LEGACY_PROVIDER;
     const move: ProviderMove = {
       id: randomUUID(),
@@ -364,11 +430,15 @@ export class ProviderRotation {
       resetsAt: opts.resetsAt,
       reason: opts.reason,
       updatedAt: at,
+      probeCount: 0,
     };
-    if (!this.deps.db.insertProviderMove(move)) return null;
+    move.nextLookAt = new Date(this.firstLook(move, now)).toISOString();
+    // The turn that died goes into the row: a restart empties the chat's memory of it, not the row
+    const turn = this.deps.runtime.limitTurnOf(run.id);
+    if (!this.deps.db.insertProviderMove(move, turn ? JSON.stringify(turn) : null)) return null;
     this.waits.set(run.id, move.id);
     this.progress.set(move.id, progressOf(run));
-    this.arm(move);
+    this.schedule();
     const label = this.deps.runtime.providers.list().find((m) => m.id === provider)?.label ?? provider;
     this.deps.runtime.notice(
       run.id,
@@ -382,118 +452,228 @@ export class ProviderRotation {
     return move;
   }
 
-  private maxWaitHours(move: ProviderMove): number {
+  private maxWaitHours(move: Pick<ProviderMove, 'projectId'>): number {
     const project = move.projectId ? this.deps.projectProviders(move.projectId) : null;
     return effectiveOnLimit(this.deps.settings(), project).maxWaitHours;
   }
 
-  /** The earliest reset a wait knows of: the one it began with, or an earlier one a later reading gave. */
-  private resetOf(move: Pick<ProviderMove, 'id' | 'resetsAt'>): string | null {
-    const learned = this.learned.get(move.id) ?? null;
-    if (!move.resetsAt || !learned) return move.resetsAt ?? learned;
-    return Date.parse(learned) < Date.parse(move.resetsAt) ? learned : move.resetsAt;
+  /** Whether a wait asks `get_usage` when nothing said when its accounts reset: not a sign-in failure, which only a person mends */
+  private probes(row: Pick<ProviderMove, 'reason'>): boolean {
+    return !!this.deps.probe && row.reason !== AUTH_WAIT;
   }
 
   /**
-   * Sets the timer of a wait: the next look, or its reset when that comes first. A known reset is
-   * no reason to stop looking: another account may get room before it (R10).
+   * When a new wait first looks: at its reset, a poll away at the latest (another account may get
+   * room before it, R10). One with no reset known looks at its first probe, or at the poll, never
+   * past its cap.
    */
-  private arm(move: ProviderMove): void {
-    const existing = this.timers.get(move.id);
-    if (existing) clearTimeout(existing);
-    const now = this.now();
-    const reset = this.resetOf(move);
-    const look = now + this.pollMs;
-    // The cap bounds a wait that knows no reset. A known one holds however far off it is (D2): capping
-    // it made `due` fall behind `now` for good once the cap passed, and the timer fired at 0 ms in a loop
-    let due = reset ? Math.min(Date.parse(reset) + this.slackMs, look) : Math.min(look, Date.parse(move.at) + this.maxWaitHours(move) * HOUR_MS);
-    // A refused resume keeps its claim, which no other claim can take before it lapses
-    const hold = this.refused.get(move.id);
-    if (hold) due = Math.max(due, hold.until);
-    const timer = setTimeout(() => this.track(this.tick(move.id)), Math.min(Math.max(0, due - now), MAX_TIMER_MS));
-    timer.unref();
-    this.timers.set(move.id, timer);
+  private firstLook(move: Pick<ProviderMove, 'at' | 'resetsAt' | 'reason' | 'projectId'>, now: number): number {
+    if (move.resetsAt) return Math.min(Date.parse(move.resetsAt) + this.slackMs, now + this.pollMs);
+    if (this.probes(move)) return now + (this.backoff[0] ?? this.pollMs);
+    return Math.min(now + this.pollMs, Date.parse(move.at) + this.maxWaitHours(move) * HOUR_MS);
   }
 
   private drop(move: Pick<ProviderMove, 'id' | 'fromChat'>): void {
-    const timer = this.timers.get(move.id);
-    if (timer) clearTimeout(timer);
-    this.timers.delete(move.id);
-    this.learned.delete(move.id);
     this.refused.delete(move.id);
     this.progress.delete(move.id);
     if (this.waits.get(move.fromChat) === move.id) this.waits.delete(move.fromChat);
   }
 
-  private async tick(id: string): Promise<void> {
+  // ---------- the sweeper ----------
+
+  /**
+   * Sets the sweeper's one timer: the earliest look among the waits whose chat this process has (a
+   * claim that holds a row counts until it lapses), `sweepMs` away at the latest. Another process's
+   * rows are its own to look at; counting them would wake this one for nothing.
+   */
+  private schedule(): void {
     if (this.closing) return;
+    if (this.timer) clearTimeout(this.timer);
+    this.timer = null;
+    const now = this.now();
+    let next = now + this.sweepMs;
     try {
-      const row = this.deps.db.providerMove(id);
-      if (!row || (row.state !== 'waiting' && row.state !== 'resuming')) {
-        this.drop(row ?? { id, fromChat: '' });
-        return;
+      for (const row of this.deps.db.openHolds()) {
+        if (!this.deps.runtime.get(row.fromChat)) continue;
+        const look = row.nextLookAt ? Date.parse(row.nextLookAt) : now;
+        const claim = row.state === 'resuming' && row.claimedUntil ? Date.parse(row.claimedUntil) + 1 : null;
+        next = Math.min(next, claim !== null && claim > now ? Math.max(claim, look) : look);
       }
-      if (this.endIfTakenOver(row)) return;
-      const now = this.now();
-      // An account with room ends any wait, whatever reset it began with; a sign-in failure has no
-      // other way to end
-      if (await this.goOnIfRoom(row)) return;
-      const reset = this.resetOf(row);
-      if (reset) {
-        if (now >= Date.parse(reset) + this.slackMs) await this.resume(row);
-        else this.arm(row);
-        return;
-      }
-      // No reset is known: a later reading of one of the chat's accounts may say when it is (`goOnIfRoom`
-      // learns it), or that one has room. A reading of whichever account ran last is no evidence: it
-      // resumed waits on accounts still out before 2026-10-29
-      if (now >= Date.parse(row.at) + this.maxWaitHours(row) * HOUR_MS) this.end(row, 'failed', 'limit-wait-expired');
-      else this.arm(row);
     } catch {
-      // A closed database (shutting down) is not the wait's to report
+      // A closed database (shutting down): nothing is left to look at
+      return;
     }
+    const timer = setTimeout(() => void this.sweep(), Math.min(Math.max(MIN_SWEEP_GAP_MS, next - now), MAX_TIMER_MS));
+    timer.unref();
+    this.timer = timer;
+  }
+
+  /**
+   * One pass of the sweeper over the open waits: the due ones look again (`all`: every one, as an
+   * account's new reading asks). One pass at a time; one asked for meanwhile follows it. Settles when
+   * the pass and the replays it started have. Never throws.
+   */
+  sweep(all = false): Promise<void> {
+    if (this.closing) return Promise.resolve();
+    if (this.passing) {
+      this.again = all || this.again === 'all' ? 'all' : 'due';
+      return this.passing;
+    }
+    const run = (async () => {
+      let every = all;
+      for (;;) {
+        await this.pass(every);
+        const again = this.again;
+        this.again = null;
+        if (!again || this.closing) return;
+        every = again === 'all';
+      }
+    })().finally(() => {
+      this.passing = null;
+      this.schedule();
+    });
+    this.passing = run;
+    this.track(run);
+    return run;
+  }
+
+  private async pass(all: boolean): Promise<void> {
+    let rows: OpenHold[];
+    try {
+      rows = this.deps.db.openHolds();
+    } catch {
+      return;
+    }
+    for (const row of rows) {
+      if (this.closing) return;
+      try {
+        await this.look(row, all);
+      } catch {
+        // A closed database (shutting down) is not the wait's to report; a row that could not be
+        // looked at waits a poll rather than be taken again in the next pass
+        try {
+          this.deps.db.scheduleProviderMove(row.id, new Date(this.now()).toISOString(), new Date(this.now() + this.pollMs).toISOString());
+        } catch {
+          /* closed */
+        }
+      }
+    }
+  }
+
+  /** What one wait does at a pass: end, go on, probe, or say when it looks again. */
+  private async look(row: OpenHold, all: boolean): Promise<void> {
+    const now = this.now();
+    const run = this.deps.runtime.get(row.fromChat);
+    if (!run) {
+      // A chat no process has any more can never be resumed, and its open row would refuse every
+      // later wait for it (the unique index). One another process holds is that process's to look at
+      if (!this.deps.db.storedChats([row.fromChat]).has(row.fromChat)) this.end(row, 'failed', CHAT_GONE);
+      else this.drop(row);
+      return;
+    }
+    // Ours from here on, whoever opened it: a restarted process takes its rows over at its first pass
+    this.waits.set(row.fromChat, row.id);
+    // A claim that holds the row: our replay under way, our refused resume's back-off, or another process's
+    if (row.state === 'resuming' && row.claimedUntil !== null && Date.parse(row.claimedUntil) >= now) return;
+    if (this.endIfTakenOver(row, run)) return;
+    const due = !row.nextLookAt || Date.parse(row.nextLookAt) <= now;
+    if (!due && !all) return;
+    // An account with room ends any wait, whatever reset it began with; a sign-in failure has no
+    // other way to end
+    const room = await this.goOnIfRoom(row);
+    if (room.resumed) return;
+    const reset = room.reset;
+    const nowIso = new Date(now).toISOString();
+    if (reset) {
+      if (now >= Date.parse(reset) + this.slackMs) {
+        await this.resume(row);
+        return;
+      }
+      // A known reset holds however far off it is (D2); it is looked at a poll from now at the latest
+      this.deps.db.scheduleProviderMove(row.id, nowIso, new Date(Math.min(Date.parse(reset) + this.slackMs, now + this.pollMs)).toISOString());
+      return;
+    }
+    // No reset known. A look out of turn (a new reading) found no room: the row keeps its time
+    if (!due) return;
+    const cap = Date.parse(row.at) + this.maxWaitHours(row) * HOUR_MS;
+    if (this.probes(row)) {
+      // `maxWaitHours` ends the wait only once a probe past the cap answered nothing (cause 5)
+      if (now >= cap && this.probedPast(row, cap)) {
+        this.end(row, 'failed', 'limit-wait-expired');
+        return;
+      }
+      this.probe(row, run, now);
+      return;
+    }
+    if (now >= cap) this.end(row, 'failed', 'limit-wait-expired');
+    else this.deps.db.scheduleProviderMove(row.id, nowIso, new Date(Math.min(now + this.pollMs, cap)).toISOString());
+  }
+
+  /** Whether the wait's last probe was taken past its cap: its `updated_at` is when it last looked, and a probe always looks. */
+  private probedPast(row: OpenHold, cap: number): boolean {
+    return (row.probeCount ?? 0) > 0 && Date.parse(row.updatedAt) >= cap;
+  }
+
+  /**
+   * Asks `get_usage` for the accounts the waiting chat could go on with, in the background: the row
+   * says first when it looks again (the back-off), so a probe that hangs or a restart in the middle
+   * costs one look, never a loop. What the accounts answer reaches the waits as any reading does.
+   */
+  private probe(row: OpenHold, run: ChatRuntime, now: number): void {
+    const probe = this.deps.probe;
+    const count = row.probeCount ?? 0;
+    const wait = this.backoff[Math.min(count + 1, this.backoff.length - 1)] ?? this.pollMs;
+    const since = Date.parse(row.updatedAt);
+    this.deps.db.scheduleProviderMove(row.id, new Date(now).toISOString(), new Date(now + wait).toISOString(), { probed: true });
+    if (!probe || this.probing.has(row.id)) return;
+    this.probing.add(row.id);
+    const work = probe(run.id, since)
+      .catch(() => undefined)
+      .then(() => {
+        // From now on a reading older than this is no news to the next probe
+        const open = this.deps.db.providerMove(row.id);
+        if (open && (open.state === 'waiting' || open.state === 'resuming') && open.nextLookAt) this.deps.db.scheduleProviderMove(row.id, new Date(this.now()).toISOString(), open.nextLookAt);
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        this.probing.delete(row.id);
+        if (!this.closing) this.recheckSoon();
+      });
+    this.track(work);
   }
 
   /**
    * Looks for an account with room for a waiting chat and, when one has it, goes on there. What every
-   * look, every reset and every change of an account's reading or state comes to.
+   * look, every reset and every change of an account's reading or state comes to. Otherwise the
+   * reset the wait now knows: the one it began with, or an earlier one a reading gave since, which
+   * the row keeps.
    */
-  private async goOnIfRoom(row: ProviderMove): Promise<boolean> {
+  private async goOnIfRoom(row: ProviderMove): Promise<{ resumed: boolean; reset: string | null }> {
     const room = this.deps.runtime.roomFor(row.fromChat, Date.parse(row.at));
     if (room?.account) {
       await this.resume(row, room.account);
-      return true;
+      return { resumed: true, reset: row.resetsAt };
     }
-    // Every account is still out, but one may now say it is back sooner than the wait thought
-    if (room?.waitUntil && row.reason !== AUTH_WAIT) {
-      const known = this.resetOf(row);
-      if (!known || room.waitUntil < Date.parse(known)) this.learned.set(row.id, new Date(room.waitUntil).toISOString());
+    // Every account is still out, but one may now say it is back sooner than the wait thought. A
+    // reading of whichever account ran last is no evidence: it resumed waits on accounts still out
+    // before 2026-10-29; `roomFor` reads only the accounts the chat can go on with
+    if (room?.waitUntil && row.reason !== AUTH_WAIT && (!row.resetsAt || room.waitUntil < Date.parse(row.resetsAt))) {
+      const learned = new Date(room.waitUntil).toISOString();
+      const now = this.now();
+      this.deps.db.scheduleProviderMove(row.id, new Date(now).toISOString(), new Date(Math.min(room.waitUntil + this.slackMs, now + this.pollMs)).toISOString(), { resetsAt: learned });
+      return { resumed: false, reset: learned };
     }
-    return false;
+    return { resumed: false, reset: row.resetsAt };
   }
 
+  /** An account's reading or state changed: every open wait asks the accounts again, once for a burst. */
   private recheckSoon(): void {
-    if (this.recheckQueued) return;
+    if (this.recheckQueued || this.closing) return;
     this.recheckQueued = true;
     setImmediate(() => {
       this.recheckQueued = false;
-      this.track(this.recheck());
+      void this.sweep(true);
     });
-  }
-
-  /** Every open wait this process owns asks the accounts again. Never throws: it runs from an event. */
-  private async recheck(): Promise<void> {
-    for (const [chatId, id] of [...this.waits]) {
-      try {
-        const row = this.deps.db.providerMove(id);
-        if (this.closing) return;
-        if (!row || (row.state !== 'waiting' && row.state !== 'resuming') || row.fromChat !== chatId) continue;
-        if (this.endIfTakenOver(row)) continue;
-        if (!(await this.goOnIfRoom(row))) this.arm(row);
-      } catch {
-        // A closed database (shutting down) is not the wait's to report
-      }
-    }
   }
 
   /**
@@ -528,8 +708,6 @@ export class ProviderRotation {
   private async resume(row: ProviderMove, account?: string, decidedBy: 'rotation' | 'person' = 'rotation'): Promise<boolean> {
     const run = this.deps.runtime.get(row.fromChat);
     if (!run) {
-      // A chat no process has any more can never be resumed, and its open row would refuse every
-      // later wait for it (the unique index). One another process holds is that process's to arm
       if (!this.deps.db.storedChats([row.fromChat]).has(row.fromChat)) this.end(row, 'failed', CHAT_GONE);
       else this.drop(row);
       return false;
@@ -538,9 +716,9 @@ export class ProviderRotation {
     if (decidedBy === 'rotation' && this.endIfTakenOver(row, run)) return false;
     const claimedAt = this.now();
     if (!this.deps.db.claimProviderMove(row.id, new Date(claimedAt).toISOString(), new Date(claimedAt + this.claimMs).toISOString())) {
-      // Our own refused claim has not lapsed yet: the wait is still ours and looks again then
-      if (this.refused.has(row.id)) this.arm(row);
-      else this.drop(row);
+      // Our own refused claim has not lapsed yet: the wait is still ours and looks again then. Any
+      // other claim is another process's, and the sweeper looks at the row once it lapses
+      if (!this.refused.has(row.id)) this.drop(row);
       return false;
     }
     this.resuming.add(run.id);
@@ -562,8 +740,9 @@ export class ProviderRotation {
         replayed = await own;
         if (!replayed) reason = 'its work could not be resumed';
       } else {
-        replayed = await this.deps.runtime.replayLastTurn(run.id, account);
-        // A restart forgot the turn that was cut off: the session resumes with a nudge instead
+        // A restart emptied the chat's memory of the turn that died; the row kept it
+        replayed = await this.deps.runtime.replayLastTurn(run.id, account, turnOf(this.deps.db.providerMoveTurn(row.id)));
+        // A row with no turn (opened by an older Claudio): the session resumes with a nudge instead
         if (!replayed) {
           this.deps.runtime.send(run.id, LIMIT_CONTINUE_TEXT);
           replayed = true;
@@ -601,7 +780,8 @@ export class ProviderRotation {
     if (now - since >= this.maxWaitHours(row) * HOUR_MS) return false;
     this.refused.set(row.id, { since, until: now + this.claimMs });
     this.waits.set(row.fromChat, row.id);
-    this.arm(row);
+    this.deps.db.scheduleProviderMove(row.id, new Date(now).toISOString(), new Date(now + this.claimMs + 1).toISOString());
+    this.schedule();
     if (first) this.deps.runtime.notice(run.id, `The usage limit reset, but Claudio cannot start the turn yet (${errorMessage(error)}); it looks again in ${String(Math.max(1, Math.round(this.claimMs / 60_000)))} min.`);
     return true;
   }
@@ -628,7 +808,7 @@ export class ProviderRotation {
 
   /**
    * A person sent a message to a chat that waits: they took it over, and the wait ends before anything
-   * can replay over their words. The poll would find it too, up to a look later.
+   * can replay over their words. The sweeper would find it too, a look later.
    */
   private personWrote(chatId: string): void {
     if (this.resuming.has(chatId) || this.handling.has(chatId)) return;
@@ -657,7 +837,7 @@ export class ProviderRotation {
     this.drop(row);
     if (!closed) return false;
     if (end === 'failed') this.deps.runtime.notice(row.fromChat, reason === 'limit-wait-expired' ? 'The wait for the usage limit to reset ran out.' : `The wait ended: ${reason ?? 'it failed'}.`);
-    this.deps.ended?.({ ...row, state, reason: reason ?? row.reason }, end, reason);
+    this.deps.ended?.({ ...row, state, reason: reason ?? row.reason, nextLookAt: null }, end, reason);
     return true;
   }
 
@@ -669,22 +849,25 @@ export class ProviderRotation {
   }
 
   /**
-   * Arms the timers of the waits whose chat this process restored, after a start-up. A claim whose
-   * time ran out is taken again; a wait whose reset passed while the process was down resumes now.
+   * After a start-up, once this process's chats are back: takes over the open rows whose chat it
+   * restored (so `holds` and `waitOf` answer for them at once), closes the rows of chats no process
+   * has, and runs a pass of the sweeper, which resumes what fell due while the process was down. A
+   * claim a restart cut short is taken again once it lapses. Rows another process restored are left
+   * to it.
    */
-  recover(): void {
-    const nowIso = new Date(this.now()).toISOString();
-    for (const row of this.deps.db.openProviderMoves(nowIso)) {
-      if (this.timers.has(row.id)) continue;
-      const run = this.deps.runtime.get(row.fromChat);
-      if (!run) {
-        // Another process on this data directory restores its own chats; a chat no process has left a row that blocks its waits for ever
-        if (!this.deps.db.storedChats([row.fromChat]).has(row.fromChat)) this.end(row, 'failed', CHAT_GONE);
-        continue;
+  recover(): Promise<void> {
+    try {
+      for (const row of this.deps.db.openHolds()) {
+        const run = this.deps.runtime.get(row.fromChat);
+        if (run) {
+          this.waits.set(row.fromChat, row.id);
+          if (!this.progress.has(row.id)) this.progress.set(row.id, progressOf(run));
+        } else if (!this.deps.db.storedChats([row.fromChat]).has(row.fromChat)) this.end(row, 'failed', CHAT_GONE);
       }
-      this.waits.set(row.fromChat, row.id);
-      this.progress.set(row.id, progressOf(run));
-      this.arm(row);
+    } catch {
+      // A closed database (shutting down): nothing may start anyway
+      return Promise.resolve();
     }
+    return this.sweep();
   }
 }

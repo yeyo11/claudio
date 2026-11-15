@@ -96,7 +96,7 @@ import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
 import { AccountStore, DEFAULT_ID, isOut, readCache } from '@claudio/accounts';
-import { ProviderRotation, openWaitOf } from './rotation.ts';
+import { ProviderRotation, openWaitOf, probeTargets } from './rotation.ts';
 import type { ChatWork } from './chat-service.ts';
 import { AppSettingsStore } from './app-settings.ts';
 import { createSettingsRegistry, type SettingsRegistry } from './settings-registry.ts';
@@ -370,6 +370,8 @@ const ACCOUNTS_CHANGED_DEBOUNCE_MS = 250;
 const CLAUDE_PROVIDER: ProviderId = 'claude-code';
 /** How long a check of the account in use is good for */
 const ACCOUNT_CHECK_MS = 30 * 60_000;
+/** A wait's `get_usage` probe gives up after this: it takes seconds, and the next look asks again */
+const WAIT_PROBE_TIMEOUT_MS = 30_000;
 
 /** A system read before the account in use is added to it, which is done on every answer */
 type SystemRead = Omit<SystemInfo, 'uptimeSec' | 'models' | 'auth' | 'profile'> & { auth: CliAuth };
@@ -1584,8 +1586,8 @@ export class Core {
       this.startSubsystem('evals', () => void this.evals.load().catch(() => undefined));
       try {
         this.startSubsystem('flow', () => this.flow.recover());
-        // The waits this process owns: its chats are back, so their timers can be armed
-        this.rotation.recover();
+        // The waits this process owns: its chats are back, so the sweeper can take their rows over
+        void this.rotation.recover();
         // After the chats are back, so a merge moves an item nothing is about to resume on
         this.startSubsystem('pullRequestWatcher', () => this.pullRequestWatcher.start());
       } catch {
@@ -1676,6 +1678,8 @@ export class Core {
       replay: (chatId, account) => this.orchestrator.replayWorkflow(chatId, account),
       // A wait goes on with the first account that has room, whichever it is (R10)
       accountsChanged: (listener) => this.accounts.onChange(listener),
+      // A wait that knows no reset asks the CLI (`get_usage`, no turn) rather than wait for a reading nobody takes (cause 5)
+      probe: (chatId, since) => this.probeForWait(chatId, since),
       ended: (move, end, reason) => {
         if (move.subjectKind === 'flow_run') this.flow.waitEnded(move, end, reason);
         else if (move.subjectKind === 'task') this.orchestrator.waitEnded(move, end, reason);
@@ -3954,6 +3958,31 @@ export class Core {
       }
     }
     return { accounts: this.accounts.list(), failed };
+  }
+
+  /** The `get_usage` under way per account: waits that probe the same account at once share one */
+  private readonly waitProbes = new Map<string, Promise<void>>();
+
+  /**
+   * The rotation's probe for a wait that knows no reset: `get_usage` for the accounts the chat could
+   * go on with whose reading is older than `since`, one at a time, each bounded by its own timeout.
+   * The reading is recorded as a Refresh records it, so the waits hear it as any reading.
+   */
+  private async probeForWait(chatId: string, since: number): Promise<void> {
+    const run = this.runtime.get(chatId);
+    if (!run) return;
+    for (const id of probeTargets(run, this.accounts.list(), since)) {
+      let probe = this.waitProbes.get(id);
+      if (!probe) {
+        probe = this.accounts
+          .fetchUsage(id, { timeoutMs: WAIT_PROBE_TIMEOUT_MS })
+          .then((reading) => this.runtime.noteAccountReading(id, reading))
+          .catch(() => undefined)
+          .finally(() => this.waitProbes.delete(id));
+        this.waitProbes.set(id, probe);
+      }
+      await probe;
+    }
   }
 
   private checkingInUse = false;
