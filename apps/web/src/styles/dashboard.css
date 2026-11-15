@@ -561,6 +561,17 @@
   color: var(--warn);
 }
 
+/* The words of a wait run to a second line rather than being cut: the hour is what the row is for */
+.wait-row-detail {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 900px) {
+  .now-widget .wait-list .btn {
+    min-height: var(--touch);
+  }
+}
+
 .now-widget .attention-list {
   padding: 4px 18px;
   border-bottom: 1px solid var(--line);

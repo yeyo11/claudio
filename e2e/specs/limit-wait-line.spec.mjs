@@ -54,6 +54,29 @@ export default async ({ page, api, check, dirs, fakeCli: fake }) => {
     check(row.href === `/chats/${id}`, `and links to the chat (${row.href})`);
     await page.shot('limit-wait-line-home');
 
+    // Both themes, and a phone: nothing scrolls sideways, and on a phone the actions are touch targets
+    for (const [theme, width, name] of [['light', 1280, 'light'], ['dark', 390, 'phone'], ['light', 390, 'phone-light']]) {
+      await page.eval(`localStorage.setItem('claudio-theme', ${JSON.stringify(theme)}); return true`);
+      await page.viewport(width, 900);
+      for (const [path, sel] of [[`/chats/${id}`, 'main .wait-line.is-banner'], ['/', '.wait-list .inbox-row']]) {
+        await page.goto(path, 1200);
+        await page.waitFor(`return !!document.querySelector(${JSON.stringify(sel)})`, { label: `${sel} at ${width} ${theme}` });
+        const over = await page.eval('return document.documentElement.scrollWidth - window.innerWidth');
+        check(over <= 1, `[${theme} ${width} ${path}] the page does not scroll sideways (${over}px)`);
+        if (width < 768 && path !== '/') {
+          const heights = await page.eval(`return [...document.querySelectorAll('.wait-line button')].map((b) => Math.round(b.getBoundingClientRect().height))`);
+          check(heights.length === 2 && heights.every((h) => h >= 44), `[${theme}] the wait line's actions are touch targets (${heights})`);
+        }
+        if (width < 768 && path === '/') {
+          const open = await page.eval(`return Math.round(document.querySelector('.wait-list .btn').getBoundingClientRect().height)`);
+          check(open >= 44, `[${theme}] Home's Open is a touch target (${open})`);
+        }
+        await page.shot(`limit-wait-line-${name}-${path === '/' ? 'home' : 'chat'}`);
+      }
+    }
+    await page.eval(`localStorage.setItem('claudio-theme', 'dark'); return true`);
+    await page.viewport(1280, 800);
+
     // Stopping the wait takes the line and the row away
     const stopped = await api.post(`/limits/waits/${wait.id}/cancel`);
     check(stopped.status === 200, `the wait is stopped (${stopped.status})`);

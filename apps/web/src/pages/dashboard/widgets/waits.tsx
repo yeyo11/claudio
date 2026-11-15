@@ -6,7 +6,6 @@ import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { accountLabel } from '@claudio/chat-ui/lib/account-choice';
 import { displayTitle } from '@claudio/chat-ui/lib/chat-model';
-import { FullText } from '@claudio/ui/components/FullText';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { api, keys, useOrchestrations } from '../../../api';
 import { WaitWhen } from '../../../components/WaitLine';
@@ -63,13 +62,13 @@ function WaitRow({ wait: { move, orchestration } }: { wait: OpenWait }) {
         <div className="inbox-what">
           <strong>{title}</strong> <span className="faint">{t(`home:widgets.waits.kind.${move.subjectKind}`)}</span>
         </div>
-        <FullText as="div" className="small muted ellipsis">
+        <div className="small muted wait-row-detail">
           {t('components:limitWait.title', { name: label(move.fromProvider) })}
           {' · '}
           <WaitWhen wait={view} />
           {` · ${t('home:widgets.waits.since', { when: resetWhen(move.at) })}`}
           {account && ` · ${t('components:limitWait.account', { account: accountLabel(account) })}`}
-        </FullText>
+        </div>
       </div>
       <Link to={to} className="btn btn-small">
         {t('common:actions.open')}
