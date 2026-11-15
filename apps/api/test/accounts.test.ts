@@ -332,8 +332,8 @@ test("a chat's token reads the accounts but changes none, and cannot read a sign
       ['POST', `/api/accounts/${id}/refresh`, undefined],
       ['PUT', '/api/accounts/settings', { threshold: 80 }],
       ['PUT', '/api/accounts/model-fallbacks', { fallbacks: [] }],
-      ['POST', '/api/accounts/policies', { projects: ['p'] }],
-      ['PUT', '/api/accounts/policies/any', { projects: ['p'] }],
+      ['POST', '/api/accounts/policies', { projects: ['p'], preferred: 'default', reserve: { percent: 10 }, strictConfig: true }],
+      ['PUT', '/api/accounts/policies/any', { projects: ['p'], reserve: { percent: 10 } }],
       ['DELETE', '/api/accounts/policies/any', undefined],
       ['PUT', `/api/accounts/${id}/config`, { mode: 'independent' }],
       ['POST', `/api/accounts/${id}/config/items/agent-memory`, { use: 'shared' }],
@@ -510,4 +510,31 @@ test('the canary route answers the status of the installed CLI, and a run asked 
   assert.ok(status.version === null || typeof status.version === 'string');
   // Nothing read the CLI's version yet in this core, or a run is under way: either way a second one is refused
   if (status.version === null || status.running) assert.equal((await app.inject({ method: 'POST', url: '/api/accounts/canary/run' })).statusCode, 409);
+});
+
+test('a policy takes a preferred account, a reserve and strictConfig, and refuses what the rules cannot hold', async () => {
+  const post = (body: unknown) => app.inject({ method: 'POST', url: '/api/accounts/policies', ...json(body) });
+  const full = await post({ projects: ['rules1'], order: ['default'], preferred: 'default', reserve: { percent: 20 }, strictConfig: true });
+  assert.equal(full.statusCode, 201, full.body);
+  const policy = full.json<RotationPolicy>();
+  assert.equal(policy.preferred, 'default');
+  assert.deepEqual(policy.reserve, { percent: 20 });
+  assert.equal(policy.strictConfig, true);
+  assert.deepEqual((await app.inject('/api/accounts/policies')).json<RotationPolicy[]>().find((p) => p.id === policy.id), policy);
+
+  // preferred outside order, a reserve out of range, a second reserve on the account, a bad boolean
+  assert.equal((await post({ projects: ['rules2'], order: ['default'], preferred: 'ghost' })).statusCode, 400);
+  assert.equal((await post({ projects: ['rules2'], order: ['default'], reserve: { percent: 31 } })).statusCode, 400);
+  assert.equal((await post({ projects: ['rules2'], order: ['default'], reserve: { percent: 0 } })).statusCode, 400);
+  assert.equal((await post({ projects: ['rules2'], order: ['default'], reserve: { percent: 10 } })).statusCode, 400);
+  assert.equal((await post({ projects: ['rules2'], reserve: { percent: 10 } })).statusCode, 400);
+  assert.equal((await post({ projects: ['rules2'], order: ['default'], strictConfig: 'yes' })).statusCode, 400);
+
+  // A PUT replaces the whole rule: what it leaves out is gone
+  const replaced = await app.inject({ method: 'PUT', url: `/api/accounts/policies/${policy.id}`, ...json({ projects: ['rules1'], order: ['default'] }) });
+  assert.equal(replaced.statusCode, 200);
+  assert.equal(replaced.json<RotationPolicy>().reserve, undefined);
+  assert.equal(replaced.json<RotationPolicy>().preferred, undefined);
+  assert.equal(replaced.json<RotationPolicy>().strictConfig, undefined);
+  await app.inject({ method: 'DELETE', url: `/api/accounts/policies/${policy.id}` });
 });

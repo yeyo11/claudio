@@ -282,7 +282,28 @@
     "disabled": "fuera de la rotación",
     "signed-out": "sin sesión",
     "auth": "sesión caducada",
-    "credits": "créditos de uso"
+    "credits": "créditos de uso",
+    "reserve": "margen reservado para otro proyecto",
+    "rule": "no permitida por la regla del proyecto"
+  },
+  "basis": {
+    "pin": "fijada a ella",
+    "current": "el trabajo ya está en ella",
+    "preferred": "tu cuenta preferida",
+    "project-preferred": "la cuenta preferida del proyecto",
+    "order": "la primera del orden con margen",
+    "least-used": "la menos usada con margen",
+    "only-one": "la única con margen",
+    "same-config": "comparte la configuración de la cuenta actual",
+    "over-threshold": "ninguna estaba por debajo de su umbral, así que se ejecuta en lugar de esperar",
+    "reserve-released": "usa el margen que otro proyecto reserva, porque las demás cuentas están agotadas",
+    "credits": "último recurso: sus créditos de uso",
+    "none": "ninguna cuenta puede ejecutarlo"
+  },
+  "passedOver": {
+    "not-allowed": "no permitida por la regla del proyecto",
+    "reserved": "margen reservado para otro proyecto",
+    "other-config": "tiene otra configuración"
   },
   "plan": {
     "max": "Max",

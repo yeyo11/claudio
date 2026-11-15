@@ -5,7 +5,7 @@ import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import type { Account, AccountConfig, AccountConfigMode, AccountConfigPlan, AccountConfigStart, AccountConfigStep, AccountCreditsSetting, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
-import { choose, SHARED_CONFIG_GROUP, type Choice, type ChooseOptions } from './choose.ts';
+import { choose, reserveAccountOf, RESERVE_CAP, SHARED_CONFIG_GROUP, type Choice, type ChooseOptions } from './choose.ts';
 import { ASIDE_DIR, asideStamp, orphanDirs, reconcileAccountDir, removeLinks, type ReconcileReport } from './dirs.ts';
 import { applySteps, describeConfig, itemClass, planSwitch, planUseShared } from './config-mode.ts';
 import { DEFAULT_ID, SECRET_FILE, type AccountRef } from './env.ts';
@@ -28,6 +28,7 @@ function copySettings(s: AccountsSettings): AccountsSettings {
 }
 
 const THRESHOLD_MIN = 50;
+const RESERVE_MIN = 1;
 const THRESHOLD_MAX = 99.9;
 
 /**
@@ -227,7 +228,14 @@ function parse(doc: Record<string, unknown>): Stored {
   const policies = Array.isArray(doc.policies)
     ? doc.policies
         .filter((p): p is RotationPolicy => isRecord(p) && typeof p.id === 'string' && Array.isArray(p.projects))
-        .map(({ looseChats, ...p }) => ({ ...p, ...(looseChats === true ? { looseChats: true } : {}) }))
+        .map(({ looseChats, preferred, reserve, strictConfig, ...p }) => ({
+          ...p,
+          ...(looseChats === true ? { looseChats: true } : {}),
+          // A hand-edited file may hold anything: a value that is not a rule is no rule
+          ...(typeof preferred === 'string' && preferred ? { preferred } : {}),
+          ...(isRecord(reserve) && typeof reserve.percent === 'number' && reserve.percent >= RESERVE_MIN && reserve.percent <= RESERVE_CAP ? { reserve: { percent: reserve.percent } } : {}),
+          ...(strictConfig === true ? { strictConfig: true } : {}),
+        }))
     : [];
   const settings = parseSettings(doc.settings);
   // A setting for an account removed by hand from the file is no setting
@@ -717,7 +725,11 @@ export class AccountStore {
     removeLinks(dir, this.defaultDir, a.links);
     await rm(dir, { recursive: true, force: true });
     this.stored.accounts = this.stored.accounts.filter((x) => x.id !== id);
-    for (const p of this.stored.policies) if (p.order) p.order = p.order.filter((x) => x !== id);
+    for (const p of this.stored.policies) {
+      if (p.order) p.order = p.order.filter((x) => x !== id);
+      if (p.preferred === id) delete p.preferred;
+    }
+    this.settleReserves();
     const { settings } = this.stored;
     if (settings.preferred === id) settings.preferred = null;
     settings.order = settings.order.filter((x) => x !== id);
@@ -990,7 +1002,21 @@ export class AccountStore {
   }
 
   policies(): RotationPolicy[] {
-    return this.stored.policies.map((p) => ({ ...p, projects: [...p.projects], ...(p.order ? { order: [...p.order] } : {}) }));
+    return this.stored.policies.map((p) => ({ ...p, projects: [...p.projects], ...(p.order ? { order: [...p.order] } : {}), ...(p.reserve ? { reserve: { ...p.reserve } } : {}) }));
+  }
+
+  /**
+   * After an account left a rule: a reserve whose account is gone or taken by another rule's reserve
+   * (the first rule keeps it) is dropped, since a reserve with nowhere to sit would protect nothing.
+   */
+  private settleReserves(): void {
+    const taken = new Set<string>();
+    for (const p of this.stored.policies) {
+      if (!p.reserve) continue;
+      const on = reserveAccountOf(p);
+      if (on === undefined || taken.has(on)) delete p.reserve;
+      else taken.add(on);
+    }
   }
 
   policyFor(projectId: string | null): RotationPolicy | null {
@@ -1023,10 +1049,34 @@ export class AccountStore {
       if (!Array.isArray(request.order) || !request.order.length || request.order.some((x) => !known.has(x))) throw new Error('order must list account ids');
       order = [...new Set(request.order)];
     }
+    let preferred: string | undefined;
+    if (request.preferred !== undefined) {
+      if (typeof request.preferred !== 'string' || !request.preferred) throw new Error('preferred must be an account id');
+      // Without a list every account is allowed, so any known one will do
+      if (order && !order.includes(request.preferred)) throw new Error('preferred must be one of order');
+      if (!order && !this.list().some((a) => a.id === request.preferred)) throw new Error('preferred must be an account id');
+      preferred = request.preferred;
+    }
+    if (request.strictConfig !== undefined && typeof request.strictConfig !== 'boolean') throw new Error('strictConfig must be a boolean');
+    let reserve: RotationPolicy['reserve'];
+    if (request.reserve !== undefined) {
+      const percent = (request.reserve as { percent?: unknown } | null)?.percent;
+      if (typeof percent !== 'number' || !Number.isFinite(percent) || percent < RESERVE_MIN || percent > RESERVE_CAP) {
+        throw new Error(`reserve percent must be between ${RESERVE_MIN} and ${RESERVE_CAP}`);
+      }
+      const on = reserveAccountOf({ ...(preferred ? { preferred } : {}), ...(order ? { order } : {}) });
+      if (on === undefined) throw new Error('a reserve needs a preferred account or an order, to know which account it keeps free');
+      const other = this.stored.policies.find((p) => p.id !== id && p.reserve && reserveAccountOf(p) === on);
+      if (other) throw new Error(`account ${on} already has the reserve of policy ${other.id}`);
+      reserve = { percent: Math.round(percent * 10) / 10 };
+    }
     return {
       ...(request.threshold !== undefined ? { threshold: Math.round(Number(request.threshold) * 10) / 10 } : {}),
       projects,
       ...(order ? { order } : {}),
+      ...(preferred ? { preferred } : {}),
+      ...(reserve ? { reserve } : {}),
+      ...(request.strictConfig === true ? { strictConfig: true } : {}),
       ...(looseChats ? { looseChats: true } : {}),
     };
   }
