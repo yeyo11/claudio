@@ -566,6 +566,56 @@ test('an account the turn died on is a candidate again once the reset its failur
   }
 });
 
+// A person can reset an account's quota early from Claude's own settings: its plan window starts again
+// before the reset the refusal announced. Only a reading says so, and only one taken after the refusal
+// is about it (docs/plans/limit-resume-and-credits.md, cause 12).
+test('an account the turn died on is a candidate again before the reset its refusal recorded once a reading taken after the refusal shows it with room', async (t) => {
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 4 * 3600, pollMs: 3_600_000 });
+  try {
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    await r.rotation.close();
+    const failures = r.chats.get(chat.id)?.executions.filter((e) => e.cause === 'rate-limit') ?? [];
+    const failedOn = [...new Set(failures.map((e) => e.account ?? DEFAULT_ID))];
+    const early = failedOn[0];
+    assert.ok(early, 'the turn died on an account');
+
+    // A minute after the refusal, hours before its recorded reset
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 60_000 });
+    assert.equal(r.chats.chooseNext(chat.id)?.account ?? null, null, 'every account is out for four hours');
+    const reading = roomy(Date.now());
+    assert.ok(reading);
+    await r.chats.noteAccountReading(early, reading);
+    assert.equal(r.chats.chooseNext(chat.id)?.account, early, 'the reading after the refusal says its window started again');
+  } finally {
+    r.close();
+  }
+});
+
+test('an account the turn died on stays passed over while the only reading that shows it with room was taken before the refusal', async (t) => {
+  // Bare 429s: the refusals bring no reading, so the readings kept are the ones from before the turn
+  const r = await rig({ work, limited: (d) => Object.values(d), pollMs: 3_600_000 });
+  try {
+    const before = Date.now() - 60_000;
+    for (const id of [DEFAULT_ID, r.ids.a, r.ids.b, r.ids.c]) {
+      const reading = roomy(before);
+      assert.ok(reading);
+      await r.chats.noteAccountReading(id, reading);
+    }
+    const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [move] = r.db.providerMoves({ chatId: chat.id });
+    await r.rotation.close();
+
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 60_000 });
+    assert.equal(r.store.get(r.ids.a).limits?.state, 'ok', 'the kept reading still shows room');
+    assert.equal(r.chats.chooseNext(chat.id)?.account ?? null, null, 'a reading from before the refusal says nothing of after it');
+    assert.equal(r.chats.roomFor(chat.id, Date.parse(move?.at ?? ''))?.account ?? null, null, 'nor does it end the wait');
+  } finally {
+    r.close();
+  }
+});
+
 test('run now sends a waiting turn on at once, on the first account the readings allow, even one it died on (R11)', async () => {
   const r = await rig({ work, limited: (d) => Object.values(d), pollMs: 3_600_000 });
   try {

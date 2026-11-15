@@ -6,6 +6,7 @@ import { after, before, describe, it, mock } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import type { AccountSignInState, AccountsSettings } from '@claudio/shared';
 import { AccountStore, choose, readCredentials, type Candidate } from '../src/index.ts';
+import { bare } from './bare-choice.ts';
 
 const FAKE = join(dirname(fileURLToPath(import.meta.url)), 'fake-claude.mjs');
 const NOW = Date.parse('2026-10-15T12:00:00Z');
@@ -201,13 +202,13 @@ describe('choose and the sign-in state', () => {
   });
 
   it('moves off an expired or incomplete current account as a sign-out', () => {
-    assert.deepEqual(two('expired', 'ok'), { account: 'b', reason: 'signed-out', waitUntil: null });
-    assert.deepEqual(two('incomplete', 'ok'), { account: 'b', reason: 'signed-out', waitUntil: null });
+    assert.deepEqual(bare(two('expired', 'ok')), { account: 'b', reason: 'signed-out', waitUntil: null });
+    assert.deepEqual(bare(two('incomplete', 'ok')), { account: 'b', reason: 'signed-out', waitUntil: null });
   });
 
   it('never picks one, and gives nothing to wait for when none is usable', () => {
     assert.equal(two('ok', 'expired').account, 'a');
-    assert.deepEqual(two('expired', 'incomplete'), { account: null, reason: null, waitUntil: null });
+    assert.deepEqual(bare(two('expired', 'incomplete')), { account: null, reason: null, waitUntil: null });
   });
 
   it('does not keep a pinned account that is expired', () => {

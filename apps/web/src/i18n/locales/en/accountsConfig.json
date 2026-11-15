@@ -282,7 +282,28 @@
     "disabled": "held out of rotation",
     "signed-out": "signed out",
     "auth": "sign-in expired",
-    "credits": "usage credits"
+    "credits": "usage credits",
+    "reserve": "headroom kept for another project",
+    "rule": "not allowed by the project's rule"
+  },
+  "basis": {
+    "pin": "pinned to it",
+    "current": "the work is already on it",
+    "preferred": "your preferred account",
+    "project-preferred": "the project's preferred account",
+    "order": "first in the order with room",
+    "least-used": "the least used with room",
+    "only-one": "the only one with room",
+    "same-config": "shares the configuration of the current account",
+    "over-threshold": "none was under its threshold, so it runs rather than waits",
+    "reserve-released": "uses the headroom another project keeps, because every other account is out",
+    "credits": "last resort: its usage credits",
+    "none": "no account can run it"
+  },
+  "passedOver": {
+    "not-allowed": "not allowed by the project's rule",
+    "reserved": "headroom kept for another project",
+    "other-config": "has another configuration"
   },
   "plan": {
     "max": "Max",

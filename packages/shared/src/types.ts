@@ -613,9 +613,11 @@ export interface ApiChatPolicy {
 /**
  * Why a chat start was refused, beside the workspace codes: the `code` of the error answer.
  * `cwd-missing`: its working directory does not exist (D9). `policy-mismatch`: a continuation named
- * a confined chat with another policy than its own.
+ * a confined chat with another policy than its own. `account-not-allowed`: the request pins an
+ * account that the rule of the chat's project does not allow (409; the pin is refused, never allowed
+ * to override the rule).
  */
-export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown' | 'agent-unknown';
+export type ChatStartRefusalCode = 'cwd-missing' | 'policy-mismatch' | 'model-unknown' | 'agent-unknown' | 'account-not-allowed';
 
 /**
  * Where a user-role line came from, as the CLI records it (the SDK's `SDKMessageOrigin`, plus the fields
@@ -7234,7 +7236,7 @@ export interface SwitchChatAccountRequest {
 }
 
 /** Why an account cannot be chosen for a chat. `sign-in-expired`: its `signInState` is `expired` or `incomplete`. */
-export type AccountSwitchRefusalCode = 'disabled' | 'sign-in-expired' | 'signed-out' | 'exhausted' | 'model-unavailable' | 'same-account';
+export type AccountSwitchRefusalCode = 'disabled' | 'sign-in-expired' | 'signed-out' | 'exhausted' | 'model-unavailable' | 'same-account' | 'not-allowed';
 
 /** `pending`: the chat is working, so the switch waits for its turn to end. */
 export interface SwitchChatAccountResponse {
@@ -7245,9 +7247,64 @@ export interface SwitchChatAccountResponse {
 /**
  * Why the chosen account changed. `credits`: the work left an account whose plan is spent because
  * its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the
- * credits setting).
+ * credits setting). `reserve`: the account is under the work's threshold but another project with
+ * work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2).
+ * `rule`: the account the work was on is not one its project's rule allows (a rule was set or changed
+ * under a running chat), so it moved at the end of its turn.
  */
-export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits';
+export type AccountSwitchReason = 'limit' | 'threshold' | 'person' | 'disabled' | 'signed-out' | 'auth' | 'credits' | 'reserve' | 'rule';
+
+/**
+ * On what grounds the account choice took its account, so a person never meets an arbitrary one.
+ *
+ * - `pin`: the chat is pinned to it. `current`: the work stays where it is, under the threshold.
+ * - `preferred`: the person's preferred account; `project-preferred`: the preferred account of the
+ *   project's rule, which replaces it there.
+ * - `order`, `least-used`: the strategy among the accounts with room; `only-one`: it was the only one
+ *   with room; `same-config`: the strategy would have taken an account of another configuration
+ *   group, and this one shares the configuration of the account the work is on.
+ * - `over-threshold`: no account was under the threshold, and running beats waiting.
+ * - `reserve-released`: the headroom another project reserves on it is used, because every other
+ *   account is out.
+ * - `credits`: no account has plan quota left, and its credits setting allows it as a last resort.
+ * - `none`: no account can take the work now.
+ */
+export type AccountChoiceBasis =
+  | 'pin'
+  | 'current'
+  | 'preferred'
+  | 'project-preferred'
+  | 'order'
+  | 'least-used'
+  | 'only-one'
+  | 'same-config'
+  | 'over-threshold'
+  | 'reserve-released'
+  | 'credits'
+  | 'none';
+
+/**
+ * Why an account a rule touched was not chosen. `not-allowed`: the project's rule does not list it;
+ * `reserved`: another project with work in progress reserves headroom on it; `other-config`: the rule
+ * rotates only within the configuration group of the account the work is on.
+ */
+export type AccountChoicePassReason = 'not-allowed' | 'reserved' | 'other-config';
+
+export interface AccountChoicePass {
+  account: string;
+  because: AccountChoicePassReason;
+  /** The project whose rule or reserve kept the work off it, when known */
+  project?: string;
+}
+
+/** The explanation every account choice carries (`Choice.why`). */
+export interface AccountChoiceWhy {
+  basis: AccountChoiceBasis;
+  /** The project whose rule (`project-preferred`) or reserve (`reserve-released`) decided it */
+  project?: string;
+  /** Accounts a project rule or reserve kept the work off; absent when none did */
+  passedOver?: AccountChoicePass[];
+}
 
 /**
  * Which accounts the chats of some projects may use, in what order, and when to move on. A project
@@ -7259,15 +7316,37 @@ export interface RotationPolicy {
   threshold?: number;
   /** Account ids a chat of these projects may use, in order of preference; every account when absent */
   order?: string[];
+  /**
+   * The account these projects prefer, which replaces the person's preferred account for them. One
+   * of `order` when it is set, else any account.
+   */
+  preferred?: string;
+  /**
+   * Headroom kept on the account the rule prefers (else the first of `order`) while these projects
+   * have work in progress: the other projects' work leaves it `percent` points of utilization earlier.
+   * At most one rule reserves on an account. Absent: no reserve.
+   */
+  reserve?: ProjectReserve;
+  /** Rotate only among accounts that share the configuration of the one the work is on; absent: it may cross */
+  strictConfig?: boolean;
   /** Project ids this policy governs; at most one policy governs a project */
   projects: string[];
   /** It also governs the chats that belong to no project; at most one policy does */
   looseChats?: boolean;
 }
 
+/** The headroom a project's rule keeps on its preferred account (docs/accounts.md, project rules). */
+export interface ProjectReserve {
+  /** Points of utilization (1-30) the account's threshold drops by for work of other projects */
+  percent: number;
+}
+
 export interface RotationPolicyRequest {
   threshold?: number;
   order?: string[];
+  preferred?: string;
+  reserve?: ProjectReserve;
+  strictConfig?: boolean;
   projects: string[];
   looseChats?: boolean;
 }

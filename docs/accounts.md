@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T13:00:00Z
+updated_at: 2026-11-15T16:00:00Z
 tags:
     - accounts
     - rotation
@@ -298,6 +298,38 @@ tell a refused credential from an unreachable network. The four raw answers are 
      window is under the threshold.
 - `PUT /accounts/settings` validates `preferred` (an enabled account's id, or null for none) and
   `order`. Removing an account takes it out of both, and out of every policy.
+- **Project rules (`RotationPolicy`, `accounts.json` `policies`).** A rule governs some projects
+  (and optionally the chats of no project) through `projects` and `looseChats`, and every field
+  beyond them is optional, so no rule is active until a person writes one and a policy with none of
+  the new fields chooses exactly as it did before (a test freezes that, `choose-rules.test.ts`).
+  - `order`: the accounts that may work on the projects, and their order. Absent, every account may.
+  - `threshold`: the global one replaced for the projects.
+  - `preferred`: the account the projects prefer, in place of the person's own preferred account.
+    It must be one of `order`, or any known account when there is no `order`.
+  - `reserve: { percent }`: headroom kept on the rule's account (`preferred`, else the first of
+    `order`; `reserveAccountOf`) while the projects have work in progress: the work of other projects
+    leaves that account `percent` points of utilization earlier. `percent` is 1 to 30
+    (`RESERVE_CAP`); the rule needs a `preferred` or an `order` to know the account; at most one rule
+    reserves on an account. The headroom is released when every other account is out
+    (`why.basis: 'reserve-released'`).
+  - `strictConfig`: rotate only among accounts that share the configuration of the account the work
+    is on; stored only when true.
+  - `PUT` replaces the whole rule and checks it again, so a field left out is removed. Removing an
+    account takes it out of `order`, clears it from `preferred`, and drops a reserve left with no
+    account (or on one another rule reserves) rather than keep one that protects nothing. A hand-edited
+    file is read defensively: a `preferred` that is not a string, a `reserve` out of range or a
+    `strictConfig` that is not `true` is read as absent.
+  - **A pin never overrides a rule (D10).** A chat started, resumed or forked with an `account` the
+    rule of its project does not allow is refused `409` with `code: account-not-allowed`, before a
+    process or a chat exists; so is a person's switch from the composer, `409` with
+    `code: not-allowed` (`POST /chats/:id/account`). A project with no rule, or a rule with no
+    `order`, allows any account. Pins that already exist are not touched: `choose` ignores one the
+    rule does not allow, as before.
+  - **Reasons.** `AccountSwitchReason` gains `reserve` (the account is under the work's threshold
+    but another project holds headroom on it) and `rule` (the work's account is not one the rule
+    allows: recorded when a chat moves at the end of its turn). Every `Choice` carries `why.basis`;
+    the Accounts page says the reasons in words and `accountsConfig.json` has a label for each
+    `basis` and `passedOver.because`.
 - An account whose binding window is at the threshold (90 % by default) is skipped until it falls
   `hysteresis` points under it, and one that hit a limit is left alone until its reset. When a
   rejection gave no reset, `cooldownSeconds` leaves *that account* alone for the time: it is written
@@ -369,8 +401,15 @@ tell a refused credential from an unreachable network. The four raw answers are 
   older than its last look (`probeTargets`: its pinned account, else every enabled, signed-in
   subscription account), at 5, 15, 30 and then every 60 min, one probe per account at a time and
   bounded by 30 s; what they answer reaches the waits as any reading does. `maxWaitHours` gives such
-  a wait up only once a probe taken past it answered nothing. A sign-in failure is not probed: only
-  a person signs in again. A restarted process takes its rows over at its first pass: a claim a
+  a wait up only once a probe taken past it answered nothing. A wait that knows its reset probes
+  too, more sparsely: 15 min after it began, 30 min after that, then every 60 min, and never when
+  the reset comes before the next probe. A person can reset an account's quota early from Claude's
+  settings, and the window then starts again before the reset the refusal announced; only a
+  reading says so, and before 2026-11-15 nothing asked for one, so a chat waited for the old reset
+  (cause 12 of [limit-resume-and-credits](plans/limit-resume-and-credits.md)). The probe's answer is
+  the account's stored reading, so the Accounts page shows the reset too. When the last probe was
+  is kept in memory; after a restart the next one is counted from when the wait began, which costs
+  one probe at most. A sign-in failure is not probed: only a person signs in again. A restarted process takes its rows over at its first pass: a claim a
   restart cut short is taken again once it lapses, and a row an older Claudio opened (no
   `next_look_at`) is due at once.
 - **A limit survives a restart.** An execution that died on a limit records the reset it knew
@@ -390,12 +429,14 @@ tell a refused credential from an unreachable network. The four raw answers are 
 - **A failure ends at its reset.** Each failure keeps when it happened and the reset it was
   refused with (the chat's `limitedAccounts`, and the end and `limitResetsAt` of each failed
   execution in `limitedTailAt`). It stops counting once that reset has passed, or once the
-  account's reading said it was out then and says it is not now (`resetSince` in `chats.ts`);
+  account's reading said it was out then and says it is not now, or once a reading taken after the
+  failure does not call the account exhausted (an early reset; `resetSince` in `chats.ts`);
   `chooseNext`, `roomFor` and a person's switch read the same set (`stillFailed`). The recorded
   reset decides first because the reading is the latest one: a reading taken after the reset says
   "not out" about a time the account was out, and the failure then counted until a turn went
   through. A failure with no reset recorded (a bare 429, or a reset not after the failure) counts
-  until the reading says otherwise, as before. Until 2026-11-07 every failure counted until then, so once a wait replayed a
+  until the reading says otherwise, as before. A reading taken at or before the failure (the
+  refusal's own, or one kept from before the turn) is never evidence that the account is back. Until 2026-11-07 every failure counted until then, so once a wait replayed a
   turn that died again the rotation still skipped accounts whose reset had passed, and waited
   instead of moving (R11 of [ci-and-regression-open](plans/ci-and-regression-open.md)).
 - **A fork keeps its account** and its pin; a fork of a chat that ran on account B does not start

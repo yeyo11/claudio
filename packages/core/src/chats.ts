@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isTransientRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
-import { accountState, creditsCapReached, creditsSettingOf, DEFAULT_ID, isOut, outUntil, overageHint, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
+import { accountState, allowsAccount, creditsCapReached, creditsSettingOf, DEFAULT_ID, isOut, outUntil, overageHint, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
@@ -130,11 +130,19 @@ export function limitedTailAt(executions: readonly Execution[]): ({ account: str
  * reading taken after the reset says "not out" about a time it was out, so the failure counted until a
  * turn went through (cause 9 of docs/plans/limit-resume-and-credits.md). An earlier reset than the
  * recorded one is still seen through the reading (R10).
+ *
+ * A reading taken after the failure that does not call the account exhausted is evidence too: a person
+ * can reset an account's quota early from Claude's settings, and the window starts again before the
+ * recorded reset (cause 12 of docs/plans/limit-resume-and-credits.md). The comparison above cannot see
+ * it, since that reading, folded at the failure's time, says nothing of being out then. One taken at or
+ * before the failure (the refusal's own, or one kept from before the turn) says nothing of after it.
  */
 function resetSince(accounts: Pick<ChatAccounts, 'find'>, account: string, failure: LimitFailure, at: number): boolean {
   // A reset not after the failure is no evidence (a refusal can quote one already past): the failure counts as if none was said
   if (failure.until !== null && failure.until > failure.at && at >= failure.until) return true;
-  return isOut(accounts.find(account, failure.at)?.limits, failure.at) && !isOut(accounts.find(account, at)?.limits, at);
+  const latest = accounts.find(account, at)?.limits;
+  if (latest && latest.state !== 'exhausted' && Date.parse(latest.observedAt) > failure.at) return true;
+  return isOut(accounts.find(account, failure.at)?.limits, failure.at) && !isOut(latest, at);
 }
 /**
  * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
@@ -1067,7 +1075,7 @@ export class ChatManager extends EventEmitter {
   start(opts: NewChat, meta: RunMeta = {}): ChatRuntime {
     if (!opts.prompt?.trim() && !opts.attachments?.length) throw new ChatRefusal('prompt is required');
     const driver = this.driverFor(opts.provider);
-    const room = this.admit(opts, driver, classOfStart({ purpose: opts.purpose, internal: opts.internal, queued: meta.queued }));
+    const room = this.admit(opts, driver, classOfStart({ purpose: opts.purpose, internal: opts.internal, queued: meta.queued }), resolve(opts.cwd ?? this.config.workspaceDir));
     const attachments = this.resolveAttachments(opts.attachments);
     const origin = opts.internal ? 'internal' : meta.orchestrationId ? 'orchestration' : opts.apiClient ? 'api' : 'claudio';
     if (opts.apiPolicy) opts.apiAttachments = attachments.map((a) => a.path);
@@ -1089,7 +1097,7 @@ export class ChatManager extends EventEmitter {
     let chat = this.chats.get(id);
     if (chat?.alive) throw new ChatRefusal('the chat already has a live execution; send it a message instead');
     const driver = chat?.driver ?? this.driverFor(request.provider);
-    const room = this.admit(request, driver, classOfStart({ purpose: request.purpose, housekeeping: request.housekeeping !== undefined, queued: request.queued }));
+    const room = this.admit(request, driver, classOfStart({ purpose: request.purpose, housekeeping: request.housekeeping !== undefined, queued: request.queued }), chat ? (chat.workingDir ?? chat.cwd) : (adopt?.cwd ?? null));
     const attachments = this.resolveAttachments(request.attachments);
     if (!chat) {
       if (!adopt) throw new ChatNotFoundError();
@@ -1127,7 +1135,7 @@ export class ChatManager extends EventEmitter {
     const known = this.chats.get(sourceId);
     if (known?.opts.apiPolicy) throw new ChatRefusal('a confined API chat cannot be forked: start a new chat with the policy it needs', 409);
     const driver = known?.driver ?? this.driverFor(request.provider);
-    const room = this.admit(request, driver, classOfStart({ purpose: request.purpose }));
+    const room = this.admit(request, driver, classOfStart({ purpose: request.purpose }), source.cwd);
     const attachments = this.resolveAttachments(request.attachments);
     const chat = new LiveChat(
       randomUUID(),
@@ -1259,18 +1267,31 @@ export class ChatManager extends EventEmitter {
     return !!chat && this.leaving(chat);
   }
 
+  /** The project of a folder, null when it has none or the lookup fails: a rule only ever narrows what a project has. */
+  private projectOfDir(dir: string): string | null {
+    try {
+      return this.projectOf?.(dir) ?? null;
+    } catch {
+      return null;
+    }
+  }
+
   /**
    * Refuses what cannot start, before anything is created, and answers which idle processes the
    * start ends to fit: the caller hands them to the spawn ({@link spawnProcess}), so a start refused
    * later still (an unknown attachment, a session held elsewhere) has ended nobody's.
    */
-  private admit(opts: ChatStartOptions, driver: ProviderDriver, kind: StartClass = 'other'): LiveChat[] {
+  private admit(opts: ChatStartOptions, driver: ProviderDriver, kind: StartClass = 'other', dir: string | null = null): LiveChat[] {
     if (opts.account !== undefined) {
       if (!this.accounts) throw new ChatRefusal('accounts are not available here');
       try {
         this.accounts.ref(opts.account);
       } catch {
         throw new ChatRefusal(`account ${opts.account} not found`);
+      }
+      // D10: a pin never overrides a project's rule; refused here, before anything is ended or created
+      if (dir !== null && !allowsAccount(this.accounts.policyFor(this.projectOfDir(dir)), opts.account)) {
+        throw new ChatStartRefusal(`account ${opts.account} is not allowed on this project by its rule: choose one of the rule's accounts, or edit the rule`, 409, 'account-not-allowed');
       }
     }
     // A person's chat goes before a worker: while one was refused a place, the places that free up are kept for its retry
@@ -3176,6 +3197,10 @@ export class ChatManager extends EventEmitter {
     }
     if (accountId === chat.pendingAccount) return { chat: chat.summary(), pending: true };
     if (!account.enabled) throw new AccountSwitchRefusal('disabled', `account ${accountId} is disabled`);
+    // D10: the rule of the chat's project is not the person's to override from the composer
+    if (!allowsAccount(store.policyFor(this.projectOfDir(chat.workingDir ?? chat.cwd)), accountId)) {
+      throw new AccountSwitchRefusal('not-allowed', `account ${accountId} is not allowed on this project by its rule`);
+    }
     // Checked before signedIn, which an unusable sign-in also clears: the person is told it needs a new sign-in
     if (account.signInState === 'expired' || account.signInState === 'incomplete') {
       throw new AccountSwitchRefusal('sign-in-expired', `account ${accountId} needs a new sign-in (${account.signInState})`);

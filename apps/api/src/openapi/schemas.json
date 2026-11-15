@@ -9175,9 +9175,11 @@
       "disabled",
       "signed-out",
       "auth",
-      "credits"
+      "credits",
+      "reserve",
+      "rule"
     ],
-    "description": "Why the chosen account changed. `credits`: the work left an account whose plan is spent because its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the credits setting)."
+    "description": "Why the chosen account changed. `credits`: the work left an account whose plan is spent because its credits may not pay for it, or it went on to one whose credits may (docs/accounts.md, the credits setting). `reserve`: the account is under the work's threshold but another project with work in progress holds headroom on it (docs/plans/account-configuration-and-project-rules.md §7.2). `rule`: the account the work was on is not one its project's rule allows (a rule was set or changed under a running chat), so it moved at the end of its turn."
   },
   "AccountCreditsEvent": {
     "type": "object",
@@ -31540,6 +31542,18 @@
         },
         "description": "Account ids a chat of these projects may use, in order of preference; every account when absent"
       },
+      "preferred": {
+        "type": "string",
+        "description": "The account these projects prefer, which replaces the person's preferred account for them. One of `order` when it is set, else any account."
+      },
+      "reserve": {
+        "$ref": "#/components/schemas/ProjectReserve",
+        "description": "Headroom kept on the account the rule prefers (else the first of `order`) while these projects have work in progress: the other projects' work leaves it `percent` points of utilization earlier. At most one rule reserves on an account. Absent: no reserve."
+      },
+      "strictConfig": {
+        "type": "boolean",
+        "description": "Rotate only among accounts that share the configuration of the one the work is on; absent: it may cross"
+      },
       "projects": {
         "type": "array",
         "items": {
@@ -31558,6 +31572,19 @@
     ],
     "description": "Which accounts the chats of some projects may use, in what order, and when to move on. A project with no policy takes the global  {@link  AccountsSettings } ."
   },
+  "ProjectReserve": {
+    "type": "object",
+    "properties": {
+      "percent": {
+        "type": "number",
+        "description": "Points of utilization (1-30) the account's threshold drops by for work of other projects"
+      }
+    },
+    "required": [
+      "percent"
+    ],
+    "description": "The headroom a project's rule keeps on its preferred account (docs/accounts.md, project rules)."
+  },
   "RotationPolicyRequest": {
     "type": "object",
     "properties": {
@@ -31569,6 +31596,15 @@
         "items": {
           "type": "string"
         }
+      },
+      "preferred": {
+        "type": "string"
+      },
+      "reserve": {
+        "$ref": "#/components/schemas/ProjectReserve"
+      },
+      "strictConfig": {
+        "type": "boolean"
       },
       "projects": {
         "type": "array",

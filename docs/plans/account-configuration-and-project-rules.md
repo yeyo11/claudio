@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T03:40:00Z
+updated_at: 2026-11-15T16:00:00Z
 tags:
     - plan
     - study
@@ -13,7 +13,8 @@ tags:
 # Plan: account configuration (shared or independent) and project rules
 
 Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
-`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
+`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
+(2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
 
@@ -698,6 +699,104 @@ dir. Plugins (T2), the overlay (T3), the canary (T5) and the rules (T6 to T8) ar
 **Stays open.** What a failing S2 or S3c should switch off (owner). The canary runs once per version
 per data dir. `needs-sign-in` was never seen: the three checks ran unsigned on 2.1.322. S2b (concurrent
 writers through a linked `plugins/`) is not a canary check.
+
+**T6** (`feat/account-rules-engine`, 2026-11-15): the rules engine in `choose`, with nothing that
+sets a rule yet.
+- Contract (`packages/shared/src/types.ts`): `AccountSwitchReason` gains `reserve`;
+  `AccountChoiceWhy { basis; project?; passedOver? }` with `AccountChoiceBasis` (`pin`, `current`,
+  `preferred`, `project-preferred`, `order`, `least-used`, `only-one`, `same-config`,
+  `over-threshold`, `reserve-released`, `credits`, `none`) and `AccountChoicePass { account;
+  because: 'not-allowed' | 'reserved' | 'other-config'; project? }`. Every `Choice` carries `why`.
+- Engine (`packages/accounts/src/choose.ts`): `ChooseOptions.policy` is a `ChoosePolicy`, today's
+  `threshold` and `order` plus `preferred?` and `strictConfig?`, so `RotationPolicy` passes as it is
+  and T8 only adds the same names to it. `ChooseOptions` gains `project?` and `reserved?:
+  AccountReserve[]` (`{ project, account, percent }`); `Candidate` gains `configGroup?`
+  (`SHARED_CONFIG_GROUP` when absent). `RESERVE_CAP` is 30.
+- Precedence, unchanged in its steps: pin; preferred account (the rule's, else the person's); the
+  current account under its threshold; the accounts with room (the work's configuration group
+  first, then the strategy); the current account over its threshold; any account not out (unreserved
+  first); credits as a last resort; wait. An account the rule does not list is never a candidate in
+  any step, credits included.
+- Reserve (D12): for work of any project other than the reserving one, the reserved account's
+  threshold and margin are `percent` points lower (largest reserve on the account, capped at 30).
+  Off it under the work's own threshold, the reason is `reserve`. When nothing has room, work goes
+  to any unreserved account that is not out, over its threshold too, before the reserved one; the
+  reserved headroom is used only when every other account is out (`why.basis: 'reserve-released'`,
+  with the reserving project). A pin beats a reserve.
+- Configuration groups (D11): `AccountStore.configGroupOf` reads the stored mode (shared and the
+  default are one group, each independent account its own; mid-switch keeps the mode it leaves), no
+  dir read, and `pick` passes it. Among accounts with room, and among the spare ones, the current
+  account's group ranks first; never over room; new work (no current account) is unaffected.
+  `strictConfig` keeps rotation inside the group (a pin is exempt) and waits for the group's resets.
+- Credits compose by exclusion: the rule's allow list filters every step, the last-resort step and
+  the resets to wait for, so credits never let an excluded account run; an account on `allow`
+  credits is "not out" and meets the reserve like any account over its threshold; the last-resort
+  step ignores reserves (a spent plan has no headroom left to keep).
+- The default-equals-today proof (`packages/accounts/test/choose-rules.test.ts`): the choice as it
+  was before T6 (main after #141, the credits stop) is frozen in `test/fixtures/choose-before-rules.ts`, and 20 000 generated situations
+  (sign-in states, readings, overage, scoped limits, both strategies, preferred, order, credits and
+  caps, today's policies, pins, models, failed accounts) give the same account, reason, wait and
+  credits; again with every account in the shared group and with reserves of the work's own project.
+  The tests written before T6 pass unchanged but for `bare()`, which drops `why` from their
+  `deepEqual`s.
+
+**Differs from the plan.**
+- `reserve-released` is a `why.basis`, not an `AccountSwitchReason`: a switch's reason says why the
+  work left its account (`limit`), which the destination's reserve does not replace.
+- `rule` is not produced by `choose`: a current account outside the rule still reads `threshold`
+  (today's reason, so today's policies behave exactly as before); `why.passedOver` names it
+  `not-allowed`, from which T7 records `rule` when it moves a chat at turn end.
+- §7.2's "a reserve only diverts work while another allowed account is under its own threshold"
+  yields to D12 ("released when the other accounts are out"): work goes to an account over its
+  threshold before it uses reserved headroom.
+- "Only one with room" is `only-one` when exactly one account had room; a configuration group
+  changes ranking only, so with every account shared nothing changes, and an install with an
+  independent account sees the tie-breaker without any rule (D11).
+
+**For T7 and T8.** T7 computes `reserved` from work in progress (the reserve's account is the rule's
+`preferred`, else the first of its `order`), passes `project` with the policy, records `rule` from
+`passedOver`, and uses `why` for the no-room messages. T8 adds `preferred`, `reserve: { percent }`
+and `strictConfig` to `RotationPolicy` with validation (preferred within `order`, percent 1 to 30, at
+most one reserve per account), the `not-allowed` refusal, and labels for `reserve` and the bases
+(today the web shows an unknown reason as its raw text).
+
+**T8** (`feat/account-rules-contract`, 2026-11-15): the rules' contract, with no screen.
+- `RotationPolicy` (and `RotationPolicyRequest`) gain `preferred?: string`, `reserve?: ProjectReserve`
+  (`{ percent }`) and `strictConfig?: boolean`; the routes stay `/accounts/policies` (GET, POST, PUT,
+  DELETE), so no new route, no new row, and their OpenAPI text and `docs/rest-api.md` rows say the
+  new fields. Everything is optional: a policy with none of them is stored and chosen exactly as
+  before.
+- Validation (`AccountStore.validPolicy`, 400): `preferred` one of `order`, or a known account when
+  there is no `order`; `reserve.percent` a number from 1 to 30 (`RESERVE_CAP`); a reserve needs a
+  `preferred` or an `order` to know its account (`reserveAccountOf`, new in `choose.ts`: the
+  preferred, else the first of the order); at most one rule reserves on an account; `strictConfig`
+  a boolean, stored only when true. A file edited by hand is read defensively. Removing an account
+  clears `preferred` and drops a reserve left with no account or on one another rule holds
+  (`settleReserves`).
+- Refusals (D10). `AccountSwitchRefusalCode` gains `not-allowed` (the person's switch, 409 with
+  `reason`), and `ChatStartRefusalCode` gains `account-not-allowed` (start, resume and fork with an
+  `account` outside the rule, 409 with `code`, raised in `ChatManager.admit` before anything is ended
+  or created). `allowsAccount(policy, account)` in `@claudio/accounts` is the one test: no rule, or a
+  rule with no `order`, allows every account.
+- Reasons: `AccountSwitchReason` gains `rule` (T7 records it). The Accounts page says `reserve` and
+  `rule` in words, and `accountsConfig.json` (`en`/`es`) has labels for every `why.basis` and every
+  `passedOver.because`, for the chat chip and event rows T10 draws; nothing renders them yet.
+
+**Differs from the plan.** The pin refusal is not only T7's: T8 raises it at the three places a pin is
+set from a request (start, resume, fork) and at the composer's switch, because the codes are
+contract. What T7 still owns is the rest of the pin story: orchestrations that pin (their start now
+fails with the 409), and the existing pins, which `choose` keeps ignoring (B16) and nothing shows yet.
+The plan wrote the start refusal as `account-not-allowed` and the switch's as `not-allowed`; both
+exist, one per surface, as the plan's two sections ask. A rule's `preferred` without an `order` is
+allowed (any known account), since without a list every account is allowed.
+
+**For T7.** `reserved` is `policies().filter((p) => p.reserve)` mapped to `{ project, account:
+reserveAccountOf(p), percent }` for each project of the rule, active only while that project has
+work in progress; pass `project` and the rule's `preferred`/`strictConfig` through `policyFor`, which
+already returns them (the policy is a `ChoosePolicy`). Record `rule` when `why.passedOver` names the
+current account `not-allowed`. A rule's `looseChats` has no project id: its work in progress is the
+chats of no project. Moving a chat whose pin a rule forbids is T7's too: its `chat.opts.account`
+was set before the rule existed, and the refusal here never sees it.
 
 ## The owner's decisions (2026-11-13)
 
