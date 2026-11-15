@@ -10,6 +10,7 @@ import { Segmented } from '@claudio/ui/components/ui';
 import { ServerSettingChange } from '../config/SettingChange';
 import { rotationOrder } from '../../lib/accounts';
 import { AccountOrderList } from './AccountOrderList';
+import { CreditsRows, creditsAccounts } from './CreditsRows';
 
 const STRATEGIES = ['order', 'least-used'] as const;
 
@@ -34,6 +35,7 @@ export function RotationCard({ settings, accounts }: { settings: AccountsSetting
   const dirty = JSON.stringify(draft) !== JSON.stringify(settings);
   const order = rotationOrder(draft.order, accounts);
   const switching = draft.rotateOnLimit;
+  const withCredits = creditsAccounts(accounts, draft.credits);
 
   // Only the edited fields are sent: the preferred account is set from its card, and a Save here
   // must not write back the copy this card had before that
@@ -135,6 +137,15 @@ export function RotationCard({ settings, accounts }: { settings: AccountsSetting
                 {t('rotation.order')}
               </span>
               <AccountOrderList order={order} accounts={accounts} labelledBy={`${id}-order`} onChange={(next) => edit({ order: next })} />
+            </div>
+          )}
+          {/* Credits are never spent unless a person says so here, per account (D3 of the limit-resume plan) */}
+          {withCredits.length > 0 && (
+            <div className="rotation-credits" data-setting="accounts.credits">
+              <span className="section-label" id={`${id}-credits`}>
+                {t('rotation.credits.title')}
+              </span>
+              <CreditsRows accounts={withCredits} value={draft.credits} onChange={(credits) => edit({ credits })} labelledBy={`${id}-credits`} />
             </div>
           )}
         </div>

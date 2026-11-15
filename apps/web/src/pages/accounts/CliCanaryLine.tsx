@@ -40,12 +40,15 @@ export function CliCanaryLine() {
   const look = result ? LOOK[result.state] : null;
   const unsettled = result?.checks.filter((c) => c.state !== 'pass') ?? [];
   const sentence = (c: CliCanaryCheck): string => (c.state === 'fail' ? t(`canary.whenFailed.${c.id}`) : c.state === 'pass' ? '' : t(`canary.checkState.${c.state}`));
+  const busy = data.running || again.isPending;
+  // A re-run cannot change "needs a signed-in account": only signing in can
+  const canRerun = result?.state !== 'needs-sign-in';
 
   return (
     <section className="card canary-line" aria-label={t('canary.heading')}>
       <div className="canary-row">
         <span className="canary-what">
-          <span className="canary-heading">{t('canary.heading')}</span>
+          <h2 className="canary-heading">{t('canary.heading')}</h2>
           <span className="muted small">{t('canary.label', { version: data.version })}</span>
         </span>
         <span className="canary-state">
@@ -68,9 +71,12 @@ export function CliCanaryLine() {
               <span className="muted small">{t('canary.notChecked')}</span>
             )}
           </span>
-          <button type="button" className="btn btn-small" disabled={data.running || again.isPending} onClick={() => again.mutate()}>
-            {t('canary.again')}
-          </button>
+          {canRerun && (
+            // aria-busy, not disabled: a disabled button drops the keyboard focus to the body
+            <button type="button" className="btn btn-small" aria-busy={busy} onClick={() => !busy && again.mutate()}>
+              {t(result ? 'canary.again' : 'canary.now')}
+            </button>
+          )}
         </span>
       </div>
       {/* Kept while a run goes on, so the page below does not jump */}
@@ -80,7 +86,7 @@ export function CliCanaryLine() {
           <ul>
             {unsettled.map((c) => (
               <li key={c.id}>
-                <span className="canary-check">{t(`canary.checks.${c.id}`)}</span> <span className="muted">{sentence(c)}</span>
+                <span className="canary-check">{t('canary.checkLine', { name: t(`canary.checks.${c.id}`) })}</span> <span className="muted">{sentence(c)}</span>
               </li>
             ))}
           </ul>

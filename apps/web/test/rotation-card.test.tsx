@@ -89,3 +89,16 @@ test('moveInOrder swaps one entry with its neighbour, and does nothing at an edg
   assert.deepEqual(moveInOrder(['a', 'b', 'c'], 1, 1), ['a', 'c', 'b']);
   assert.deepEqual(moveInOrder(['a', 'b'], 0, -1), ['a', 'b']);
 });
+
+test('usage credits are offered per account only where they were ever set up, and say what each use means', () => {
+  const withCredits = account('paid', { limits: { state: 'ok', window: null, utilization: 0.1, resetsAt: null, windows: {}, observedAt: '2026-11-15T00:00:00Z', source: 'cli', cli: { observedAt: '2026-11-15T00:00:00Z', plan: 'max', available: true, scoped: [], credits: { enabled: true, usedMinor: 0, limitMinor: 4000, currency: 'USD', exponent: 2, limitReached: false, disabledReason: null, everEnabled: true } } } });
+  const none = draw(settings(), [account('a'), account('b')]);
+  assert.doesNotMatch(words(none), /Usage credits/, 'no account has credits: the setting would change nothing');
+  const html = draw(settings({ credits: { paid: { use: 'last-resort', capMinor: 1000 } } }), [account('a'), withCredits]);
+  assert.match(words(html), /Usage credits/);
+  assert.match(html, /aria-label="Usage credits of paid"/);
+  assert.doesNotMatch(html, /aria-label="Usage credits of a"/);
+  // The cap in the account's own currency, as Intl writes it for the language
+  assert.match(words(html), /Spent only when no account has plan quota left · up to .{0,6}10[.,]00.{0,6} a month/);
+  assert.match(html, /aria-label="Monthly cap on the credits of paid"/);
+});

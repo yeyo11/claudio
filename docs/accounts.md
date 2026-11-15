@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T03:40:00Z
+updated_at: 2026-11-15T13:00:00Z
 tags:
     - accounts
     - rotation
@@ -310,6 +310,35 @@ tell a refused credential from an unreachable network. The four raw answers are 
   is, after those with room, and kept while the work runs there. Under `last-resort` it is taken only
   when no account has plan quota left. Both stop at `capMinor` (Claudio's cap, against
   `cli.credits.usedMinor`), and `choose` marks such a choice `credits: true`. The wait is for the plan's reset.
+  A cap is in minor units of the account's currency; with a cap set and no `get_usage` spend known,
+  the cap counts as reached (`creditsCapReached`): money is never spent on a guess.
+- **A turn that crosses into credits (D4, t7).** `ChatManager.checkCredits` looks at a running turn
+  when its account's reading changes (`noteAccountReading`, so the stream, a refresh, a probe and
+  the idle cache all count), when a turn opens in a live process (`deliver`: a kept process does not
+  choose its account again), and on every change of the accounts (Core's `accounts.changed`, so a
+  setting saved under a running turn applies at once). It acts when the account reads `overage`
+  (`get_usage` says credits cover a spent plan) or the stream hints it (`overageHint`:
+  `isUsingOverage`, or a covering `overageStatus` beside a spent plan window; an `overageStatus` of
+  `rejected` is never a hint). The account's credits setting decides: `never`, Claudio's cap reached,
+  or `last-resort` while another account has plan quota stop the turn at once (`stop`, the same as
+  a person's Stop and a workflow subagent's limit): the chat is marked at its limit
+  (`creditsStop`), the account goes on the turn's failed list, and the rotation takes it as a limit,
+  recorded with `reason: 'credits'` and `data.credits` (`never`, `cap`, `quota-elsewhere`). It moves
+  the turn, or waits for the plan's reset. What ran between the plan's last token and the signal is
+  the cost of the check. Otherwise the turn goes on and is marked paid. No field of the CLI says a
+  turn was paid from credits (docs/decisions/credits-in-the-stream.md), so Claudio marks it from its
+  own state.
+- **The paid-turn mark.** `spend_ledger.credits` (a migration) is 1 for a result whose turn was let
+  through on credits, was stopped after crossing, or ran while its account read `overage`; the
+  day's spend serves the part as `SpendState.creditsUsd`. A move onto credits (a `last-resort` or
+  `allow` account chosen with `Choice.credits`) is a rotation event with `reason: 'credits'`,
+  `data.credits: 'paid'`.
+- **Saying it.** Each turn that goes on paying pushes a chat notice with `data.reason: 'credits'`
+  (and the month's amounts), and a stopped one a notice with `data.stopped`; the transcript draws
+  them as a warn line ("Paid from the credits of …", "Stopped before spending the credits of …").
+  The first turn of the day on an account's credits emits `account.credits` (once per account and
+  local day across the processes of the data dir, through `spend_alerts`), which the web and push
+  turn into a warn notification that leads to Accounts.
 - **The model the chat asked for is what the choice filters on** (`chat.opts.model`), not the one the
   CLI resolved: a chat started on `default` runs on any account, instead of waiting for one that
   offers the Opus it resolved to. A pick that finds no account able to run a named model waits.
@@ -492,8 +521,11 @@ retried, and one that could not run (no binary, a timeout, a server that never s
   automatic runs (the unit tests switch it off through the preload).
 - **Where it shows.** `GET /accounts/canary` answers the version, whether a run is going and the
   result; `POST /accounts/canary/run` runs it again. The Accounts page has one line for it ("Checks
-  for shared accounts": passed, failed, needs a signed-in account or could not run, with the
-  checks that did not pass and what they saw), and `accounts.changed` refreshes it.
+  for shared accounts": the CLI version, passed, failed, needs a signed-in account or could not run,
+  and its age, with **Check again**; under it only the checks that did not pass, each a neutral name
+  and a sentence in the person's language. What the server observed stays in the API and the log.
+  Under "needs a signed-in account" the button is hidden: only signing in changes that), and
+  `accounts.changed` refreshes it.
 - **What a failure changes: nothing.** It is said once in the server log and on that line. The plan
   (R1) says that a canary showing links replaced for `settings.json` should make shared mode copy
   and reconcile instead of linking; that is the owner's decision, so Claudio only reports.
@@ -524,6 +556,16 @@ retried, and one that could not run (no binary, a timeout, a server that never s
     global order as a reorderable list (the same list as the policies') and makes threshold,
     hysteresis and cooldown read-only while switching at the limit is off; saving sends only the
     edited fields, so it cannot overwrite a preference set from a card.
+  - **Usage credits** (the Rotation card): one row per account whose credits were ever set up (or
+    that already has a setting), with a select (Never, As a last resort, Allowed) and, unless Never,
+    Claudio's monthly cap in the account's currency, and a line that says what the choice does.
+    Part of the card's draft: nothing applies until Save. An account whose credits were never set up
+    has no row, since the setting would change nothing for it.
+  - **States.** An account in `overage` reads **Using credits** in warn on its card (never the bad of
+    a stop), with the month's amount and what Claudio may do with them ("Claudio never spends
+    them"); the status bar's connection item says "<account> · Using credits" in warn, the account
+    chip "on credits", and the phone's card the same. The rotation log names the reason "usage
+    credits".
 
 ## Tests
 
@@ -554,6 +596,14 @@ account's reading), `rotation-card.test.tsx` and `chat-limit.test.tsx`; the e2e 
 `packages/accounts/test/cli-usage.test.ts` guards the parser (against a recorded real answer), the
 fold precedence and the per-model choice; `apps/api/test/accounts.test.ts` the refresh routes; and
 `apps/web/test/account-card.test.tsx` the card.
+
+Credits: `packages/accounts/test/credits.test.ts` (the state and `choose`) and `credits-turn.test.ts`
+(the hint and the cap), `packages/core/test/credits-turns.test.ts` (a turn that crosses under each
+setting, over the fake's `FAKE_CLAUDE_OVERAGE_DIRS`, which reports the crossing as the SDK's typings
+describe it), `apps/web/test/account-card.test.tsx`, `rotation-card.test.tsx`, `accounts.test.ts`,
+`chat-notice.test.ts` and `notifications-text.test.ts`, and the e2e `accounts.spec.mjs` (a
+`fake-credits` token: the card's state and the setting saved from the page). No test claims the
+stream of a real paid turn: spike S2 was not run.
 
 The configuration mode is guarded by `packages/accounts/test/config-mode.test.ts` (the install
 default, the reconciliation per mode, history in both modes, each switch, the plan writing nothing,

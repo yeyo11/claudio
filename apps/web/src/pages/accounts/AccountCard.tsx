@@ -1,4 +1,4 @@
-import type { Account } from '@claudio/shared';
+import type { Account, AccountCreditsUse } from '@claudio/shared';
 import { CircleCheck, CirclePause, LogIn, Star, Trash2, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { MoreActions, type MenuItem } from '@claudio/ui/components/controls';
@@ -6,7 +6,7 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { usageTone } from '@claudio/ui/components/motion';
 import { Tag } from '@claudio/ui/components/ui';
 import { formatDateTime, formatPercent, timeAgo, toMs } from '@claudio/ui/lib/format';
-import { accountExhausted, accountName, canSignInAgain, creditsView, isDefaultAccount, planOf, scopedRows, signInProblem, timeToReset, USAGE_MAX_AGE_MS, usagePct, windowRows, type ScopedRow, type WindowRow } from '../../lib/accounts';
+import { accountExhausted, accountName, canSignInAgain, creditsView, isDefaultAccount, onCredits, planOf, scopedRows, signInProblem, timeToReset, USAGE_MAX_AGE_MS, usagePct, windowRows, type ScopedRow, type WindowRow } from '../../lib/accounts';
 
 /** `in 2 d 10 h`, or `back in 19 min` for a window that is spent: sentence case, never a title. */
 function useResetText() {
@@ -19,11 +19,13 @@ function useResetText() {
   };
 }
 
-function WindowMeter({ row }: { row: WindowRow | ScopedRow }) {
+/** `paying`: the account's credits cover its spent plan, which the card's own tag says once */
+function WindowMeter({ row, paying = false }: { row: WindowRow | ScopedRow; paying?: boolean }) {
   const { t } = useTranslation('accountsConfig');
   const resetText = useResetText();
   const spent = row.pct >= 100;
-  const tone = usageTone(row.pct, spent);
+  // A spent window the account's credits cover is a price, not a stop: warn, with its word
+  const tone = spent && paying ? 'warn' : usageTone(row.pct, spent);
   const label = 'model' in row ? t('window.scoped', { model: row.model }) : row.key === 'five_hour' ? t('window.fiveHour') : row.key === 'seven_day' ? t('window.sevenDay') : row.key;
   const reset = resetText(row.resetsAt, spent);
   return (
@@ -31,7 +33,7 @@ function WindowMeter({ row }: { row: WindowRow | ScopedRow }) {
       <div className="account-meter-head">
         <span className="account-meter-label">{label}</span>
         {/* Near the limit is a warning whatever the bar's colour: only a spent window is bad */}
-        {spent ? <Tag tone="bad">{t('card.exhausted')}</Tag> : tone !== 'neutral' ? <Tag tone="warn">{t('card.runningHigh')}</Tag> : null}
+        {spent ? <Tag tone={paying ? 'warn' : 'bad'}>{t(paying ? 'card.onCredits' : 'card.exhausted')}</Tag> : tone !== 'neutral' ? <Tag tone="warn">{t('card.runningHigh')}</Tag> : null}
         {reset && <span className="account-meter-reset">{reset}</span>}
         {row.resetsAt && <span className="sr-only">({formatDateTime(row.resetsAt)})</span>}
         <span className="account-meter-pct">
@@ -45,8 +47,12 @@ function WindowMeter({ row }: { row: WindowRow | ScopedRow }) {
   );
 }
 
-/** The credits an account may spend beyond its plan: nothing until they were ever set up, then on, off or at their cap. */
-function CreditsLine({ account }: { account: Account }) {
+/**
+ * The credits an account may spend beyond its plan: nothing until they were ever set up, then on, off
+ * or at their cap, and whether Claudio's work may spend them (its credits setting). On credits, the
+ * month's amount is always said beside the state: money is never a surprise.
+ */
+function CreditsLine({ account, use }: { account: Account; use: AccountCreditsUse }) {
   const { t } = useTranslation('accountsConfig');
   const view = creditsView(account.limits?.cli?.credits);
   if (!view) return null;
@@ -55,6 +61,7 @@ function CreditsLine({ account }: { account: Account }) {
     <p className="account-credits tnum">
       {view.limit ? t('card.credits.used', { used: view.used, limit: view.limit }) : t('card.credits.usedNoLimit', { used: view.used })}
       {view.kind === 'reached' && <Tag tone="warn">{t('card.credits.limitReached')}</Tag>}
+      {view.kind === 'on' && <span className="account-credits-use">{t(`card.credits.use.${use}`)}</span>}
     </p>
   );
 }
@@ -68,6 +75,7 @@ function readingStale(observedAt: string, now = Date.now()): boolean {
 /** One account: who it is, how much of each window it used and how old that reading is, and what can be done with it. */
 export function AccountCard({
   account,
+  creditsUse = 'never',
   current,
   preferred = false,
   busy,
@@ -77,6 +85,8 @@ export function AccountCard({
   onSignInAgain,
 }: {
   account: Account;
+  /** What Claudio's work may do with the account's usage credits (its credits setting) */
+  creditsUse?: AccountCreditsUse;
   /** New work would start on this account */
   current: boolean;
   /** The person chose it as the account new work starts on while it has room */
@@ -91,9 +101,11 @@ export function AccountCard({
   const { t } = useTranslation(['accountsConfig', 'common']);
   const resetText = useResetText();
   const name = accountName(account);
-  const exhausted = accountExhausted(account);
+  // A spent plan its credits pay for is `overage`: warn with its word, never the bad of a stop
+  const paying = onCredits(account.limits);
+  const exhausted = accountExhausted(account) && !paying;
   const pct = usagePct(account.limits);
-  const backIn = exhausted ? resetText(account.limits?.resetsAt ?? null, true) : null;
+  const backIn = exhausted || paying ? resetText(account.limits?.resetsAt ?? null, true) : null;
   // The plan tag already says "API key", so its kind is not said again
   const sub = [account.alias ? account.email : null, account.organization, account.kind !== 'api-key' ? t(`kind.${account.kind}`) : null].filter(Boolean).join(' · ');
   const plan = planOf(account);
@@ -129,16 +141,17 @@ export function AccountCard({
               !account.signedIn && <Tag tone="warn">{t('card.signedOut')}</Tag>
             )}
             {exhausted && <Tag tone="bad">{t('card.exhausted')}</Tag>}
+            {paying && <Tag tone="warn">{t('card.onCredits')}</Tag>}
           </span>
           {sub && (
             <span className="account-sub">
-              <span className="account-org">{sub}</span>
+              <span className="account-org" title={sub}>{sub}</span>
             </span>
           )}
         </span>
         {pct !== null && (
           <span className="account-figure">
-            <span className={`account-figure-value ${exhausted ? 'text-bad' : current ? 'grad-text' : ''}`.trim()}>
+            <span className={`account-figure-value ${exhausted ? 'text-bad' : paying ? 'text-warn' : current ? 'grad-text' : ''}`.trim()}>
               {formatPercent(100 - pct)}<span className="sr-only"> {t('card.free')}</span>
             </span>
             <span className="section-label" aria-hidden={!backIn}>
@@ -156,11 +169,11 @@ export function AccountCard({
 
       <div className="account-meters">
         {rows.length > 0 ? (
-          rows.map((row) => <WindowMeter key={row.key} row={row} />)
+          rows.map((row) => <WindowMeter key={row.key} row={row} paying={paying && !('model' in row)} />)
         ) : (
           <p className="muted small">{account.kind === 'api-key' ? t('card.noLimitsApiKey') : account.limits?.cli?.available === false ? t('card.noLimitsToken') : t('card.noUsage')}</p>
         )}
-        <CreditsLine account={account} />
+        <CreditsLine account={account} use={creditsUse} />
         {account.limits && readingStale(account.limits.observedAt) && (
           // The cache can be days old and a stream reading is as old as the run that sent it: an old one says how old
           <p className="muted small tnum" title={formatDateTime(account.limits.observedAt)}>

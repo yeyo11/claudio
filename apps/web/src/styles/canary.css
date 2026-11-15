@@ -23,6 +23,8 @@
 }
 
 .canary-heading {
+  margin: 0;
+  font-size: var(--fs-section);
   font-weight: var(--fw-strong);
 }
 

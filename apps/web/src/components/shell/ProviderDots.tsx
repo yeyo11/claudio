@@ -11,7 +11,7 @@ import { resetWhen } from '../../lib/reset-when';
 import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { StatusDot, usageTone, type DotTone } from '@claudio/ui/components/motion';
 import { Spinner } from '@claudio/ui/components/Spinner';
-import { accountReading } from '../../lib/accounts';
+import { accountReading, onCredits } from '../../lib/accounts';
 import { CLAUDE_CODE_ID } from '../../lib/provider-state';
 
 /**
@@ -42,10 +42,14 @@ function ProviderDot({ status, limit, account }: { status: ProviderStatus; limit
   const observedAt = account ? (account.limit?.observedAt ?? null) : (limit?.observedAt ?? null);
   const unknown = account ? account.limit?.state === 'unknown' : limit?.state === 'unknown';
   const windowOf = useLimitWindowName();
-  const { hot, limitOnly, tone } = limitDotFacts(status, reading);
+  const facts = limitDotFacts(status, reading);
+  const { hot, limitOnly } = facts;
+  // The account in use spends its credits past a spent plan: work goes on at a price, warn and said so
+  const paying = account !== null && onCredits(account.limit);
+  const tone: DotTone = paying ? 'warn' : facts.tone;
   const ok = status.state === 'ready';
   const word = t(stateLabelKey(status.state)).toLowerCase();
-  const limitWord = reading ? (reading.state === 'exhausted' ? ts('statusbar.limit.exhausted') : ts('statusbar.limit.near')) : '';
+  const limitWord = paying ? ts('statusbar.onCredits') : reading ? (reading.state === 'exhausted' ? ts('statusbar.limit.exhausted') : ts('statusbar.limit.near')) : '';
   const text = hot ? `${status.label} · ${limitWord}` : ok ? status.label : `${status.label} · ${word}`;
   // The version is a literal the CLI prints, so it alone keeps the mono voice in the strip
   const version = !hot && ok && status.version ? status.version : null;

@@ -120,6 +120,8 @@ export function Accounts() {
         return t('reason.signed-out');
       case 'auth':
         return t('reason.auth');
+      case 'credits':
+        return t('reason.credits');
       default:
         return reason;
     }
@@ -221,6 +223,7 @@ export function Accounts() {
             <AccountCard
               key={account.id}
               account={account}
+              creditsUse={settings.data?.credits[account.id]?.use ?? 'never'}
               current={account.id === current}
               preferred={account.id === preferred}
               busy={busy}

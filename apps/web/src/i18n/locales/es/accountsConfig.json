@@ -125,9 +125,15 @@
       "used": "Créditos · {{used}} de {{limit}} este mes",
       "usedNoLimit": "Créditos · {{used}} usados este mes",
       "none": "Sin créditos adicionales",
-      "limitReached": "Límite alcanzado"
+      "limitReached": "Límite alcanzado",
+      "use": {
+        "never": "Claudio no los gasta nunca",
+        "last-resort": "Claudio los gasta como último recurso",
+        "allow": "Claudio puede gastarlos"
+      }
     },
-    "noLimitsToken": "El CLI no da el uso de un token. Los límites aparecerán aquí cuando un chat se ejecute en esta cuenta."
+    "noLimitsToken": "El CLI no da el uso de un token. Los límites aparecerán aquí cuando un chat se ejecute en esta cuenta.",
+    "onCredits": "Usando créditos"
   },
   "toast": {
     "heldOut": "{{name}} queda fuera de rotación",
@@ -218,7 +224,25 @@
     "appliesWhenOn": "Se aplica cuando el cambio al llegar al límite está activado",
     "order": "El orden en que se toman las cuentas",
     "updated": "Ajustes guardados",
-    "updateFailed": "No se han podido guardar los ajustes"
+    "updateFailed": "No se han podido guardar los ajustes",
+    "credits": {
+      "title": "Créditos de uso",
+      "useFor": "Créditos de uso de {{name}}",
+      "capFor": "Tope mensual de los créditos de {{name}}",
+      "noCap": "Sin tope",
+      "use": {
+        "never": "Nunca",
+        "last-resort": "Como último recurso",
+        "allow": "Permitidos"
+      },
+      "consequence": {
+        "never": "No se gastan nunca: el trabajo espera a que se reinicie el plan",
+        "last-resort": "Solo se gastan cuando ninguna cuenta tiene cuota del plan",
+        "allow": "Se gastan como la cuota del plan cuando esta se agota"
+      },
+      "capAt": "hasta {{cap}} al mes",
+      "noCapHint": "hasta el tope fijado en claude.ai"
+    }
   },
   "log": {
     "title": "Cambios y esperas",
@@ -257,7 +281,8 @@
     "person": "elegida por ti",
     "disabled": "fuera de la rotación",
     "signed-out": "sin sesión",
-    "auth": "sesión caducada"
+    "auth": "sesión caducada",
+    "credits": "créditos de uso"
   },
   "plan": {
     "max": "Max",
@@ -276,25 +301,27 @@
     "state": {
       "pass": "Superadas",
       "fail": "Fallidas",
-      "needs-sign-in": "Requiere una cuenta con sesión",
+      "needs-sign-in": "Requiere una cuenta con la sesión iniciada",
       "error": "No se han podido ejecutar"
     },
     "checks": {
-      "s1": "Un archivo de estado enlazado sobrevive a una escritura",
-      "s2": "Los plugins y los ajustes enlazados sobreviven a una instalación",
-      "s3c": "La confianza en un proyecto se lee de la cuenta"
+      "s1": "Archivo de estado enlazado",
+      "s2": "Plugins y ajustes enlazados",
+      "s3c": "Confianza en el proyecto"
     },
     "failed": "Esta versión se comporta distinto de lo que las cuentas compartidas necesitan. No se ha cambiado nada: las cuentas siguen funcionando como antes.",
     "needsSignIn": "El CLI no ejecuta algunas comprobaciones sin una cuenta con sesión, y no se ha usado ninguna.",
-    "couldNotRun": "Algunas comprobaciones no se han podido ejecutar, así que aún no se sabe nada de ellas.",
+    "couldNotRun": "Estas comprobaciones no se han podido ejecutar, así que aún no se sabe nada de ellas.",
     "whenFailed": {
       "s1": "El CLI puede reemplazar un archivo de estado enlazado al escribir.",
       "s2": "Instalar un plugin puede reemplazar una carpeta de plugins o un archivo de ajustes enlazados.",
       "s3c": "Puede que la confianza en un proyecto ya no se lea de la cuenta."
     },
     "checkState": {
-      "needs-sign-in": "requiere una cuenta con sesión",
+      "needs-sign-in": "requiere una cuenta con la sesión iniciada",
       "error": "no se ha podido ejecutar"
-    }
+    },
+    "now": "Comprobar ahora",
+    "checkLine": "{{name}}:"
   }
 }

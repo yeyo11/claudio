@@ -87,6 +87,10 @@
 //                                 the rate limit (a 429): an account that is out
 //   FAKE_CLAUDE_LIMIT_RESETS_IN=<s> with FAKE_CLAUDE_LIMITED_DIRS, that 429 comes after the rejected
 //                                 rate_limit_event the CLI sends, with its reset <s> seconds from now
+//   FAKE_CLAUDE_OVERAGE_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these first reports
+//                                 an allowed rate_limit_event with its five-hour window spent and the overage
+//                                 fields saying credits cover it (built from the SDK's typings: no paid turn
+//                                 was ever recorded), then goes on as the prompt says: a turn crossing into credits
 //   FAKE_CLAUDE_EXPIRED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies on the
 //                                 sign-in (a 401, replay/auth-expired.jsonl): an account whose session expired
 //   FAKE_CLAUDE_PROMPTS=<file>    appends one JSON line `{ cwd, resume, prompt }` per turn it is sent, so a
@@ -266,6 +270,10 @@ lines.on('line', async (line) => {
   out({ type: 'system', subtype: 'init', session_id: sessionId, cwd: dir, model: process.env.FAKE_CLAUDE_RESOLVED_MODEL || flag('--model') || 'fake', tools: [] });
   if (process.env.FAKE_CLAUDE_PROMPTS) appendFileSync(process.env.FAKE_CLAUDE_PROMPTS, `${JSON.stringify({ cwd: dir, resume: flag('--resume') ?? null, prompt })}\n`);
 
+  if (process.env.CLAUDE_CONFIG_DIR && (process.env.FAKE_CLAUDE_OVERAGE_DIRS ?? '').split(',').includes(process.env.CLAUDE_CONFIG_DIR)) {
+    const resetsAt = Math.floor(Date.now() / 1000) + 3600;
+    out({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', rateLimitType: 'five_hour', resetsAt, utilization: 1, isUsingOverage: true, overageStatus: 'allowed', unifiedWindows: { five_hour: { utilization: 1, resetsAt } } } });
+  }
   for (const [, file, text] of prompt.matchAll(/^FAKE-WRITE (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
   if (prompt.startsWith('You are the review fixer')) {
     for (const [, file, text] of prompt.matchAll(/^FAKE-REVIEW-FIX (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);

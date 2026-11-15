@@ -125,9 +125,15 @@
       "used": "Credits · {{used}} of {{limit}} this month",
       "usedNoLimit": "Credits · {{used}} used this month",
       "none": "No extra credits",
-      "limitReached": "Limit reached"
+      "limitReached": "Limit reached",
+      "use": {
+        "never": "Claudio never spends them",
+        "last-resort": "Claudio spends them as a last resort",
+        "allow": "Claudio may spend them"
+      }
     },
-    "noLimitsToken": "The CLI gives no usage for a token. Limits show here once a chat runs on this account."
+    "noLimitsToken": "The CLI gives no usage for a token. Limits show here once a chat runs on this account.",
+    "onCredits": "Using credits"
   },
   "toast": {
     "heldOut": "{{name}} is out of rotation",
@@ -218,7 +224,25 @@
     "appliesWhenOn": "Applies when switching at the limit is on",
     "order": "The order accounts are taken in",
     "updated": "Settings saved",
-    "updateFailed": "The settings could not be saved"
+    "updateFailed": "The settings could not be saved",
+    "credits": {
+      "title": "Usage credits",
+      "useFor": "Usage credits of {{name}}",
+      "capFor": "Monthly cap on the credits of {{name}}",
+      "noCap": "No cap",
+      "use": {
+        "never": "Never",
+        "last-resort": "As a last resort",
+        "allow": "Allowed"
+      },
+      "consequence": {
+        "never": "Never spent: work waits for the plan to reset",
+        "last-resort": "Spent only when no account has plan quota left",
+        "allow": "Spent like plan quota once the plan runs out"
+      },
+      "capAt": "up to {{cap}} a month",
+      "noCapHint": "up to the cap set at claude.ai"
+    }
   },
   "log": {
     "title": "Switches and waits",
@@ -257,7 +281,8 @@
     "person": "chosen by you",
     "disabled": "held out of rotation",
     "signed-out": "signed out",
-    "auth": "sign-in expired"
+    "auth": "sign-in expired",
+    "credits": "usage credits"
   },
   "plan": {
     "max": "Max",
@@ -280,13 +305,13 @@
       "error": "Could not run"
     },
     "checks": {
-      "s1": "A linked state file survives a write",
-      "s2": "Linked plugins and settings survive an install",
-      "s3c": "A project's trust is read from the account"
+      "s1": "Linked state file",
+      "s2": "Linked plugins and settings",
+      "s3c": "Project trust"
     },
     "failed": "This version behaves differently from what shared accounts rely on. Nothing was changed: accounts keep working as they were.",
     "needsSignIn": "The CLI would not run some checks without an account signed in, and none was used.",
-    "couldNotRun": "Some checks could not run, so nothing is known about them yet.",
+    "couldNotRun": "These checks could not run, so nothing is known about them yet.",
     "whenFailed": {
       "s1": "The CLI may replace a linked state file when it writes.",
       "s2": "A plugin install may replace a linked plugins folder or settings file.",
@@ -295,6 +320,8 @@
     "checkState": {
       "needs-sign-in": "needs a signed-in account",
       "error": "could not run"
-    }
+    },
+    "now": "Check now",
+    "checkLine": "{{name}}:"
   }
 }

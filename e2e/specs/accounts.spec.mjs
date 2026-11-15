@@ -3,7 +3,8 @@
 // turn on another account, with the switch recorded. A token starting with `fake-expired` fails to
 // authenticate (`FAKE-AUTH-EXPIRED-ACCOUNT`): a chat on it moves to the account with room, the
 // account reads "Sign-in expired" on the Accounts page, and an orchestration task started on it runs
-// on the other one.
+// on the other one. A token starting with `fake-credits` has its plan spent and its usage credits on:
+// the card reads "Using credits", and the person sets what Claudio may spend of them.
 //
 // The fake CLI answers every account as signed in; only a token starting with `fake-limited` is out
 // of room, and one starting with `fake-expired` is out of sign-in.
@@ -136,7 +137,34 @@ export default async ({ page, api, check, dirs }) => {
     check(await page.eval(`return document.body.innerText.includes('Applies when switching at the limit is on')`), 'the fields say when they apply');
     await api.put('/accounts/settings', { rotateOnLimit: true });
 
-    // ---------- an orchestration task after it ----------
+    // ---------- usage credits (t7 of docs/plans/limit-resume-and-credits.md) ----------
+    // `fake-credits` answers `get_usage` with its five hours spent and its credits on: the `overage`
+    // state, read with no turn. Its credits are never spent until the person says so on this page
+    const paying = await api.post('/accounts/token', { kind: 'token', alias: 'e2e-credits', secret: 'fake-credits-e2e' });
+    check(paying.status === 201, `an account with usage credits is added (${paying.status})`);
+    added.push(paying.body.id);
+    const read = await api.post(`/accounts/${paying.body.id}/refresh`);
+    check(read.status === 200, `its usage is read (${read.status})`);
+    const overage = (await api.get('/accounts')).body.find((a) => a.id === paying.body.id);
+    check(overage?.limits?.state === 'exhausted' && overage.limits.creditsCover === true, `its spent plan is covered by its credits (${JSON.stringify(overage?.limits ?? null).slice(0, 300)})`);
+    check(!(await api.get('/accounts/settings')).body.credits?.[paying.body.id], 'its credits are never spent by default');
+    await page.goto('/accounts', 1500);
+    await page.waitFor(`return [...document.querySelectorAll('.account-card')].some((c) => c.innerText.includes('e2e-credits') && c.innerText.includes('Using credits') && c.innerText.includes('Claudio never spends them'))`, { label: 'the card says the account is on credits, and that Claudio never spends them' });
+    await page.select(`button[aria-label="Usage credits of e2e-credits"]`, 'As a last resort');
+    await page.fill('input[aria-label="Monthly cap on the credits of e2e-credits"]', '10');
+    await page.waitFor(`return document.querySelector('.rotation-card')?.innerText.includes('up to $10.00 a month')`, { label: 'the cap says what it means before it is saved' });
+    await page.click('.rotation-card button[type=submit]', 'Save', 800);
+    let creditsSaved = null;
+    for (let i = 0; i < 20; i++) {
+      creditsSaved = (await api.get('/accounts/settings')).body.credits?.[paying.body.id] ?? null;
+      if (creditsSaved) break;
+      await sleep(250);
+    }
+    check(creditsSaved?.use === 'last-resort' && creditsSaved?.capMinor === 1000, `the credits setting is saved per account, its cap in minor units (${JSON.stringify(creditsSaved)})`);
+    await page.waitFor(`return [...document.querySelectorAll('.account-card')].some((c) => c.innerText.includes('e2e-credits') && c.innerText.includes('Claudio spends them as a last resort'))`, { label: 'the card says what Claudio may do with the credits' });
+    await api.put('/accounts/settings', { credits: {} });
+
+        // ---------- an orchestration task after it ----------
     // The expired mark keeps the account out of the choice, so the task's chat runs on another one.
     // The retry after an account ran out is guarded in core (orchestration-retry-account.test.ts):
     // a task cannot be made to fail on one account here
