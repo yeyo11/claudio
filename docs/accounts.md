@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T18:00:00Z
+updated_at: 2026-11-15T12:30:00Z
 tags:
     - accounts
     - rotation
@@ -499,6 +499,46 @@ The status bar tells signed out from the limit with `SystemInfo.auth.inUseReason
 `limit` or null), which the server sets when no account is in use: `limit` when an enabled account
 has a credential, `signed-out` otherwise. "Not signed in" is shown only for the second case.
 
+## The CLI canary
+
+What a shared account stands on is behaviour no vendor documents: a rewrite of `.claude.json` that
+keeps a link, a `plugins/` that survives an install, project trust read from the account's state
+file. A CLI release can change any of it, so the first time Claudio reads a CLI version it has not
+checked, it runs three checks again (`runCanary`, `packages/accounts/src/canary.ts`; the spikes S1,
+S2 and S3c of [the plan](plans/account-configuration-and-project-rules.md)):
+
+| Check | What it does in a temp dir | Passes when |
+|---|---|---|
+| `s1` | links `acc/.claude.json` to a file of `shared/`, then `claude mcp add --scope user` | the state file is still a link and the target holds the new server |
+| `s2` | links `plugins/` and `settings.json`; adds a directory marketplace (no network), installs its plugin, raises its version, updates the marketplace and the plugin | both are still links, the plugin is enabled in the linked settings and recorded in the linked `plugins/` |
+| `s3c` | a project with one HTTP server whose `headersHelper` leaves a mark; `initialize` then `mcp_status` control requests, with no turn, with and without `projects[<dir>].hasTrustDialogAccepted` | untrusted: the server fails and the helper never runs; trusted: it connects and the helper runs |
+
+It costs nothing and touches nothing of a person's: every process gets an environment built from
+nothing (a `PATH`, and a `HOME`, `XDG_*`, `TMPDIR` and `CLAUDE_CONFIG_DIR` under one fresh temp dir,
+which is removed afterwards), so no token, key or real config dir can reach it. No check starts a
+turn or needs an account; one the CLI refuses for a missing sign-in reads `needs-sign-in` and is not
+retried, and one that could not run (no binary, a timeout, a server that never settled) reads
+`error`, which says nothing of the CLI. The local server it talks to listens on loopback only. On
+2.1.322 all three pass in about 25 seconds.
+
+- **Stored** per version and check in SQLite (`cli_canary`: `version`, `check_id`, `state`,
+  `observed`, `checked_at`), because there is one more per release for as long as Claudio runs and
+  the binary and the app share the data dir. A version with a complete result is never run again
+  by itself, so a restart costs nothing; a re-run replaces the rows of its version.
+- **When.** `CliCanaryWatch` (`packages/core/src/cli-canary.ts`) is told each CLI version the
+  system read sees, one run at a time, in the background. `CLAUDIO_CLI_CANARY=off` stops the
+  automatic runs (the unit tests switch it off through the preload).
+- **Where it shows.** `GET /accounts/canary` answers the version, whether a run is going and the
+  result; `POST /accounts/canary/run` runs it again. The Accounts page has one line for it ("Checks
+  for shared accounts": the CLI version, passed, failed, needs a signed-in account or could not run,
+  and its age, with **Check again**; under it only the checks that did not pass, each a neutral name
+  and a sentence in the person's language. What the server observed stays in the API and the log.
+  Under "needs a signed-in account" the button is hidden: only signing in changes that), and
+  `accounts.changed` refreshes it.
+- **What a failure changes: nothing.** It is said once in the server log and on that line. The plan
+  (R1) says that a canary showing links replaced for `settings.json` should make shared mode copy
+  and reconcile instead of linking; that is the owner's decision, so Claudio only reports.
+
 ## Where it shows
 
 - **API:** `/accounts` and its sub-routes, in the [Accounts](rest-api.md#accounts) table of the REST API. A chat's token reads
@@ -537,6 +577,8 @@ has a credential, `signed-out` otherwise. "Not signed in" is shown only for the 
     credits".
 
 ## Tests
+
+The canary is guarded by `packages/accounts/test/canary.test.ts` (a fake CLI that breaks each check in turn, the environment it is given, and the installed CLI when there is one), `packages/core/test/cli-canary.test.ts` and the accounts route tests.
 
 The unit tests run against `packages/accounts/test/fake-claude.mjs`, which honours
 `CLAUDE_CONFIG_DIR`. The end-to-end spec `e2e/specs/accounts.spec.mjs` uses the fake CLI of

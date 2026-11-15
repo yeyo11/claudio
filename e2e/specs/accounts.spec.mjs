@@ -28,6 +28,11 @@ export default async ({ page, api, check, dirs }) => {
     // A fresh sandbox has no credentials file, so the implicit default account is not an account yet
     check(list.status === 200 && !list.body.some((a) => a.id === 'default'), `GET /accounts leaves out a default account that has no credential (${list.status})`);
 
+    // The CLI canary runs by itself on a CLI version it has not seen; against the fake CLI its checks
+    // may well fail, so only the shape is held here
+    const canary = await api.get('/accounts/canary');
+    check(canary.status === 200 && typeof canary.body.running === 'boolean' && 'version' in canary.body && 'result' in canary.body, `GET /accounts/canary answers its status (${canary.status})`);
+
     const limited = await api.post('/accounts/token', { kind: 'token', alias: 'e2e-limited', secret: 'fake-limited-e2e' });
     check(limited.status === 201 && limited.body.alias === 'e2e-limited', `a token account is added (${limited.status})`);
     added.push(limited.body.id);
