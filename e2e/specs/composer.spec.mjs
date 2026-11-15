@@ -128,6 +128,13 @@ export default async ({ page, api, dirs, check }) => {
     const sent = await api.post(`/chats/${id}/messages`, { text: `${typed}\nhold: streaming-legible-release` });
     check(sent.status === 200 || sent.status === 202, `the streaming turn was sent (${sent.status})`);
     await page.waitFor(`return !!document.querySelector('.msg-streaming .streaming-text .code-block')`, { label: 'the streaming answer with its code block' });
+    // The fake types half the answer and then holds, and the paragraph after the code block can arrive
+    // after the block did: its fade-in then starts after the animations below were collected and was
+    // read mid-entrance, at ratio 1. So the text has to stop growing first
+    await page.waitFor(
+      `const read = () => document.querySelector('.msg-streaming .streaming-text')?.innerText ?? ''; const before = read(); await new Promise((r) => setTimeout(r, 500)); return before.length > 0 && read() === before`,
+      { label: 'the streaming answer to stop growing at the hold' },
+    );
     const settled = await page.eval(`await Promise.all(document.getAnimations().filter((a) => a.effect?.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))); return true`);
     check(settled, 'the entrance animations of the streaming answer finished');
     const streamingDark = await page.eval(legibility('.msg-streaming'));
