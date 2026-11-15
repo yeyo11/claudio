@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T12:00:00Z
+updated_at: 2026-11-15T18:00:00Z
 tags:
     - plan
     - study
@@ -12,7 +12,7 @@ tags:
 ---
 # Study: work that does not resume after a usage limit, and the credits Claudio ignores
 
-Status: **proposed**; `t7` is built on `feat/credits-setting`; `t8` is built on `feat/limit-hold-sweeper`; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
+Status: **built** (every task `t1` to `t8` and `t9`; the closing summary is at the end of [Outcome](#outcome)); `t7` is built on `feat/credits-setting`; `t8` is built on `feat/limit-hold-sweeper`; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
 
 On 2026-11-13 the owner reported two problems:
 
@@ -582,6 +582,44 @@ Still open: S2 (a paid turn's real stream) was not run, so every test builds the
 SDK's typings; a rejected event with `isUsingOverage` under `allow` still marks the chat at its
 limit (the fold's rule), which only S2 can say is right; `t9` may show the stop's reason on the
 banner.
+
+### t9, one wait line and Home's open waits (branch `feat/one-wait-line`)
+
+Built in `apps/web/src/components/WaitLine.tsx`, `pages/chat/LimitBanner.tsx`, `pages/dashboard/widgets/waits.tsx` (Home) and the places that drew their own wait; tests in `apps/web/test/wait-line.test.tsx` and `e2e/specs/limit-wait-line.spec.mjs`. Written up in [accounts.md](../accounts.md#where-it-shows), [orchestrations.md](../orchestrations.md) and [team-and-flow.md](../team-and-flow.md) (whose stale `awaitsRotation` paragraph now says the wait row holds a run).
+
+- **One component.** `WaitLine` is the strip every wait uses (the chat banner, a task, a workflow, a graph step, the review gate, a flow run on its item, an eval run, the board's strip through `WaitWhen`), with `WaitActions` (Stop waiting, Run now: the two actions and routes that already existed). Its words are one set: "Waiting for Claude Code", then the reset, "going on now", or "the reset time is not known · looking again at 17:15" (`nextLookAt`), and the account where the page knows it. Warn, still, with the clock; a phone gets touch targets under the words.
+- **Home.** "In progress" lists the open waits (`waiting` and `resuming` rows of `GET /limits/waits`) in warn, oldest first, with what waits, since when, when it goes on or looks again and a link; nothing is drawn when none is open.
+- **Graph steps.** `stepWaits` (t3) is now shown: the integration, the verification fix and the synthesis say their wait above the graph; the review gate's card uses the same line.
+- **API.** One optional field, `LimitWait.state` (`waiting` | `resuming`), set in `openWaitOf`, with the regenerated schemas. `nextLookAt` was already served on `LimitWait` and on the move rows (t8). No route was added.
+
+What differs from the plan:
+
+- **"Ended" has no line.** An ended wait is told by what it did (the chat goes on, the task is `stopped` or `failed`, the run ends with its cause), so the line draws only open waits.
+- **A probe is not drawn as live.** The server does not say when a `get_usage` probe is in flight, so nothing is cyan; the line says the hour of the next look.
+- **The account is named only where the page knows it** (a chat's, Home's rows for chats): a wait row names no account, and a new field was not worth it.
+- **Home's list lives in "In progress"**, not in a widget of its own, so a layout a person stored shows it too.
+- **The evals' wait** is the run's own (no `provider_moves` row), so its line has the run's Stop and no Run now.
+
+## Closing summary
+
+What was built, in order: t1 a person's chat waits and resumes by itself, a refused resume keeps its wait, `internal` chats end at a limit; t2 a chat at its limit survives a restart and `resetSince` compares with the recorded reset; t3 graph steps that are no task wait like tasks; t4 `/v1` answers `Retry-After` and is never replayed; t5 the spikes S1 and S4 as a decision; t6 and t7 the `overage` state, the per-account credits setting, the stop of a turn that crosses into credits, the paid-turn mark and the notices; t8 the sweeper: the wait row is the one owner, with `next_look_at`, `get_usage` probes for a wait that knows no reset, the turn kept in the row and a restart that cannot lose it; t9 one wait line and Home's list.
+
+What differs from the study:
+
+- The planner keeps D6: it is no step of a graph, and ends at a limit (t3).
+- The review gate's inferred hang was not reproduced; the defect was that a reviewer was neither moved nor waited for (t3).
+- The stream's `isUsingOverage` never makes the credits state alone, since no recorded event has it true; `get_usage` does (t6).
+- The turn is stored as text in the row, not as message ids (t8).
+- A `/v1` chat is not moved either, not only not waited for (t4).
+
+What stays open:
+
+- **S2 is not authorised**: what a `-p` turn emits at a plan limit with credits on, and at the credits cap, is unknown; every credits test builds the crossing from the SDK's typings. A rejected event with `isUsingOverage` under `allow` still marks the chat at its limit (the fold's rule).
+- **S3 was authorised and not run here**: whether `autoContinueAtUsageLimit` reaches `-p` stream-json, which would be a vendor wait inside the CLI to prefer or turn off.
+- **S5**: the remote server's history, where the orchestrations the owner remembers as not resuming may be, was not read.
+- **A graph step's wait across a restart** is closed (`cancelled`) by the orchestrator, not resumed (t3, t8); the orchestrator's owner closes it.
+- The planner's wait (D6), the executions recorded before `limitResetsAt` (t2) and a wait that no process restored are as t1 to t3 left them.
+- The wait line draws no ended state and no live probe, and names the account only for a chat (t9).
 
 ## The owner's decisions (2026-11-13)
 
