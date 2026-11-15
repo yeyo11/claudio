@@ -1419,17 +1419,22 @@ function control(message) {
       reply({ session: { total_cost_usd: 0, total_api_duration_ms: 0, total_duration_ms: 900, total_lines_added: 0, total_lines_removed: 0, model_usage: {} }, subscription_type: null, rate_limits_available: false, rate_limits: null, behaviors: null });
       return;
     }
-    // The shape of the recorded answer (packages/accounts/test/fixtures/get-usage-max.json), small and a day from its resets
+    // The shape of the recorded answer (packages/accounts/test/fixtures/get-usage-max.json), small and a day from its resets.
+    // A token starting with `fake-credits` is an account whose five hours are spent and whose usage credits
+    // are on, 3.20 of 40.00 USD this month: the `overage` state, read with no turn (no paid turn was ever recorded)
     const reset = (hours) => new Date(Date.now() + hours * 3_600_000).toISOString();
+    const credits = (env.CLAUDE_CODE_OAUTH_TOKEN ?? '').startsWith('fake-credits');
     reply({
       subscription_type: 'max',
       rate_limits_available: true,
       rate_limits: {
-        five_hour: { utilization: 5, resets_at: reset(4) },
+        five_hour: { utilization: credits ? 100 : 5, resets_at: reset(4) },
         seven_day: { utilization: 27, resets_at: reset(96) },
-        extra_usage: { is_enabled: false, monthly_limit: null, used_credits: null, currency: null, decimal_places: null, disabled_reason: null, spend_limit_reached: false, credits_ever_enabled: false },
+        extra_usage: credits
+          ? { is_enabled: true, monthly_limit: 4000, used_credits: 320, currency: 'USD', decimal_places: 2, disabled_reason: null, spend_limit_reached: false, credits_ever_enabled: true }
+          : { is_enabled: false, monthly_limit: null, used_credits: null, currency: null, decimal_places: null, disabled_reason: null, spend_limit_reached: false, credits_ever_enabled: false },
         limits: [
-          { kind: 'session', group: 'session', percent: 5, resets_at: reset(4), scope: null },
+          { kind: 'session', group: 'session', percent: credits ? 100 : 5, resets_at: reset(4), scope: null },
           { kind: 'weekly_all', group: 'weekly', percent: 27, resets_at: reset(96), scope: null },
           { kind: 'weekly_scoped', group: 'weekly', percent: 5, resets_at: reset(96), scope: { model: { id: null, display_name: 'Fable' }, surface: null } },
         ],

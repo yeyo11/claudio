@@ -82,7 +82,7 @@ export class SpendGate {
   private read(now: number): SpendState {
     const { start, end } = localDayWindow(now);
     const cap = this.deps.cap();
-    const { groups, unreported } = this.deps.db.spendBetween(new Date(start).toISOString(), new Date(end).toISOString());
+    const { groups, unreported, creditsUsd } = this.deps.db.spendBetween(new Date(start).toISOString(), new Date(end).toISOString());
     const byPurpose: Partial<Record<SpendPurpose, number>> = {};
     const byAccountKind = { login: 0, token: 0, apiKey: 0, unknown: 0 };
     let total = 0;
@@ -111,6 +111,7 @@ export class SpendGate {
       unreported,
       byPurpose,
       byAccountKind,
+      creditsUsd: cents(creditsUsd),
       waiting: { flowRuns: 0, orchestrationTasks: 0 },
     };
   }

@@ -69,6 +69,7 @@
       "none": "{{provider}} does not report its limit"
     },
     "account": "Account new chats start on",
+    "onCredits": "on credits",
     "spend": {
       "label": "daily cap",
       "percent": "{{percent}}",

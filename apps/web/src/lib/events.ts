@@ -106,6 +106,7 @@ const EVENT_TYPES: Record<ClaudioEventType, true> = {
   'run.limitWaiting': true,
   'run.accountRotated': true,
   'account.switched': true,
+  'account.credits': true,
   'accounts.changed': true,
   'task.started': true,
   'task.ended': true,
@@ -351,6 +352,8 @@ export function targetsFor(event: ClaudioEvent): Target[] {
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.auth, NOW], [keys.providers, NOW]];
     case 'run.accountRotated':
     case 'account.switched':
+    // A turn began on an account's credits: its card, the status bar and the day's spend say so
+    case 'account.credits':
       return [[keys.accounts, NOW], [keys.overview, NOW], [keys.chats, LISTS]];
     case 'run.rateLimited':
       // The provider's reading and the chat's banner follow the limit that was just hit

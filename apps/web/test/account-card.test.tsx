@@ -163,3 +163,20 @@ test('a window running high is a warn tag even when its bar is bad; only a spent
   assert.match(html, /badge-warn[^>]*>(<[^>]+>)*[^<]*running high/);
   assert.doesNotMatch(html, /badge-bad/);
 });
+
+test('an account whose plan is spent and whose credits pay reads "Using credits" in warn, with the month\'s amount, never the bad of a stop', async () => {
+  const paying: AccountLimit = { ...limit({ credits: credits({ enabled: true, everEnabled: true, usedMinor: 320, limitMinor: 4000 }) }), state: 'exhausted', utilization: 1, creditsCover: true };
+  const html = await render(account({ limits: paying }));
+  assert.match(html, /class="badge badge-warn">(?:(?!<\/span>).)*<span class="badge-text">Using credits</);
+  assert.doesNotMatch(html, /badge-bad/);
+  assert.doesNotMatch(html, /text-bad/);
+  assert.match(html, /Credits · €3\.20 of €40\.00 this month/);
+  assert.match(html, /Claudio never spends them/);
+});
+
+test('a spent plan with no credits to cover it stays exhausted, in bad', async () => {
+  const spent: AccountLimit = { ...limit(), state: 'exhausted', utilization: 1 };
+  const html = await render(account({ limits: spent }));
+  assert.match(html, /badge-bad/);
+  assert.doesNotMatch(html, /Using credits/);
+});

@@ -90,6 +90,11 @@ test('connectionOf: a limit or a failed probe never reads as signed out while an
   assert.equal(connectionOf(facts({ inUse: null, inUseReason: null, provider: { state: 'unknown', reason: 'spawn-failed' } })), 'unchecked', 'no reason, but an account has a credential');
 });
 
+test('connectionOf: an account in use whose spent plan its credits pay for reads as on credits, not as a stop', () => {
+  assert.equal(connectionOf(facts({ inUse: { signInState: 'ok', limit: { ...limit('exhausted', 1), creditsCover: true } } })), 'credits');
+  assert.equal(connectionOf(facts({ inUse: { signInState: 'ok', limit: { ...limit('exhausted', 1), creditsCover: false } } })), 'limit');
+});
+
 test("connectionOf: the account in use's own reading decides, never the provider's reading of whichever account ran last", () => {
   // The audit's §2.11: "acc-B · Near the limit" because acc-A had reached 60 %
   assert.equal(connectionOf(facts({ inUse: { signInState: 'ok', limit: limit('ok', 0.1) }, provider: { state: 'degraded', reason: 'limit-near' } })), 'ready');

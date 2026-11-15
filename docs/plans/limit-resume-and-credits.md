@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T00:30:00Z
+updated_at: 2026-11-15T12:00:00Z
 tags:
     - plan
     - study
@@ -12,7 +12,7 @@ tags:
 ---
 # Study: work that does not resume after a usage limit, and the credits Claudio ignores
 
-Status: **proposed**; `t8` is built on `feat/limit-hold-sweeper`; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
+Status: **proposed**; `t7` is built on `feat/credits-setting`; `t8` is built on `feat/limit-hold-sweeper`; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
 
 On 2026-11-13 the owner reported two problems:
 
@@ -538,6 +538,50 @@ Written up in [credits-in-the-stream](decisions/credits-in-the-stream.md); docs 
 - **Setting.** `AccountsSettings.credits`: per account `{ use: never | last-resort | allow, capMinor }`, default none (= `never`). `choose` honours it as `accounts.md` says; `Choice.credits` marks a choice that runs on credits.
 - **Where the plan was wrong.** The plan says the stream's `isUsingOverage` with `overageStatus` allowed can make the state; S1 shows no recorded event has `isUsingOverage: true` and the fields are undocumented, so only `get_usage` does.
 - **For t7.** The setting is validated by `PUT /accounts/settings`, with no UI. Left to t7: rotation reason `credits`, the notice, stopping a turn under `never` on `overageHints` or a fresh `get_usage`, the paid-turn mark and the states in the web. `choose` returns `credits: true` for t7 to word the reason. Nothing in `rotation.ts`, `db.ts` or the chat's stop logic was touched.
+
+### t7, the credits setting, the stop and the paid turn (branch `feat/credits-setting`)
+
+Built in `packages/core/src/chats.ts` (the check, the stop, the mark, the notice), `rotation.ts`
+(reason `credits`), `db.ts` (one migration), `spend.ts`, `packages/accounts/src/thresholds.ts`
+(`overageHint`, `creditsCapReached`, `creditsSettingOf`), `packages/shared` (the reason, the
+`account.credits` event and its notification, `SpendState.creditsUsd`), the web's Accounts page,
+status bar and chat transcript; tests in `packages/core/test/credits-turns.test.ts`,
+`packages/accounts/test/credits-turn.test.ts`, the web tests and `e2e/specs/accounts.spec.mjs`.
+
+- **The setting per account.** `never` (default, no entry), `last-resort`, `allow`, with Claudio's
+  monthly cap (D5) in minor units. Edited on the Rotation card, one row per account whose credits were
+  ever set up, saved through `PUT /accounts/settings` (no new route).
+- **The stop (D4).** A running turn is looked at when its account's reading changes, when a turn
+  opens in a live process, and when the accounts change. It acts on the `overage` state (`get_usage`)
+  or the stream's hint (`isUsingOverage`, or a covering `overageStatus` beside a spent plan window).
+  Under `never`, at Claudio's cap (or with a cap and no known spend), or under `last-resort` while
+  another account has plan quota, the turn is stopped at once with `stop` (the process's end, as a
+  person's Stop) and handled as a limit: the rotation moves it or waits for the plan's reset,
+  recorded with reason `credits` and why in `data.credits`. Otherwise it goes on, paid.
+- **The paid-turn mark.** `spend_ledger.credits`, set from Claudio's own state (the turn was let
+  through or stopped on credits, or its account read `overage`); `SpendState.creditsUsd` sums it.
+- **Saying it.** A chat notice per turn (paid, or stopped before paying), drawn by the transcript as a
+  warn line; `account.credits` once per account and day, a warn notification; the card's
+  **Using credits** (warn) with the month's amount and what Claudio may do with them; the status bar's
+  "· Using credits" and the chip's "on credits"; the rotation log's "usage credits".
+
+What differs from the plan:
+
+- **The stop uses `stop`, not the CLI's `interrupt`.** The turn has to move to another account,
+  which needs a new process; interrupting would keep the process on the account that pays.
+- **A move onto credits** is recorded `reason: 'credits'` with `data.credits: 'paid'`; a stop with
+  `never`, `cap` or `quota-elsewhere`. The plan named one reason for both.
+- **The day's warn notification** is the `account.credits` event (deduplicated per account and day
+  through `spend_alerts`, so two processes raise it once), not a toast of its own.
+- **The hint is enough to stop or mark a turn** but never makes the state, as t6 decided; a hint
+  under `allow` with no `get_usage` behind it lets the turn go on and marks it paid.
+- **The notice is drawn live only**, as the account-switch line is: a reload shows the transcript,
+  which does not hold Claudio's notices. The card and the ledger keep the fact.
+
+Still open: S2 (a paid turn's real stream) was not run, so every test builds the crossing from the
+SDK's typings; a rejected event with `isUsingOverage` under `allow` still marks the chat at its
+limit (the fold's rule), which only S2 can say is right; `t9` may show the stop's reason on the
+banner.
 
 ## The owner's decisions (2026-11-13)
 

@@ -4,7 +4,7 @@ import { TRANSCRIPT_PAGE_MAX } from '@claudio/shared';
 import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
 import type { Account, AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@claudio/shared';
 import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
-import { accountSwitchText, switchedAccount } from './chat-notice';
+import { accountSwitchText, creditsNotice, creditsText, switchedAccount } from './chat-notice';
 import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamedHeight, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { chatKeys as keys, useChatUi } from './context';
 import { chatAlive } from './liveness';
@@ -335,6 +335,21 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
           isSidechain: false,
           parentToolUseId: null,
           blocks: [{ type: 'text', text: accountSwitchText(name ? (name.alias ?? name.email ?? name.id) : to) }],
+        });
+        return;
+      }
+      const credits = creditsNotice(event);
+      if (credits) {
+        // Money is never a surprise: a turn paid from credits, or stopped before it spent them, says so where it runs
+        const name = client.getQueryData<Account[]>(['accounts'])?.find((a) => a.id === credits.account);
+        show({
+          uuid: `credits-${id}-${event.seq}`,
+          role: 'user',
+          timestamp: event.ts,
+          model: null,
+          isSidechain: false,
+          parentToolUseId: null,
+          blocks: [{ type: 'text', text: creditsText(name ? (name.alias ?? name.email ?? name.id) : credits.account, credits.stopped) }],
         });
         return;
       }

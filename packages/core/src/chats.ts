@@ -1,6 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
 import { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isTransientRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
-import { DEFAULT_ID, isOut, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
+import { accountState, creditsCapReached, creditsSettingOf, DEFAULT_ID, isOut, outUntil, overageHint, readingFromEvent, type AccountRef, type AccountStore, type Choice, type Reading } from '@claudio/accounts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter, once } from 'node:events';
@@ -30,6 +30,7 @@ import {
   type ChatPulse,
   type ChatRuntime,
   type ContextSignal,
+  type CreditsStop,
   type ExecutionExtras,
   type HousekeepingPurpose,
   type NewChat,
@@ -45,6 +46,7 @@ import { ChatTable } from './chat-table.ts';
 import { AgentMessages } from './agent-messages.ts';
 import { writeBridgeMod } from './bridge-mod.ts';
 import { ThrottledLog } from './throttled-log.ts';
+import { localDayOf } from './spend.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
 import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace, type TraceAgent } from './health.ts';
@@ -177,6 +179,12 @@ const guardArmMs = (): number => Number(process.env.CLAUDIO_GUARD_ARM_MS ?? 20_0
 /** How long the interrupt of a run with an unguarded call is given to be read before the process is taken down */
 const GUARD_INTERRUPT_WAIT_MS = 1500;
 const STOPPED = 'the chat was stopped before the agent read it';
+/** Why a turn on credits was stopped, as a notice and the rotation say it */
+export const CREDITS_STOP_WORDS: Record<CreditsStop, string> = {
+  never: "this account's credits setting is never",
+  cap: "Claudio's cap on this account's credits is reached",
+  'quota-elsewhere': 'another account has plan quota left',
+};
 /** ...and when its process ended for another reason, with nothing better to say */
 const ENDED = 'the process ended before the agent read it';
 
@@ -455,6 +463,7 @@ export class ChatManager extends EventEmitter {
         accountKind: kind,
         projectId,
         orchestrationId: chat.meta.orchestrationId ?? null,
+        credits: this.paidFromCredits(chat, account),
       });
     } catch {
       // Output still draining after the database closed (shutdown): a missing row must not become an uncaught error
@@ -2293,6 +2302,10 @@ export class ChatManager extends EventEmitter {
       at,
       { cooldownMs: store.settings().cooldownSeconds * 1000 },
     );
+    // The stream's overage fields say the turn may be on credits now: a hint, which only stops or marks
+    // a turn, never makes the account's state (docs/decisions/credits-in-the-stream.md). Looked at now,
+    // not once the reading is stored: a short turn's result can come before that
+    if (overageHint(info)) this.checkCredits(chat, true);
     if (!reading) return;
     void this.noteAccountReading(id, reading).catch(() => undefined);
   }
@@ -2302,6 +2315,8 @@ export class ChatManager extends EventEmitter {
     const store = this.accounts;
     if (!store) return;
     if (!(await store.observe(id, reading))) return;
+    // A reading can turn the account to `overage` under a turn that runs there
+    this.recheckCredits(id);
     // Removed since the reading was taken, or the credential-less default: nothing to draw a line for
     const limit = store.find(id)?.limits;
     if (!limit) return;
@@ -2452,6 +2467,8 @@ export class ChatManager extends EventEmitter {
     chat.error = null;
     chat.rateLimited = false;
     chat.authFailed = false;
+    chat.creditsStop = null;
+    chat.paidTurn = false;
     chat.limitRequested = false;
     chat.stopReason = null;
     // Whatever the last process left open went with it
@@ -2642,9 +2659,16 @@ export class ChatManager extends EventEmitter {
     if (announce) chat.push({ kind: 'message', entry });
     // It starts the lead's turn, or joins the one under way
     const pending = chat.pending.get(message.id);
-    if (pending) pending.opens = !chat.turnOpen;
+    const opens = !chat.turnOpen;
+    if (pending) pending.opens = opens;
     chat.turnOpen = true;
     chat.setStatus('busy');
+    // A live process keeps the account it was launched on: a turn it opens there after the plan was
+    // spent would run on credits without a new choice
+    if (opens) {
+      chat.paidTurn = false;
+      this.checkCredits(chat, false);
+    }
   }
 
   /** The guard is live: the messages that waited for it go out, in order */
@@ -2744,6 +2768,101 @@ export class ChatManager extends EventEmitter {
     this.maybeLimit(chat);
     chat.purpose = null;
     this.emit('chat-context', chat.id, { kind: 'ended', stopped: chat.stopRequested, error: chat.error } satisfies ContextSignal);
+  }
+
+  /** Accounts announced (`account.credits`) as running a turn on their credits, with the local day */
+  private readonly creditsAnnounced = new Map<string, string>();
+
+  /**
+   * Looks again at every turn running on `account` (or on any account): a reading, the credits
+   * setting or Claudio's cap may have changed whether its credits may pay for it. What Core calls on
+   * every change of the accounts.
+   */
+  recheckCredits(account?: string): void {
+    for (const chat of this.chats.values()) {
+      if (account === undefined || chat.account === account) this.checkCredits(chat, false);
+    }
+  }
+
+  /**
+   * A running turn whose account's plan is spent and whose credits pay for it (the account reads
+   * `overage`, or the stream hints so: `hinted`) goes on only where the account's credits setting
+   * lets it (D3-D5 of docs/plans/limit-resume-and-credits.md). Otherwise it is stopped at once and
+   * handled as a limit: the rotation moves it or it waits for the plan's reset (D4). What ran between
+   * the plan's last token and the signal is the cost of the check. A turn let through is marked paid
+   * and says so once.
+   */
+  private checkCredits(chat: LiveChat, hinted: boolean): void {
+    const store = this.accounts;
+    const id = chat.account;
+    if (!store || !id || !chat.alive || chat.endedAt || !chat.turnOpen || chat.creditsStop) return;
+    const limit = store.find(id)?.limits ?? null;
+    if (!hinted && accountState(limit) !== 'overage') return;
+    const why = this.creditsRefusal(chat, store, id);
+    if (why) this.stopForCredits(chat, id, why);
+    else this.payFromCredits(chat, id);
+  }
+
+  /** Why the account's credits may not pay for the chat's turn; null when they may. */
+  private creditsRefusal(chat: LiveChat, store: ChatAccounts, id: string): CreditsStop | null {
+    const setting = creditsSettingOf(store.settings(), id);
+    if (setting.use === 'never') return 'never';
+    if (creditsCapReached(store.find(id)?.limits, setting)) return 'cap';
+    if (setting.use === 'last-resort') {
+      // Only while no account has plan quota: one that has it takes the turn
+      const projectId = this.projectOf?.(chat.workingDir ?? chat.cwd) ?? null;
+      const choice = store.pick({ current: id, pinned: chat.opts.account ?? null, policy: store.policyFor(projectId), model: askedModel(chat), failedOn: [id] });
+      if (choice.account && choice.account !== id && !choice.credits) return 'quota-elsewhere';
+    }
+    return null;
+  }
+
+  private stopForCredits(chat: LiveChat, id: string, why: CreditsStop): void {
+    chat.creditsStop = why;
+    // It ran on credits up to here, whatever the setting said
+    chat.paidTurn = true;
+    const at = Date.now();
+    // The account the turn left is no candidate for its move, as one it died on at a limit
+    chat.limitedAccounts.set(id, { at, until: outUntil(this.accounts?.find(id)?.limits, at) });
+    chat.rateLimited = true;
+    chat.push({ kind: 'notice', text: `Account ${id} has no plan quota left and its credits may not pay for this turn (${CREDITS_STOP_WORDS[why]}): the turn was stopped.`, data: { reason: 'credits', account: id, stopped: why } });
+    this.persist(chat);
+    // Its end announces `limit-hit`, as a turn that died at the limit does
+    if (chat.alive) this.stop(chat.id);
+    else this.maybeLimit(chat);
+  }
+
+  private payFromCredits(chat: LiveChat, id: string): void {
+    if (chat.paidTurn) return;
+    chat.paidTurn = true;
+    const store = this.accounts;
+    const credits = store?.find(id)?.limits?.cli?.credits ?? null;
+    const amounts = credits ? { usedMinor: credits.usedMinor, limitMinor: credits.limitMinor, currency: credits.currency, exponent: credits.exponent } : {};
+    chat.push({ kind: 'notice', text: `Account ${id} has no plan quota left; this turn is paid from its credits.`, data: { reason: 'credits', account: id, ...amounts } });
+    const day = localDayOf(Date.now());
+    if (this.creditsAnnounced.get(id) === day) return;
+    this.creditsAnnounced.set(id, day);
+    // Once a day per account across the processes of the data dir, as the spend alerts are
+    let first = true;
+    try {
+      first = this.db.addSpendAlert(day, `credits:${id}`);
+    } catch {
+      // A closed database (shutting down): this process says it
+    }
+    if (!first) return;
+    const account = store?.find(id);
+    this.bus?.emit({ type: 'account.credits', title: `Account ${account?.alias ?? id} runs work on its credits`, account: id, label: account?.alias ?? id, day, ...amounts });
+  }
+
+  /** Whether the turn whose result is recorded ran on credits: marked by the check, or its account read `overage` */
+  private paidFromCredits(chat: LiveChat, account: string | null): boolean {
+    if (chat.paidTurn || chat.creditsStop) return true;
+    return !!account && accountState(this.accounts?.find(account)?.limits) === 'overage';
+  }
+
+  /** Why the chat's last turn was stopped on credits (D4); null when it was not. */
+  creditsStopOf(id: string): CreditsStop | null {
+    return this.chats.get(id)?.creditsStop ?? null;
   }
 
   /**

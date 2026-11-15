@@ -370,3 +370,54 @@
   font-size: var(--fs-small);
   color: var(--fg-2);
 }
+
+/* Usage credits per account, under the order: a row of its own, one line per account that has them */
+.rotation-credits {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.rotation-credits-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.rotation-credits-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 200px) minmax(0, 160px);
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.rotation-credits-name {
+  min-width: 0;
+}
+
+.rotation-credits-cap {
+  min-width: 0;
+}
+
+.rotation-credits-hint {
+  grid-column: 1 / -1;
+  font-size: var(--fs-small);
+  color: var(--fg-2);
+}
+
+/* A narrow card: the name over its two controls */
+@container (max-width: 480px) {
+  .rotation-credits-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+  .rotation-credits-name {
+    grid-column: 1 / -1;
+  }
+}
