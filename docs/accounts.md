@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T12:00:00Z
+updated_at: 2026-11-15T18:00:00Z
 tags:
     - accounts
     - rotation
@@ -369,8 +369,15 @@ tell a refused credential from an unreachable network. The four raw answers are 
   older than its last look (`probeTargets`: its pinned account, else every enabled, signed-in
   subscription account), at 5, 15, 30 and then every 60 min, one probe per account at a time and
   bounded by 30 s; what they answer reaches the waits as any reading does. `maxWaitHours` gives such
-  a wait up only once a probe taken past it answered nothing. A sign-in failure is not probed: only
-  a person signs in again. A restarted process takes its rows over at its first pass: a claim a
+  a wait up only once a probe taken past it answered nothing. A wait that knows its reset probes
+  too, more sparsely: 15 min after it began, 30 min after that, then every 60 min, and never when
+  the reset comes before the next probe. A person can reset an account's quota early from Claude's
+  settings, and the window then starts again before the reset the refusal announced; only a
+  reading says so, and before 2026-11-15 nothing asked for one, so a chat waited for the old reset
+  (cause 12 of [limit-resume-and-credits](plans/limit-resume-and-credits.md)). The probe's answer is
+  the account's stored reading, so the Accounts page shows the reset too. When the last probe was
+  is kept in memory; after a restart the next one is counted from when the wait began, which costs
+  one probe at most. A sign-in failure is not probed: only a person signs in again. A restarted process takes its rows over at its first pass: a claim a
   restart cut short is taken again once it lapses, and a row an older Claudio opened (no
   `next_look_at`) is due at once.
 - **A limit survives a restart.** An execution that died on a limit records the reset it knew
@@ -390,12 +397,14 @@ tell a refused credential from an unreachable network. The four raw answers are 
 - **A failure ends at its reset.** Each failure keeps when it happened and the reset it was
   refused with (the chat's `limitedAccounts`, and the end and `limitResetsAt` of each failed
   execution in `limitedTailAt`). It stops counting once that reset has passed, or once the
-  account's reading said it was out then and says it is not now (`resetSince` in `chats.ts`);
+  account's reading said it was out then and says it is not now, or once a reading taken after the
+  failure does not call the account exhausted (an early reset; `resetSince` in `chats.ts`);
   `chooseNext`, `roomFor` and a person's switch read the same set (`stillFailed`). The recorded
   reset decides first because the reading is the latest one: a reading taken after the reset says
   "not out" about a time the account was out, and the failure then counted until a turn went
   through. A failure with no reset recorded (a bare 429, or a reset not after the failure) counts
-  until the reading says otherwise, as before. Until 2026-11-07 every failure counted until then, so once a wait replayed a
+  until the reading says otherwise, as before. A reading taken at or before the failure (the
+  refusal's own, or one kept from before the turn) is never evidence that the account is back. Until 2026-11-07 every failure counted until then, so once a wait replayed a
   turn that died again the rotation still skipped accounts whose reset had passed, and waited
   instead of moving (R11 of [ci-and-regression-open](plans/ci-and-regression-open.md)).
 - **A fork keeps its account** and its pin; a fork of a chat that ran on account B does not start
