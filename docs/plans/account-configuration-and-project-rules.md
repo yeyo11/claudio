@@ -13,7 +13,7 @@ tags:
 # Plan: account configuration (shared or independent) and project rules
 
 Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
-`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T3 is built** on `feat/mcp-overlay` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
+`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T3 is built** on `feat/mcp-overlay` (2026-11-15); **T2 is built** on `feat/account-plugins` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
 (2026-11-15); T7 (#149) and T8 (#147) merged; **T9 decided and T10 built** on `feat/account-config-screens` (2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
@@ -219,7 +219,7 @@ DISABLE_AUTOUPDATER=1`, and a fresh `CLAUDE_CONFIG_DIR=$S/<name>` per case. Neve
 
 | Spike | Why | How | Cost |
 |---|---|---|---|
-| **S2b** Concurrent plugin writers through one linked `plugins/` | each CLI start may sync marketplaces and rewrite `installed_plugins.json` (the account caches hold many `temp_subdir_*.clone` dirs) | two scratch accounts with linked `plugins/`, 8 parallel `-p` starts with `initialize` each plus a `plugin update` in a loop; diff `installed_plugins.json` against the expected set | free, network to GitHub |
+| **S2b** Concurrent plugin writers through one linked `plugins/` | each CLI start may sync marketplaces and rewrite `installed_plugins.json` (the account caches hold many `temp_subdir_*.clone` dirs) | two scratch accounts with linked `plugins/`, 8 parallel `-p` starts with `initialize` each plus a `plugin update` in a loop; diff `installed_plugins.json` against the expected set | **Run 2026-11-15** (plugin commands, no sign-in): install records survived 12 concurrent installs three times, but the linked `settings.json` lost `enabledPlugins` entries every round. D4 stands, serial. [Result](../reports/account-config-spikes.md#s2b-concurrent-plugin-writers-through-a-linked-plugins-run-2026-11-15-t2) |
 | **S4** Name collision and strict mode | the overlay must not duplicate or shadow a project server; strict mode might drop claude.ai connectors | same-named server in `.mcp.json` and `--mcp-config`, `mcp_status`; then `--strict-mcp-config` on a signed-in scratch account | **Run 2026-11-15**: the flag wins, one entry; strict drops claude.ai connectors and `.mcp.json` servers. [Result](../reports/account-config-spikes.md#s4-name-collision-and-strict-mode) |
 | **S5** What a session resumed on another account loses | B11 and B9 | two scratch accounts of the same person, `projects/` linked; a haiku turn that edits a file, writes a task list and a plan, then `--resume` on the other account; check rewind, tasks, plans, agent memory | **Run 2026-11-15** (two Haiku turns, 0.014 USD): with only `projects/` linked the conversation resumes, but tasks are empty and rewind fails (backup missing); plans not exercised. [Result](../reports/account-config-spikes.md#s5-what-a-session-resumed-on-another-account-loses) |
 | **S6** OAuth MCP servers across accounts | a user-scope remote server with OAuth keeps its token per config dir [I] | add one in the default, pass it with `--mcp-config` on another account, `mcp_status` | free, needs one OAuth server sign-in |
@@ -664,7 +664,7 @@ is now a reported conflict until T4's "use shared" moves it aside. The race abov
 - A switch to shared also moves aside an own item the default lacks (`move-aside`), so a shared
   account holds the default's configuration and nothing else; the reconcile alone would have left it
   (`own-item`).
-- No `plugins` field on `Account.config` (T2).
+- No `plugins` field on `Account.config` (T2; added there, see below).
 - `Account.config` is served by the `/accounts` routes only, not by every
   listing: describing a dir costs about 2 ms per account, and `list()` is on the path of every
   account choice (computing it there made the R10 rotation test time out twice under the test
@@ -885,6 +885,59 @@ does yet.
 **Stays open.** S6 (OAuth MCP servers across accounts: the token is kept per config dir, so an
 OAuth server passed by the overlay may need its own sign-in on each account). A canary check for S3e
 (flag-given servers skip trust), which B3's fix depends on and the canary does not test today.
+
+**T2** (`feat/account-plugins`, 2026-11-15): plugins reconciled per account with `claude plugin`
+commands. Described in [accounts.md](../accounts.md#plugins-of-a-shared-account).
+- `PluginReconciler` (`packages/accounts/src/plugins.ts`): for every shared account (not the default,
+  not independent, no switch left half-way: `AccountStore.pluginTargets`), the user-scope plugins the
+  default has switched on are installed, and updated when the version differs, with
+  `CLAUDE_CONFIG_DIR=<account dir> claude plugin marketplace add|update`, `install`, `update` and
+  `uninstall`, one account and one command at a time, 90 s each, closed stdin, no credential in the
+  environment. The default's state is read from `installed_plugins.json`, `known_marketplaces.json`
+  and `settings.json`, never written. `planPlugins` is pure (the plan as commands); `diffPlugins`
+  is the read-only view.
+- When: start-up, a watch on the default dir and its `plugins/` (the three files, 3 s debounce), and a
+  change of the set of shared accounts (`Core` nudges on `accounts.onChange` only when the targets
+  changed). A spawn never waits. An account with a live chat is deferred, said once, and retried on
+  a 2 minute timer that exists only while one waits. `CLAUDIO_ACCOUNT_PLUGINS=off` and the test preload
+  switch it off.
+- Uninstall only what Claudio installed (`<account dir>/.claudio-plugins.json`) and the default has
+  dropped; a plugin a person installed on the account is never removed.
+- Served: `Account.config.plugins: AccountPlugins { missing, differing }` (new in `types.ts`, schemas
+  regenerated; no route changed). Empty for an independent account.
+- B6 and B7 are proved with the fake CLI (`test/fake-plugin-claude.mjs`): an account lacking
+  `code-review@official` and running `sluice@sluice` 0.5.0 against the default's 0.12.1 ends with
+  both at the default's, the commands run in the account's dir and the default's records are
+  byte-identical afterwards. And against the real 2.1.322 in a scratch dir (directory marketplace,
+  `HOME` there too): install, a version bump and an uninstall by the default all reached the account.
+- **S2b** (run, plugin commands only): see [the report](../reports/account-config-spikes.md#s2b-concurrent-plugin-writers-through-a-linked-plugins-run-2026-11-15-t2).
+  Install records through a linked `plugins/` survived 36 concurrent installs, but the linked
+  `settings.json` lost `enabledPlugins` entries in all three rounds (a read-modify-write). So D4
+  holds, and the reconciler is serial; a link for `plugins/` is not worth taking.
+
+**Differs from the plan.**
+- Not reconciled: a plugin the default has disabled (an install would enable it in the shared
+  settings), project and local scopes, and a marketplace whose source the CLI cannot add again
+  (`settings` or `hostPattern` kinds): logged once.
+- A version cannot be pinned (`plugin install` takes the marketplace's latest), so an account whose
+  marketplace is behind or ahead of the default stays `differing` and is not asked again until a
+  version moves.
+- No `-y`: a plugin whose marketplace declares an install command fails and is reported, never
+  accepted for a person.
+- The default's own writes: a command running while the default's CLI writes `settings.json` can lose
+  that write (S2b). The pass is serial, and only runs when something differs.
+- Deferral is per account on a live chat, not "only if a running CLI could be affected": an update
+  or uninstall changes files a running CLI may read, and no distinction was worth the doubt.
+
+**Stays open.** A shared to independent switch does not install anything (the account already holds
+its own plugin set from reconciling). No Settings row or button for a manual repair (the page's
+Repair is T10's, and `PluginReconciler.run` is what it would call; no route exposes it yet).
+
+**For T10.** Render `config.plugins` of a shared account: nothing when both lists are empty (the
+common case); otherwise one line under the configuration state, in words ("Plugins differ from the
+default: code-review is missing, Sluice is at another version"), the ids as mono literals
+(`plugin@marketplace`), status `warn` (needs repair), never `bad`. An independent account shows
+nothing (it is meant to differ). `accounts.changed` already refreshes the page after a pass.
 
 **T9** (the owner, 2026-11-15): the design round, decided by the owner in place of a separate
 session.
