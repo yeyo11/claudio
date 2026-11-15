@@ -234,7 +234,8 @@ export function Accounts() {
         </ul>
       )}
 
-      <CliCanaryLine />
+      {/* Only shared accounts stand on what it checks, and with none there is nothing to say */}
+      {accounts.length > 0 && <CliCanaryLine />}
 
       {settings.data && <RotationCard settings={settings.data} accounts={data} />}
 

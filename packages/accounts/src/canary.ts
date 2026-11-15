@@ -83,6 +83,8 @@ export async function runCanary(opts: CanaryOptions): Promise<CliCanary> {
           if (error && (typeof error.code === 'string' || error.killed)) return reject(error);
           resolve({ code, out: `${stdout}\n${stderr}` });
         });
+        // No input is ever sent: closing stdin means a command that waits for some ends instead of hanging until its timeout
+        child.stdin?.end();
         opts.onSpawn?.(child);
       }),
   };

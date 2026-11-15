@@ -49,3 +49,14 @@
     min-height: 44px;
   }
 }
+
+.canary-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.canary-check {
+  font-weight: var(--fw-strong);
+}

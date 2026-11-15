@@ -286,6 +286,15 @@
     },
     "failed": "Esta versión se comporta distinto de lo que las cuentas compartidas necesitan. No se ha cambiado nada: las cuentas siguen funcionando como antes.",
     "needsSignIn": "El CLI no ejecuta algunas comprobaciones sin una cuenta con sesión, y no se ha usado ninguna.",
-    "couldNotRun": "Algunas comprobaciones no se han podido ejecutar, así que aún no se sabe nada de ellas."
+    "couldNotRun": "Algunas comprobaciones no se han podido ejecutar, así que aún no se sabe nada de ellas.",
+    "whenFailed": {
+      "s1": "El CLI puede reemplazar un archivo de estado enlazado al escribir.",
+      "s2": "Instalar un plugin puede reemplazar una carpeta de plugins o un archivo de ajustes enlazados.",
+      "s3c": "Puede que la confianza en un proyecto ya no se lea de la cuenta."
+    },
+    "checkState": {
+      "needs-sign-in": "requiere una cuenta con sesión",
+      "error": "no se ha podido ejecutar"
+    }
   }
 }

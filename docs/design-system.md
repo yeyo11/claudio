@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-11T15:00:00Z
+updated_at: 2026-11-15T04:30:00Z
 tags:
     - design-system
     - web
@@ -774,6 +774,19 @@ the "continued in another provider" divider of Claudio are gone
     (`b-bad`), **Sin lectura** (`b-idle`, with a sentence instead of bars). With headroom there is no
     badge. An unknown reading is never drawn as good.
 - **Cost.** Claude Code reports cost, so the cost block always has a number.
+
+### The CLI canary line on Accounts
+
+One `.card.canary-line` under the account cards, shown only while an account exists: the heading
+"Checks for shared accounts" with the CLI version, a state, the age of the result and **Check again**
+(`.btn-small`). The state is a badge with a word and an icon, never colour alone: **Passed**
+(`badge-ok`), **Failed** (`badge-bad`), and **Needs a signed-in account** or **Could not run**
+(`badge-warn`: the canary could not say). While a run goes the braille spinner and "Checking…"
+replace the badge, in a status region that stays mounted so the outcome is read out. Under the line,
+only the checks that did not pass, each with a sentence in the person's language; what the server
+observed is English text and stays in the API and the log. The list stays while a run goes on, so
+nothing below it moves. It only reports: a failure changes nothing about how accounts work, and the
+copy says so (`.canary-row`, `.canary-state`, `.canary-result`, `.canary-detail`, `.canary-check`).
 
 ### Queued messages over the composer
 

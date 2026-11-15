@@ -286,6 +286,15 @@
     },
     "failed": "This version behaves differently from what shared accounts rely on. Nothing was changed: accounts keep working as they were.",
     "needsSignIn": "The CLI would not run some checks without an account signed in, and none was used.",
-    "couldNotRun": "Some checks could not run, so nothing is known about them yet."
+    "couldNotRun": "Some checks could not run, so nothing is known about them yet.",
+    "whenFailed": {
+      "s1": "The CLI may replace a linked state file when it writes.",
+      "s2": "A plugin install may replace a linked plugins folder or settings file.",
+      "s3c": "A project's trust may no longer be read from the account."
+    },
+    "checkState": {
+      "needs-sign-in": "needs a signed-in account",
+      "error": "could not run"
+    }
   }
 }
