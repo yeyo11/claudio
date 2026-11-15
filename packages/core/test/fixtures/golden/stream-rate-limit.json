@@ -43,6 +43,7 @@
           "cacheCreation": 0,
           "total": 0
         },
+        "turnOpen": false,
         "turns": 1,
         "cause": "rate-limit",
         "limitResetsAt": "<time>"
