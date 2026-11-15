@@ -2922,10 +2922,190 @@ a.attachment-chip:hover {
 }
 
 .chat-launch-facts {
+  /* One line of parts: what the agent is (type, model, effort), what it is doing, the clock. Only two of
+     them give way, in this order: what it is doing, down to its floor (the dot, the verb and a few
+     characters of its target), then the model, down to its own. The type beside a model, the effort
+     and the clock never do. Where even both floors do not fit, the line wraps between parts rather than
+     clip one. The base rule clips and ellipsizes the line as a whole, which would cut the clock: reset it */
+  --launch-doing-floor: 12ch;
+
+  display: flex;
+  flex: 1 1 0;
+  flex-wrap: wrap;
   min-width: 0;
+  overflow: visible;
   color: var(--fg-3);
   font-size: var(--fs-small);
   font-variant-numeric: tabular-nums;
+  text-overflow: clip;
+}
+
+/* The identity's facts are the line's own items, so the model and the activity share one room: each
+   starts at its floor and grows to its text, the model first (its weight is a thousand times the
+   activity's), so the activity is the one left short. A share of a shortfall split by weight cut the
+   model by a fraction of a pixel; a cap on the identity as a whole clipped the effort. Neither is left */
+.chat-launch-ident {
+  display: contents;
+}
+
+.chat-launch-lead,
+.chat-launch-model,
+.chat-launch-act {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Beside a model the type never gives way: it says what the agent is, and is short */
+.chat-launch-lead {
+  flex: none;
+}
+
+/* Alone (a task's command) it is what gives way: from no width, as the model does from its floor, so
+   the line breaks before the clock only when not even an ellipsis would fit */
+.chat-launch-lead:only-child {
+  flex: 1000 1 0;
+  max-width: max-content;
+}
+
+.chat-launch-model {
+  flex: 1000 1 0;
+  max-width: max-content;
+}
+
+/* An id cut in the middle keeps its floor, MiddleCut's own: its kept end, the ellipsis and a character
+   of its start, counted in the id's mono characters, so the box never clips the end it keeps. A short
+   name has no floor, so no empty room is left after it */
+.chat-launch-model:has(> .middle-cut.is-split) {
+  flex-basis: 10ch;
+  min-width: 10ch;
+  font-family: var(--mono);
+}
+
+.chat-launch-effort {
+  flex: none;
+  white-space: nowrap;
+}
+
+/* What it is doing and the clock: one item of the line, so a line that wraps breaks before both. It
+   counts as the activity's floor and the clock for where the line breaks, and grows with the activity */
+.chat-launch-tail {
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.chat-launch-doing {
+  display: flex;
+  /* Its floor as its width, so the tail's own size is that floor and the clock; it grows to its text */
+  flex: 1 1 auto;
+  width: var(--launch-doing-floor);
+  min-width: 0;
+  max-width: max-content;
+  overflow: hidden;
+}
+
+.chat-launch-act {
+  flex: 0 1 auto;
+}
+
+.chat-launch-clockbox {
+  display: flex;
+  flex: none;
+  white-space: nowrap;
+}
+
+.chat-launch-dot {
+  flex: none;
+  margin-inline: 0.4em;
+}
+
+/* A card is its own container: what it can say depends on its width, not on the window's */
+.chat-launch {
+  container-type: inline-size;
+}
+
+/* On a narrow card the state takes a row of its own, from under the mark to the card's edge, and its
+   facts are two lines: what the agent is (wrapping between its facts, the id cut in the middle), then
+   what it is doing with the clock at its end. Without an activity the clock closes the identity's
+   line. The separators go: between lines they would end one */
+@container (max-width: 30rem) {
+  .chat-launch-head {
+    flex-wrap: wrap;
+    row-gap: 6px;
+  }
+
+  /* The name and the state become the head's own items, so the state can take its full width */
+  .chat-launch-what {
+    display: contents;
+  }
+
+  .chat-launch-name {
+    flex: 1 1 0;
+    min-width: 0;
+  }
+
+  .chat-launch-state {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+    order: 1;
+  }
+
+  .chat-launch-facts {
+    flex-basis: 100%;
+    flex-wrap: wrap;
+  }
+
+  .chat-launch-ident {
+    /* The three facts may not fit side by side on a phone's card. They wrap at their own edges, never
+       in the middle of one: the effort stays whole and a long id is cut in the middle. No separator is
+       drawn, as it would end a line */
+    display: flex;
+    /* Without an activity it shares its line with the clock: it wraps as no width and grows to its text,
+       so the clock follows it rather than taking a line of its own */
+    flex: 1 1 0;
+    flex-wrap: wrap;
+    column-gap: 0.9em;
+    min-width: 0;
+    max-width: max-content;
+  }
+
+  .chat-launch-facts.has-doing > .chat-launch-ident {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .chat-launch-ident > .chat-launch-dot {
+    display: none;
+  }
+
+  /* Without an activity the tail is the clock, after the identity; with one it is the second line */
+  .chat-launch-tail {
+    flex: none;
+  }
+
+  .chat-launch-facts.has-doing > .chat-launch-tail {
+    flex: 1 1 100%;
+  }
+
+  .chat-launch-doing {
+    /* A zero basis, so the clock fits the line and the target takes what is left */
+    flex: 1 1 0;
+    width: auto;
+    min-width: 6ch;
+    max-width: none;
+  }
+
+  .chat-launch-doing > .chat-launch-dot,
+  .chat-launch-clockbox > .chat-launch-dot {
+    display: none;
+  }
+
+  .chat-launch-facts:not(.has-doing) > .chat-launch-ident + .chat-launch-tail,
+  .chat-launch-doing + .chat-launch-clockbox {
+    margin-inline-start: 0.8em;
+  }
 }
 
 @media (max-width: 900px) {

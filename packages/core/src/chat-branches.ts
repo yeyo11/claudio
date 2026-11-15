@@ -66,6 +66,8 @@ export function toChatSubagent(sub: LiveSubagent, tasks: ChatBackgroundTask[], s
     runs: sub.runs ?? [{ startedAt: sub.startedAt, endedAt: sub.endedAt }],
     lastActivityAt: sub.lastActivityAt ?? null,
     cwd: sub.cwd ?? null,
+    model: sub.model ?? sub.requestedModel ?? null,
+    effort: sub.effort ?? null,
     tasks: tasks.filter((t) => t.ownerId === id),
     // An ended agent is doing nothing, whatever its last call left open
     activity: sub.status === 'running' ? (sub.activity ?? null) : null,

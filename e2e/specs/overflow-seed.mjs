@@ -2,7 +2,8 @@
 // the app"): a chat whose transcript has a long Spanish prompt, prose with an unbroken token, a write
 // outside its directory and outside /tmp (the risk tag that ran out of its step card) whose lines are
 // far wider than any pane, an edit inside it and a long Bash command, all in a worktree of a repository
-// so the Changes page has its Result lens too; a project and a task with long names; and an
+// so the Changes page has its Result lens too, and two models with figures of nine digits for the side
+// panel's cost table; a project and a task with long names; and an
 // orchestration whose name, objective and task names are long. Everything goes through the API, git
 // or the CLI's own files, and `cleanup` removes it again, because other specs count what the sandbox
 // holds.
@@ -21,6 +22,10 @@ const SENTENCE =
   'Confirmado: el subagente lo leyó y lo citó en su informe. Miro cómo queda registrado en el fichero del subagente, que es lo que Claudio tendría que pintar.';
 const LONG_LINE =
   'description: "Writing to one subagent from Claudio is viable through a Claude Code mod\'s documented $.session.send({to:{agentId}}); spike passed 2026-11-10 with the installed CLI, haiku, and a bridge that polls the API for what to deliver next"';
+
+/** A subagent on a model the list does not name, whose id is longer than any card's line (invariant I3) */
+const LONG_MODEL = 'claude-experimental-research-preview-20261114-extended-context-1m';
+const LONG_AGENT = 'a9f8e7d6c5b4a3f2';
 
 export const SCREEN = 'packages/frontend/src/screens/settings/decisions/DecisionsScreenWithAVeryLongName.tsx';
 export const LONG_FILE = 'packages/frontend/src/screens/settings/decisions/long-generated-table.ts';
@@ -54,7 +59,7 @@ function transcript(cwd, outside, main) {
   const at = (s) => new Date(Date.now() - 900_000 + s * 1000).toISOString();
   let n = 0;
   const entry = (type, message, extra = {}, s = n) => JSON.stringify({ ...base, ...extra, uuid: `ovf-${++n}`, timestamp: at(s), type, message });
-  const assistant = (content) => entry('assistant', { role: 'assistant', id: `msg-ovf-${n}`, model: 'claude-sonnet-5', content, usage: { input_tokens: 10, output_tokens: 10 } });
+  const assistant = (content, model = 'claude-sonnet-5', usage = { input_tokens: 10, output_tokens: 10 }) => entry('assistant', { role: 'assistant', id: `msg-ovf-${n}`, model, content, usage });
   const result = (id, toolUseResult, content = 'ok') => entry('user', { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content }] }, { toolUseResult });
   const memory = ['---', 'name: project-message-subagents-via-mod', LONG_LINE, 'metadata:', '  node_type: memory', '---', '', `**How to apply:** Claudio would ship a small mod loaded with \`--plugin-dir\`, fed by Claudio's API (\`$.http.fetch\` polling or \`$.process.spawn\` streaming), and ${UNBROKEN}`, ''].join('\n');
   const inside = join(cwd, SCREEN);
@@ -73,6 +78,13 @@ function transcript(cwd, outside, main) {
     assistant([{ type: 'tool_use', id: 'ovf-bash', name: 'Bash', input: { command: `grep -rn "${UNBROKEN}" ${outside} packages/frontend/src/screens/settings/decisions --include='*.tsx' | head -n 200`, description: 'Busca el token en todos los ficheros de la pantalla de decisiones y en la memoria del proyecto' } }]),
     result('ovf-bash', { stdout: `${outside}:7:${UNBROKEN}`, stderr: '', interrupted: false }, `${outside}:7:${UNBROKEN}`),
     assistant([{ type: 'text', text: `Listo. ${SENTENCE}` }]),
+    // A long session's totals, as a chat that ran for days reports them: the side panel's cost table
+    // gets figures of nine digits for two models, whose ids are long as well (the owner's report)
+    assistant([{ type: 'text', text: 'Sigo con el resto de la auditoría.' }], 'claude-opus-5-5', { input_tokens: 5_300, output_tokens: 1_500_000, cache_read_input_tokens: 1_281_000_000, cache_creation_input_tokens: 2_000_000 }),
+    assistant([{ type: 'text', text: 'Y lo que queda por revisar.' }], 'claude-sonnet-5-5', { input_tokens: 174, output_tokens: 48_700, cache_read_input_tokens: 10_000_000 }),
+    // The subagent whose card carries the long model id: its result names it, and its own files follow
+    assistant([{ type: 'tool_use', id: 'ovf-agent', name: 'Agent', input: { description: 'Auditar todas las cuentas', subagent_type: 'general-purpose', prompt: 'Audita las cuentas.' } }]),
+    result('ovf-agent', { agentId: LONG_AGENT }),
   ].join('\n');
 }
 
@@ -90,6 +102,17 @@ export async function seedOverflow({ api, configDir, workspaceDir }) {
   const dir = join(configDir, 'projects', cwd.replace(/[^a-zA-Z0-9]/g, '-'));
   mkdirSync(dir, { recursive: true });
   writeFileSync(join(dir, `${SESSION}.jsonl`), `${transcript(cwd, outside, main)}\n`);
+  const agents = join(dir, SESSION, 'subagents');
+  mkdirSync(agents, { recursive: true });
+  const sidechain = (role, uuid, parentUuid, message, sec) => JSON.stringify({ parentUuid, isSidechain: true, agentId: LONG_AGENT, type: role, cwd, sessionId: SESSION, timestamp: new Date(Date.now() - 800_000 + sec * 1000).toISOString(), uuid, message });
+  writeFileSync(join(agents, `agent-${LONG_AGENT}.meta.json`), JSON.stringify({ agentType: 'general-purpose', description: 'Auditar todas las cuentas', toolUseId: 'ovf-agent', spawnDepth: 1, requestShape: 'foreground' }));
+  writeFileSync(
+    join(agents, `agent-${LONG_AGENT}.jsonl`),
+    `${[
+      sidechain('user', 'ovf-su1', null, { role: 'user', content: 'Audita las cuentas.' }, 1),
+      sidechain('assistant', 'ovf-sa1', 'ovf-su1', { model: LONG_MODEL, id: 'msg-ovf-sub', type: 'message', role: 'assistant', content: [{ type: 'text', text: 'Mirando.' }], usage: { input_tokens: 10, output_tokens: 5 } }, 3),
+    ].join('\n')}\n`,
+  );
 
   const seeded = { main, cwd, dir, projectId: null, taskId: null, orchestrationId: null, orchestrationChats: [] };
   const project = await api.post('/projects/import', { path: main, name: 'Un proyecto cuyo nombre es lo bastante largo como para necesitar su elipsis en todas partes', template: 'software' });

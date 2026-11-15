@@ -44,6 +44,10 @@ export interface Branch {
   segments: Array<'running' | 'completed' | 'failed' | 'stopped'>;
   /** The key of the branch that launched it, when that branch is shown too */
   parent: string | null;
+  /** A subagent's model, as its stream or its launch gave it; null when neither did, and for anything that is not an agent */
+  model: string | null;
+  /** The effort a subagent's launch named; null otherwise */
+  effort: string | null;
 }
 
 const COMMAND_CHARS = 60;
@@ -68,6 +72,8 @@ export function agentBranch(chat: LivenessChat, subagent: ChatSubagent): Branch 
     progress: null,
     segments: [],
     parent: null,
+    model: sub.model ?? null,
+    effort: sub.effort ?? null,
   };
 }
 
@@ -91,6 +97,8 @@ export function taskBranch(chat: LivenessChat, background: ChatBackgroundTask, p
     progress: null,
     segments: [],
     parent,
+    model: null,
+    effort: null,
   };
 }
 
@@ -117,6 +125,8 @@ export function workflowBranch(chat: LivenessChat, run: ChatWorkflow): Branch {
     progress: { done, total: agents.length, phase },
     segments: agents.map((agent) => agent.status),
     parent: null,
+    model: null,
+    effort: null,
   };
 }
 
