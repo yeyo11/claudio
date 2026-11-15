@@ -3,6 +3,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Orchestration, ReviewFinding, ReviewGateDetail, ReviewGateState, ReviewGateStatus, ReviewRound, ReviewRun, VerificationState } from '@claudio/shared';
+import { TooltipProvider } from '@claudio/ui/components/controls';
 import { ToastProvider } from '@claudio/ui/components/Toast';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import * as React from 'react';
@@ -128,7 +129,9 @@ const render = (review: ReviewGateState, detail?: Partial<ReviewGateDetail>) => 
     <QueryClientProvider client={client}>
       <ToastProvider>
         <MemoryRouter>
-          <VerificationCard orch={orch} />
+          <TooltipProvider>
+            <VerificationCard orch={orch} />
+          </TooltipProvider>
         </MemoryRouter>
       </ToastProvider>
     </QueryClientProvider>,
@@ -187,8 +190,9 @@ test('fixing round 2 of 3 reads the round in the head', () => {
 
 test('waiting for a usage limit is a warn line with the reset time', () => {
   const html = render(gate('running', { waiting: { provider: 'claude', resetsAt: '2026-10-16T15:00:00Z', moveId: 'm' } }));
-  assert.match(html, /rg-reason warn/);
-  assert.match(text(html), /Waiting for a usage limit to reset at/);
+  assert.match(html, /class="wait-line"/);
+  assert.match(text(html), /Waiting for .* · resumes at/);
+  assert.match(text(html), /Stop waiting/);
 });
 
 test('passed with no findings is one ok line and no actions but Verify again', () => {

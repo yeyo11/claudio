@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-15T14:00:00Z
+updated_at: 2026-11-15T20:00:00Z
 tags:
     - plan
     - study
@@ -363,7 +363,7 @@ And C is the cheapest way to stop the bleeding now.
     (`server.ts`, `bundledMcp`).
   - `removeChatExtrasConfigs` at restore (`chats.ts:714`) must spare adopted chats.
   - The guard's hook command is the shell's `guard.mjs` and calls no API (`guards/`). It keeps
-    working across the gap (**inferred**; checked in S3).
+    working across the gap (**verified** in S3, 2026-11-15: the second hook line was written after the gap).
 
 ### Layer 3: lossless resume for what still dies (C)
 
@@ -563,10 +563,10 @@ distribution, the container included. `t6` adds case (a) and (b) on the desktop.
     (read-only on the owner's machine);
   - every code path in §1;
   - the vendor quotes in §2 (fetched 2026-11-15, CLI 2.1.322);
-  - M1–M3.
+  - M1–M3;
+  - S3 on the real CLI: the pending request comes back in `pending_permission_requests`, and guard hooks keep firing across the gap.
 - **Inferred:**
   - the AppImage fault (S5);
-  - that guard hooks keep working through a hand-over (S3);
   - pm2's restore behaviour;
   - Happy's daemon details (secondary sources).
 - **Not determined:**
@@ -582,7 +582,7 @@ Written up in [parked-cli-processes](../decisions/parked-cli-processes.md), CLI 
 |---|---|
 | S1 | Verified with a prototype and the fake CLI: adoption after a `SIGKILL` keeps the pid, applies each event once (effects keyed by process and byte offset, offset committed with the spend row), survives a successor dying mid-replay, and answers a pending prompt through the replay |
 | S2 | Verified on the real CLI: FIFO stdin and file stdout work, two writers get `initialize` answers, `pending_permission_requests: []`, no credential needed |
-| S3 | **Not run**: no sign-in other than the owner's. The commands for him are in the decision document; 0 USD spent |
+| S3 | Verified later the same day on the real CLI with a scratch signed-in account (account A): the pending request returns in `pending_permission_requests` with its id, both prompts were answered, the turn succeeded, the guard hook fired after the gap; 0.0012 USD |
 | S4 | Verified: scopes survive a stop, restart and `SIGKILL` of the launcher's unit; stopping a scope leaves nothing |
 | S5 | A stand-in verified the kernel side; the AppImage FUSE fault stays inferred, so the daemon runs from `<dataDir>/app/` |
 | S6 | Transcripts: median 68 MB/day, peak 120; hole punching on a file being appended to works on ext4 |
@@ -597,7 +597,8 @@ Written up in [parked-cli-processes](../decisions/parked-cli-processes.md), CLI 
 - A wrapper that backgrounds the CLI must give it `<&3` (a held descriptor): a background job in `sh`
   reads `/dev/null` otherwise and the CLI exits (t3). M3's foreground form is unaffected.
 - Every `scope` needs `-p TimeoutStopSec` and a `reset-failed` on reaping (t3).
-- Still open: S3 on the real CLI, the stdout-to-transcript ratio, and the container's `setsid` path.
+- Still open: the stdout-to-transcript ratio, several simultaneous pending prompts, and the container's `setsid` path.
+- **S3 closed (2026-11-15, CLI 2.1.322, Haiku).** After a `SIGKILL` and a 5 s gap, the re-sent `initialize` lists the pending request in `response.pending_permission_requests`, and answering it finishes the turn. For `t4`: rebuild `PermissionBroker`'s prompts from that list first, keep the replay as the fallback for an empty list; guard hooks need nothing across the hand-over. See [parked-cli-processes](../decisions/parked-cli-processes.md#s3-a-pending-prompt-across-the-gap).
 
 ## The owner's decisions (2026-11-15)
 

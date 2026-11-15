@@ -2090,8 +2090,17 @@ a.chain-chip:hover { color: var(--fg); border-color: var(--line-3); }
 .wait-line { display: flex; align-items: flex-start; gap: 8px; border-radius: var(--r); background: var(--warn-soft); color: var(--fg-2); padding: 9px 10px; font-size: var(--fs-small); line-height: 1.45; }
 .wait-line .ico { flex-shrink: 0; margin-top: 1px; color: var(--warn); }
 .wait-line b { color: var(--fg); font-weight: var(--fw-regular); }
-.wait-line :is(.mono, .t-num) { color: var(--fg); }
+.wait-line .mono { color: var(--fg); }
 .wait-line .why { display: block; margin-top: 2px; color: var(--fg-2); }
+/* The chat's banner is the same strip, roomier; its actions drop under the words on a phone */
+.wait-line .wait-line-text { min-width: 0; flex: 1 1 auto; overflow-wrap: anywhere; }
+.wait-line.is-banner { align-items: center; padding: 14px 16px; border-radius: var(--r-lg); }
+.wait-line.is-banner b { font-weight: var(--fw-strong); }
+.wait-line .wait-line-go { margin-left: auto; flex-shrink: 0; display: inline-flex; align-items: center; gap: 6px; }
+@media (max-width: 900px) { .wait-line { flex-wrap: wrap; } .wait-line .wait-line-text { flex-basis: calc(100% - 32px); } .wait-line span.wait-line-go { width: 100%; margin-left: 0; } .wait-line span.wait-line-go .btn { flex: 1 1 0; min-height: var(--touch); justify-content: center; } }
+/* Home's list of open waits, in "In progress": the inbox row with the warn clock */
+.wait-list .inbox-icon { color: var(--warn); }
+.wait-row-detail { overflow-wrap: anywhere; }
 /* The limit of a provider in the status bar: its dot, its name and, when a reading exists, the bar of the binding window */
 .statusbar .lim { display: inline-flex; flex-direction: row; align-items: center; gap: 6px; padding: 0; border-radius: 0; background: none; font-size: inherit; line-height: inherit; color: inherit; }
 .statusbar .lim .bar { width: 36px; }

@@ -1638,6 +1638,17 @@ New classes `.wait-line` and `.statusbar .lim`. Nothing here is live: waiting do
   saying the run resumes from its cache, and "Dejar de esperar" in the line's `action` slot
   (`.wait-line-go`, styled as `.spend-wait-go`). The tasks keep their "esperando" badge and a
   `.task-box.is-warn` line, without a strip or button of their own.
+- **One wait line, everywhere** (t9 of [plans/limit-resume-and-credits.md](plans/limit-resume-and-credits.md)).
+  The chat's waiting banner is no longer a `.lim` panel of its own: it is the same `.wait-line` with
+  the variant `.is-banner` (roomier: padding 14 × 16, `--radius-lg`, a semibold title, the actions
+  dropping under the words on a phone as 44 px targets). The words are one set: "Esperando a Claude
+  Code · se reanuda a las 14:05 (en 1 h)", "· continuando ahora" while the turn is sent, or "· no se sabe
+  cuándo se restablece · próxima comprobación: 17:15" when no reset is known, then the account where the page
+  knows it. Stop waiting and Run now (`WaitActions`) sit in `.wait-line-go`. The review gate's card
+  holds it as `.rg > .wait-line`. Warn and still: a probe is never drawn as live.
+- **Home's open waits** (`.wait-list`, in "In progress"). The inbox row (`.inbox-row`) with the warn
+  clock, the title and its kind, the same words in the detail (`.wait-row-detail`, which wraps rather
+  than ellipsing: the hour is what the row is for), and a plain Open. Nothing when no wait is open.
 - **A workflow that did not finish.** `WorkflowEndedNotice` at the top of the page: an `.alert-bad`
   "El workflow no ha terminado" (or `.alert-warn` "El workflow se ha detenido") with the server's
   reason and that resuming goes on from the cache. The checks' notice is never shown for a workflow graph.

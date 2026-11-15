@@ -45,7 +45,7 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | `plugin list --json`, `plugin marketplace list --json` | `[]` |
 | anything else without `-p` | exit 1, `fake claude: … is not part of the fake` on stderr |
 
-`get_usage` (a control request of a chat) answers the recorded refusal (a success with `rate_limits_available: false`, as the real CLI 2.1.302 does for a bad credential) when `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` is `invalid`, or the token starts with `fake-expired`. A token starting with `fake-credits` answers its five hours spent and its usage credits on (3.20 of 40.00 USD this month): the `overage` state, with no turn.
+`get_usage` (a control request of a chat) answers the recorded refusal (a success with `rate_limits_available: false`, as the real CLI 2.1.302 does for a bad credential) when `CLAUDE_CODE_OAUTH_TOKEN` or `ANTHROPIC_API_KEY` is `invalid`, or the token starts with `fake-expired`. A token starting with `fake-held` is `fake-limited` whose `get_usage` also reads its five hours spent (reset in 4 h), so a wait on it is not resumed by a probe. A token starting with `fake-credits` answers its five hours spent and its usage credits on (3.20 of 40.00 USD this month): the `overage` state, with no turn.
 
 ## A chat: `-p --input-format stream-json --output-format stream-json`
 

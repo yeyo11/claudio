@@ -4513,6 +4513,8 @@ export interface LimitWait {
   moveId: string;
   /** ISO time the wait looks again (its reset, or the next probe of an unknown one); null when due now */
   nextLookAt?: string | null;
+  /** `resuming` while the turn is being sent again; `waiting` otherwise. Absent on a wait an older Claudio served */
+  state?: 'waiting' | 'resuming';
 }
 
 /** A step of a graph that is no task (its integrator, synthesis, a fixer, a reviewer) waiting for its usage limit to reset */
@@ -7227,6 +7229,12 @@ export type AccountSignInState = 'ok' | 'expired' | 'incomplete' | 'unknown';
 /** `POST /chats/:id/account`: the account the chat's next execution runs on. The chat's current one cancels a pending switch. */
 export interface SwitchChatAccountRequest {
   accountId: string;
+  /**
+   * "Use another account once": an account the rule of the chat's project does not allow takes the
+   * chat for one turn, and the rule moves it back when the turn ends. A person's choice only, recorded
+   * on the switch's rotation event (`data.once`). Ignored for an account the rule allows.
+   */
+  once?: boolean;
 }
 
 /** Why an account cannot be chosen for a chat. `sign-in-expired`: its `signInState` is `expired` or `incomplete`. */

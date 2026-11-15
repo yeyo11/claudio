@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T20:00:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-15T18:00:00Z
 tags:
     - team
     - flow
@@ -566,17 +566,25 @@ preset unless the person picks one. The model stays, because it is the chat's, s
 switchable. Before, a person continuing the Developer's chat was still in `dontAsk` with the member's
 allow list, and every edit outside `writes` was denied silently.
 
-**A run that hits a rate limit waits for the account rotation** (orchestration 6, gap 3). When an
-account hits its limit, the core rotates to another and replays the turn that died, as it does for a
-chat. When the rotation is on its way (rotation on, `claude-swap` managing the accounts, a turn left
-to replay, `FlowService.awaitsRotation`), the flow holds the run instead of failing it, ignores the
-process the limit took down, and hears from the core's `rotateAndResume` how it went. Resumed, the
-turn is replayed **in the same chat on the next account**, and the run ends as any other. With no
-account left, or a replay that failed, the run fails and says why on the item. A run stopped while it
-waits is never replayed. Each execution of a chat gets its own rotate-and-resume, so a member's chat
-continued by a later run is not left without one. An assistant run's turn, also held to a schema
-(`ChatManager.heldToSchema`), is still not replayed: the run that started it ended on the error, and
-replaying it would spend on a result nobody reads.
+**A run that hits a usage limit is held by the wait row, not by the flow** (orchestration 6, gap 3;
+t1 to t8 of [limit-resume-and-credits](plans/limit-resume-and-credits.md)). When a run's turn dies at
+a limit, the core rotates the chat to an account with room and replays the turn, as it does for any
+chat; with no account left it opens a wait (`provider_moves`) that the run reads through
+`openWaitOf` (`FlowService.waitingOf`), and the flow keeps no hold of its own: `limitHeld` only tells
+it that the process the limit took down is the rotation's to resume, so it neither fails the run nor
+ends it. The sweeper resumes the turn in the **same chat** at the reset, or at the first look that
+finds an account with room, and the run ends as any other. A wait that ends without a replay ends the
+run through `waitEnded`: a person who stopped waiting stops it (`stopped`), a wait that ran out
+fails it (`limit-wait-expired`), and a resume that could not go on fails it (`rate-limit`), each with
+the cause the item shows. A restart keeps the wait, since the row holds when it looks again and the
+turn to send. A run stopped while it waits is never replayed. An assistant run's turn, also held to a
+schema (`ChatManager.heldToSchema`), is still not replayed: the run that started it ended on the
+error, and replaying it would spend on a result nobody reads.
+
+The run's card, the item's page and the board's strip say the wait with the one wait line
+(`WaitLine`, [accounts.md](accounts.md#where-it-shows)): "Waiting for Claude Code · resumes at
+17:00", or, when no reset is known, "the reset time is not known · looking again at 17:15", with
+**Stop waiting** and **Run now** on the item's page.
 
 ### A card the daily cap holds
 

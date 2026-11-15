@@ -6,7 +6,7 @@ import { ProgressBar } from '@claudio/ui/components/ProgressBar';
 import { Spinner } from '@claudio/ui/components/Spinner';
 import { useToast } from '@claudio/ui/components/Toast';
 import { Tag } from '@claudio/ui/components/ui';
-import { formatCost, formatDateTime } from '@claudio/ui/lib/format';
+import { formatCost } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import type { ProgressCounts, ProgressStatus } from '@claudio/ui/lib/progress';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -16,6 +16,7 @@ import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { api, keys } from '../api';
 import { FindingCard } from './changes/ReviewFindings';
+import { WaitActions, WaitLine } from './WaitLine';
 
 // The review of the merged branch, inside the verification card (docs/plans/review-gate.md, Web
 // item 3; design system §18, `.rg`). The energy border turns only while reviewers run: no task is
@@ -325,14 +326,7 @@ export function ReviewGateSection({ orch }: { orch: Orchestration }) {
         </span>
       </div>
 
-      {state.waiting && (
-        <div className="rg-reason warn" role="status">
-          <Clock className="ico" {...ICON_SM} />
-          <span>
-            {t('review.waiting')} <span className="tnum">{state.waiting.resetsAt ? formatDateTime(state.waiting.resetsAt) : ''}</span>
-          </span>
-        </div>
-      )}
+      {state.waiting && <WaitLine wait={state.waiting} actions={<WaitActions moveId={state.waiting.moveId} quiet="btn-quiet" invalidate={[keys.orchestration(orch.id), keys.orchestrationReview(orch.id)]} />} />}
       <Reason state={state} />
 
       {state.runs.total > 0 && (
