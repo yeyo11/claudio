@@ -896,7 +896,7 @@ session.
   active now: no route serves `ChatManager.activity.reserves`, and none was added.
 - The transcript line covers a person's switch only: the rotation's own notice at a limit
   (`rotation.ts`) carries no `data` with its accounts, so the page cannot tell which configuration it
-  crossed into. Adding `{ account, from }` to that notice is core work (T7 owns `rotation.ts`).
+  crossed into. Adding `{ account, from }` to that notice is core work.
 - D7 (the Add-account flow asking whether a new account joins the existing rules) is not built.
 - Plugins that differ from the default's (§6.5) are not shown: `Account.config` has no plugins field
   until T2.
