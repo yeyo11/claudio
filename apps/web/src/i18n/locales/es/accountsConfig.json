@@ -259,7 +259,8 @@
     "recentOnly": "Solo recientes",
     "fullHistory": "Historial completo",
     "nothingYet": "Aún nada",
-    "hint": "Aquí aparece un chat que pasa a otra cuenta o espera a un reinicio."
+    "hint": "Aquí aparece un chat que pasa a otra cuenta o espera a un reinicio.",
+    "once": "para un turno, fuera de la regla del proyecto"
   },
   "modelFallbacks": {
     "title": "Modelos de reserva",

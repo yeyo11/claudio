@@ -123,7 +123,8 @@
       "pendingTo": "Moves to {{name}} when this turn ends",
       "failed": "Couldn’t switch the account",
       "search": "Search accounts",
-      "none": "No account matches."
+      "none": "No account matches.",
+      "onceOnly": "Not allowed by the project's rule: for one turn only"
     },
     "back": "Back to the menu",
     "noCommands": "This chat hasn’t reported any commands yet.",

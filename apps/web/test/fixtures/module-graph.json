@@ -377,7 +377,7 @@
   "WorkflowCard [WorkflowCard]",
   "YouCard [ToneText, YouCard]",
   "YoutrackAccess [TrackerReasonText, YoutrackAccess]",
-  "account-choice [AccountRow, AccountRowState, accountLabel, accountRow, canChoose, offersModel]",
+  "account-choice [AccountRow, AccountRowState, accountLabel, accountRow, canChoose, offersModel, onlyOnce, ruleFor]",
   "account-menu [AccountLine, SUBMENU_MAX, T, accountEntries, accountItem, accountOption, accountReason, filterRows, useLooseT]",
   "accounts [ConnectionFacts, ConnectionKind, PlanKey, ScopedRow, USAGE_MAX_AGE_MS, WindowRow, accountExhausted, accountName, accountReading, accountUsable, allowsAccount, canSignInAgain, connectionOf, creditsView, formatCredits, isDefaultAccount, onCredits, planOf, readyCount, reserveAccountOf, reservesByAccount, resetDuration, rotationOrder, ruleOf, scopedRows, signInProblem, sortAccounts, timeToReset, usagePct, usageStale, useAccountView, windowRows]",
   "agent [AgentScope, RiskScope, upperFirst, useAgentName, useRiskContext]",

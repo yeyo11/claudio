@@ -875,14 +875,25 @@ session.
   change so no field is dropped; a rule that governs other projects too says so. The Accounts page's
   policy list names the preferred account, the reserve and strict configuration, and its form keeps
   them on save (before, saving a policy there would have dropped T8's fields).
+- "Use another account once" (D8, on T7's `once`): the composer's account list, and the limit banner's
+  Switch account that opens it, read the project's rule (`/accounts/policies`, through the chat-ui
+  client's optional `accountPolicies`) and offer an account the rule leaves out as pressable, with
+  "Not allowed by the project's rule: for one turn only"; choosing it sends `once: true`. The
+  Accounts page's rotation log adds "for one turn, outside the project's rule" to a switch whose
+  `data.once` is set, and says reason `rule` in words.
 - Transcript: a person's switch across configuration groups reads "Switched to X, which has its own
   configuration" (or "uses the shared configuration"), judged in `@claudio/chat-ui` from the
   `/accounts` list the page already holds (`configCrossing`, the same grouping as `configGroupOf`).
 
 **Differs from the plan.**
-- `Choice.why` is not served by any route (it stays inside `pick`), so the chat chip and the rotation
-  events show no basis yet; the events say `reserve` and `rule` in words, as T8 left them. Serving
-  `why` (on the chat summary and in `rotation_events.raw`) is core work, for T7 or after it.
+- `Choice.why` is not served by any route (it stays inside `pick`), so the chat chip shows no basis
+  and no "pin ignored by the rule" yet; the events say `reserve` and `rule` in words. Serving `why`
+  (on the chat summary and in the rotation events' `data`) is core work after T7.
+- The rule's no-room notice and an automated wait's reason are English text from the core that name
+  the project by id; the page shows them as they are. Giving the notice `data` (`reason: 'rule'`,
+  the project id) would let the page name the project and offer the once path in place.
+- "Keeps headroom for X while it has work" is read from the rules, not from whether the reserve is
+  active now: no route serves `ChatManager.activity.reserves`, and none was added.
 - The transcript line covers a person's switch only: the rotation's own notice at a limit
   (`rotation.ts`) carries no `data` with its accounts, so the page cannot tell which configuration it
   crossed into. Adding `{ account, from }` to that notice is core work (T7 owns `rotation.ts`).

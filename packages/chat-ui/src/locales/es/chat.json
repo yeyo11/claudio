@@ -123,7 +123,8 @@
       "pendingTo": "Pasará a {{name}} cuando termine este turno",
       "failed": "No se ha podido cambiar la cuenta",
       "search": "Buscar cuentas",
-      "none": "Ninguna cuenta coincide."
+      "none": "Ninguna cuenta coincide.",
+      "onceOnly": "La regla del proyecto no la permite: solo para un turno"
     },
     "back": "Volver al menú",
     "noCommands": "Este chat aún no ha informado de ningún comando.",

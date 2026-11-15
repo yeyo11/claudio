@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { Account, AccountConfig, AccountConfigItem, AccountConfigPlan, RotationPolicy } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { accountRow, canChoose, onlyOnce, ruleFor } from '@claudio/chat-ui/lib/account-choice';
 import { accountSwitchText, configCrossing, readNotices } from '@claudio/chat-ui/lib/chat-notice';
 import i18n, { setLanguage } from '../src/i18n';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
@@ -275,4 +276,21 @@ test('a switch to an account of another configuration says which one it now runs
   assert.equal(configCrossing(undefined, own), undefined, 'nothing is said without the list');
   assert.deepEqual(readNotices(accountSwitchText('work', 'own')).notices, [{ kind: 'account', detail: 'work', body: '', config: 'own' }]);
   assert.deepEqual(readNotices(accountSwitchText('work')).notices, [{ kind: 'account', detail: 'work', body: '' }]);
+});
+
+// ---------- "use another account once" (D8) ----------
+
+test('an account the project rule leaves out is offered for one turn only, and nothing else changes', () => {
+  const rules: RotationPolicy[] = [policy({ projects: ['proj-a'], order: ['acc-1'] }), policy({ id: 'p2', projects: [], looseChats: true, order: ['acc-2'] })];
+  const rule = ruleFor(rules, 'proj-a');
+  assert.equal(rule?.id, 'p1');
+  assert.equal(ruleFor(rules, null)?.id, 'p2', 'a chat of no project takes the rule of loose chats');
+  assert.equal(ruleFor(rules, 'proj-x'), null);
+  const chat = { account: 'acc-1', model: null };
+  const outside = accountRow(account({ id: 'acc-2', alias: 'other' }), chat, undefined, rule);
+  assert.equal(outside.state, 'not-allowed');
+  assert.ok(canChoose(outside) && onlyOnce(outside));
+  // Without a rule the same account is simply allowed; an unusable one keeps its own reason
+  assert.equal(accountRow(account({ id: 'acc-2' }), chat, undefined, null).state, 'ok');
+  assert.equal(accountRow(account({ id: 'acc-2', enabled: false }), chat, undefined, rule).state, 'disabled');
 });

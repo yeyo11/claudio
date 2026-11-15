@@ -752,8 +752,8 @@ export function createApi(base: string | (() => string)) {
       request<ChatMcpServers>(`/chats/${enc(id)}/mcp/${enc(name)}`, { method: 'PUT', body: { enabled } satisfies ChatMcpToggle }),
     setChatClaudioMcp: (id: string, enabled: boolean) =>
       request<ChatMcpServers>(`/chats/${enc(id)}/claudio-mcp`, { method: 'PUT', body: { enabled } satisfies ChatClaudioMcpToggle }),
-    switchChatAccount: (id: string, accountId: string) =>
-      request<SwitchChatAccountResponse>(`/chats/${enc(id)}/account`, { method: 'POST', body: { accountId } satisfies SwitchChatAccountRequest }),
+    switchChatAccount: (id: string, accountId: string, once?: boolean) =>
+      request<SwitchChatAccountResponse>(`/chats/${enc(id)}/account`, { method: 'POST', body: (once ? { accountId, once } : { accountId }) satisfies SwitchChatAccountRequest }),
     deleteChat: (id: string) => request<{ ok: true }>(`/chats/${enc(id)}`, { method: 'DELETE' }),
     // ---- context control (docs/plans/context-control.md)
     chatContext: (id: string, detail: ContextDetail = 'summary') => request<ChatContextUsage>(`/chats/${enc(id)}/context${qs({ detail })}`),

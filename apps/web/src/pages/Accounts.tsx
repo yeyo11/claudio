@@ -350,6 +350,7 @@ export function Accounts() {
                 <span className="break">
                   {event.from && event.to ? `${nameOfId(event.from)} → ${nameOfId(event.to)}` : (reasonText(event.reason) ?? event.detail ?? '')}
                   {event.from && event.to && event.reason ? ` · ${reasonText(event.reason)}` : ''}
+                  {event.data?.once === true ? ` · ${t('log.once')}` : ''}
                 </span>
               </li>
             ))}
