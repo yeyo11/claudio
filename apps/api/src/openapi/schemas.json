@@ -1972,6 +1972,14 @@
       },
       "turns": {
         "type": "number"
+      },
+      "purpose": {
+        "$ref": "#/components/schemas/SpendPurpose",
+        "description": "What its process was started for, as the spend ledger reads it: `person` when a person's chat ran it. A restart reads it to tell a person's cut turn, which goes on by itself, from automated work, whose owner continues it (docs/plans/survive-restarts.md, D7). Absent on one recorded before it was kept."
+      },
+      "turnOpen": {
+        "type": "boolean",
+        "description": "The lead was on a turn when Claudio last wrote this down. A process outlives its turns, so an execution a restart closed was cut mid-turn only when this is true; one that sat idle waiting for the person was not, and nothing continues it (docs/plans/survive-restarts.md). Absent on one recorded before it was kept."
       }
     },
     "required": [
@@ -2037,6 +2045,24 @@
       "total"
     ],
     "description": "Tokens counted in the four ways the API bills them."
+  },
+  "SpendPurpose": {
+    "type": "string",
+    "enum": [
+      "person",
+      "flow",
+      "orchestration",
+      "planner",
+      "fixer",
+      "integrator",
+      "synthesis",
+      "assistant",
+      "decision",
+      "supervisor",
+      "schedule",
+      "other"
+    ],
+    "description": "Why a unit of automated work spent money; the ledger keeps it per row so the cap can say what used it."
   },
   "ChatActivity": {
     "type": "object",

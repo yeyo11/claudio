@@ -340,5 +340,13 @@
     "mineConfirm": "Look for lessons",
     "mining": "Looking for lessons…",
     "mineFailed": "Could not look for lessons"
+  },
+  "restartCut": {
+    "title": "Claudio restarted while this chat was working",
+    "body": "Its turn stopped {{ago}}. Resume it where it left off.",
+    "bodyOn": "Its turn stopped on {{date}}. Resume it where it left off.",
+    "resume": "Resume",
+    "resuming": "Resuming…",
+    "failed": "Could not resume the chat: {{error}}"
   }
 }

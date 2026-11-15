@@ -96,6 +96,17 @@ test('answers the subcommands the wrapper runs, and refuses the rest', () => {
   assert.match(unknown.stderr, /not part of the fake/);
 });
 
+test('a resume with CLAUDE_CODE_RESUME_INTERRUPTED_TURN continues the cut turn with nothing written to it', async () => {
+  const c = chat({ CLAUDE_CODE_RESUME_INTERRUPTED_TURN: '1', CLAUDE_CODE_RESUME_PROMPT: 'Claudio restarted. Continue.' }, { args: ['--resume', 'fake-session'] });
+  try {
+    const result = await c.next((e) => e.type === 'result');
+    assert.equal(result.is_error, false);
+    assert.ok(c.log().some((l) => l.event === 'turn'), JSON.stringify(c.log()));
+  } finally {
+    await c.done();
+  }
+});
+
 test('a turn runs its commands for real and ends with a result', async () => {
   const c = chat();
   const init = await c.next((e) => e.type === 'system' && e.subtype === 'init');

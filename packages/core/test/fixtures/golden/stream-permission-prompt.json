@@ -43,6 +43,7 @@
           "cacheCreation": 0,
           "total": 0
         },
+        "turnOpen": false,
         "turns": 1,
         "modelCosts": {
           "claude-opus-5[1m]": 0.01

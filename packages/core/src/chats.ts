@@ -8,7 +8,7 @@ import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { errorMessage, type AccountSwitchReason, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type SentToAgent, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
+import { errorMessage, RESTART_CONTINUE_TEXT, type AccountSwitchReason, type ChatOrigin, type SpendPurpose, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type SentToAgent, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, goIdle, idleTimeoutMs, NOT_READ, recordEntry } from './chat-fold.ts';
@@ -87,6 +87,22 @@ export function limitedTail(executions: readonly Execution[]): string[] {
 }
 
 /** A turn that died on an account's limit: when (epoch ms), and until when the account said it was out (null when nothing said) */
+/** A chat restored with a turn a restart cut, as `ChatManager.cutTurns` reports it. */
+export interface CutTurn {
+  chatId: string;
+  /** The cut execution: what a claim to continue it is keyed by */
+  executionId: string;
+  origin: ChatOrigin;
+  /** What the cut execution was started for; null on one recorded before it was kept */
+  purpose: SpendPurpose | null;
+  /** When the transcript last heard from it (ISO) */
+  cutAt: string;
+  /** How many executions in a row, this one included, a restart cut */
+  chain: number;
+  /** Its provider can continue the turn, and no process of a previous wrapper holds the session */
+  continuable: boolean;
+}
+
 export interface LimitFailure {
   at: number;
   until: number | null;
@@ -216,6 +232,12 @@ const ENDED = 'the process ended before the agent read it';
  * `close` with them; read when used, so a test can shorten it.
  */
 const closeAfterExitMs = (): number => Number(process.env.CLAUDIO_CLOSE_AFTER_EXIT_MS ?? 3000);
+/**
+ * How long a process started to continue a cut turn may show nothing of it before it is taken as
+ * idle: its start (MCP servers, hooks) and the model's first streamed token both fit in it. Read
+ * when used, so a test can shorten it.
+ */
+const continueStartMs = (): number => Number(process.env.CLAUDIO_CONTINUE_START_MS ?? 120_000);
 
 /** Who wrote a message besides a person, and the words it carries without Claudio's framing (`SentMessage`). */
 export type MessageFrom = Partial<Pick<SentMessage, 'source' | 'words'>>;
@@ -2624,7 +2646,11 @@ export class ChatManager extends EventEmitter {
    * by the chat it works for, and a chat never has two.
    */
   /** `room`: the idle processes admission chose to end for this one, ended once nothing before the spawn refuses it. */
-  private spawnProcess(chat: LiveChat, first: SentMessage, room: readonly LiveChat[], announce = true): void {
+  /**
+   * Starts the chat's process. `first` is the message it starts on; null only with `cut`, for a
+   * process that continues the turn a restart cut by itself (`continueCut`).
+   */
+  private spawnProcess(chat: LiveChat, first: SentMessage | null, room: readonly LiveChat[], announce = true, cut?: { maxAgeMs: number }): void {
     if (chat.alive) throw new ChatRefusal('the chat already has a live process');
     const holders = this.sessionHolders(chat);
     if (holders.length) {
@@ -2640,7 +2666,7 @@ export class ChatManager extends EventEmitter {
     this.planGuards(chat);
     const account = this.chooseAccount(chat);
     // The CLI's own login keeps the environment it always had (the vault's credential, the container's)
-    const plan = chat.driver.launch(this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null));
+    const plan = chat.driver.launch({ ...this.launchSpec(chat, account && account.id !== DEFAULT_ID ? account : null), ...(cut ? { continueCut: { maxAgeMs: cut.maxAgeMs, prompt: RESTART_CONTINUE_TEXT } } : {}) });
     if (account) chat.account = account.id;
     // The CLI's totals are the session's, not the process's: one that resumes the session goes on
     // from its last report and a fork from its parent's (set by `fork`). Only a session that starts
@@ -2804,7 +2830,81 @@ export class ChatManager extends EventEmitter {
 
     // Recorded at once: a wrapper that dies from here on leaves an execution to read back as interrupted, not a gap
     this.persist(chat);
-    this.writeUserMessage(chat, first, announce);
+    if (first) this.writeUserMessage(chat, first, announce);
+    else this.awaitContinuation(chat, proc);
+  }
+
+  /**
+   * The process was started to continue a cut turn and is written nothing: the agent opens the turn
+   * itself. It may decline instead (the cut is older than it was allowed, the session was not
+   * mid-turn after all, an older CLI without the feature) and start idle, which nothing it sends
+   * says: a process that shows no sign of the turn for `continueStartMs` is taken as idle.
+   */
+  private awaitContinuation(chat: LiveChat, proc: ChildProcessWithoutNullStreams): void {
+    chat.turnMessages = [];
+    chat.turnOver = false;
+    chat.turnOpen = true;
+    if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    chat.idleSince = null;
+    chat.setStatus('busy');
+    // A restart that cuts the continuation too leaves a turn to continue
+    this.persist(chat);
+    if (chat.continueTimer) clearTimeout(chat.continueTimer);
+    chat.continueTimer = setTimeout(() => {
+      chat.continueTimer = null;
+      if (chat.proc !== proc || !chat.alive || !chat.turnOpen) return;
+      chat.turnOpen = false;
+      chat.turnOver = true;
+      if (chat.opts.keepAlive === false) chat.session?.endInput();
+      else goIdle(chat);
+      this.persist(chat);
+    }, continueStartMs());
+    chat.continueTimer.unref();
+  }
+
+  /**
+   * The chats this start restored with a turn a restart cut, as their last execution, and that nothing
+   * has continued since: what `restart-resume.ts` decides about. The cut's time is when the transcript
+   * last heard from it.
+   */
+  cutTurns(): CutTurn[] {
+    const cut: CutTurn[] = [];
+    for (const chat of this.chats.values()) {
+      const execution = chat.cutOff;
+      // A process outlives its turns: one that sat idle when the server went away cut nothing
+      if (!execution || execution.turnOpen !== true || chat.alive || chat.executions[chat.executions.length - 1] !== execution || !execution.endedAt) continue;
+      let chain = 0;
+      for (let i = chat.executions.length - 1; i >= 0 && chat.executions[i]?.outcome === 'interrupted'; i--) chain++;
+      cut.push({
+        chatId: chat.id,
+        executionId: execution.id,
+        origin: chat.origin,
+        purpose: execution.purpose ?? null,
+        cutAt: execution.endedAt,
+        chain,
+        continuable: chat.driver.continuesCutTurns === true && !this.leftovers.has(chat.id),
+      });
+    }
+    return cut;
+  }
+
+  /**
+   * Continues the turn a restart cut, in place: a process on the same session that the agent runs
+   * the turn on by itself, with nothing written to it, as long as the cut is younger than `maxAgeMs`
+   * by the agent's own clock (docs/plans/survive-restarts.md, layer 3). Admitted like any start,
+   * without holding places for it as a person's start would: a refusal leaves the chat as it was.
+   */
+  continueCut(id: string, maxAgeMs: number): ChatRuntime {
+    const chat = this.chats.get(id);
+    if (!chat) throw new ChatNotFoundError();
+    if (chat.alive) throw new ChatRefusal('the chat already has a live execution', 409);
+    if (chat.cutOff?.turnOpen !== true || chat.executions[chat.executions.length - 1] !== chat.cutOff) throw new ChatRefusal('the chat has no turn a restart cut', 409);
+    if (chat.driver.continuesCutTurns !== true) throw new ChatRefusal('its provider cannot continue a cut turn', 409);
+    if (this.leftovers.has(id)) throw new ChatRefusal('a process a previous wrapper started is still on the session', 409);
+    const room = this.admit(chat.opts, chat.driver, 'other');
+    this.spawnProcess(chat, null, room, true, { maxAgeMs });
+    chat.cutOff = null;
+    return chat.summary();
   }
 
   /**
@@ -2852,6 +2952,8 @@ export class ChatManager extends EventEmitter {
     if (opens) {
       chat.paidTurn = false;
       this.checkCredits(chat, false);
+      // Written down at once: a restart from here on cut a turn, which the next start continues
+      this.persist(chat);
     }
   }
 
@@ -2918,6 +3020,8 @@ export class ChatManager extends EventEmitter {
   private finalize(chat: LiveChat, status: RunStatus): void {
     if (chat.endedAt) return;
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
+    if (chat.continueTimer) clearTimeout(chat.continueTimer);
+    chat.continueTimer = null;
     if (chat.armingTimer) clearTimeout(chat.armingTimer);
     chat.armingTimer = null;
     if (chat.settleTimer) clearTimeout(chat.settleTimer);
