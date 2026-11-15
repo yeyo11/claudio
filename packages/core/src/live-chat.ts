@@ -55,6 +55,10 @@ const MAX_NOT_READ = 50;
 const MAX_UNDELIVERED = 20;
 
 /** A message as sent: its id, its words and its files. */
+
+/** Why a turn on credits was stopped: see {@link LiveChat.creditsStop} */
+export type CreditsStop = 'never' | 'cap' | 'quota-elsewhere';
+
 export interface SentMessage {
   id: string;
   /** What the agent is given */
@@ -668,6 +672,15 @@ export class LiveChat {
    * can still end with JSON that parses, and a reader of the result has to know it was cut
    */
   stopReason: string | null = null;
+  /**
+   * The turn was stopped because it ran on its account's usage credits where the account's credits
+   * setting does not let it (D4 of docs/plans/limit-resume-and-credits.md), and why: the setting is
+   * `never`, Claudio's cap is reached, or (`last-resort`) another account has plan quota. Set with
+   * `rateLimited`, so the rotation moves or waits as at a limit; cleared with it at the next launch.
+   */
+  creditsStop: CreditsStop | null = null;
+  /** The running turn is paid from its account's usage credits: what marks its spend, and says so once */
+  paidTurn = false;
   /** `limit-hit` was already announced for this attempt */
   limitRequested = false;
   /** Replays of the last turn for this execution: a second failure on the limit is a real one */

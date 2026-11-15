@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import { readNotices } from '@claudio/chat-ui/lib/chat-notice';
+import { creditsNotice, creditsText, readNotices } from '@claudio/chat-ui/lib/chat-notice';
 
 // Claude Code writes a few things into the transcript as `user` messages. Read wrong they show as
 // the person speaking XML; read here they become the system's own line, and a real message that
@@ -48,4 +48,18 @@ test('an ordinary message has nothing in it to read', () => {
   const { prose, notices } = readNotices('Fix the chat page, the keyboard covers the composer');
   assert.equal(prose, 'Fix the chat page, the keyboard covers the composer');
   assert.deepEqual(notices, []);
+});
+
+test("Claudio's own line for a turn on credits reads as paid, or as stopped before it paid, with the account's name", () => {
+  const paid = readNotices(creditsText('work', false));
+  assert.deepEqual([paid.prose, paid.notices], ['', [{ kind: 'credits', detail: 'work', body: '' }]]);
+  const stopped = readNotices(creditsText('work', true));
+  assert.deepEqual(stopped.notices, [{ kind: 'credits-stopped', detail: 'work', body: '' }]);
+});
+
+test('a notice of the server about credits names its account and whether the turn was stopped; any other notice is not one', () => {
+  const at = { seq: 1, ts: '2026-11-15T00:00:00Z' };
+  assert.deepEqual(creditsNotice({ ...at, kind: 'notice', text: 'x', data: { reason: 'credits', account: 'acc-1', stopped: 'never' } }), { account: 'acc-1', stopped: true });
+  assert.deepEqual(creditsNotice({ ...at, kind: 'notice', text: 'x', data: { reason: 'credits', account: 'acc-1', usedMinor: 3 } }), { account: 'acc-1', stopped: false });
+  assert.equal(creditsNotice({ ...at, kind: 'notice', text: 'x', data: { reason: 'person', account: 'acc-1' } }), null);
 });

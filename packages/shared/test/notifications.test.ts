@@ -311,6 +311,7 @@ test('the daily spend cap raises two limit drafts, the second a high one', () =>
     unreported: 0,
     byPurpose: {},
     byAccountKind: { login: 0, token: 0, apiKey: 0, unknown: 0 },
+    creditsUsd: 0,
     waiting: { flowRuns: 0, orchestrationTasks: 0 },
   });
   const alert = (level: 'warn' | 'exhausted', spentUsd: number): ClaudioEvent => ({ type: 'spend.alert', ...base('Daily spend'), level, spend: spend(spentUsd) });

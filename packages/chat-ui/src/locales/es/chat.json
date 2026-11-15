@@ -480,6 +480,8 @@
       "interrupt": "Interrumpido",
       "compaction-failed": "No se ha podido compactar",
       "account": "Cuenta cambiada a",
+      "credits": "Pagado con los créditos de",
+      "credits-stopped": "Detenido antes de gastar los créditos de",
       "guard": "Guardia: bloqueado",
       "guardMissing": "La guardia no se ha ejecutado en esta llamada"
     },

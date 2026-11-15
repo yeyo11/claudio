@@ -1,5 +1,5 @@
 import type { ChatChildren, ContentBlock, EditStep, SentToAgent, TranscriptEntry } from '@claudio/shared';
-import { ArrowRight, ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Copy, Info, PanelRightOpen, ShieldAlert, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Coins, Copy, Info, PanelRightOpen, ShieldAlert, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -118,7 +118,7 @@ function RowTime({ at }: { at: string | null }) {
   );
 }
 
-const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX, account: ArrowRightLeft, guard: ShieldAlert };
+const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX, account: ArrowRightLeft, credits: Coins, 'credits-stopped': CircleStop, guard: ShieldAlert };
 
 /**
  * Something the system said, not the person: a quiet strip — small and faint, in the

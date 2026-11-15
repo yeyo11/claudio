@@ -43,6 +43,8 @@
     "nearLimit": "Near the limit",
     "limitReached": "Limit reached",
     "limitBack": "Available again {{time}}",
+    "onCredits": "Using credits",
+    "planBack": "The plan is back {{time}}",
     "checkUsage": "Check usage in Accounts",
     "rotatesAtLimit": "Accounts rotate at the limit",
     "notCheckedShort": "Not checked",
@@ -320,6 +322,12 @@
     "spendWarnTitle": "Today's spend is at {{percent}} of the cap",
     "spendExhaustedTitle": "Daily spend cap reached: automatic work waits until 00:00",
     "spendBody": "{{spent}} of {{cap}}, as the CLI reported it.",
+    "creditsTitle": "{{name}} is running work on its usage credits",
+    "creditsBody": {
+      "plan": "Its plan is spent; the turn is paid from its credits.",
+      "amount": "Its plan is spent; the turn is paid from its credits. {{used}} of {{limit}} this month.",
+      "used": "Its plan is spent; the turn is paid from its credits. {{used}} this month."
+    },
     "joinRequest": "{{name}} asks to join {{group}}",
     "joinRequestBody": {
       "relayed": "Relayed by {{name}}. Accept or deny it on the Collaborators page.",

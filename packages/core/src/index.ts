@@ -1688,6 +1688,7 @@ export class Core {
       db: this.db,
       evalSample: (chatId) => this.evals.isSample(chatId),
       runtime: this.runtime,
+      creditsStop: (chatId) => this.runtime.creditsStopOf(chatId),
       settings: () => this.providersSettings.get(),
       projectProviders: (projectId) => this.projectSettingsStore.stored(projectId, this.projectStore.get(projectId)?.name)?.providers ?? null,
       projectOf: (dir) => this.projectOf(resolve(dir)).project?.id ?? null,
@@ -3937,6 +3938,8 @@ export class Core {
       this.accountsChangedTimer = null;
       if (this.closed) return;
       this.events.emit({ type: 'accounts.changed', title: 'Accounts changed' });
+      // A credits setting or cap changed under a turn that runs on credits: it stops at once if it may not go on (D4)
+      this.runtime.recheckCredits();
       for (const listener of [...this.accountListeners]) {
         try {
           listener();

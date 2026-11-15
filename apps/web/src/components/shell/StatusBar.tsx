@@ -4,7 +4,7 @@ import { ChevronRight, LogIn, SquareTerminal, TriangleAlert } from 'lucide-react
 import { useTranslation } from 'react-i18next';
 import { NavLink } from 'react-router-dom';
 import { api, keys, useSpend } from '../../api';
-import { accountName, accountReading, connectionOf, planOf, readyCount, signInProblem, usagePct, useAccountView, windowRows, type ConnectionKind } from '../../lib/accounts';
+import { accountName, accountReading, connectionOf, onCredits, planOf, readyCount, signInProblem, usagePct, useAccountView, windowRows, type ConnectionKind } from '../../lib/accounts';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { formatCost, formatPercent } from '@claudio/ui/lib/format';
 import { cardProvider, limitReading } from '../../lib/shell-live';
@@ -82,6 +82,8 @@ export function useConnection(overview: Now['overview'], feedOpen: boolean): Con
     expired: { title: t('components:shell.signInExpired'), detail: t('components:shell.signInAgain'), short: t('components:shell.signInExpired') },
     'signed-out': { title: t('components:shell.notLoggedIn'), detail: t('components:shell.addCredential'), short: t('components:shell.notLoggedIn') },
     limit: { title: t('components:shell.limitReached'), detail: back, short: t('components:shell.limitReached') },
+    // Warn, with its word: work goes on, paid from the account's credits, until the plan resets
+    credits: { title: t('components:shell.onCredits'), detail: resetsAt ? t('components:shell.planBack', { time: resetWhen(resetsAt) }) : t('components:shell.checkUsage'), short: [label, t('components:shell.onCredits')].filter(Boolean).join(' · ') },
     near: {
       title: t('components:shell.nearLimit'),
       detail: rotation ? t('components:shell.rotatesAtLimit') : t('components:shell.checkUsage'),
@@ -216,10 +218,11 @@ function CurrentAccountCard({ view, connection }: { view: AccountView; connectio
   if (!inUse) return null;
   const name = inUse.label;
   const total = view.accounts.length;
-  const exhausted = inUse.limit?.state === 'exhausted';
+  const paying = onCredits(inUse.limit);
+  const exhausted = inUse.limit?.state === 'exhausted' && !paying;
   const rows = windowRows(inUse.limit).filter((row) => row.key === 'five_hour' || row.key === 'seven_day');
-  const tone: DotTone = exhausted ? 'bad' : inUse.limit?.state === 'near' ? 'warn' : 'ok';
-  const word = exhausted ? t('statusbar.limit.exhausted') : inUse.limit?.state === 'near' ? t('statusbar.limit.near') : t('account.ready');
+  const tone: DotTone = exhausted ? 'bad' : paying || inUse.limit?.state === 'near' ? 'warn' : 'ok';
+  const word = exhausted ? t('statusbar.limit.exhausted') : paying ? t('statusbar.onCredits') : inUse.limit?.state === 'near' ? t('statusbar.limit.near') : t('account.ready');
   return (
     <Tooltip content={t('account.card')}>
       <NavLink to="/accounts" className="card grad-border glow-top more-account">
@@ -254,12 +257,14 @@ function AccountChip({ view }: { view: AccountView | null }) {
   const inUse = view?.inUse;
   if (!view || !inUse || view.accounts.length < 2) return null;
   const pct = usagePct(inUse.limit);
+  const paying = onCredits(inUse.limit);
   const tone = pct === null ? 'neutral' : usageTone(pct, inUse.limit?.state === 'exhausted');
   return (
     <Tooltip content={t('statusbar.account')} side="top">
       <NavLink to="/accounts" className="statusbar-item">
         <span className="ellipsis">{inUse.label}</span>
-        {pct !== null && <span className={tone === 'neutral' ? undefined : `statusbar-${tone}`}>{formatPercent(pct)}</span>}
+        {/* A spent plan its credits pay for is a price, not a stop: warn, in words rather than "100" */}
+        {paying ? <span className="statusbar-warn">{t('statusbar.onCredits')}</span> : pct !== null && <span className={tone === 'neutral' ? undefined : `statusbar-${tone}`}>{formatPercent(pct)}</span>}
       </NavLink>
     </Tooltip>
   );

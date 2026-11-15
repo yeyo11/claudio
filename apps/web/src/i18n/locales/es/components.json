@@ -43,6 +43,8 @@
     "nearLimit": "Cerca del límite",
     "limitReached": "Límite alcanzado",
     "limitBack": "Vuelve a estar disponible {{time}}",
+    "onCredits": "Usando créditos",
+    "planBack": "El plan vuelve {{time}}",
     "checkUsage": "Revisa el uso en Cuentas",
     "rotatesAtLimit": "Las cuentas cambian solas al llegar al límite",
     "notCheckedShort": "Sin comprobar",
@@ -320,6 +322,12 @@
     "spendWarnTitle": "Gasto de hoy al {{percent}} del tope",
     "spendExhaustedTitle": "Tope de gasto diario alcanzado: el trabajo automático espera hasta las 00:00",
     "spendBody": "{{spent}} de {{cap}}, según el CLI.",
+    "creditsTitle": "{{name}} está ejecutando trabajo con sus créditos de uso",
+    "creditsBody": {
+      "plan": "Su plan está agotado; el turno se paga con sus créditos.",
+      "amount": "Su plan está agotado; el turno se paga con sus créditos. {{used}} de {{limit}} este mes.",
+      "used": "Su plan está agotado; el turno se paga con sus créditos. {{used}} este mes."
+    },
     "joinRequest": "{{name}} pide unirse a {{group}}",
     "joinRequestBody": {
       "relayed": "A través de {{name}}. Acéptala o recházala en la página Colaboradores.",

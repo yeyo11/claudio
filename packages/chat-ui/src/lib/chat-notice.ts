@@ -10,7 +10,7 @@ import type { RunEvent } from '@claudio/shared';
  * page can show them as what they are — something the system said, next to the conversation.
  */
 
-export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed' | 'account' | 'guard';
+export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed' | 'account' | 'credits' | 'credits-stopped' | 'guard';
 
 export interface Notice {
   kind: NoticeKind;
@@ -53,6 +53,21 @@ export function switchedAccount(e: RunEvent): string | null {
   return data?.reason === 'person' && typeof data.account === 'string' ? data.account : null;
 }
 
+/** The tag Claudio's own line for a turn on an account's usage credits travels in; the CLI never writes it. */
+export const CREDITS_TAG = 'claudio-credits';
+
+/**
+ * A turn that runs on its account's usage credits (`paid`), or was stopped because the account's
+ * credits setting does not let them pay (`stopped`): what Claudio's own notice says, from its `data`.
+ */
+export function creditsNotice(e: RunEvent): { account: string; stopped: boolean } | null {
+  const data = e.kind === 'notice' ? e.data : undefined;
+  return data?.reason === 'credits' && typeof data.account === 'string' ? { account: data.account, stopped: typeof data.stopped === 'string' } : null;
+}
+
+/** The text of the transcript line for it: the account's name, and whether the turn was stopped. */
+export const creditsText = (name: string, stopped: boolean): string => `<${CREDITS_TAG}>${stopped ? 'stopped' : 'paid'}:${name}</${CREDITS_TAG}>`;
+
 /**
  * The notices in one message and the prose left around them: a person's message that carries a
  * reminder is still their message, so only what they wrote stays in the bubble.
@@ -67,6 +82,7 @@ export function readNotices(text: string): { prose: string; notices: Notice[] } 
     });
   };
   take(ACCOUNT_SWITCH_TAG, (raw) => ({ kind: 'account', detail: raw, body: '' }));
+  take(CREDITS_TAG, (raw) => ({ kind: raw.startsWith('stopped:') ? 'credits-stopped' : 'credits', detail: raw.replace(/^(stopped|paid):/, ''), body: '' }));
   take('task-notification', (raw) => taskNotice(raw));
   take('system-reminder', (raw) => ({ kind: 'reminder', detail: firstLine(raw), body: rest(raw) }));
   // The CLI's own error for a compaction that did not happen: the line says so, its words are the fold
