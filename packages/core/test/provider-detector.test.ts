@@ -187,16 +187,20 @@ describe('ProviderDetector', () => {
   it('answers a refresh asked while another runs with a detection that starts after it', async () => {
     const state = join(root, `state${n}`);
     const release = join(root, `release${n}`);
-    // Each login probe reads the state as it starts, then the first one waits for the test to let it
-    // go, so the first detection is still running when the state changes
+    const read = join(root, `read${n}`);
+    // Each login probe reads the state as it starts and says so, then the first one waits for the test
+    // to let it go, so the first detection is still running when the state changes. The test waits for
+    // that read, not for a fixed time: on a loaded machine the probe had not started after 150 ms and
+    // read the state the test had already changed
     await fake(
       'claude',
-      `case "$1" in --version) echo "2.1.285 (Claude Code)";; auth) s=$(/bin/cat "${state}"); while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; echo "{\\"loggedIn\\": $s}";; esac`,
+      `case "$1" in --version) echo "2.1.285 (Claude Code)";; auth) s=$(/bin/cat "${state}"); : > "${read}"; while [ ! -e "${release}" ]; do /bin/sleep 0.05; done; echo "{\\"loggedIn\\": $s}";; esac`,
     );
     await writeFile(state, 'false');
     const d = detector();
     const first = d.refresh();
-    await new Promise((resolve) => setTimeout(resolve, 150));
+    for (let i = 0; i < 600 && !existsSync(read); i++) await new Promise((resolve) => setTimeout(resolve, 50));
+    assert.ok(existsSync(read), 'the first login probe started');
     const second = d.refresh();
     const third = d.refresh();
     assert.equal(second, third, 'everyone asking meanwhile shares one follow-up');
