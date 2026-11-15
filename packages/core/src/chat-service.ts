@@ -1129,7 +1129,7 @@ export class ChatService {
    * through the chat's sends in order, and says who it is from: a person's hint, or one nobody typed
    * (`supervisor`, `claudio`), which the agent is told is automatic and the page draws as a notice.
    */
-  async hint(id: string, text: string, opts: { source?: ChatMessageSource } = {}): Promise<ChatSummary> {
+  async hint(id: string, text: string, opts: { source?: ChatMessageSource; messageId?: string } = {}): Promise<ChatSummary> {
     const words = typeof text === 'string' ? text.trim() : '';
     if (!words) throw new Error('text is required');
     if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
@@ -1139,20 +1139,22 @@ export class ChatService {
     await this.inOrder(id, () => {
       // Read when its turn in the order comes: a process that ended meanwhile is not started again for a nudge
       if (this.deps.runtime.get(id)?.pid == null) throw new ChatConflictError('The chat has no live process to nudge. Send it a message to continue it.', null);
-      return this.deps.runtime.sendMessage(id, `${prefix}\n\n${words}`, [], undefined, undefined, { source, words });
+      return this.deps.runtime.sendMessage(id, `${prefix}\n\n${words}`, [], opts.messageId, undefined, { source, words });
     });
     return this.require(id);
   }
 
   /**
    * Stops one command a chat is running without ending its turn: the command's process tree is
-   * killed, the CLI hands the worker a failed result for that call, and the worker goes on. The worker
-   * is told who did it, since a bare exit status looks like the command's own crash: a person, or
-   * Claudio on its own (`opts.source`), with `reason` as the why.
+   * killed, the CLI hands the agent that ran it a failed result for that call, and it goes on. That
+   * agent is told who did it, since a bare exit status looks like the command's own crash: a person, or
+   * Claudio on its own (`opts.source`), with `reason` as the why. A subagent's command is told to the
+   * subagent ({@link tellSubagent}); the lead then sees only the notice row, never words in the second
+   * person about a command it did not run.
    */
   async cancelCommand(id: string, toolUseId: string, request: CancelCommandRequest = {}, opts: { source?: ChatMessageSource } = {}): Promise<CancelCommandResult> {
     if (!this.deps.runtime.get(id)) throw new ChatNotFoundError();
-    let cancelled: { command: string; processes: number };
+    let cancelled: { command: string; processes: number; parentToolUseId?: string };
     try {
       cancelled = this.deps.runtime.cancelCommand(id, toolUseId);
     } catch (err) {
@@ -1161,15 +1163,36 @@ export class ChatService {
     const reason = request?.reason?.trim();
     const byPerson = (opts.source ?? 'person') === 'person';
     const prefix = byPerson ? CANCEL_NOTICE_PREFIX : AUTO_CANCEL_NOTICE_PREFIX;
-    this.deps.runtime.notice(id, `${prefix} \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId });
-    const words = `${prefix} \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}` : '.'} It did not fail by itself.`;
+    const parent = cancelled.parentToolUseId;
+    this.deps.runtime.notice(id, `${prefix} \`${cancelled.command.slice(0, 120)}\`${reason ? `: ${reason}` : '.'}`, { toolUseId, ...(parent ? { parentToolUseId: parent } : {}) });
+    const words = `${prefix} \`${cancelled.command.slice(0, 200)}\` while it was running${reason ? `: ${reason}${/[.!?]$/.test(reason) ? '' : '.'}` : '.'} It did not fail by itself.`;
+    // Claudio's words either way: the page shows the notice, not a message of the person's to hurry
+    const source: ChatMessageSource = byPerson ? 'claudio' : (opts.source ?? 'claudio');
     try {
-      // Claudio's words either way: the page shows the notice, not a message of the person's to hurry
-      await this.inOrder(id, () => this.deps.runtime.sendMessage(id, words, [], undefined, undefined, { source: byPerson ? 'claudio' : (opts.source ?? 'claudio') }));
+      if (parent) await this.tellSubagent(id, parent, words, source, byPerson ? 'person' : 'supervisor');
+      else await this.inOrder(id, () => this.deps.runtime.sendMessage(id, words, [], undefined, undefined, { source }));
     } catch {
       // the process went with it: there is nobody left to tell
     }
     return { toolUseId, command: cancelled.command, processes: cancelled.processes };
+  }
+
+  /**
+   * Words for the subagent a lead's `Agent` call `parent` launched: straight to it when the chat's bridge
+   * can carry them ({@link messageAgent}), else through the lead framed as a relay for that subagent
+   * ({@link relay}), which the lead passes on with `SendMessage` and the page draws as a system row.
+   */
+  private async tellSubagent(id: string, parent: string, words: string, source: ChatMessageSource, relayAs: 'person' | 'supervisor'): Promise<void> {
+    const sub = this.deps.runtime.subagentOf(id, parent);
+    if (sub?.agentId && sub.status !== 'stopped' && this.deps.runtime.bridged(id)) {
+      try {
+        await this.messageAgent(id, sub.agentId, words, { source });
+        return;
+      } catch {
+        // Refused up front: the lead can still pass it on
+      }
+    }
+    await this.relay(id, { name: sub?.description ?? '', ...(sub?.agentId ? { agentId: sub.agentId } : {}) }, words, { source: relayAs });
   }
 
   /** Sends one foreground call of the running turn to the background, so the agent reads what waits ("Send to background and deliver"). */
