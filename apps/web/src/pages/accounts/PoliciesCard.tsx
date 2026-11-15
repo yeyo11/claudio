@@ -3,9 +3,9 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { Check, Pencil, Plus, Route, Trash2 } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { formatPercent } from '@claudio/ui/lib/format';
+import { formatNumber, formatPercent } from '@claudio/ui/lib/format';
 import { api, keys, useProjects } from '../../api';
-import { accountName } from '../../lib/accounts';
+import { accountName, reserveAccountOf } from '../../lib/accounts';
 import { Checkbox, Slider, Tooltip } from '@claudio/ui/components/controls';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON_SM } from '@claudio/ui/components/icons';
@@ -20,6 +20,8 @@ interface Draft {
   order: string[];
   projects: string[];
   looseChats: boolean;
+  /** Edited in each project's settings; kept here so a save from this card never drops them */
+  rule?: Pick<RotationPolicy, 'preferred' | 'reserve' | 'strictConfig'>;
 }
 
 const NEW_POLICY: Draft = { threshold: 85, order: [], projects: [], looseChats: false };
@@ -57,7 +59,19 @@ function PolicyForm({
   const toast = useToast();
   const save = useMutation({
     mutationFn: () => {
-      const body = { threshold: draft.threshold, projects: draft.projects, looseChats: draft.looseChats, ...(draft.order.length ? { order: draft.order } : {}) };
+      // An account taken off the list cannot stay the rule's preferred one, nor carry its reserve
+      const preferred = draft.rule?.preferred;
+      const keepPreferred = preferred !== undefined && (draft.order.length === 0 || draft.order.includes(preferred));
+      const reserveOn = draft.rule?.reserve !== undefined && (keepPreferred || draft.order.length > 0);
+      const body = {
+        threshold: draft.threshold,
+        projects: draft.projects,
+        looseChats: draft.looseChats,
+        ...(draft.order.length ? { order: draft.order } : {}),
+        ...(keepPreferred ? { preferred } : {}),
+        ...(reserveOn && draft.rule?.reserve ? { reserve: draft.rule.reserve } : {}),
+        ...(draft.rule?.strictConfig ? { strictConfig: true } : {}),
+      };
       return draft.id ? api.updateAccountPolicy(draft.id, body) : api.createAccountPolicy(body);
     },
     onSuccess: () => {
@@ -149,6 +163,7 @@ function PolicyForm({
         <span className="field-hint">{t('policies.orderHint')}</span>
       </div>
 
+      <p className="muted small">{t('policies.rulesInProject')}</p>
       <ErrorBox error={save.error} title={t('policies.saveFailed')} />
       <div className="form-actions">
         <button type="submit" className="btn btn-primary" disabled={!governsSomething(draft) || save.isPending}>
@@ -217,6 +232,9 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
                 <div className="muted small">
                   {policy.threshold !== undefined ? t('policies.rotateAt', { percent: formatPercent(policy.threshold) }) : t('policies.globalThreshold')} ·{' '}
                   {policy.order?.length ? t('policies.inOrder', { accounts: policy.order.map((id) => nameOf(accounts, id)).join(' → ') }) : t('policies.anyAccount')}
+                  {policy.preferred ? ` · ${t('policies.prefers', { name: nameOf(accounts, policy.preferred) })}` : ''}
+                  {policy.reserve ? ` · ${t('policies.reserves', { name: nameOf(accounts, reserveAccountOf(policy) ?? ''), points: formatNumber(policy.reserve.percent) })}` : ''}
+                  {policy.strictConfig ? ` · ${t('policies.strict')}` : ''}
                 </div>
               </div>
               <span className="row-actions">
@@ -225,7 +243,16 @@ export function PoliciesCard({ policies, accounts }: { policies: RotationPolicy[
                     type="button"
                     className="btn btn-small"
                     aria-label={t('policies.editNamed', { projects: governed(policy) })}
-                    onClick={() => setDraft({ id: policy.id, threshold: policy.threshold ?? 85, order: policy.order ?? [], projects: policy.projects, looseChats: policy.looseChats === true })}
+                    onClick={() =>
+                      setDraft({
+                        id: policy.id,
+                        threshold: policy.threshold ?? 85,
+                        order: policy.order ?? [],
+                        projects: policy.projects,
+                        looseChats: policy.looseChats === true,
+                        rule: { ...(policy.preferred ? { preferred: policy.preferred } : {}), ...(policy.reserve ? { reserve: policy.reserve } : {}), ...(policy.strictConfig ? { strictConfig: true } : {}) },
+                      })
+                    }
                   >
                     <Pencil {...ICON_SM} />
                   </button>

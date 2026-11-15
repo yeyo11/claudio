@@ -136,7 +136,7 @@ function NoticeRow({ notice }: { notice: Notice }) {
       {notice.status && <span className={`notice-status ${failed ? 'is-bad' : 'is-ok'}`}>{notice.status}</span>}
       {/* Two lines at most: what the system says is worth a glance, not a screen of the conversation */}
       <span className="notice-detail" title={notice.detail}>
-        {notice.detail}
+        {notice.config ? t(notice.config === 'own' ? 'transcript.notice.accountOwnConfig' : 'transcript.notice.accountSharedConfig', { name: notice.detail }) : notice.detail}
       </span>
     </>
   );

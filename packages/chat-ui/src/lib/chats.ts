@@ -4,7 +4,7 @@ import { TRANSCRIPT_PAGE_MAX } from '@claudio/shared';
 import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
 import type { Account, AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@claudio/shared';
 import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
-import { accountSwitchText, creditsNotice, creditsText, switchedAccount } from './chat-notice';
+import { accountSwitchText, configCrossing, creditsNotice, creditsText, switchedAccount, switchedFrom } from './chat-notice';
 import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamedHeight, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { chatKeys as keys, useChatUi } from './context';
 import { chatAlive } from './liveness';
@@ -326,7 +326,11 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
       if (switchedTo) {
         // A person's account switch reads as a line of the conversation, said once when it happens
         const to = switchedTo;
-        const name = client.getQueryData<Account[]>(['accounts'])?.find((a) => a.id === to);
+        const list = client.getQueryData<Account[]>(['accounts']);
+        const name = list?.find((a) => a.id === to);
+        // Only the `/accounts` list describes configurations; without it nothing is said about one
+        const from = switchedFrom(event);
+        const crossed = from ? configCrossing(list?.find((a) => a.id === from) ?? (from === 'default' ? { id: 'default' } : undefined), name) : undefined;
         show({
           uuid: `account-switch-${id}-${event.seq}`,
           role: 'user',
@@ -334,7 +338,7 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
           model: null,
           isSidechain: false,
           parentToolUseId: null,
-          blocks: [{ type: 'text', text: accountSwitchText(name ? (name.alias ?? name.email ?? name.id) : to) }],
+          blocks: [{ type: 'text', text: accountSwitchText(name ? (name.alias ?? name.email ?? name.id) : to, crossed) }],
         });
         return;
       }

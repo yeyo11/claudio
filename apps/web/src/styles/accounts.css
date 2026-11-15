@@ -269,6 +269,11 @@
   }
 }
 
+/* Where new accounts start: two columns, so its label keeps one line beside the Changed · Reset slot */
+.rotation-field-wide {
+  grid-column: span 2;
+}
+
 .rotation-field .field-hint {
   font-size: var(--fs-small);
   color: var(--fg-2);
@@ -338,6 +343,9 @@
   }
   .rotation-grid {
     grid-template-columns: minmax(0, 1fr);
+  }
+  .rotation-field-wide {
+    grid-column: auto;
   }
 }
 
@@ -430,4 +438,182 @@
   .rotation-credits-hint {
     min-height: 3lh;
   }
+}
+
+/* Headroom a project's rule keeps on the account: a quiet line under the meters, like the credits */
+.account-reserve {
+  margin: 0;
+  color: var(--fg-2);
+}
+
+/*
+ * The account's configuration (the owner's T9 decisions): a line with the mode and a state word in
+ * its status colour; the items only when something needs a hand, each read in words (what this
+ * account holds, what the shared one is) with its own "Use shared".
+ */
+.account-config {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  container-type: inline-size;
+}
+
+.account-config-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  min-width: 0;
+  font-size: var(--fs-small);
+}
+
+.account-config-label {
+  color: var(--fg-2);
+}
+
+.account-config-repair {
+  margin-left: auto;
+}
+
+.account-config-items {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.account-config-item {
+  min-width: 0;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.account-config-item.is-conflict {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 2px 12px;
+  padding-left: 10px;
+  border-left: 3px solid var(--bad);
+}
+
+.account-config-item-name {
+  grid-column: 1;
+  font-size: var(--fs-small);
+  color: var(--fg);
+}
+
+.account-config-item-holds {
+  grid-column: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.account-config-use {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+}
+
+@container (max-width: 340px) {
+  .account-config-item.is-conflict {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .account-config-use {
+    grid-column: 1;
+    grid-row: auto;
+    justify-self: start;
+  }
+}
+
+/* The mode switch: what happens, group by group, before anything does */
+.config-plan {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0;
+}
+
+.config-plan-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.config-plan-label {
+  color: var(--fg-2);
+  font-size: var(--fs-small);
+}
+
+.config-plan-names {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.config-plan-where {
+  color: var(--fg-2);
+}
+
+/* A project's account rule, in its settings */
+.project-rule-none {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+}
+
+.project-rule-none > .muted {
+  flex: 1;
+  min-width: 0;
+}
+
+.project-rule-accounts {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+.project-rule-reserve {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+
+.project-rule-points {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+@media (max-width: 720px) {
+  .account-config .btn,
+  .project-rule-card .btn {
+    min-height: var(--touch);
+  }
+  /* A switch's whole label is its target on a phone */
+  .project-rule-card .check {
+    min-height: var(--touch);
+  }
+}
+
+.config-aside-text {
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+
+/* A select or a stepper does not need the row's whole width: a long one reads as a text field */
+.project-rule-rows .pref-row:not(.is-stacked) .pref-row-control {
+  max-width: 360px;
 }

@@ -1,4 +1,4 @@
-import type { Account, AccountCredits, AccountInUse, AccountInUseReason, AccountLimit, AccountView, ProviderReadinessState, ProviderReasonCode } from '@claudio/shared';
+import type { Account, AccountCredits, AccountInUse, AccountInUseReason, AccountLimit, AccountView, ProviderReadinessState, ProviderReasonCode, RotationPolicy } from '@claudio/shared';
 import { currentLanguage, intlLocale } from '@claudio/ui/i18n/language';
 import { formatDuration, toMs } from '@claudio/ui/lib/format';
 import { useOverview } from '../api';
@@ -201,4 +201,30 @@ export function connectionOf(facts: ConnectionFacts): ConnectionKind {
 /** The account view of the overview, the one source of every account fact on screen; null without one. */
 export function useAccountView(): AccountView | null {
   return useOverview().data?.accounts ?? null;
+}
+
+// ---------- Project rules (docs/plans/account-configuration-and-project-rules.md §7) ----------
+
+/** The account a rule's reserve keeps headroom on: its preferred account, else the first of its list (as `reserveAccountOf` in @claudio/accounts). */
+export const reserveAccountOf = (policy: Pick<RotationPolicy, 'preferred' | 'order'>): string | undefined => policy.preferred ?? policy.order?.[0];
+
+/** Whether a rule lets work run on an account: a rule with no list allows every account (as `allowsAccount` in @claudio/accounts). */
+export const allowsAccount = (policy: Pick<RotationPolicy, 'order'> | null | undefined, account: string): boolean => !policy?.order || policy.order.includes(account);
+
+/** The rule that governs a project, if any: at most one does. */
+export const ruleOf = (policies: readonly RotationPolicy[], projectId: string): RotationPolicy | undefined => policies.find((policy) => policy.projects.includes(projectId));
+
+/**
+ * Account id → the projects whose rule keeps headroom on it, named and joined, for its card. A rule
+ * that also governs the chats with no project names them with `looseName`.
+ */
+export function reservesByAccount(policies: readonly RotationPolicy[], projectName: (id: string) => string, looseName: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const policy of policies) {
+    const account = policy.reserve ? reserveAccountOf(policy) : undefined;
+    if (!account) continue;
+    const names = [...policy.projects.map(projectName), ...(policy.looseChats ? [looseName] : [])];
+    if (names.length > 0) out.set(account, names.join(', '));
+  }
+  return out;
 }

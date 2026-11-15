@@ -13,6 +13,7 @@ import { AccountOrderList } from './AccountOrderList';
 import { CreditsRows, creditsAccounts } from './CreditsRows';
 
 const STRATEGIES = ['order', 'least-used'] as const;
+const CONFIG_MODES = ['shared', 'independent'] as const;
 
 /**
  * `accounts.json` as one card: when work moves to another account and which one it takes. Nothing
@@ -129,6 +130,18 @@ export function RotationCard({ settings, accounts }: { settings: AccountsSetting
             />
             <span className="field-hint">{switching ? t('rotation.cooldownHint') : t('rotation.appliesWhenOn')}</span>
             {change('cooldown', t('rotation.cooldown'), 'cooldownSeconds')}
+          </div>
+          {/* Not rotation, but the same file and the same Save: where an account added from now on starts (the owner's T9 decisions) */}
+          <div className="rotation-field rotation-field-wide setting-change-row" data-setting="accounts.new-account-config">
+            <span className="section-label">{t('rotation.newAccountConfig')}</span>
+            <Segmented<AccountsSettings['newAccountConfig']>
+              label={t('rotation.newAccountConfig')}
+              value={draft.newAccountConfig}
+              onChange={(newAccountConfig) => edit({ newAccountConfig })}
+              options={CONFIG_MODES.map((mode) => ({ value: mode, label: t(`config.mode.${mode}`) }))}
+            />
+            <span className="field-hint">{t(`rotation.newAccountConfigHint.${draft.newAccountConfig}`)}</span>
+            {change('new-account-config', t('rotation.newAccountConfig'), 'newAccountConfig', (value) => t(`config.mode.${CONFIG_MODES.find((m) => m === value) ?? 'shared'}`))}
           </div>
           {/* Its own row under the fields: in a quarter column every name folded onto three lines */}
           {draft.strategy === 'order' && order.length > 1 && (

@@ -3129,3 +3129,26 @@ button.agent-msg-name { min-height: 24px; color: var(--accent); }
 .canary-check { font-weight: var(--fw-strong); }
 @media (max-width: 640px) { .canary-state .btn { min-height: 44px; } }
 /* ---------- end of The CLI canary line ---------- */
+
+/* ---------- An account's configuration on its card, the mode switch, and a project's account rule ---------- */
+.account-config { display: flex; flex-direction: column; gap: 10px; min-width: 0; container-type: inline-size; }
+.account-config-head { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; font-size: var(--fs-small); }
+.account-config-label { color: var(--fg-2); }
+.account-config-repair { margin-left: auto; }
+.account-config-items { display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0; list-style: none; }
+.account-config-item { min-width: 0; color: var(--fg-2); overflow-wrap: anywhere; }
+.account-config-item.is-conflict { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 2px 12px; padding-left: 10px; border-left: 3px solid var(--bad); }
+.account-config-item-name { font-size: var(--fs-small); color: var(--fg); }
+.account-config-item-holds { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.account-config-use { grid-column: 2; grid-row: 1 / span 2; }
+@container (max-width: 340px) {
+  .account-config-item.is-conflict { grid-template-columns: minmax(0, 1fr); }
+  .account-config-use { grid-column: 1; grid-row: auto; justify-self: start; }
+}
+.account-reserve { margin: 0; color: var(--fg-2); }
+.config-plan { display: flex; flex-direction: column; gap: 12px; margin: 0; }
+.config-plan-group, .config-plan-names { display: flex; flex-direction: column; gap: 2px; min-width: 0; margin: 0; overflow-wrap: anywhere; }
+.config-plan-label, .config-plan-where { color: var(--fg-2); font-size: var(--fs-small); }
+.project-rule-none { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
+.project-rule-accounts, .project-rule-reserve { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
+.project-rule-points { display: inline-flex; align-items: center; gap: 8px; }

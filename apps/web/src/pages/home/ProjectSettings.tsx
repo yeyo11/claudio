@@ -14,6 +14,7 @@ import { ProjectGeneral } from './ProjectGeneral';
 import { ProjectLessons } from './ProjectLessons';
 import { ProjectTracker } from './ProjectTracker';
 import { SharingSection } from '../project/SharingSection';
+import { ProjectRuleCard } from '../accounts/ProjectRuleCard';
 
 // The ids double as the dirty keys the tabs register, which is what marks a section as unsaved
 const SECTIONS = ['instructions', 'settings', 'mcp', 'files'] as const;
@@ -55,6 +56,7 @@ export function ProjectSettings({ project }: { project: Project }) {
       <ProjectDecisions project={project} />
       <ProjectLessons project={project} />
       <SharingSection project={project} />
+      <ProjectRuleCard project={project} />
 
       <div className="project-cli-head">
         <h2>{t('settings.cliTitle')}</h2>

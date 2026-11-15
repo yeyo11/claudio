@@ -5,6 +5,10 @@ import type {
   AccountsRefreshResult,
   AccountLoginSession,
   AccountsSettings,
+  AccountConfigMode,
+  AccountConfigPlan,
+  AccountConfigResult,
+  AccountConfigStart,
   AddLoginAccountRequest,
   AddTokenAccountRequest,
   RotationEvent,
@@ -1316,6 +1320,15 @@ export function createApi(base: string | (() => string)) {
     accounts: (o: ReadOptions = {}) => request<Account[]>('/accounts', o),
     cliCanary: (o: ReadOptions = {}) => request<CliCanaryStatus>('/accounts/canary', o),
     runCliCanary: () => request<CliCanaryStatus>('/accounts/canary/run', { method: 'POST' }),
+    /** What switching the account's configuration to `mode` would copy, link and move aside; nothing changes */
+    accountConfigPlan: (id: string, mode: AccountConfigMode, start?: AccountConfigStart, o: ReadOptions = {}) =>
+      request<AccountConfigPlan>(`/accounts/${enc(id)}/config/plan${qs({ mode, start })}`, o),
+    /** Switches the account's configuration, or finishes (repairs) the one it is in when `mode` is its own */
+    setAccountConfig: (id: string, mode: AccountConfigMode, start?: AccountConfigStart) =>
+      request<AccountConfigResult>(`/accounts/${enc(id)}/config`, { method: 'PUT', body: start ? { mode, start } : { mode } }),
+    /** What "use shared" would do with one item in conflict: where the account's own copy would be kept */
+    accountConfigItemPlan: (id: string, name: string, o: ReadOptions = {}) => request<AccountConfigPlan>(`/accounts/${enc(id)}/config/items/${enc(name)}/plan`, o),
+    useSharedConfigItem: (id: string, name: string) => request<AccountConfigResult>(`/accounts/${enc(id)}/config/items/${enc(name)}`, { method: 'POST', body: { use: 'shared' } }),
     /** Asks the CLI for the real usage of every enabled account (`get_usage`, no tokens); one that fails keeps its last reading and is named in `failed` */
     refreshAccounts: () => request<AccountsRefreshResult>('/accounts/refresh', { method: 'POST' }),
     /** Reads one account's usage and, for an API key, asks Anthropic whether it is accepted (free) */

@@ -38,7 +38,11 @@
     "looseChatsName": "chats without a project",
     "looseChatsHint": "Also govern the chats started in a directory that is under no imported project. Without this, they follow the global rotation settings.",
     "looseChatsTaken": "Another policy already governs the chats without a project: at most one may.",
-    "globalThreshold": "global threshold"
+    "globalThreshold": "global threshold",
+    "prefers": "prefers {{name}}",
+    "reserves": "keeps {{points}} points on {{name}} while it has work",
+    "strict": "rotates within one configuration",
+    "rulesInProject": "Preferred account, reserve and strict configuration are set in each project's settings."
   },
   "history": {
     "title": "Usage history",
@@ -133,7 +137,8 @@
       }
     },
     "noLimitsToken": "The CLI gives no usage for a token. Limits show here once a chat runs on this account.",
-    "onCredits": "Using credits"
+    "onCredits": "Using credits",
+    "reservedFor": "Keeps headroom for {{projects}} while it has work"
   },
   "toast": {
     "heldOut": "{{name}} is out of rotation",
@@ -242,6 +247,11 @@
       },
       "capAt": "up to {{cap}} a month",
       "noCapHint": "up to the cap set at claude.ai"
+    },
+    "newAccountConfig": "New accounts start with",
+    "newAccountConfigHint": {
+      "shared": "The default account's configuration, kept in sync.",
+      "independent": "Their own, from a copy of the shared configuration."
     }
   },
   "log": {
@@ -344,5 +354,108 @@
     },
     "now": "Check now",
     "checkLine": "{{name}}:"
+  },
+  "config": {
+    "label": "Configuration",
+    "mode": {
+      "shared": "Shared",
+      "independent": "Own"
+    },
+    "state": {
+      "ok": "In sync",
+      "repair": "Needs repair",
+      "conflict": "Conflict"
+    },
+    "repair": "Repair",
+    "repairFor": "Repair the configuration of {{name}}",
+    "halfway": {
+      "shared": "A switch to the shared configuration was left half-way: Repair finishes it.",
+      "independent": "A switch to its own configuration was left half-way: Repair finishes it."
+    },
+    "missing_one": "Waits for its link to the shared one:",
+    "missing_other": "Wait for their links to the shared ones:",
+    "holds": {
+      "own": "This account: its own copy",
+      "real-file": "This account: its own file",
+      "real-dir": "This account: its own folder",
+      "link-elsewhere": "This account: a link to another place",
+      "aside-taken": "This account: its own copy, and the place to keep it aside is taken",
+      "failed": "This account: it could not be changed (the server log says why)"
+    },
+    "sharedHolds": {
+      "file": "Shared: the default account's file",
+      "dir": "Shared: the default account's folder",
+      "history": "Shared: the history every account uses"
+    },
+    "useShared": "Use shared",
+    "useSharedFor": "Use the shared {{item}} on {{name}}",
+    "useSharedTitle": "Use the shared {{item}} on {{name}}?",
+    "useSharedBody": "The account's own copy is kept in <path>{{aside}}</path> inside its folder, and the shared one takes its place. Nothing is deleted.",
+    "useSharedBodyNoAside": "The shared one takes its place. Nothing is deleted.",
+    "switchToOwn": "Use its own configuration…",
+    "switchToShared": "Use the shared configuration…",
+    "toast": {
+      "nowOwn": "{{name}} now uses its own configuration",
+      "nowShared": "{{name}} now uses the shared configuration",
+      "switchFailed": "Could not change the configuration of {{name}}",
+      "repaired": "Configuration of {{name}} repaired",
+      "repairFailed": "Could not repair the configuration of {{name}}",
+      "usedShared": "{{name}} now uses the shared {{item}}",
+      "useSharedFailed": "Could not use the shared {{item}}"
+    }
+  },
+  "configDialog": {
+    "titleOwn": "Own configuration for {{name}}",
+    "titleShared": "Shared configuration for {{name}}",
+    "introOwn": "{{name}} keeps its settings, instructions, agents and the rest in its own folder. Changes to the shared configuration stop reaching it.",
+    "introShared": "{{name}} uses the default account's configuration, kept in sync before every run.",
+    "start": "Start from",
+    "startCopy": "A copy of the shared one",
+    "startEmpty": "Empty",
+    "group": {
+      "copied": "Copied into the account",
+      "linked": "Linked to the shared configuration",
+      "aside": "Kept aside, never deleted",
+      "unlinked": "No longer linked: the account starts without them",
+      "conflict": "Left as they are"
+    },
+    "asideIn": "in",
+    "nothing": "Nothing to copy, link or move.",
+    "history": "Chat history and agent memory stay shared in both modes.",
+    "planFailed": "Could not work out what the change would do",
+    "confirmOwn": "Use own configuration",
+    "confirmShared": "Use shared configuration"
+  },
+  "projectRule": {
+    "title": "Accounts",
+    "none": "Any account may work on this project, as the rotation settings say.",
+    "add": "Add a rule",
+    "alsoGoverns": "This rule also covers {{projects}}: a change here applies there too.",
+    "allowed": "Accounts allowed",
+    "allowedAll": "Every account may work here.",
+    "allowedSome_one": "{{n}} of {{total}} accounts may work here; work waits rather than run on another.",
+    "allowedSome_other": "{{n}} of {{total}} accounts may work here; work waits rather than run on another.",
+    "preferred": "Preferred account",
+    "preferredNone": "None: your preferred account",
+    "preferredOn": "Work here starts on {{name}} while it has room.",
+    "preferredOff": "Work here starts where your preferred account and the rotation say.",
+    "reserve": "Reserve",
+    "reserveSwitch": "Keep headroom while this project has work",
+    "reservePoints": "Headroom, in points of usage",
+    "points_one": "point",
+    "points_other": "points",
+    "reserveOn": "While this project has work, other projects leave {{name}} at {{at}} instead of {{threshold}}.",
+    "reserveOff": "Other projects use {{name}} up to the threshold, whether this project has work or not.",
+    "reserveNeedsAccount": "Choose a preferred account, or limit the accounts allowed, to say where the headroom is kept.",
+    "strict": "Stay within one configuration",
+    "strictOn": "A chat only moves to an account with the same configuration; otherwise it waits.",
+    "strictOff": "A chat may move to an account with another configuration when no other has room.",
+    "remove": "Remove the rule",
+    "removeTitle": "Remove this project's rule?",
+    "removeBody": "Any account may work on the project again. Running chats stay on their account.",
+    "removeBodyShared": "The rule also covers {{projects}}: they lose it too. Running chats stay on their account.",
+    "removed": "Rule removed",
+    "removeFailed": "Could not remove the rule",
+    "saveFailed": "Could not save the rule"
   }
 }
