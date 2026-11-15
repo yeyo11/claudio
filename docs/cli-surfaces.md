@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-15T18:00:00Z
+updated_at: 2026-11-15T21:00:00Z
 tags:
     - cli
     - one-rule
@@ -45,6 +45,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | The shell's working directory notice | the `Shell cwd was reset to <dir>` line the CLI appends to a Bash call's `stderr` (the `tool_use_result` of the stream; `is_error` stays false). Claudio lifts it out of stderr into the call's `cwdReset` and draws it as a note; if the CLI rewords it, nothing matches and stderr shows as it is |
 | Claudio's own MCP server in a live chat | the `mcp_set_servers` control request with the `claudio` server (replaces the set of servers pushed at run time; `{ added, removed, errors }` by name), then `apply_flag_settings` with `permissions.allow` set to the server's reads (the session's flag layer; a second request replaces the list, `--allowedTools` is left alone; recorded on 2.1.312 in `apply-flag-settings.json`), and `--mcp-config` with the reads in `--allowedTools` for the chat's next processes ([claudio-mcp-server.md](claudio-mcp-server.md#on-demand-in-any-chat)) |
 | claude.ai connectors | the CLI's `mcp_status` (servers of scope `claudeai`, those pending authorisation included), read from a short-lived process; `claude mcp list` as the fallback |
+| A shared account's configuration | the default account's files, linked into the account's `CLAUDE_CONFIG_DIR`; and, at spawn, `--mcp-config=<file>` (never `--strict-mcp-config`) with the servers the default's state file and the project's `.mcp.json` give, and the `.mcp.json` approval keys (`enabledMcpjsonServers`, `disabledMcpjsonServers`, `enableAllProjectMcpServers`, documented settings) in the one `--settings` file. Read from the state file the CLI writes, whose keys are **not documented** ([below](#the-state-file-keys-the-overlay-reads), [accounts.md](accounts.md#an-account)) |
 | Guards on tool calls | `--settings <file>` with only Claudio's own hooks (a content-addressed file under `<data>/guards/`) and `--include-hook-events`, read for the guard's marker lines only ([docs/guards.md](guards.md)) |
 | What an agent changed on disk | `git` in the task's worktree, and the `Write`/`Edit` calls in the transcript |
 | Where a chat ran, in which worktree | The `worktree-state` record the CLI writes into a transcript when it runs in a worktree it created (`--worktree`): `originalCwd`, `worktreePath`, `worktreeName`, `worktreeBranch`. `originalCwd` is where the person started, often a sibling or nested worktree, so it only names a repository through its own placement; the CLI's `<main checkout>/.claude/worktrees/<name>` layout is the fallback for a removed worktree. The rest is git's: `git rev-parse`, `git worktree list --porcelain`, `git config --file … remote.origin.url`, and the files `gitrepository-layout(5)` documents ([projects.md](projects.md#where-a-directory-belongs)) |
@@ -61,6 +62,28 @@ script run, then confirmed by `claude --version`. It lands in `/data/cli/<versio
 `/data/cli/current` is switched with a rename ([updates.md](updates.md#claude-code)). It is the same
 binary the image's installer puts in `~/.local`, from the package the vendor publishes for programs.
 Claudio asks GitHub the same way about its own releases (`CLAUDIO_UPDATE_CHECK=off` stops that one).
+
+## The state file keys the overlay reads
+
+The overlay of a shared account ([accounts.md](accounts.md#an-account)) reads the default account's
+state file (`~/.claude.json`, or `.claude.json` in a `CLAUDE_CONFIG_DIR` other than `~/.claude`). It
+is a file the CLI writes, so reading it is within the one rule, but **none of these keys is
+documented**: they are what CLI 2.1.322 writes, and a release may rename them.
+
+| Key | Used for |
+| --- | --- |
+| `mcpServers` | the user-scope servers |
+| `projects[<key>]` | the project's entry; `<key>` is the main checkout of the working folder's repository (a linked worktree's too), else the folder (spike S3d) |
+| `projects[<key>].hasTrustDialogAccepted` | whether the project's `.mcp.json` servers ride along |
+| `projects[<key>].mcpServers` | the local-scope servers |
+| `projects[<key>].disabledMcpServers` | servers of any scope turned off with `/mcp` for the project |
+| `projects[<key>].enabledMcpjsonServers`, `disabledMcpjsonServers`, `enableAllProjectMcpServers` | `.mcp.json` approvals, passed on as the settings keys of the same names |
+| `projects[<key>].hasClaudeMdExternalIncludesApproved` | read only to log that no flag carries it (S7) |
+
+Nothing else of the file is read, identity included, and Claudio never writes it. A key whose shape
+changed gives no overlay and one log line, and `packages/accounts/test/overlay.test.ts` pins the
+shapes. The canary ([accounts.md](accounts.md#the-cli-canary)) re-runs the trust check (S3c) per CLI
+version, not these key names.
 
 ## How a resumed or forked session is billed
 

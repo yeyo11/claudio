@@ -852,6 +852,8 @@ export class Core {
     this.runtime.bus = this.events;
     this.runtime.accounts = this.accounts;
     this.runtime.projectOf = (dir) => this.projectOf(resolve(dir)).project?.id ?? null;
+    // A rule set or changed under a running chat moves it off an account it no longer allows (D9)
+    this.accounts.onChange(() => this.runtime.enforceRules());
     this.startSubsystem('accountsWatch', () => this.watchAccounts());
     this.sampler = new SystemSampler(this.db, () => this.chats.livePids(), () => admissionLimitsFrom(), samplerSettingsFrom());
     this.startSubsystem('sampler', () => this.sampler?.start());
@@ -885,6 +887,8 @@ export class Core {
     this.sessions = new SessionStore(config, { folds: new TranscriptFolds(this.db.connection) });
     this.sessionsWatcher = new SessionsWatcher(config.projectsDir, this.events, { holdersOf: () => this.chats.holdersKey(), changes: this.sessions });
     this.orchestrator = new Orchestrator(config, this.runtime, this.db);
+    // A running orchestration, or one waiting at a limit, is its project's work in progress for the rules' reserves
+    this.runtime.activity.add(() => this.orchestrator.list().filter((o) => o.status === 'running' || o.status === 'waiting').map((o) => o.cwd));
     this.orchestrator.bus = this.events;
     this.guardLauncher = new GuardLauncher({
       dataDir: config.dataDir,
@@ -1591,6 +1595,9 @@ export class Core {
       },
     });
     this.schedules.bus = this.events;
+    // A slot due soon holds its project's reserve; one with no account its rule allows is skipped (§7.2)
+    this.runtime.activity.add(() => this.schedules.dueSoon());
+    this.schedules.accountHold = (dir, model) => this.runtime.noRoomUnderRule(resolve(dir), model);
     // Over the daily cap a slot is skipped with its reason, never run late after midnight
     this.schedules.spendHold = () => {
       if (this.spend.allows('schedule')) return null;

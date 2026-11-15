@@ -21,6 +21,7 @@ import { assertZone, describeCron, nextFire, nextFires, parseCron, serverZone } 
 import type { EventBus } from './events.ts';
 import { validateEffort, validateModel, validatePermissionMode, validateSpecSettings, validateTasks } from './orchestrator.ts';
 import type { CoreConfig } from './paths.ts';
+import { RESERVE_HORIZON_MS } from './project-activity.ts';
 import { normalizeVerification } from './verification.ts';
 import { startWhenAdmitted } from './admission-queue.ts';
 import { isTransientRefusal } from './chat-errors.ts';
@@ -305,6 +306,15 @@ export class Scheduler {
    * returns that reason, or null when the slot may start. Set by Core.
    */
   spendHold: (() => string | null) | null = null;
+  /**
+   * Why a slot should not start for want of an account: no account the rule of the schedule's
+   * project allows has room (§7.2 of docs/plans/account-configuration-and-project-rules.md). A
+   * schedule skips the slot rather than pile up waits. Null lets it start. Set by Core.
+   */
+  accountHold: ((dir: string, model: string | null) => string | null) | null = null;
+  /** The directories of the schedules whose next slot falls within the reserve's horizon, as of the last tick */
+  private upcoming: string[] = [];
+  private readonly workspaceDir: string;
 
   constructor(
     config: CoreConfig,
@@ -312,6 +322,7 @@ export class Scheduler {
     private readonly clock: () => number = Date.now,
   ) {
     this.file = join(config.dataDir, 'schedules.json');
+    this.workspaceDir = config.workspaceDir;
     mkdirSync(dirname(this.file), { recursive: true });
     this.runs = new ScheduleRuns(config);
   }
@@ -536,7 +547,8 @@ export class Scheduler {
       // A queue that is ready goes first, so a slot due in this same pass finds it started
       await this.drain();
       const now = this.clock();
-      for (const stored of this.read().filter((s) => s.enabled)) {
+      const enabled = this.read().filter((s) => s.enabled);
+      for (const stored of enabled) {
         try {
           if (await this.settle(stored, now)) this.changed(stored, 'rescheduled');
         } catch (error) {
@@ -544,6 +556,7 @@ export class Scheduler {
           if (!this.closed) this.failures.failed(new Error(`schedule ${stored.id} (${stored.name}): ${errorMessage(error)}`));
         }
       }
+      this.upcoming = this.dueWithin(enabled, now, RESERVE_HORIZON_MS);
     } catch (error) {
       if (!this.closed) this.failures.failed(error);
     } finally {
@@ -641,6 +654,18 @@ export class Scheduler {
     this.fired(stored, run);
   }
 
+  /** Why the slot is skipped for want of an account its project's rule allows; null when it may start. */
+  private ruleHold(stored: StoredSchedule): string | null {
+    let words: string | null = null;
+    try {
+      words = this.accountHold?.(this.dirOf(stored), this.modelOf(stored)) ?? null;
+    } catch {
+      // The choice failing is no reason to skip: the run meets the limit path like any other
+      return null;
+    }
+    return words ? `Skipped: ${words}. A schedule does not wait at a limit; the next slot is judged afresh.` : null;
+  }
+
   /** One row for the whole outage, keyed by its last slot so the next search starts after it. */
   private skip(stored: StoredSchedule, slots: number[], now: number): void {
     const first = new Date(slots[0] as number).toISOString();
@@ -659,6 +684,40 @@ export class Scheduler {
     if (this.runs.claim(run)) this.fired(stored, run);
   }
 
+  /**
+   * The directories of the schedules due within the reserve's horizon, as of the last tick: work in
+   * progress for the project rules' reserves (project-activity.ts). Kept in memory, since the account
+   * choice asks on every launch.
+   */
+  dueSoon(): readonly string[] {
+    return this.upcoming;
+  }
+
+  private dueWithin(schedules: readonly StoredSchedule[], now: number, horizon: number): string[] {
+    const dirs: string[] = [];
+    for (const stored of schedules) {
+      try {
+        const next = nextFire(parseCron(stored.cron), now, stored.timezone || serverZone());
+        if (next !== null && next - now <= horizon) dirs.push(this.dirOf(stored));
+      } catch {
+        // A schedule whose expression no longer parses has no next slot; the tick already said so
+      }
+    }
+    return dirs;
+  }
+
+  /** Where the schedule's work runs: its chat's or its orchestration's folder, else the workspace. */
+  private dirOf(stored: StoredSchedule): string {
+    const target = stored.target;
+    return (target.kind === 'chat' ? target.chat.cwd : target.spec.cwd) ?? this.workspaceDir;
+  }
+
+  /** The model the schedule's work asks for, when it names one: the rule's accounts are judged by whether they can run it. */
+  private modelOf(stored: StoredSchedule): string | null {
+    const target = stored.target;
+    return (target.kind === 'chat' ? target.chat.model : target.spec.model) ?? null;
+  }
+
   private async fire(stored: StoredSchedule, slot: string | null): Promise<ScheduleRun> {
     const run: ScheduleRun = {
       id: randomUUID(),
@@ -668,7 +727,7 @@ export class Scheduler {
       status: 'started',
     };
     // A slot is held by the daily cap; a person's "run now" is theirs to decide and goes through
-    const hold = slot ? (this.spendHold?.() ?? null) : null;
+    const hold = slot ? (this.spendHold?.() ?? this.ruleHold(stored)) : null;
     if (hold) {
       run.status = 'skipped';
       run.error = hold;

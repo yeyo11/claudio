@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T16:30:00Z
+updated_at: 2026-11-15T21:00:00Z
 tags:
     - plan
     - study
@@ -13,7 +13,7 @@ tags:
 # Plan: account configuration (shared or independent) and project rules
 
 Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
-`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
+`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T3 is built** on `feat/mcp-overlay` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
 (2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
@@ -805,6 +805,86 @@ already returns them (the policy is a `ChoosePolicy`). Record `rule` when `why.p
 current account `not-allowed`. A rule's `looseChats` has no project id: its work in progress is the
 chats of no project. Moving a chat whose pin a rule forbids is T7's too: its `chat.opts.account`
 was set before the rule existed, and the refusal here never sees it.
+
+**T7** (`feat/project-activity-reserves`, 2026-11-15): the rules at work. Described in
+[accounts.md](../accounts.md) (rules at work).
+- Work in progress (`packages/core/src/project-activity.ts`): `ProjectActivity` holds sources, each
+  answering with the folders its work runs in, all from memory: the chats with a turn running,
+  starting or held at a limit (`ChatManager`), the orchestrations `running` or `waiting`, and the
+  schedules whose next slot is within `RESERVE_HORIZON_MS` (one hour), computed on the scheduler's
+  tick (`Scheduler.dueSoon`). A folder's project is cached for 30 s on an injected clock.
+  `reserves(policies)` asks no source while no rule has a `reserve`; `reservesOf` places each active
+  project's reserve with `reserveAccountOf`. Chats of no project are the key `NO_PROJECT` (`''`), which
+  `choose` compares like any project and never shows as a project in `why`.
+- Every `pick` of `chats.ts` (launch, `chooseNext`, `roomFor`, the credits check) goes through
+  `ruleOf`: the policy, the project and the reserves. `ruleReason` turns a move off an account the
+  rule passed over as `not-allowed` into reason `rule`.
+- D9: `enforceRules` runs on every `AccountStore.onChange` and returns after one comparison unless
+  the rules' projects or orders changed; a chat with a live process on a forbidden account gets a
+  pending switch (`settleRule`), applied with reason `rule` between turns, and at the end of each
+  turn the chat's rule is looked at again. With no allowed account free, the chat goes to the rule's
+  first usable account (`stayOrAllowed`), never stays on a forbidden one.
+- D8: `SwitchChatAccountRequest.once`; the rotation names the rule in a person's notice and in an
+  automated wait's reason (`noRoomWords`, from `why.passedOver`); `Scheduler.accountHold` skips a
+  slot through `ChatManager.noRoomUnderRule`.
+- The default-equals-today proof at the chats level (`packages/core/test/project-rules.test.ts`): with
+  no rule, no source of work in progress is read, no reserve is passed, every choice equals the call
+  as it was before T7, and nothing moves.
+
+**Differs from the plan.**
+- Queued flow runs are not a source: a flow run's work is its chat, counted while its turn runs, and
+  the queued rows are in SQLite, which a choice must not read.
+- No orchestration pins an account in today's contract (an eval run does, and its chats meet T8's
+  refusal at start), so there was no orchestration pin to refuse.
+- Existing pins outside a rule are not marked in the API: `why.passedOver` names the pinned account
+  `not-allowed` on the chat's next choice, which is what T10's chip can read.
+- The person's notice names the project by id: the core's `projectOf` gives ids, and the page has the names.
+
+**For T10.** The banner's "use another account once" is `POST /chats/:id/account` with `once: true`
+(the account list there shows the accounts the rule does not allow); the notice and the wait's
+`reason` carry the words; rotation events have reason `rule` and `data.once`; "reserved for project
+X while it has work" needs the reserves served (`ChatManager.activity.reserves`), which no route
+does yet.
+
+**T3** (`feat/mcp-overlay`, 2026-11-15): the spawn-time overlay of a shared account. Described in
+[accounts.md](../accounts.md#an-account) and [cli-surfaces.md](../cli-surfaces.md#the-state-file-keys-the-overlay-reads).
+- `packages/accounts/src/overlay.ts`: `readStateConfig` (the state file's configuration keys, a
+  `ShapeError` on a changed shape), `projectKeyOf` (the main checkout, a worktree's included, S3d),
+  `readProjectServers` (the `.mcp.json` files from the working folder up to the checkout),
+  `buildOverlay` (user, then trusted project, then local servers, less `disabledMcpServers` and
+  `disabledMcpjsonServers`; the `.mcp.json` approval keys as settings) and `McpOverlay`, cached per
+  working folder on the mtime and size of the state file and of the `.mcp.json` files.
+- `AccountRef.sharedConfig`, set by `AccountStore.ref` for a non-default account in `shared` mode
+  with no switch under way (the same predicate as the before-spawn reconcile).
+- `packages/core/src/account-overlay.ts` (`AccountOverlay`), hooked into `ClaudeCodeDriver.launch`
+  as `accountOverlay` (set by `ChatManager` beside `modelSource`, one line in `chats.ts`'s
+  constructor). It joins the overlay's servers with the chat's non-strict `--mcp-config` file (Claudio's
+  own server and callers' additions win a name) and the overlay's settings under the guard's into one
+  file; `SessionLaunch.settingsFile` makes `buildArgs` pass one `--settings`. Files are
+  `<data>/mcp/overlay-<chat id>-<hash>(.settings).json`, 0600, cleaned with the extras files
+  (`removeChatExtrasConfigs`). `CLAUDIO_ACCOUNT_OVERLAY=off` is the off switch.
+- Proved on CLI 2.1.322 in a scratch, signed-out dir with `mcp_status` (no turn): with no flag a
+  project's two stdio servers connect; `--settings` with `disabledMcpjsonServers` drops the one named
+  (B5 for project servers); with the overlay's `--mcp-config` a user server is added and connected
+  (B4), the project server re-declared by the flag connects from the flag's definition with no
+  duplicate (S4), the disabled one stays off, and nothing is strict. B3 rests on S3e (a flag-given
+  server's `headersHelper` runs without trust), which was not re-run.
+
+**Differs from the plan.**
+- `hasClaudeMdExternalIncludesApproved` is not carried: it is a state-file key only (no setting reads
+  it, S7), so the overlay logs once per project that relies on it. The per-project `allowedTools` of
+  the state file is not carried either; the plan did not ask for it.
+- A chat that chose its servers gets no overlay: its strict file already holds definitions read from
+  the default's files, and adding the overlay would break the choice. §6.4's "merged into the chosen
+  set" is that.
+- D5's "switch that is on for shared accounts" is a server-wide `CLAUDIO_ACCOUNT_OVERLAY=off` for
+  now; a per-account switch waits for T9/T10's screens.
+- A server the account has of its own under a name the overlay also carries is shadowed by the
+  default's (the flag wins, S4): a shared account runs the default's configuration.
+
+**Stays open.** S6 (OAuth MCP servers across accounts: the token is kept per config dir, so an
+OAuth server passed by the overlay may need its own sign-in on each account). A canary check for S3e
+(flag-given servers skip trust), which B3's fix depends on and the canary does not test today.
 
 ## The owner's decisions (2026-11-13)
 
