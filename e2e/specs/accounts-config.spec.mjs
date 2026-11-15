@@ -23,6 +23,8 @@ export default async ({ page, api, check, dirs }) => {
   let projectId = null;
   try {
     // The shared side: a settings file and an agent-memory dir in the default config dir
+    // A shard may run this spec first, before anything made the sandbox's config dir
+    mkdirSync(dirs.configDir, { recursive: true });
     const settingsFile = join(dirs.configDir, 'settings.json');
     if (!existsSync(settingsFile)) {
       writeFileSync(settingsFile, '{}\n');
