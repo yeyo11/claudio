@@ -42,6 +42,8 @@ import type {
   Orchestration,
   OrchestrationSpec,
   PlanDraftSummary,
+  NoRoomChoice,
+  NoRoomRule,
   ProviderMove,
   ProviderMoveState,
   RotationEvent,
@@ -1735,6 +1737,11 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      claimed_at TEXT NOT NULL
    );
    CREATE INDEX restart_continuations_subject ON restart_continuations (subject);`,
+
+  // The project rule a wait ran into (docs/plans/account-configuration-and-project-rules.md, T11):
+  // its project, reset and choices as JSON, so a page names the project and says it in its language
+  // instead of showing the English `reason`. Null on every other wait, and on the rows before it
+  `ALTER TABLE provider_moves ADD COLUMN rule TEXT;`,
 ];
 
 /**
@@ -1999,6 +2006,7 @@ interface ProviderMoveRow {
   next_look_at?: string | null;
   turn?: string | null;
   probe_count?: number;
+  rule?: string | null;
 }
 
 /**
@@ -2032,7 +2040,20 @@ function toProviderMove(row: ProviderMoveRow): ProviderMove {
     updatedAt: row.updated_at,
     nextLookAt: row.next_look_at ?? null,
     probeCount: Number(row.probe_count ?? 0),
+    ...(row.rule ? { rule: ruleOfRow(row.rule) } : {}),
   };
+}
+
+/** A stored rule read defensively: a row is never refused for its explanation */
+function ruleOfRow(raw: string): NoRoomRule | null {
+  try {
+    const value = JSON.parse(raw) as Partial<NoRoomRule> | null;
+    if (!value || typeof value !== 'object') return null;
+    const choices = Array.isArray(value.choices) ? value.choices.filter((c): c is NoRoomChoice => c === 'wait' || c === 'once') : ['wait' as const];
+    return { project: typeof value.project === 'string' ? value.project : null, resetsAt: typeof value.resetsAt === 'string' ? value.resetsAt : null, choices };
+  } catch {
+    return null;
+  }
 }
 
 /** One result's row of the daily spend ledger. */
@@ -2827,14 +2848,14 @@ export class Db {
     const result = this.db
       .prepare(
         `INSERT INTO provider_moves (id, at, subject_kind, subject_id, project_id, from_chat, to_chat, from_provider, to_provider,
-           from_model, to_model, action, state, decided_by, decision_id, resets_at, reason, updated_at, next_look_at, turn, probe_count)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           from_model, to_model, action, state, decided_by, decision_id, resets_at, reason, updated_at, next_look_at, turn, probe_count, rule)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT DO NOTHING`,
       )
       .run(
         move.id, move.at, move.subjectKind, move.subjectId, move.projectId, move.fromChat, move.toChat, move.fromProvider, move.toProvider,
         move.fromModel, move.toModel, move.action, move.state, move.decidedBy, move.decisionId, move.resetsAt, move.reason, move.updatedAt,
-        move.nextLookAt ?? null, turn, move.probeCount ?? 0,
+        move.nextLookAt ?? null, turn, move.probeCount ?? 0, move.rule ? JSON.stringify(move.rule) : null,
       );
     return Number(result.changes) > 0;
   }

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T22:00:00Z
+updated_at: 2026-11-15T23:30:00Z
 tags:
     - plan
     - study
@@ -14,7 +14,7 @@ tags:
 
 Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
 `feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T3 is built** on `feat/mcp-overlay` (2026-11-15); **T2 is built** on `feat/account-plugins` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
-(2026-11-15); T7 (#149) and T8 (#147) merged; **T9 decided and T10 built** on `feat/account-config-screens` (2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
+(2026-11-15); T7 (#149) and T8 (#147) merged; **T9 decided and T10 built** on `feat/account-config-screens` (2026-11-15); **T11 and T10's leftovers built** on `feat/accounts-finish` (2026-11-15): **the plan is built**, see [the closing summary](#closing-summary). Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
 
@@ -993,6 +993,82 @@ session.
 - D7 (the Add-account flow asking whether a new account joins the existing rules) is not built.
 - Plugins that differ from the default's (§6.5) are not shown: `Account.config` has no plugins field
   until T2.
+
+**T11** (`feat/accounts-finish`, 2026-11-15): the leftovers T10 named, T2's plugins line, D7, the
+restart-cut badge, and the documents.
+- **No room under a rule, as data.** `noRoomRuleOf` (`project-activity.ts`) gives `NoRoomRule`
+  (`packages/shared`): the project id (null for chats of no project), the earliest reset among the
+  allowed accounts and the `choices` left (`wait`; `once` too for a person's chat). The rotation's
+  notice to a person carries it as `data: { reason: 'no-room', rule }`; a wait stores it
+  (`provider_moves.rule`, a JSON column, migration) and serves it as `ProviderMove.rule` and
+  `LimitWait.rule`, which every work's wait reads through `openWaitOf`. A person's own "Wait for the
+  reset" under a rule gets it too. The English `reason` and notice text stay for logs and older
+  pages. The transcript (`@claudio/chat-ui`, `claudio-no-room` line) and every `WaitLine` say it in
+  `en`/`es` with the project's **name**.
+- **Why this account.** `ChatManager` keeps the `why` of the choice that put a chat on its account
+  (`LiveChat.accountWhy`; a rotation move carries the `chooseNext` choice it acted on) and serves it as
+  `Chat.accountWhy`; `choose` adds `why.pinIgnored` when the rule's list leaves out the chat's pin.
+  The composer's Account entry shows the basis as its second line, and the chat's own row in the
+  account list the same with the ignored pin by name (labels in `chat.json`, `composerMenu.account.why`).
+- **The rotation's own move** at a limit says `data: { reason: 'rotation', account, from, cause }`,
+  so the transcript draws "At the usage limit, moved to X" with the configuration clause T10 drew for
+  a person's switch.
+- **D7.** The Add-account dialog asks, while a rule lists its accounts, "Allow it on the projects
+  with a rule" (a `Switch`, off by default). On, the new account is added to every such rule once
+  it exists (an API key at once, a login when its sign-in succeeds), each rule written back whole
+  through the existing `PUT /accounts/policies/:id`.
+- **Plugins line** (T2's "For T10"): `.account-config-plugins` under the configuration state of a
+  shared account whose `config.plugins` lists anything, in warn with its icon and words, ids in mono.
+- **The restart-cut badge.** The header's health badge read the red "Stuck" for a chat a restart cut,
+  beside #150's warn Resume notice: `chatHealth` made an `interrupted` last execution a `bad` signal,
+  and the web named every `bad` "Stuck". It is now `warn`, and `healthWord` names a verdict about the
+  last execution **Stopped** (warn, `CircleStop`) or **Failed** (bad, `CircleX`).
+- **Documents.** [accounts.md](../accounts.md#in-short-an-accounts-configuration-and-a-projects-rules)
+  gains the person's guide to both halves; design-system.md and `claudio-ds.css` the new variants.
+
+**Differs from the plan.**
+- D7 is done by the page with the routes that exist, not by a field of the add routes: the rules are
+  written after the account exists, so a failure leaves the account added and says so in a toast.
+- `accountWhy` is memory only, like `atLimit`: absent after a restart until the chat's next choice,
+  and absent after a person's switch, which explains itself.
+- The schedule's skip reason stays English text in its run history (its other skip reasons are too).
+- "Keeps headroom for X while it has work" is still read from the rules, not from the reserves active
+  now: no route serves `ChatManager.activity.reserves`.
+
+## Closing summary
+
+The owner asked (2026-11-13) for a per-account choice between a shared and an own configuration,
+and for optional project rules: which accounts may work on a project, which it prefers, and headroom
+for a project with work in progress. Both are built, and with no rule and every account shared,
+Claudio chooses exactly as before (frozen by `choose-rules.test.ts` and `project-rules.test.ts`).
+
+**What was built.** T0b and T1 stopped the bleeding (links kept in sync before every run, writes
+through links, the tests' writes into real dirs found and fenced). T4 the mode, with a plan before
+every switch and nothing ever deleted. T5 the CLI canary per version. T3 the MCP overlay for shared
+accounts. T2 plugins reconciled with `claude plugin`. T6 to T8 the rules: the engine with `why`, work
+in progress and reserves, no-room by origin, the forbidden-account move at turn end, the pin refusal,
+the contract. T9 the owner's design, T10 the screens, T11 the leftovers above and the documents.
+Every part reaches Claude Code only through what it ships: `CLAUDE_CONFIG_DIR`, symlinks, documented
+flags (`--mcp-config`, `--settings`), `claude plugin` commands and the files the CLI writes.
+
+**What differs from the study.** No `POST …/config/repair` (applying the mode again repairs); a
+`reserve-released` basis rather than a switch reason; a `rule` reason recorded by core, not by
+`choose`; no orchestration pin to refuse; the overlay is a server-wide switch, not per account; D7 is
+the page's; the plugin reconciler cannot pin a version and does not reconcile disabled plugins or
+project and local scopes. Each task's "Differs from the plan" above has the detail.
+
+**What stays open.**
+- **S6**: OAuth MCP servers across accounts. The token is kept per config dir, so a server the
+  overlay passes may need its own sign-in on each account; the spike needs an OAuth server sign-in.
+- **R1, the canary's fallback**: what a failing S2 or S3c should switch off (shared mode copying and
+  reconciling instead of linking) and after how many versions is the owner's call; today a failure
+  only reports.
+- **The residual `settings.json` write race (S2b)**: a `claude plugin` command running while the
+  default's CLI writes `settings.json` can lose that write (read-modify-write through the link).
+  The reconciler is serial and runs only when something differs, which narrows it, not closes it.
+- Smaller: a canary check for S3e (flag-given servers skip trust); serving the active reserves;
+  `hasClaudeMdExternalIncludesApproved` not carried by the overlay; a removed account deletes the
+  copies kept aside in its dir; the new routes are not served by a headless Claudio.
 
 ## The owner's decisions (2026-11-13)
 

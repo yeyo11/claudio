@@ -480,6 +480,7 @@ export class ChatService {
       ...(runtime && this.deps.runtime.atLimit(runtime.id) ? { atLimit: true } : {}),
       ...(runtime?.account ? { account: runtime.account } : {}),
       ...(runtime?.pendingAccount ? { pendingAccount: runtime.pendingAccount } : {}),
+      ...(runtime?.accountWhy ? { accountWhy: runtime.accountWhy } : {}),
       ...(runtime?.pending?.length ? { pending: runtime.pending } : {}),
       ...(runtime?.guards ? { guards: runtime.guards } : {}),
       policy: runtime?.policy ?? null,

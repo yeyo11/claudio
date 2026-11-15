@@ -188,7 +188,14 @@
     "kinds": {
       "login": "Claude account",
       "api-key": "API key"
-    }
+    },
+    "rules": {
+      "label": "Project rules",
+      "hint_one": "A project rule lists the accounts that may work on its projects. On, the new account joins it; off, the rule stays as it is and the account does not work there.",
+      "hint_other": "{{count}} project rules list the accounts that may work on their projects. On, the new account joins every one; off, the rules stay as they are and the account does not work there.",
+      "join": "Allow it on the projects with a rule"
+    },
+    "joinFailed": "The account was added, but it could not join every project rule"
   },
   "signIn": {
     "title": "Sign in to the account",
@@ -403,6 +410,11 @@
       "repairFailed": "Could not repair the configuration of {{name}}",
       "usedShared": "{{name}} now uses the shared {{item}}",
       "useSharedFailed": "Could not use the shared {{item}}"
+    },
+    "plugins": {
+      "lead": "Plugins differ from the default:",
+      "missing": "is missing",
+      "differing": "is at another version"
     }
   },
   "configDialog": {

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { holdsGuardBlock, readGuardResult } from '../src/lib/chat-notice';
+import type { RunEvent } from '@claudio/shared';
+import { accountSwitchText, holdsGuardBlock, noRoomNotice, noRoomText, readGuardResult, readNotices, switchedAccount, switchedByRotation, switchedFrom } from '../src/lib/chat-notice';
 
 // What the CLI records for an exit-2 hook (g0 F5): its own prefix, the hook command, then our stderr
 const RECORDED =
@@ -31,4 +32,36 @@ test('a step whose call the guard blocked is held open, and one with an ordinary
   assert.equal(holdsGuardBlock([call('Error: ENOENT: no such file or directory', true), { kind: 'call', result: null }]), false);
   // The text alone is not a block: the CLI marks the result as an error
   assert.equal(holdsGuardBlock([call(RECORDED, false)]), false);
+});
+
+const said = (data: Record<string, unknown>): RunEvent => ({ kind: 'notice', seq: 1, ts: '2026-11-15T10:00:00.000Z', text: 'said in English', data }) as unknown as RunEvent;
+
+test("the rotation's own move at a limit is read as a switch, and its line says the rotation made it", () => {
+  const moved = said({ reason: 'rotation', account: 'b', from: 'a', cause: 'limit' });
+  assert.deepEqual([switchedAccount(moved), switchedFrom(moved), switchedByRotation(moved)], ['b', 'a', true]);
+  const person = said({ reason: 'person', account: 'b', from: 'a' });
+  assert.equal(switchedByRotation(person), false);
+  assert.equal(switchedAccount(said({ reason: 'credits', account: 'b' })), null, 'a credits notice is not a switch');
+  const [read] = readNotices(accountSwitchText('Beta', 'own', true)).notices;
+  assert.deepEqual(read, { kind: 'account', detail: 'Beta', body: '', config: 'own', rotated: true });
+  assert.equal(readNotices(accountSwitchText('Beta', 'own')).notices[0]?.rotated, undefined);
+});
+
+test('a project rule that left no account with room is read from the notice data and named by the project, never its id', () => {
+  const rule = noRoomNotice(said({ reason: 'no-room', rule: { project: 'p-123', resetsAt: '2026-11-15T12:00:00.000Z', choices: ['wait', 'once'] } }));
+  assert.deepEqual(rule, { project: 'p-123', resetsAt: '2026-11-15T12:00:00.000Z', choices: ['wait', 'once'] });
+  assert.ok(rule);
+  const [read] = readNotices(noRoomText('Shipcast', rule)).notices;
+  assert.deepEqual(read, { kind: 'no-room', detail: 'Shipcast', body: '', until: '2026-11-15T12:00:00.000Z', once: true, loose: false });
+  // Chats of no project have a rule of their own, said as such
+  const loose = readNotices(noRoomText('ignored', { project: null, resetsAt: null, choices: ['wait'] })).notices[0];
+  assert.deepEqual([loose?.detail, loose?.loose, loose?.once], ['', true, false]);
+  assert.equal(noRoomNotice(said({ reason: 'person', account: 'b' })), null);
+});
+
+test('the no-room and rotation lines have words in both languages', () => {
+  for (const lang of ['en', 'es']) {
+    const chat = JSON.parse(readFileSync(new URL(`../src/locales/${lang}/chat.json`, import.meta.url), 'utf8')) as { transcript: { notice: Record<string, unknown> } };
+    assert.ok(chat.transcript.notice['no-room'] && chat.transcript.notice.accountRotated && chat.transcript.notice.noRoom, lang);
+  }
 });

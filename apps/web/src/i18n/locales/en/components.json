@@ -292,7 +292,13 @@
     "resuming": "going on now",
     "lookAgain": "looking again at",
     "account": "account {{account}}",
-    "badge": "waiting"
+    "badge": "waiting",
+    "rule": {
+      "project": "No account allowed on {{project}} has room",
+      "loose": "No account the rule for chats of no project allows has room",
+      "wait": "It goes on by itself when one of them resets.",
+      "waitOrOnce": "It goes on by itself when one of them resets; stop waiting to use another account once."
+    }
   },
   "notificationText": {
     "waitingPermission": "{{name}} needs your approval to use {{tool}}",

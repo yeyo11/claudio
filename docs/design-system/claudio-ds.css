@@ -3150,6 +3150,9 @@ button.agent-msg-name { min-height: 24px; color: var(--accent); }
 .account-config-item-name { font-size: var(--fs-small); color: var(--fg); }
 .account-config-item-holds { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .account-config-use { grid-column: 2; grid-row: 1 / span 2; }
+.account-config-plugins { display: flex; align-items: flex-start; gap: 6px; margin: 0; min-width: 0; color: var(--fg-2); overflow-wrap: anywhere; }
+.account-config-plugins-icon { flex: none; margin-top: 2px; color: var(--warn); }
+.account-config-plugins-word { color: var(--warn); }
 @container (max-width: 340px) {
   .account-config-item.is-conflict { grid-template-columns: minmax(0, 1fr); }
   .account-config-use { grid-column: 1; grid-row: auto; justify-self: start; }

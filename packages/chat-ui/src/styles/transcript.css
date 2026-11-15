@@ -1231,7 +1231,8 @@
 }
 
 /* A call the guard stopped is warn, as an interrupt is; `missing` keeps the bad colour of `.is-bad`.
-   A turn on usage credits, paid or stopped before paying, is warn too: money, said with its word */
+   A turn on usage credits, paid or stopped before paying, is warn too: money, said with its word.
+   A limit the project's rule left no account for is warn on its word and icon: it needs a person */
 .notice.is-credits,
 .notice.is-credits .notice-icon,
 .notice.is-credits .notice-label,
@@ -1243,7 +1244,9 @@
 .notice.is-guard:not(.is-bad) .notice-label,
 .notice.is-interrupt,
 .notice.is-interrupt .notice-icon,
-.notice.is-interrupt .notice-label {
+.notice.is-interrupt .notice-label,
+.notice.is-no-room .notice-icon,
+.notice.is-no-room .notice-label {
   color: var(--warn);
 }
 

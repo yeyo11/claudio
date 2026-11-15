@@ -2,7 +2,7 @@ import type { Account } from '@claudio/shared';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { accountEntries, accountItem, accountOption, accountReason, filterRows, SUBMENU_MAX } from '../src/composer/account-menu.tsx';
-import { accountRow, type AccountRow } from '../src/lib/account-choice.ts';
+import { accountRow, withWhy, type AccountRow } from '../src/lib/account-choice.ts';
 
 const t = (key: string, options?: Record<string, unknown>) => (options ? `${key} ${JSON.stringify(options)}` : key);
 
@@ -80,4 +80,25 @@ test('an account the project rule leaves out stays pressable, saying it is for o
   assert.equal(item.disabled, false);
   assert.equal(item.meta, 'composerMenu.account.onceOnly');
   assert.equal(item.disabledReason, undefined);
+});
+
+test("the chat's own account says why the rotation put it there, and names a pin the project's rule ignores", () => {
+  const rows = withWhy(rowsOf([account('one'), account('two', { alias: 'Pinned one' })]), {
+    basis: 'project-preferred',
+    project: 'p1',
+    passedOver: [{ account: 'two', because: 'not-allowed', project: 'p1' }],
+    pinIgnored: 'two',
+  });
+  const own = rows[0] as AccountRow;
+  assert.equal(own.pinIgnored, 'Pinned one', 'the pin is named by the account, not its id');
+  assert.equal(accountReason(own, null, t), 'composerMenu.account.why.project-preferred. composerMenu.account.why.pinIgnored {"name":"Pinned one"}');
+  assert.equal(rows[1]?.why, undefined, 'only the current row explains itself');
+  // The Account item says it as its second line, and the current option as its own
+  const item = accountItem({ rows, model: null, pending: undefined, t, onChoose: noop, onCancel: noop, onOpenChange: noop, onPicker: noop, picker: () => null });
+  assert.match(String(item?.meta), /composerMenu.account.why.project-preferred/);
+  const [group] = accountEntries({ rows, model: null, pending: undefined, t, onChoose: noop, onCancel: noop });
+  assert.ok(group && 'items' in group);
+  assert.match(String(group.items.find((i) => i.id === 'one')?.meta), /why.project-preferred/);
+  // Without an explanation from the server nothing is said
+  assert.equal(accountReason(withWhy(rowsOf([account('one')]), undefined)[0] as AccountRow, null, t), undefined);
 });

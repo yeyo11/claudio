@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T21:00:00Z
+updated_at: 2026-11-15T23:30:00Z
 tags:
     - accounts
     - rotation
@@ -16,6 +16,94 @@ stream and the CLI's own `cachedUsageUtilization`. There is no claude-swap, no c
 HTTP endpoints and no OAuth flow of Claudio's own. The reasons are decisions 7 to 9 of
 [plans/claude-only-fork.md](plans/claude-only-fork.md); the facts it rests on, recorded with a real
 account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
+
+## In short: an account's configuration and a project's rules
+
+What follows is written for a person deciding how to set Claudio up. The sections after it say how
+each part is built. The plan that settled all of it is
+[plans/account-configuration-and-project-rules.md](plans/account-configuration-and-project-rules.md).
+
+### Shared or own configuration
+
+Every account other than the default one is **Shared** or **Own**, chosen per account on its card
+(the `⋯` menu, "Use its own configuration…" or "Use the shared configuration…"). New accounts start
+the way the Rotation card of the Accounts page says under **New accounts start with**: Shared,
+unless you changed it.
+
+- **Shared** (the default). The account works with the default account's configuration: the same
+  `settings.json`, `CLAUDE.md`, key bindings, agents, commands, skills, rules, output styles,
+  workflows, themes and hooks. They are links to the default's files, so a change made on one
+  account is a change on all of them. Claudio checks the links before every run and makes the ones
+  that are missing.
+  - **MCP servers.** The servers you added on the default account, the project's local servers and,
+    when the default trusts the project, its `.mcp.json` servers reach a shared account's chats too,
+    passed at launch with the CLI's own flags. A server you turned off for a project stays off. A
+    server that signs in with OAuth may still ask each account to sign in to it once (spike S6, not
+    run).
+  - **Plugins.** The plugins you switched on for the default account are installed on every shared
+    account with the CLI's own `claude plugin` commands, in the background, and updated when the
+    default's version changes. An account with a live chat waits until it is free. When an account's
+    plugins are not yet the default's, its card says so in one line ("Plugins differ from the
+    default: code-review@official is missing, sluice@sluice is at another version"), in warn: Claudio
+    is still bringing them in line, or the last command failed and the server log says why.
+- **Own.** The account keeps a configuration of its own. Switching to it starts from a copy of the
+  shared files (or from nothing, if you choose so in the dialog); the dialog lists what is copied
+  before anything happens. Switching back to Shared moves the account's own files aside into
+  `.claudio-own/<time>/` inside the account's folder and links the shared ones again. Nothing is
+  deleted.
+- **History is always shared**, whatever the mode: transcripts, agent memory, file history, tasks and
+  plans live in one place, so a conversation started on one account can go on on another.
+- **What the card says.** Only problems: **In sync** (ok), **Needs repair** (warn: a link is missing
+  or a switch was cut half-way; **Repair** finishes it) or **Conflict** (bad: the account holds a
+  real file or folder where the shared one should be). A conflict is said in words, what the account
+  holds and what the shared side is, with **Use shared**, which keeps the account's copy aside and
+  names the folder before it does. An empty folder, or a file identical to the default's, is settled
+  without asking.
+- **The CLI canary.** Sharing rests on how the Claude Code CLI treats linked files. Each time the
+  CLI's version changes, Claudio runs three checks in a throwaway folder (no sign-in, no turn) and the
+  Accounts page shows one line with the result. A failed check is reported, not acted on: what it
+  should switch off is still the owner's call (R1, open).
+
+### Project rules
+
+A project can have a rule about which accounts work on it. All of it is optional: with no rule,
+every account may work everywhere and the choice is the one Claudio always made. The rule is in the
+project's settings (**Accounts** card, "Add a rule"); the Accounts page lists every rule.
+
+- **Allowed accounts.** One switch per account: may it work on this project. An account that is off
+  is never chosen for the project's work, not even on its usage credits.
+- **Preferred account.** The account the project's work goes to first while it has room, in place of
+  your own preferred account.
+- **Reserve.** While the project has work in progress (a running chat, an orchestration, a schedule
+  due within the hour), other projects leave its preferred account a few points earlier (1 to 30),
+  so the project finds room when it needs it. The reserved account's card says "Keeps headroom for
+  X while it has work". When every other account is out, the headroom is used rather than leave work
+  waiting.
+- **Strict configuration.** Rotate only between accounts with the same configuration (all shared
+  accounts are one; each own account is its own), so a chat never changes its tools half-way.
+  Without it, the same configuration is only preferred.
+- **A new account and the rules.** Adding an account asks whether it joins the rules that list their
+  accounts ("Allow it on the projects with a rule"). On, it is added to every such rule; off, the
+  rules stay as they are and the new account does not work on those projects.
+- **A pin outside the rule.** Starting or moving a chat onto an account its project's rule does not
+  allow is refused. A chat pinned before the rule existed keeps its pin, which the rule ignores; the
+  composer's account entry says so ("The chat is pinned to X, which the project's rule does not
+  allow: the pin is ignored").
+- **Why this account.** The composer's Account entry, and the chat's own row in the account list,
+  say why the chat runs where it runs: the project's preferred account, the least used with room,
+  the only one with room, and so on.
+- **A rule set under a running chat** never interrupts it: the chat moves to an allowed account
+  between turns, and the transcript says so.
+- **When no allowed account has room**, it depends on who is waiting:
+  - **Your chat** shows its limit banner and a transcript line naming the project ("No account
+    allowed on Shipcast has room until 17:00. Wait for the reset, or use another account once").
+    **Use another account once** (the banner's Switch account, where the accounts the rule leaves out
+    read "Not allowed by the project's rule: for one turn only") runs one turn elsewhere; then the
+    rule takes the chat back.
+  - **Orchestration tasks and flow runs** wait for the earliest reset among the allowed accounts,
+    and their wait line names the project ("No account allowed on Shipcast has room").
+  - **A schedule** skips the slot and records why in its history; the next slot is judged afresh.
+  - **An OpenAI-compatible request** gets its 429 with the reset, as without rules.
 
 ## An account
 
@@ -737,6 +825,25 @@ retried, and one that could not run (no binary, a timeout, a server that never s
     Claudio's monthly cap in the account's currency, and a line that says what the choice does.
     Part of the card's draft: nothing applies until Save. An account whose credits were never set up
     has no row, since the setting would change nothing for it.
+  - **The finishing touches of the account plan (T11).**
+    - **Why this account.** `Chat.accountWhy` is the explanation of the choice that put the chat on
+      its account (`Choice.why`, kept in memory: absent after a restart, before the first choice and
+      after a person's switch), with `pinIgnored` naming a pin the project's rule does not allow. The
+      composer's Account entry shows the basis as its second line, and the chat's own row in the list
+      the same, plus the ignored pin by name.
+    - **No room under a rule, as data.** The rotation's notice to a person's chat carries
+      `data: { reason: 'no-room', rule: NoRoomRule }` and a wait's row its `rule` (`provider_moves.rule`,
+      JSON; `ProviderMove.rule`, `LimitWait.rule`): the project id (null for chats of no project),
+      the reset and the `choices` left (`wait`, and `once` for a person). The transcript line and every
+      `WaitLine` say it in the page's language with the project's name; `reason` keeps the English
+      for logs and older pages.
+    - **The rotation's own move** at a limit carries `data: { reason: 'rotation', account, from, cause }`,
+      so the transcript draws it as "At the usage limit, moved to X", with "which has its own
+      configuration" (or "uses the shared configuration") when it crossed configurations, as a
+      person's switch does.
+    - **A chat a restart cut** reads **Stopped** (warn) in the chat header, not Stuck: a last
+      execution that was `interrupted` is a `warn` health signal (it waits for a person to resume
+      it), and a failed one reads **Failed** (bad).
   - **States.** An account in `overage` reads **Using credits** in warn on its card (never the bad of
     a stop), with the month's amount and what Claudio may do with them ("Claudio never spends
     them"); the status bar's connection item says "<account> · Using credits" in warn, the account

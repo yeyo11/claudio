@@ -1,4 +1,4 @@
-import type { Account, RunEvent } from '@claudio/shared';
+import type { Account, NoRoomRule, RunEvent } from '@claudio/shared';
 
 /**
  * The messages nobody typed.
@@ -10,7 +10,7 @@ import type { Account, RunEvent } from '@claudio/shared';
  * page can show them as what they are — something the system said, next to the conversation.
  */
 
-export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed' | 'account' | 'credits' | 'credits-stopped' | 'guard';
+export type NoticeKind = 'task' | 'reminder' | 'command' | 'output' | 'interrupt' | 'compaction-failed' | 'account' | 'credits' | 'credits-stopped' | 'guard' | 'no-room';
 
 export interface Notice {
   kind: NoticeKind;
@@ -25,6 +25,12 @@ export interface Notice {
   missing?: boolean;
   /** For `account`: the chat moved to an account of another configuration group, and which it now uses */
   config?: 'own' | 'shared';
+  /** For `account`: the rotation moved it at a limit, not a person */
+  rotated?: boolean;
+  /** For `no-room`: when the first allowed account is back (ISO), whether one turn elsewhere is offered, and the rule is that of chats of no project */
+  until?: string | null;
+  once?: boolean;
+  loose?: boolean;
 }
 
 const TAG = (name: string) => new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, 'g');
@@ -47,8 +53,10 @@ export const ACCOUNT_SWITCH_TAG = 'claudio-account-switch';
  * The text of the transcript line "Switched to X": a notice of the page's own, not a message of the
  * CLI. `config` says the chat crossed into another configuration (docs/plans/account-configuration-and-project-rules.md
  * §6.5): its next turns run with the new account's own configuration, or with the shared one.
+ * `rotated`: the rotation moved it at a limit, not a person.
  */
-export const accountSwitchText = (name: string, config?: 'own' | 'shared'): string => `<${ACCOUNT_SWITCH_TAG}>${config ? `${config}-config:` : ''}${name}</${ACCOUNT_SWITCH_TAG}>`;
+export const accountSwitchText = (name: string, config?: 'own' | 'shared', rotated = false): string =>
+  `<${ACCOUNT_SWITCH_TAG}>${rotated ? 'rotated:' : ''}${config ? `${config}-config:` : ''}${name}</${ACCOUNT_SWITCH_TAG}>`;
 
 /**
  * An account's configuration group as the rotation reads it (`configGroupOf` in @claudio/accounts):
@@ -63,19 +71,67 @@ export function configCrossing(from: Pick<Account, 'id' | 'config'> | undefined,
   return to.config?.mode === 'independent' ? 'own' : 'shared';
 }
 
-/** The account a person's switch left, when the event says so */
-export function switchedFrom(e: RunEvent): string | null {
+/** A switch the transcript tells: a person's, or the rotation's own at a limit (`rotation`) */
+const switchOf = (e: RunEvent): Record<string, unknown> | undefined => {
   const data = e.kind === 'notice' ? e.data : undefined;
-  return data?.reason === 'person' && typeof data.from === 'string' ? data.from : null;
+  return data?.reason === 'person' || data?.reason === 'rotation' ? data : undefined;
+};
+
+/** The account a switch left, when the event says so */
+export function switchedFrom(e: RunEvent): string | null {
+  const data = switchOf(e);
+  return typeof data?.from === 'string' ? data.from : null;
 }
 
 /**
- * The account a person switched the chat to, when the event says so. The `data` of a notice is
- * Claudio's own words (never a provider's), which is why it may be read here.
+ * The account a person, or the rotation at a limit, switched the chat to, when the event says so.
+ * The `data` of a notice is Claudio's own words (never a provider's), which is why it may be read here.
  */
 export function switchedAccount(e: RunEvent): string | null {
+  const data = switchOf(e);
+  return typeof data?.account === 'string' ? data.account : null;
+}
+
+/** Whether the switch was the rotation's, at a limit, rather than a person's */
+export const switchedByRotation = (e: RunEvent): boolean => switchOf(e)?.reason === 'rotation';
+
+/** The tag Claudio's own line for a project rule that left no account with room travels in; the CLI never writes it. */
+export const NO_ROOM_TAG = 'claudio-no-room';
+
+/** The project rule a notice says left the chat with no account with room (`data.reason: 'no-room'`) */
+export function noRoomNotice(e: RunEvent): NoRoomRule | null {
   const data = e.kind === 'notice' ? e.data : undefined;
-  return data?.reason === 'person' && typeof data.account === 'string' ? data.account : null;
+  if (data?.reason !== 'no-room' || !data.rule || typeof data.rule !== 'object') return null;
+  const rule = data.rule as Partial<NoRoomRule>;
+  return {
+    project: typeof rule.project === 'string' ? rule.project : null,
+    resetsAt: typeof rule.resetsAt === 'string' ? rule.resetsAt : null,
+    choices: Array.isArray(rule.choices) ? rule.choices.filter((c) => c === 'wait' || c === 'once') : ['wait'],
+  };
+}
+
+/**
+ * The text of the transcript line for it, as JSON inside the tag: the project's name (null when the
+ * page does not know it, and for the rule of chats of no project, which `loose` says), the reset and
+ * whether one turn on another account is offered.
+ */
+export const noRoomText = (projectName: string | null, rule: NoRoomRule): string =>
+  `<${NO_ROOM_TAG}>${JSON.stringify({ project: rule.project === null ? null : projectName, loose: rule.project === null, until: rule.resetsAt, once: rule.choices.includes('once') })}</${NO_ROOM_TAG}>`;
+
+function noRoomOf(raw: string): Notice {
+  try {
+    const value = JSON.parse(raw) as { project?: unknown; loose?: unknown; until?: unknown; once?: unknown };
+    return {
+      kind: 'no-room',
+      detail: typeof value.project === 'string' ? value.project : '',
+      body: '',
+      until: typeof value.until === 'string' ? value.until : null,
+      once: value.once === true,
+      loose: value.loose === true,
+    };
+  } catch {
+    return { kind: 'no-room', detail: '', body: '', until: null, once: false, loose: false };
+  }
 }
 
 /** The tag Claudio's own line for a turn on an account's usage credits travels in; the CLI never writes it. */
@@ -107,9 +163,13 @@ export function readNotices(text: string): { prose: string; notices: Notice[] } 
     });
   };
   take(ACCOUNT_SWITCH_TAG, (raw) => {
-    const crossed = /^(own|shared)-config:/.exec(raw);
-    return crossed ? { kind: 'account', detail: raw.slice(crossed[0].length), body: '', config: crossed[1] === 'own' ? 'own' : 'shared' } : { kind: 'account', detail: raw, body: '' };
+    const rotated = raw.startsWith('rotated:');
+    const rest = rotated ? raw.slice('rotated:'.length) : raw;
+    const crossed = /^(own|shared)-config:/.exec(rest);
+    const notice: Notice = crossed ? { kind: 'account', detail: rest.slice(crossed[0].length), body: '', config: crossed[1] === 'own' ? 'own' : 'shared' } : { kind: 'account', detail: rest, body: '' };
+    return rotated ? { ...notice, rotated: true } : notice;
   });
+  take(NO_ROOM_TAG, noRoomOf);
   take(CREDITS_TAG, (raw) => ({ kind: raw.startsWith('stopped:') ? 'credits-stopped' : 'credits', detail: raw.replace(/^(stopped|paid):/, ''), body: '' }));
   take('task-notification', (raw) => taskNotice(raw));
   take('system-reminder', (raw) => ({ kind: 'reminder', detail: firstLine(raw), body: rest(raw) }));

@@ -4,7 +4,7 @@ import { TRANSCRIPT_PAGE_MAX } from '@claudio/shared';
 import { onBackForwardCache } from '@claudio/ui/lib/page-cache';
 import type { Account, AgentTranscript, Chat, ChatDetail, RunEvent, TranscriptEntry } from '@claudio/shared';
 import { evictRuns, joinRun, joinToPage, trimRun, type Run } from './chat-pages';
-import { accountSwitchText, configCrossing, creditsNotice, creditsText, switchedAccount, switchedFrom } from './chat-notice';
+import { accountSwitchText, configCrossing, creditsNotice, creditsText, noRoomNotice, noRoomText, switchedAccount, switchedByRotation, switchedFrom } from './chat-notice';
 import { appendStreamed, applyPartial, ChatStreamStore, spliceTail, streamedHeight, streamMark, type StreamingPartial, type StreamSnapshot } from './chat-stream';
 import { chatKeys as keys, useChatUi } from './context';
 import { chatAlive } from './liveness';
@@ -324,7 +324,7 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
       }
       const switchedTo = switchedAccount(event);
       if (switchedTo) {
-        // A person's account switch reads as a line of the conversation, said once when it happens
+        // An account switch, a person's or the rotation's at a limit, reads as a line of the conversation, said once when it happens
         const to = switchedTo;
         const list = client.getQueryData<Account[]>(['accounts']);
         const name = list?.find((a) => a.id === to);
@@ -338,7 +338,22 @@ export function useChatStream(id: string, enabled: boolean): ChatStreamStore {
           model: null,
           isSidechain: false,
           parentToolUseId: null,
-          blocks: [{ type: 'text', text: accountSwitchText(name ? (name.alias ?? name.email ?? name.id) : to, crossed) }],
+          blocks: [{ type: 'text', text: accountSwitchText(name ? (name.alias ?? name.email ?? name.id) : to, crossed, switchedByRotation(event)) }],
+        });
+        return;
+      }
+      const noRoom = noRoomNotice(event);
+      if (noRoom) {
+        // The rule is the chat's project's: the page held names it, never its id
+        const project = client.getQueryData<ChatDetail>(transcript)?.chat.project;
+        show({
+          uuid: `no-room-${id}-${event.seq}`,
+          role: 'user',
+          timestamp: event.ts,
+          model: null,
+          isSidechain: false,
+          parentToolUseId: null,
+          blocks: [{ type: 'text', text: noRoomText(project?.id === noRoom.project ? project.name : null, noRoom) }],
         });
         return;
       }

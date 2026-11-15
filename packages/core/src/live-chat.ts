@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { basename, join, resolve } from 'node:path';
 import type {
+  AccountChoiceWhy,
   ApiChatPolicy,
   ClaudioAssistantMarker,
   Attachment,
@@ -372,6 +373,8 @@ export interface ChatRuntime {
   accountPinned?: boolean;
   /** The account a person chose while a turn ran; it takes over when the turn ends */
   pendingAccount?: string | null;
+  /** Why the rotation put the chat on `account`; absent when a person did, or before a choice */
+  accountWhy?: AccountChoiceWhy;
   /** The process's state, as the stream reports it: a chat's own state is derived from it */
   status: RunStatus;
   pid: number | null;
@@ -711,6 +714,10 @@ export class LiveChat {
   forcedReason: 'limit' | 'person' = 'limit';
   /** The account a person chose while a turn runs, applied when its result arrives */
   pendingAccount: string | null = null;
+  /** The explanation of the choice that put the chat on `account`; null when a person put it there */
+  accountWhy: AccountChoiceWhy | null = null;
+  /** The last next-account choice the rotation asked for, so a move it makes carries its explanation */
+  nextChoice: { account: string; why: AccountChoiceWhy } | null = null;
 
   constructor(
     /** The session id */
@@ -971,6 +978,7 @@ export class LiveChat {
       ...(this.account ? { account: this.account } : {}),
       ...(this.opts.account ? { accountPinned: true } : {}),
       ...(this.pendingAccount ? { pendingAccount: this.pendingAccount } : {}),
+      ...(this.accountWhy ? { accountWhy: this.accountWhy } : {}),
       status: this.status,
       pid: this.alive ? (this.proc?.pid ?? null) : null,
       processStartedAt: this.alive ? this.procStartedAt : null,

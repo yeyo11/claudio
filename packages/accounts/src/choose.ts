@@ -260,7 +260,9 @@ export function choose(
   };
   const whyOf = (chosen: string | null, basis: AccountChoiceBasis, project?: string): AccountChoiceWhy => {
     const passes = passedOver(chosen);
-    return { basis, ...(project ? { project } : {}), ...(passes.length ? { passedOver: passes } : {}) };
+    // A pin the rule does not allow is never taken (B16): said apart, so a page can name it
+    const ignored = opts.pinned && opts.pinned !== chosen && opts.policy?.order && byId.has(opts.pinned) && !order.includes(opts.pinned) ? opts.pinned : null;
+    return { basis, ...(project ? { project } : {}), ...(passes.length ? { passedOver: passes } : {}), ...(ignored ? { pinIgnored: ignored } : {}) };
   };
 
   /** The choice of `account`, marked when it runs on credits */

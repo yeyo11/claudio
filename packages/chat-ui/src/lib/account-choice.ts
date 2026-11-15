@@ -1,4 +1,4 @@
-import type { Account, AccountLimit, ModelOption, RotationPolicy } from '@claudio/shared';
+import type { Account, AccountChoiceWhy, AccountLimit, ModelOption, RotationPolicy } from '@claudio/shared';
 
 /** The CLI's own config dir: what a chat that names no account ran on. */
 const DEFAULT_ID = 'default';
@@ -17,6 +17,10 @@ export interface AccountRow {
   pct: number | null;
   /** ISO time an exhausted account comes back */
   resetsAt: string | null;
+  /** On the `current` row: why the rotation chose it, as the server explains its last choice */
+  why?: AccountChoiceWhy;
+  /** On the `current` row: the name of the account the chat is pinned to, when the project's rule ignores the pin */
+  pinIgnored?: string;
 }
 
 /** What a person calls an account: its alias, else the email the CLI reported, else its id. */
@@ -54,6 +58,17 @@ export function accountRow(
   // Only an account that could run the chat is offered once: the rule is the one thing in its way
   if (rule?.order && !rule.order.includes(account.id)) return { ...row, state: 'not-allowed' };
   return { ...row, state: 'ok' };
+}
+
+/**
+ * The rows with the chat's own explanation on its current one: the basis of the choice that put it
+ * there, and the pin a project rule ignored, by its name. Nothing when the server gave none (a
+ * person's switch, a chat that has not chosen since a restart).
+ */
+export function withWhy(rows: readonly AccountRow[], why: AccountChoiceWhy | undefined): AccountRow[] {
+  if (!why) return [...rows];
+  const pinned = why.pinIgnored ? rows.find((row) => row.account.id === why.pinIgnored)?.account : undefined;
+  return rows.map((row) => (row.state === 'current' ? { ...row, why, ...(why.pinIgnored ? { pinIgnored: pinned ? accountLabel(pinned) : why.pinIgnored } : {}) } : row));
 }
 
 /** A row the person can press. */

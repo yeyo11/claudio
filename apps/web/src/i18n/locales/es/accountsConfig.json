@@ -188,7 +188,14 @@
     "kinds": {
       "login": "Cuenta de Claude",
       "api-key": "Clave de API"
-    }
+    },
+    "rules": {
+      "label": "Reglas de proyecto",
+      "hint_one": "Una regla de proyecto indica qué cuentas pueden trabajar en sus proyectos. Activado, la cuenta nueva se añade a ella; desactivado, la regla queda como está y la cuenta no trabaja allí.",
+      "hint_other": "{{count}} reglas de proyecto indican qué cuentas pueden trabajar en sus proyectos. Activado, la cuenta nueva se añade a todas; desactivado, las reglas quedan como están y la cuenta no trabaja allí.",
+      "join": "Permitirla en los proyectos con regla"
+    },
+    "joinFailed": "Se ha añadido la cuenta, pero no se ha podido añadir a todas las reglas de proyecto"
   },
   "signIn": {
     "title": "Iniciar sesión en la cuenta",
@@ -403,6 +410,11 @@
       "repairFailed": "No se ha podido reparar la configuración de {{name}}",
       "usedShared": "{{name}} usa ahora lo compartido para {{item}}",
       "useSharedFailed": "No se ha podido usar lo compartido para {{item}}"
+    },
+    "plugins": {
+      "lead": "Los plugins no coinciden con los de la cuenta predeterminada:",
+      "missing": "no está instalado",
+      "differing": "está en otra versión"
     }
   },
   "configDialog": {

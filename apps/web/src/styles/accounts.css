@@ -519,6 +519,27 @@
   grid-row: 1 / span 2;
 }
 
+/* A shared account's plugins that are not the default's: warn on the icon and the word, the ids in mono */
+.account-config-plugins {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  min-width: 0;
+  color: var(--fg-2);
+  overflow-wrap: anywhere;
+}
+
+.account-config-plugins-icon {
+  flex: none;
+  margin-top: 2px;
+  color: var(--warn);
+}
+
+.account-config-plugins-word {
+  color: var(--warn);
+}
+
 @container (max-width: 340px) {
   .account-config-item.is-conflict {
     grid-template-columns: minmax(0, 1fr);

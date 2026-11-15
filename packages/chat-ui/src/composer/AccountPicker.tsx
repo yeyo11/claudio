@@ -6,7 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
-import { accountLabel, accountRow, onlyOnce, ruleFor, type AccountRow } from '../lib/account-choice';
+import { accountLabel, accountRow, onlyOnce, ruleFor, withWhy, type AccountRow } from '../lib/account-choice';
 import { chatKeys, useChatUi } from '../lib/context';
 import { AccountList } from './AccountList';
 
@@ -63,7 +63,10 @@ export function useChatAccounts(chat: Chat, modelsEnabled: boolean): ChatAccount
     // The menu has closed by the time the server answers: an error beside the row would be unseen
     onError: (error) => toast.error(t('composerMenu.account.failed'), error),
   });
-  const rows = list.map((account, index) => accountRow(account, chat, models[index]?.data, rule));
+  const rows = withWhy(
+    list.map((account, index) => accountRow(account, chat, models[index]?.data, rule)),
+    chat.accountWhy,
+  );
   const pendingId = chat.pendingAccount ?? null;
   return {
     accounts: list,

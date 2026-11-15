@@ -8,7 +8,7 @@ import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { errorMessage, RESTART_CONTINUE_TEXT, type AccountSwitchReason, type ChatOrigin, type SpendPurpose, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type SentToAgent, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
+import { errorMessage, RESTART_CONTINUE_TEXT, type AccountChoiceWhy, type AccountSwitchReason, type ChatOrigin, type SpendPurpose, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type SentToAgent, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, goIdle, idleTimeoutMs, NOT_READ, recordEntry } from './chat-fold.ts';
@@ -2346,9 +2346,12 @@ export class ChatManager extends EventEmitter {
     const at = Date.now();
     let to: string;
     let reason: AccountSwitchReason | null = null;
+    // A person's choice explains itself; a move the rotation made carries the choice it asked for
+    let why: AccountChoiceWhy | null = null;
     if (moved) {
       to = moved;
       reason = movedFor;
+      if (movedFor !== 'person' && chat.nextChoice?.account === moved) why = chat.nextChoice.why;
     } else {
       const rule = this.ruleOf(chat, store);
       if (chat.account !== null && this.onceOn.get(chat) === chat.account) {
@@ -2358,8 +2361,11 @@ export class ChatManager extends EventEmitter {
         const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, ...rule, now: at, model: askedModel(chat) });
         to = choice.account ?? this.stayOrAllowed(chat, store, rule.policy);
         reason = ruleReason(choice, chat.account);
+        if (choice.account) why = choice.why;
       }
     }
+    chat.nextChoice = null;
+    chat.accountWhy = why;
     let ref: AccountRef;
     try {
       ref = store.ref(to);
@@ -2582,7 +2588,9 @@ export class ChatManager extends EventEmitter {
     const chat = this.chats.get(id);
     const store = this.accounts;
     if (!chat || !store || !chat.account) return null;
-    return store.pick({ current: chat.account, pinned: chat.opts.account ?? null, ...this.ruleOf(chat, store), model: askedModel(chat), failedOn: this.stillFailed(chat, store, Date.now()) });
+    const choice = store.pick({ current: chat.account, pinned: chat.opts.account ?? null, ...this.ruleOf(chat, store), model: askedModel(chat), failedOn: this.stillFailed(chat, store, Date.now()) });
+    chat.nextChoice = choice.account ? { account: choice.account, why: choice.why } : null;
+    return choice;
   }
 
   /**

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ChatNotFoundError, isTransientRefusal } from './chat-errors.ts';
-import type { Account, LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderMove, ProviderMoveDecider, ProvidersSettings, RotationSettings } from '@claudio/shared';
+import type { Account, LimitWait, LimitWaitRunNowRefusalCode, ProjectProvidersSettings, ProviderMove, ProviderMoveDecider, NoRoomChoice, NoRoomRule, ProvidersSettings, RotationSettings } from '@claudio/shared';
 import type { ChatWork } from './chat-service.ts';
 import { CREDITS_STOP_WORDS, type ChatManager, type ChatRuntime, type LimitTurnMessage } from './chats.ts';
 import type { CreditsStop } from './live-chat.ts';
@@ -8,7 +8,7 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import type { Db, OpenHold } from './db.ts';
 import type { ClaudioEventInput } from './events.ts';
 import { runRef } from './event-sources.ts';
-import { noRoomWords } from './project-activity.ts';
+import { noRoomRuleOf, noRoomWords } from './project-activity.ts';
 import { defaultRotationSettings } from './providers/settings.ts';
 import { LIMIT_CONTINUE_TEXT, errorMessage } from '@claudio/shared';
 
@@ -166,7 +166,8 @@ export function effectiveOnLimit(settings: Pick<ProvidersSettings, 'rotation'>, 
 export function openWaitOf(db: { providerMoves(filter: { chatId?: string; limit?: number }): ProviderMove[] }, chatId: string | null): LimitWait | null {
   if (!chatId) return null;
   const open = db.providerMoves({ chatId, limit: 10 }).find((m) => m.fromChat === chatId && (m.state === 'waiting' || m.state === 'resuming'));
-  return open ? { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id, nextLookAt: open.nextLookAt ?? null, state: open.state === 'resuming' ? 'resuming' : 'waiting' } : null;
+  if (!open) return null;
+  return { provider: open.fromProvider, resetsAt: open.resetsAt, moveId: open.id, nextLookAt: open.nextLookAt ?? null, state: open.state === 'resuming' ? 'resuming' : 'waiting', ...(open.rule ? { rule: open.rule } : {}) };
 }
 
 /**
@@ -359,16 +360,16 @@ export class ProviderRotation {
           return;
         }
       }
-      const moved = await this.moveToAccount(run, auth, credits);
+      const moved = await this.moveToAccount(run, auth, credits, automated ? ['wait'] : ['wait', 'once']);
       if (moved.moved) return;
       // The accounts know when the first of them that can take the turn is back (`chooseNext`); else
       // the reset the account the turn died on gave (`limitResetOf`: that account's reading, or the refusal),
       // which may have passed by now: the wait then goes on at once
       const resetsAt = moved.waitUntil !== null ? new Date(moved.waitUntil).toISOString() : limitResetsAt;
       // The rule that left no account with room is named, so the wait never reads as an arbitrary one (§7.2)
-      const reason = auth ? AUTH_WAIT : credits ? `its credits may not pay for the turn: ${CREDITS_STOP_WORDS[credits]}` : moved.rule ? `waiting: ${moved.rule}` : null;
+      const reason = auth ? AUTH_WAIT : credits ? `its credits may not pay for the turn: ${CREDITS_STOP_WORDS[credits]}` : moved.rule ? `waiting: ${noRoomWords(moved.rule)}` : null;
       if (!automated && moved.rule) this.tellRule(run, moved.rule);
-      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd) });
+      this.startWait(run, work, { decidedBy: 'setting', decisionId: null, reason, resetsAt, projectId: this.deps.projectOf(run.workingDir ?? run.cwd), ...(moved.rule ? { rule: moved.rule } : {}) });
     } catch (error) {
       const why = errorMessage(error);
       this.deps.runtime.notice(run.id, `Handling the ${auth ? 'sign-in failure' : 'usage limit'} failed: ${why}`);
@@ -393,7 +394,7 @@ export class ProviderRotation {
    * earliest reset among the accounts when it is known, when the chat runs on no account or none
    * other can take it.
    */
-  private async moveToAccount(run: ChatRuntime, auth = false, credits: CreditsStop | null = null): Promise<{ moved: boolean; waitUntil: number | null; rule?: string }> {
+  private async moveToAccount(run: ChatRuntime, auth = false, credits: CreditsStop | null = null, choices: readonly NoRoomChoice[] = ['wait']): Promise<{ moved: boolean; waitUntil: number | null; rule?: NoRoomRule }> {
     const from = this.deps.runtime.accountOf(run.id);
     // The choice looks at which account can run the chat's model: read the lists it has not seen yet
     await this.deps.runtime.warmModels();
@@ -401,9 +402,9 @@ export class ProviderRotation {
     if (!from || !choice) return { moved: false, waitUntil: null };
     const to = choice.account;
     if (!to || to === from) {
-      const rule = noRoomWords(choice);
+      const rule = noRoomRuleOf(choice, choices);
       if (!to && run.model && !rule) this.deps.runtime.notice(run.id, `No other account can run ${run.model} now; the turn waits for one that can.`);
-      this.record('wait', from, null, auth ? 'auth' : credits ? 'credits' : 'limit', run, { waitUntil: choice.waitUntil, ...(credits ? { credits } : {}), ...(rule ? { rule } : {}) });
+      this.record('wait', from, null, auth ? 'auth' : credits ? 'credits' : 'limit', run, { waitUntil: choice.waitUntil, ...(credits ? { credits } : {}), ...(rule ? { rule: noRoomWords(rule), project: rule.project } : {}) });
       return { moved: false, waitUntil: choice.waitUntil, ...(rule ? { rule } : {}) };
     }
     const resumed = await (this.deps.replay?.(run.id, to) ?? this.deps.runtime.replayLastTurn(run.id, to));
@@ -416,7 +417,9 @@ export class ProviderRotation {
       : credits
         ? `Account ${from} has no plan quota left and its credits may not pay for this turn (${CREDITS_STOP_WORDS[credits]})`
         : `Account ${from} reached its usage limit`;
-    this.deps.runtime.notice(run.id, `${left}; the turn goes on with account ${to}${onCredits ? ', paid from its credits' : ''}.`);
+    // The data says who moved it and from where, so the page can tell the crossing into another
+    // configuration as it does for a person's switch; `cause` is why the account was left
+    this.deps.runtime.notice(run.id, `${left}; the turn goes on with account ${to}${onCredits ? ', paid from its credits' : ''}.`, { reason: 'rotation', account: to, from, cause: auth ? 'auth' : credits ? 'credits' : 'limit' });
     this.deps.emit({ type: 'run.accountRotated', title: `${run.name} moved from account ${from} to ${to}`, ...runRef(run), from, to, resumed });
     return { moved: true, waitUntil: null };
   }
@@ -426,9 +429,9 @@ export class ProviderRotation {
    * is left to them: the reset, or one turn on another account (D8). Nothing when the rule kept the
    * chat off no account, which is the banner every install had before rules.
    */
-  private tellRule(run: ChatRuntime, words: string | null = noRoomWords(this.deps.runtime.chooseNext(run.id))): void {
-    if (!words) return;
-    this.deps.runtime.notice(run.id, `The usage limit was reached and ${words}. Wait for the reset, or use another account once.`);
+  private tellRule(run: ChatRuntime, rule: NoRoomRule | null = noRoomRuleOf(this.deps.runtime.chooseNext(run.id), ['wait', 'once'])): void {
+    if (!rule) return;
+    this.deps.runtime.notice(run.id, `The usage limit was reached and ${noRoomWords(rule)}. Wait for the reset, or use another account once.`, { reason: 'no-room', rule });
   }
 
   private record(event: 'switch' | 'wait', from: string, to: string | null, reason: string, run: ChatRuntime, data: Record<string, unknown> | null): void {
@@ -450,14 +453,21 @@ export class ProviderRotation {
   waitFor(chatId: string, decidedBy: ProviderMoveDecider = 'person'): ProviderMove | null {
     const run = this.deps.runtime.get(chatId);
     if (!run) throw new ChatNotFoundError();
-    const back = this.deps.runtime.chooseNext(chatId)?.waitUntil ?? null;
+    const next = this.deps.runtime.chooseNext(chatId);
+    const back = next?.waitUntil ?? null;
     const work = this.deps.work?.(chatId) ?? null;
     const projectId = this.deps.projectOf(run.workingDir ?? run.cwd);
     const resetsAt = back !== null ? new Date(back).toISOString() : this.deps.runtime.limitResetOf(chatId);
-    return this.startWait(run, work, { decidedBy, decisionId: null, reason: null, resetsAt, projectId });
+    // A wait the rule caused says so on its line, whoever chose to wait
+    const rule = noRoomRuleOf(next, ['wait', 'once']);
+    return this.startWait(run, work, { decidedBy, decisionId: null, reason: rule ? `waiting: ${noRoomWords(rule)}` : null, resetsAt, projectId, ...(rule ? { rule } : {}) });
   }
 
-  private startWait(run: ChatRuntime, work: ChatWork | null, opts: { decidedBy: ProviderMoveDecider; decisionId: string | null; reason: string | null; resetsAt: string | null; projectId: string | null }): ProviderMove | null {
+  private startWait(
+    run: ChatRuntime,
+    work: ChatWork | null,
+    opts: { decidedBy: ProviderMoveDecider; decisionId: string | null; reason: string | null; resetsAt: string | null; projectId: string | null; rule?: NoRoomRule },
+  ): ProviderMove | null {
     const now = this.now();
     const at = new Date(now).toISOString();
     const provider = run.provider ?? LEGACY_PROVIDER;
@@ -479,6 +489,7 @@ export class ProviderRotation {
       decisionId: opts.decisionId,
       resetsAt: opts.resetsAt,
       reason: opts.reason,
+      ...(opts.rule ? { rule: opts.rule } : {}),
       updatedAt: at,
       probeCount: 0,
     };

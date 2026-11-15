@@ -1,5 +1,5 @@
 import { reserveAccountOf, type AccountReserve, type Choice } from '@claudio/accounts';
-import type { RotationPolicy } from '@claudio/shared';
+import type { NoRoomChoice, NoRoomRule, RotationPolicy } from '@claudio/shared';
 
 /**
  * Work in progress per project, and the reserves it activates (docs/plans/account-configuration-and-project-rules.md §7.2).
@@ -98,16 +98,26 @@ export function reservesOf(policies: readonly RotationPolicy[], active: Readonly
 }
 
 /**
- * What to tell when a choice found no account with room and the project's rule kept the work off
- * some (`why.passedOver` names them `not-allowed`): "no account allowed on project X has room", with
- * the earliest reset among the allowed ones. Null when the rule passed over nothing, which is the
- * lack of room every install meets without rules, told as before.
+ * The rule a choice that found no account with room ran into (§7.2): its project and the earliest
+ * reset among the accounts it allows, with what is left to the work (`choices`: a person's chat may
+ * also take one turn on another account). Null when the rule passed over nothing, which is the lack
+ * of room every install meets without rules, told as before.
  */
-export function noRoomWords(choice: Pick<Choice, 'account' | 'waitUntil' | 'why'> | null): string | null {
+export function noRoomRuleOf(choice: Pick<Choice, 'account' | 'waitUntil' | 'why'> | null, choices: readonly NoRoomChoice[] = ['wait']): NoRoomRule | null {
   if (!choice || choice.account !== null) return null;
   const ruled = choice.why.passedOver?.find((p) => p.because === 'not-allowed');
   if (!ruled) return null;
-  const whose = ruled.project ? `on project ${ruled.project}` : 'on chats of no project';
-  const back = choice.waitUntil !== null ? ` until ${new Date(choice.waitUntil).toISOString()}` : '';
+  return { project: ruled.project ? ruled.project : null, resetsAt: choice.waitUntil !== null ? new Date(choice.waitUntil).toISOString() : null, choices: [...choices] };
+}
+
+/**
+ * The same rule in English, for the logs and the `reason` of a wait an older page reads: "no account
+ * allowed on project X has room", with the reset. The page says it from {@link noRoomRuleOf}'s data.
+ */
+export function noRoomWords(choice: Pick<Choice, 'account' | 'waitUntil' | 'why'> | NoRoomRule | null): string | null {
+  const rule = choice && 'choices' in choice ? choice : noRoomRuleOf(choice);
+  if (!rule) return null;
+  const whose = rule.project !== null ? `on project ${rule.project}` : 'on chats of no project';
+  const back = rule.resetsAt !== null ? ` until ${rule.resetsAt}` : '';
   return `no account allowed ${whose} has room${back}`;
 }

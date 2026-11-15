@@ -179,9 +179,19 @@ describe("a project's allowed accounts", () => {
     const c = choose(ACCOUNTS, limits, settings, { current: 'a', now: NOW, policy, project: 'proj-a', pinned: 'c' });
     assert.equal(c.account, null, 'c is out of the rule: not for the pin, not on its credits');
     assert.equal(c.waitUntil, NOW + HOUR, 'the wait is for an allowed account');
-    assert.deepEqual(c.why, { basis: 'none', passedOver: [{ account: 'c', because: 'not-allowed', project: 'proj-a' }] });
+    assert.deepEqual(c.why, { basis: 'none', passedOver: [{ account: 'c', because: 'not-allowed', project: 'proj-a' }], pinIgnored: 'c' });
     // Without the rule, the same situation runs on c's credits
     assert.equal(choose(ACCOUNTS, limits, settings, { current: 'a', now: NOW }).account, 'c');
+  });
+
+  it('names a pin the rule ignores apart, and none without a rule', () => {
+    const limits = { a: room(0.1), b: room(0.1), c: room(0.1) };
+    const policy = rule({ order: ['a', 'b'] });
+    const ruled = choose(ACCOUNTS, limits, SETTINGS, { current: 'a', now: NOW, policy, project: 'proj-a', pinned: 'c' });
+    assert.equal(ruled.account, 'a');
+    assert.equal(ruled.why.pinIgnored, 'c', 'the chat is pinned to c, which the rule leaves out');
+    assert.equal(choose(ACCOUNTS, limits, SETTINGS, { current: 'a', now: NOW, pinned: 'c' }).why.pinIgnored, undefined, 'a pin with no rule is taken');
+    assert.equal(choose(ACCOUNTS, limits, SETTINGS, { current: 'a', now: NOW, policy, project: 'proj-a', pinned: 'gone' }).why.pinIgnored, undefined, 'a pin on a removed account is no rule of the project');
   });
 });
 

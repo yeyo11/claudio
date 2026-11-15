@@ -124,7 +124,23 @@
       "failed": "No se ha podido cambiar la cuenta",
       "search": "Buscar cuentas",
       "none": "Ninguna cuenta coincide.",
-      "onceOnly": "La regla del proyecto no la permite: solo para un turno"
+      "onceOnly": "La regla del proyecto no la permite: solo para un turno",
+      "why": {
+        "label": "Por qué esta cuenta",
+        "pin": "El chat está fijado a ella",
+        "current": "El chat ya estaba en ella",
+        "preferred": "Tu cuenta preferida",
+        "project-preferred": "La cuenta preferida del proyecto",
+        "order": "La primera del orden con margen",
+        "least-used": "La menos usada con margen",
+        "only-one": "La única con margen",
+        "same-config": "Comparte la configuración de la cuenta en la que estaba el chat",
+        "over-threshold": "Ninguna estaba por debajo de su umbral, así que se ejecuta en lugar de esperar",
+        "reserve-released": "Usa el margen que reserva otro proyecto, porque las demás cuentas están agotadas",
+        "credits": "Último recurso: sus créditos de uso",
+        "none": "Ninguna cuenta podía ejecutarlo",
+        "pinIgnored": "El chat está fijado a {{name}}, que la regla del proyecto no permite: se ignora la fijación"
+      }
     },
     "back": "Volver al menú",
     "noCommands": "Este chat aún no ha informado de ningún comando.",
@@ -486,7 +502,17 @@
       "guard": "Guardia: bloqueado",
       "guardMissing": "La guardia no se ha ejecutado en esta llamada",
       "accountOwnConfig": "{{name}}, que tiene su propia configuración",
-      "accountSharedConfig": "{{name}}, que usa la configuración compartida"
+      "accountSharedConfig": "{{name}}, que usa la configuración compartida",
+      "accountRotated": "Al llegar al límite de uso, movido a",
+      "no-room": "Límite de uso",
+      "noRoom": {
+        "project": "Ninguna cuenta permitida en {{project}} tiene margen",
+        "thisProject": "Ninguna cuenta que permita la regla del proyecto de este chat tiene margen",
+        "loose": "Ninguna cuenta que permita la regla de los chats sin proyecto tiene margen",
+        "until": " hasta las {{time}}",
+        "waitOrOnce": "Espera al reinicio o usa otra cuenta una vez.",
+        "wait": "El trabajo espera al reinicio."
+      }
     },
     "teammate": {
       "list": "lo que comparten todos tus compañeros",

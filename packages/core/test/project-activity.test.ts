@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import type { RotationPolicy } from '@claudio/shared';
-import { NO_PROJECT, noRoomWords, ProjectActivity, reservesOf } from '../src/project-activity.ts';
+import { NO_PROJECT, noRoomRuleOf, noRoomWords, ProjectActivity, reservesOf } from '../src/project-activity.ts';
 
 // Work in progress per project and the reserves it activates (§7.2 of
 // docs/plans/account-configuration-and-project-rules.md), with an injected clock.
@@ -77,4 +77,16 @@ test('the no-room words name the rule only when it kept the work off an account,
   assert.equal(noRoomWords({ account: null, waitUntil: reset, why: { basis: 'none' } }), null, 'no rule narrowed the accounts: the lack of room is told as before');
   assert.equal(noRoomWords({ account: 'a', waitUntil: null, why: { basis: 'order', passedOver: [{ account: 'x', because: 'not-allowed' }] } }), null, 'an account had room');
   assert.equal(noRoomWords(null), null);
+});
+
+test('the no-room rule is data: the project by id (null for chats of no project), the reset and the choices left', () => {
+  const reset = Date.parse('2026-11-15T18:00:00Z');
+  const choice = { account: null, waitUntil: reset, why: { basis: 'none' as const, passedOver: [{ account: 'x', because: 'not-allowed' as const, project: 'p1' }] } };
+  assert.deepEqual(noRoomRuleOf(choice), { project: 'p1', resetsAt: '2026-11-15T18:00:00.000Z', choices: ['wait'] });
+  assert.deepEqual(noRoomRuleOf(choice, ['wait', 'once'])?.choices, ['wait', 'once'], "a person's chat may also take one turn elsewhere");
+  assert.equal(noRoomRuleOf({ account: null, waitUntil: null, why: { basis: 'none', passedOver: [{ account: 'x', because: 'not-allowed', project: NO_PROJECT }] } })?.project, null);
+  assert.equal(noRoomRuleOf({ account: null, waitUntil: reset, why: { basis: 'none' } }), null);
+  // The English words are the same rule's
+  const rule = noRoomRuleOf(choice);
+  assert.equal(noRoomWords(rule), noRoomWords(choice));
 });

@@ -1,6 +1,6 @@
 import type { Health, HealthSignal, SupervisorProposal } from '@claudio/shared';
 import { useMutation, useQueryClient } from '@tanstack/react-query';
-import { CircleCheck, CircleSlash, Clock, Lightbulb, Pencil, Repeat, Send, TriangleAlert, OctagonX, X, type LucideIcon } from 'lucide-react';
+import { CircleCheck, CircleSlash, CircleStop, CircleX, Clock, Lightbulb, Pencil, Repeat, Send, TriangleAlert, OctagonX, X, type LucideIcon } from 'lucide-react';
 import { useState, type ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api } from '../../api';
@@ -18,9 +18,9 @@ import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { CopyButton, ErrorBox, Field } from '@claudio/ui/components/ui';
 
-const TONE: Record<HealthWord, string> = { ok: 'ok', slow: 'warn', stuck: 'bad', looping: 'bad' };
+const TONE: Record<HealthWord, string> = { ok: 'ok', slow: 'warn', stuck: 'bad', looping: 'bad', stopped: 'warn', failed: 'bad' };
 // A shape per word besides the colour and the text: it still reads in greyscale
-const ICON: Record<HealthWord, LucideIcon> = { ok: CircleCheck, slow: Clock, stuck: OctagonX, looping: Repeat };
+const ICON: Record<HealthWord, LucideIcon> = { ok: CircleCheck, slow: Clock, stuck: OctagonX, looping: Repeat, stopped: CircleStop, failed: CircleX };
 
 /**
  * ok, slow, stuck or looping: said in words and with a shape, the reason one hover away. A hint the
