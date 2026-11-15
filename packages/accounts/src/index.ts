@@ -11,3 +11,4 @@ export { accountState, BAR_BAD, BAR_WARN, barTone, creditsCapReached, creditsSet
 export { cliConfigFile, fold, readCache, readingFromEvent, Readings, type EventReadingOptions, type Reading } from './usage.ts';
 export { apiKeyOf, checkApiKey, checkCredential, parseUsage, usageOf, type CredentialCheck, type KeyCheckOptions } from './cli-usage.ts';
 export { controlRequest, type ControlOptions } from './control.ts';
+export { runCanary, type CanaryOptions } from './canary.ts';
