@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { commandKind, MIN_SAMPLES, slowAfterMs, usualDuration } from '../src/commands.ts';
+import { commandKind, MIN_SAMPLES, selfBoundMs, slowAfterMs, usualDuration } from '../src/commands.ts';
 
 // A kind of command is what "the same command again" and "longer than usual" are measured on, so
 // the arguments that differ from run to run must not split one kind into many, and two commands
@@ -95,4 +95,15 @@ test('a command is slow only well past its own history, and never under the floo
   const long = usualDuration([1_200_000, 1_150_000, 1_300_000, 1_250_000, 1_180_000]);
   assert.ok(long);
   assert.ok(slowAfterMs(long) > 3_000_000);
+});
+
+test('a command that wraps its work in timeout has bounded itself, kill grace included; one that does not has no bound', () => {
+  assert.equal(selfBoundMs('timeout 2700 gh pr checks 136 --watch'), 2_700_000);
+  assert.equal(selfBoundMs('cd /work && timeout 45m pnpm e2e 2>&1 | tail -40'), 45 * 60_000);
+  assert.equal(selfBoundMs('timeout -k 10 300 pnpm test'), 310_000);
+  assert.equal(selfBoundMs('timeout --kill-after=30s --signal=INT 1.5h make all'), 5_430_000);
+  assert.equal(selfBoundMs('FOO=1 timeout 60 node a.js; timeout 600 node b.js'), 600_000, 'the largest bound');
+  assert.equal(selfBoundMs('pnpm test'), null);
+  assert.equal(selfBoundMs('timeout 0 pnpm test'), null, 'zero means no limit');
+  assert.equal(selfBoundMs('echo "timeout 900 is a string here"'), null);
 });

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { fileURLToPath } from 'node:url';
 import test from 'node:test';
-import type { ClaudioEvent } from '@claudio/shared';
+import { RELAY_PERSON_HEAD, type ClaudioEvent } from '@claudio/shared';
 import { ChatConflictError } from '../src/chat-service.ts';
 import { HealthMonitor } from '../src/health-service.ts';
 import { Core } from '../src/index.ts';
@@ -142,6 +142,17 @@ test("a subagent's hung command names the agent, and cancelling it reaches the s
       'the failed result',
     );
     assert.equal(failed.entry?.parentToolUseId, parent);
+
+    // Its notice is for the subagent: with no bridge to carry it, the lead gets it framed as a relay
+    // for that subagent, never as words in the second person about a command it did not run
+    const texts = () => core.runtime.events(chat.id).flatMap((e) => e.entry?.blocks ?? []).flatMap((b) => (b.type === 'text' ? [b.text] : []));
+    const relayed = await until(() => texts().find((t) => t.startsWith(RELAY_PERSON_HEAD)), 'the relay to the lead');
+    assert.match(relayed, /`Run the slow suite`/);
+    assert.match(relayed, /A person cancelled the command `sleep 60` while it was running: the suite waits on a port nobody opens\. It did not fail by itself\./);
+    assert.ok(!texts().some((t) => t.startsWith('A person cancelled the command')), 'no instruction to the lead');
+    // The lead's page keeps a passive row, which says whose command it was
+    const notice = core.runtime.events(chat.id).find((e) => e.kind === 'notice' && e.text?.startsWith('A person cancelled the command'));
+    assert.equal(notice?.data?.parentToolUseId, parent);
   } finally {
     core.shutdown();
   }

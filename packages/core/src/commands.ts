@@ -215,3 +215,48 @@ const FLOOR_MS = 30_000;
 export function slowAfterMs(usual: UsualDuration): number {
   return Math.max(FLOOR_MS, SLOW_FACTOR * usual.medianMs, P90_FACTOR * usual.p90Ms);
 }
+
+const DURATION_UNIT_MS: Record<string, number> = { '': 1000, s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 };
+
+/** `timeout`'s DURATION (`90`, `2.5m`, `1h`) in ms; null for anything else, and for 0, which means no limit. */
+function durationMs(word: string | undefined): number | null {
+  const match = /^(\d+(?:\.\d+)?)([smhd]?)$/.exec(word ?? '');
+  if (!match) return null;
+  const ms = Number(match[1]) * (DURATION_UNIT_MS[match[2] ?? ''] ?? 1000);
+  return ms > 0 ? ms : null;
+}
+
+/**
+ * How long a command has bounded itself to run, from the `timeout N …` it wraps a stage in, kill
+ * grace included; null when no stage carries one. The largest bound wins: a worker that writes
+ * `timeout 2700 gh pr checks --watch` has said it expects to wait up to 45 min, and cancelling it
+ * at minute ten on elapsed time alone overrules what it planned. Several bounded stages in a row
+ * would add up, but the largest is enough to tell "planned" from "forgotten", and it errs short.
+ */
+export function selfBoundMs(command: string): number | null {
+  let bound: number | null = null;
+  for (const stage of stageHeads(command)) {
+    let tokens = words(stage);
+    while (tokens.length) {
+      const first = tokens[0] as string;
+      if (/^[A-Za-z_][A-Za-z0-9_]*=/.test(first) || WRAPPERS.has(first) || KEYWORDS.has(first)) {
+        tokens = tokens.slice(1);
+        continue;
+      }
+      if (first !== 'timeout') break;
+      tokens = tokens.slice(1);
+      let grace = 0;
+      while (tokens[0]?.startsWith('-')) {
+        const flag = tokens[0];
+        const takesValue = /^(?:-k|-s|--kill-after|--signal)$/.test(flag);
+        const kill = flag === '-k' || flag === '--kill-after' ? tokens[1] : flag.startsWith('--kill-after=') ? flag.slice('--kill-after='.length) : undefined;
+        if (kill !== undefined) grace = durationMs(kill) ?? 0;
+        tokens = tokens.slice(takesValue ? 2 : 1);
+      }
+      const ms = durationMs(tokens[0]);
+      if (ms !== null) bound = Math.max(bound ?? 0, ms + grace);
+      tokens = tokens.slice(1);
+    }
+  }
+  return bound;
+}
