@@ -29,6 +29,7 @@ const execution = (over: Partial<Execution> = {}): Execution => ({
   tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
   turns: 1,
   purpose: 'person',
+  turnOpen: true,
   ...over,
 });
 
@@ -64,6 +65,8 @@ test('no Continue where it would not be the person’s to give', () => {
   for (const origin of ['api', 'internal', 'orchestration'] as const) assert.equal(restartCut(chat({ origin })), null, origin);
   assert.equal(restartCut(chat({ executions: [execution({ purpose: 'flow' })] })), null, 'its flow run continues it');
   assert.equal(restartCut(chat({ executions: [execution({ outcome: 'completed' })] })), null);
+  assert.equal(restartCut(chat({ executions: [execution({ turnOpen: false })] })), null, 'its process sat idle waiting for the person: nothing was cut');
+  assert.equal(restartCut(chat({ executions: [execution({ turnOpen: undefined })] })), null, 'one recorded before the turn was kept says nothing either way');
   assert.equal(restartCut(chat({ executions: [execution(), execution({ id: 'e2', outcome: 'failed' })] })), null, 'only the last execution counts');
 });
 

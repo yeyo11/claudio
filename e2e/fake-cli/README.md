@@ -32,6 +32,7 @@ It calls no model and no network. Its own test: `node --test e2e/fake-cli/claude
 | `CLAUDIO_FAKE_CLI_TRANSCRIPT` | none | `1` writes a transcript (see below); so does `"@transcript": true` in the scripts file, for a spec, which cannot set the server's environment |
 | `CLAUDIO_FAKE_CLI_NO_HOOKS` | none | `1` never runs the `PreToolUse` hook of `--settings`: a guard that is not there, which Claudio's liveness check must notice |
 | `CLAUDIO_FAKE_CLI_NO_ARM` | none | `1` never runs the `SessionStart` hook: a guard that cannot arm |
+| `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` | none | `1` with `--resume`: a turn starts by itself on `CLAUDE_CODE_RESUME_PROMPT` (else the CLI's default line), with nothing written to stdin, as the CLI continues a turn a restart cut. The fake keeps no record of cut turns, so it always continues one |
 
 ## Subcommands
 

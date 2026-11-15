@@ -623,8 +623,12 @@ What a start does with the work the server before it left cut, by who the work w
 - **The variables never leak.** `resumeEnv` strips every `CLAUDE_CODE_RESUME_*` from any other
   process's environment, so a value in the server's own environment cannot make a plain resume run
   the old turn beside its new prompt.
-- **Executions record their purpose** (`Execution.purpose`), which is what tells a person's turn from
-  an owner's after a restart.
+- **Executions record their purpose and whether a turn is open** (`Execution.purpose`,
+  `Execution.turnOpen`, written down the moment a turn opens and at its result). A process outlives
+  its turns, so before this every chat that merely had an idle process when the server went away
+  read as cut; only an execution cut with `turnOpen: true` is a cut turn, continued or offered. The
+  e2e suite's own server restart showed it: idle chats of earlier specs were being "continued".
+  Executions recorded before this carry neither field and are left as they were.
 - **Vendor facts**, read 2026-11-15 against CLI 2.1.322: [env-vars](https://code.claude.com/docs/en/env-vars)
   (`CLAUDE_CODE_RESUME_INTERRUPTED_TURN`, `_MAX_AGE_MS`: "A positive value bounds every turn… Requires
   Claude Code v2.1.211 or later", `CLAUDE_CODE_RESUME_PROMPT`), and the VS Code page, which documents
@@ -633,7 +637,8 @@ What a start does with the work the server before it left cut, by who the work w
   process starts the continued turn before any stdin line is the documented SDK behaviour, and the
   fakes model it; the two-minute fallback covers the case where it does not.
 - **Tests:** `packages/core/test/restart-resume.test.ts` (D7 on an injected clock, the respawn over the
-  fake CLI with no prompt written, owners and limits left alone, one continuation across two servers,
+  fake CLI with no prompt written, an idle process left alone, the open turn written down, owners
+  and limits left alone, one continuation across two servers,
   the chain bound, a CLI that declines, a cut workflow resumed from its cache). The browser spec that
   restarts the server mid-turn is left to t8, which needs the slow fake turn layer 2 also needs.
 - **Not built here:** layers 2 and 1 (t2–t9).

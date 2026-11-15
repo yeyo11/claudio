@@ -2706,6 +2706,8 @@ export class ChatManager extends EventEmitter {
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
     chat.idleSince = null;
     chat.setStatus('busy');
+    // A restart that cuts the continuation too leaves a turn to continue
+    this.persist(chat);
     if (chat.continueTimer) clearTimeout(chat.continueTimer);
     chat.continueTimer = setTimeout(() => {
       chat.continueTimer = null;
@@ -2728,7 +2730,8 @@ export class ChatManager extends EventEmitter {
     const cut: CutTurn[] = [];
     for (const chat of this.chats.values()) {
       const execution = chat.cutOff;
-      if (!execution || chat.alive || chat.executions[chat.executions.length - 1] !== execution || !execution.endedAt) continue;
+      // A process outlives its turns: one that sat idle when the server went away cut nothing
+      if (!execution || execution.turnOpen !== true || chat.alive || chat.executions[chat.executions.length - 1] !== execution || !execution.endedAt) continue;
       let chain = 0;
       for (let i = chat.executions.length - 1; i >= 0 && chat.executions[i]?.outcome === 'interrupted'; i--) chain++;
       cut.push({
@@ -2754,7 +2757,7 @@ export class ChatManager extends EventEmitter {
     const chat = this.chats.get(id);
     if (!chat) throw new ChatNotFoundError();
     if (chat.alive) throw new ChatRefusal('the chat already has a live execution', 409);
-    if (!chat.cutOff || chat.executions[chat.executions.length - 1] !== chat.cutOff) throw new ChatRefusal('the chat has no turn a restart cut', 409);
+    if (chat.cutOff?.turnOpen !== true || chat.executions[chat.executions.length - 1] !== chat.cutOff) throw new ChatRefusal('the chat has no turn a restart cut', 409);
     if (chat.driver.continuesCutTurns !== true) throw new ChatRefusal('its provider cannot continue a cut turn', 409);
     if (this.leftovers.has(id)) throw new ChatRefusal('a process a previous wrapper started is still on the session', 409);
     const room = this.admit(chat.opts, chat.driver, 'other');
@@ -2808,6 +2811,8 @@ export class ChatManager extends EventEmitter {
     if (opens) {
       chat.paidTurn = false;
       this.checkCredits(chat, false);
+      // Written down at once: a restart from here on cut a turn, which the next start continues
+      this.persist(chat);
     }
   }
 

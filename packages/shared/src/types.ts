@@ -1074,6 +1074,13 @@ export interface Execution {
    * whose owner continues it (docs/plans/survive-restarts.md, D7). Absent on one recorded before it was kept.
    */
   purpose?: SpendPurpose;
+  /**
+   * The lead was on a turn when Claudio last wrote this down. A process outlives its turns, so an
+   * execution a restart closed was cut mid-turn only when this is true; one that sat idle waiting for
+   * the person was not, and nothing continues it (docs/plans/survive-restarts.md). Absent on one
+   * recorded before it was kept.
+   */
+  turnOpen?: boolean;
 }
 
 /** From here on the CLI is close enough to compacting that a person should know before it happens. */

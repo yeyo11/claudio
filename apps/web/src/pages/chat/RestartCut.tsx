@@ -17,7 +17,8 @@ export function restartCut(chat: Chat): Execution | null {
   if (chat.alive || chat.control.mode !== 'resumable') return null;
   if (chat.origin !== 'claudio' && chat.origin !== 'external') return null;
   const last = chat.executions.at(-1);
-  if (last?.outcome !== 'interrupted' || !last.endedAt) return null;
+  // A process outlives its turns: one that sat idle waiting for the person when Claudio went away cut nothing
+  if (last?.outcome !== 'interrupted' || last.turnOpen !== true || !last.endedAt) return null;
   if (last.purpose !== undefined && last.purpose !== 'person') return null;
   return last;
 }

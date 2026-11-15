@@ -572,9 +572,21 @@ export class LiveChat {
   /**
    * The lead agent is on a turn: from the message that starts one (or a line of its own, after a
    * task notification) until its result. Unlike `status`, a background agent's lines never set it,
-   * so it is what says whether an interrupt has a result coming to clear its mark.
+   * so it is what says whether an interrupt has a result coming to clear its mark. Mirrored on the
+   * live execution (`Execution.turnOpen`), which is how a restart tells a turn it cut from a process
+   * that sat idle; whoever opens a turn writes the chat down (`ChatManager.persist`).
    */
-  turnOpen = false;
+  get turnOpen(): boolean {
+    return this.openTurn;
+  }
+
+  set turnOpen(open: boolean) {
+    this.openTurn = open;
+    const execution = this.execution;
+    if (execution && (execution.turnOpen ?? false) !== open) execution.turnOpen = open;
+  }
+
+  private openTurn = false;
   /**
    * The lead's calls the running turn waits on and has no result for, newest last: a foreground
    * agent or command, which a message written now is not read before (`ChatPendingMessage.blockedBy`)

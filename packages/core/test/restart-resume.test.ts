@@ -46,6 +46,8 @@ interface StoredCut {
   cutAt?: string;
   /** Executions before the cut one that a restart cut too */
   earlierCuts?: number;
+  /** Its process sat idle, waiting for the person, when the server went away */
+  idle?: true;
 }
 
 /** A data dir a server went away from with one chat per entry mid-turn; answers their ids. */
@@ -57,7 +59,7 @@ function previousServer(config: CoreConfig, chats: StoredCut[]): string[] {
     chats.map((c, i) => {
       const id = ids[i] as string;
       const cutAt = c.cutAt ?? new Date().toISOString();
-      const execution = (endedAt: string | null) => ({
+      const execution = (endedAt: string | null, turnOpen = true) => ({
         id: randomUUID(),
         startedAt: new Date(Date.parse(cutAt) - MINUTE).toISOString(),
         endedAt,
@@ -70,6 +72,7 @@ function previousServer(config: CoreConfig, chats: StoredCut[]): string[] {
         tokens: { input: 0, output: 0, cacheRead: 0, cacheCreation: 0, total: 0 },
         turns: 1,
         ...(c.purpose === null ? {} : { purpose: c.purpose ?? ('person' as const) }),
+        turnOpen,
       });
       writeFileSync(cutMark(id), cutAt);
       return {
@@ -90,7 +93,7 @@ function previousServer(config: CoreConfig, chats: StoredCut[]): string[] {
           createdAt: new Date(Date.parse(cutAt) - 2 * MINUTE).toISOString(),
           updatedAt: cutAt,
         },
-        executions: [...Array.from({ length: c.earlierCuts ?? 0 }, () => execution(cutAt)), execution(null)],
+        executions: [...Array.from({ length: c.earlierCuts ?? 0 }, () => execution(cutAt)), execution(null, !c.idle)],
       };
     }),
     200,
@@ -236,6 +239,37 @@ test('API, housekeeping, orchestration and owned chats, and one at its limit, ar
   assert.deepEqual(report.continued, []);
   assert.deepEqual([...report.left].sort(), [...ids].sort());
   assert.deepEqual(spawnsOf(spawns), []);
+});
+
+test('a chat whose process sat idle when the server went away is not continued: no turn was cut', async (t) => {
+  const { config, spawns } = sandbox(t);
+  const [id] = previousServer(config, [{ idle: true }]) as [string];
+  const s = await start(config);
+  t.after(async () => {
+    await s.runs.stopAll();
+    s.db.close();
+  });
+  assert.equal(s.runs.get(id)?.executions.at(-1)?.outcome, 'interrupted', 'its process was lost all the same');
+  const report = pass(s, Date.now());
+  assert.deepEqual([report.continued, report.offered, report.left], [[], [], []], 'it is no cut turn at all');
+  assert.deepEqual(spawnsOf(spawns), []);
+});
+
+test('a turn is written down as open when it starts and as closed at its result, which is what a restart reads', async (t) => {
+  const { config } = sandbox(t);
+  mkdirSync(config.workspaceDir, { recursive: true });
+  const s = { db: new Db(config), runs: null as unknown as ChatManager };
+  s.runs = new ChatManager(config, s.db);
+  t.after(async () => {
+    await s.runs.stopAll();
+    s.db.close();
+  });
+  const hung = s.runs.start({ prompt: 'FAKE-HANG', name: 'hung', purpose: 'person' });
+  await until(() => s.db.loadChat(hung.id)?.executions.at(-1), (e) => e?.turnOpen === true, 'the open turn to be written down');
+  const done = s.runs.start({ prompt: 'hello', name: 'done', purpose: 'person' });
+  await s.runs.waitForResult(done.id);
+  await until(() => s.db.loadChat(done.id)?.executions.at(-1), (e) => e?.turnOpen === false, 'the ended turn to be written down');
+  assert.equal(s.db.loadChat(done.id)?.executions.at(-1)?.purpose, 'person');
 });
 
 test('two servers on one data dir continue a cut turn once between them', async (t) => {

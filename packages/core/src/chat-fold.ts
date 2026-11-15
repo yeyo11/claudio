@@ -238,8 +238,11 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         chat.setStatus('busy');
       }
       if (event.mainAgent) {
-        // The lead is on a turn, whether a message started it or a task notification did
+        // The lead is on a turn, whether a message started it or a task notification did; one it
+        // opened on its own is written down as one a message opens is
+        const opened = !chat.turnOpen;
         chat.turnOpen = true;
+        if (opened) host.persist(chat);
         if (event.stopReason !== undefined) chat.stopReason = event.stopReason;
         const text = entryText(entry);
         if (text) chat.lastText = text.slice(0, 2000);
