@@ -613,7 +613,14 @@
   overflow-wrap: anywhere;
 }
 
-/* A select or a stepper does not need the row's whole width: a long one reads as a text field */
-.project-rule-rows .pref-row:not(.is-stacked) .pref-row-control {
-  max-width: 360px;
+/* The label and its consequence take the room, so each hint keeps to a line or two; a select or a
+   stepper needs no more than a short column (a long one reads as a text field) */
+.project-rule-rows .pref-row:not(.is-stacked) {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 320px);
+}
+
+@container (max-width: 560px) {
+  .project-rule-rows .pref-row:not(.is-stacked) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

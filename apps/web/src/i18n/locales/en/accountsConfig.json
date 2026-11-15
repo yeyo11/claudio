@@ -388,7 +388,7 @@
       "history": "Shared: the history every account uses"
     },
     "useShared": "Use shared",
-    "useSharedFor": "Use the shared {{item}} on {{name}}",
+    "useSharedFor": "Use shared {{item}} on {{name}}",
     "useSharedTitle": "Use the shared {{item}} on {{name}}?",
     "useSharedBody": "The account's own copy is kept in <path>{{aside}}</path> inside its folder, and the shared one takes its place. Nothing is deleted.",
     "useSharedBodyNoAside": "The shared one takes its place. Nothing is deleted.",

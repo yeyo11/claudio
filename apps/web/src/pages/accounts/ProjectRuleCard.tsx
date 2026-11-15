@@ -1,7 +1,7 @@
 import type { Account, Project, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, Trash2 } from 'lucide-react';
-import { useId } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { api, keys, useAccounts, useProjects } from '../../api';
 import { NumberInput, Select, Switch } from '@claudio/ui/components/controls';
@@ -20,6 +20,49 @@ const RESERVE_START = 10;
 
 /** No preferred account in the Select: the rule leaves the person's own preference in charge */
 const NONE = '';
+
+/** How long the points wait after the last step or keystroke before they are saved */
+const SETTLE_MS = 600;
+
+/**
+ * The reserve's points: the field is the person's while they step or type, and is saved once it
+ * settles, clamped to 1-30. It is never disabled by a save in flight, so a quick second step is not
+ * lost, and a value out of range shows the clamped one it was saved as.
+ */
+function ReservePoints({ saved, label, onSave }: { saved: number; label: string; onSave: (percent: number) => void }) {
+  const [value, setValue] = useState<number | undefined>(saved);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // A save from elsewhere (or the clamp coming back) shows once nobody is typing
+  useEffect(() => {
+    if (!timer.current) setValue(saved);
+  }, [saved]);
+  useEffect(() => () => {
+    if (timer.current) clearTimeout(timer.current);
+  }, []);
+  return (
+    <NumberInput
+      aria-label={label}
+      min={RESERVE_MIN}
+      max={RESERVE_MAX}
+      step={1}
+      value={value}
+      onChange={(next) => {
+        setValue(next);
+        if (timer.current) clearTimeout(timer.current);
+        timer.current = setTimeout(() => {
+          timer.current = null;
+          if (next === undefined) {
+            setValue(saved);
+            return;
+          }
+          const clamped = Math.min(RESERVE_MAX, Math.max(RESERVE_MIN, Math.round(next)));
+          setValue(clamped);
+          if (clamped !== saved) onSave(clamped);
+        }, SETTLE_MS);
+      }}
+    />
+  );
+}
 
 /** A policy as the request that writes it back whole, so one change never drops the other fields */
 export function requestOf(policy: RotationPolicy): RotationPolicyRequest {
@@ -214,19 +257,7 @@ export function ProjectRuleCard({ project }: { project: Project }) {
             </Switch>
             {rule.reserve && (
               <span className="project-rule-points">
-                <NumberInput
-                  aria-label={t('projectRule.reservePoints')}
-                  min={RESERVE_MIN}
-                  max={RESERVE_MAX}
-                  step={1}
-                  value={rule.reserve.percent}
-                  disabled={save.isPending}
-                  onChange={(value) => {
-                    if (value === undefined) return;
-                    const next = Math.min(RESERVE_MAX, Math.max(RESERVE_MIN, Math.round(value)));
-                    if (next !== rule.reserve?.percent) write({ ...request, reserve: { percent: next } });
-                  }}
-                />
+                <ReservePoints saved={rule.reserve.percent} label={t('projectRule.reservePoints')} onSave={(percent) => write({ ...request, reserve: { percent } })} />
                 <span className="muted small">{t('projectRule.points', { count: rule.reserve.percent })}</span>
               </span>
             )}

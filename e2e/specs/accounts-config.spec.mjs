@@ -54,7 +54,7 @@ export default async ({ page, api, check, dirs }) => {
     await page.waitFor(`const t=(()=>{${cardText('e2e-config-b')}})();return t.includes('Conflict') && t.includes('agent-memory') && t.includes('This account: its own folder') && t.includes('Shared: the history every account uses')`, {
       label: 'the conflict read in words on its card',
     });
-    await page.click('button[aria-label="Use the shared agent-memory on e2e-config-b"]', undefined, 800);
+    await page.click('button[aria-label="Use shared agent-memory on e2e-config-b"]', undefined, 800);
     await page.waitFor(`return [...document.querySelectorAll('.dialog')].some((d) => d.innerText.includes('.claudio-own/') && d.innerText.includes('Nothing is deleted'))`, { label: 'the question says where the own copy is kept' });
     await page.click('.dialog .btn-primary', 'Use shared', 800);
     await page.waitFor(`const t=(()=>{${cardText('e2e-config-b')}})();return t.includes('In sync') && !t.includes('Conflict')`, { label: 'the account in sync after Use shared' });

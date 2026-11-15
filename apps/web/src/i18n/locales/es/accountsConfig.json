@@ -387,9 +387,9 @@
       "dir": "Compartida: la carpeta de la cuenta predeterminada",
       "history": "Compartida: el historial que usan todas las cuentas"
     },
-    "useShared": "Usar la compartida",
-    "useSharedFor": "Usar el {{item}} compartido en {{name}}",
-    "useSharedTitle": "¿Usar el {{item}} compartido en {{name}}?",
+    "useShared": "Usar lo compartido",
+    "useSharedFor": "Usar lo compartido: {{item}} en {{name}}",
+    "useSharedTitle": "¿Usar lo compartido para {{item}} en {{name}}?",
     "useSharedBody": "La copia propia de la cuenta se guarda en <path>{{aside}}</path>, dentro de su carpeta, y la compartida ocupa su lugar. No se borra nada.",
     "useSharedBodyNoAside": "La compartida ocupa su lugar. No se borra nada.",
     "switchToOwn": "Usar su propia configuración…",
@@ -400,8 +400,8 @@
       "switchFailed": "No se ha podido cambiar la configuración de {{name}}",
       "repaired": "Se ha reparado la configuración de {{name}}",
       "repairFailed": "No se ha podido reparar la configuración de {{name}}",
-      "usedShared": "{{name}} usa ahora el {{item}} compartido",
-      "useSharedFailed": "No se ha podido usar el {{item}} compartido"
+      "usedShared": "{{name}} usa ahora lo compartido para {{item}}",
+      "useSharedFailed": "No se ha podido usar lo compartido para {{item}}"
     }
   },
   "configDialog": {

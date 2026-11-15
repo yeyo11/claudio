@@ -93,8 +93,10 @@ test('a conflict reads in words what the account holds and what the shared one i
   assert.match(text, /Conflict/);
   assert.match(text, /agent-memory This account: its own folder Shared: the history every account uses/);
   assert.match(text, /settings\.json This account: its own file Shared: the default account's file/);
-  assert.match(html, /aria-label="Use the shared agent-memory on work"/);
-  assert.match(html, /aria-label="Use the shared settings\.json on work"/);
+  assert.match(html, /aria-label="Use shared agent-memory on work"/);
+  assert.match(html, /aria-label="Use shared settings\.json on work"/);
+  // Voice control says what it sees: the accessible name starts with the visible words
+  assert.match(html, /aria-label="Use shared agent-memory on work"[^>]*>Use shared</);
   // Nothing waits for a link, so there is nothing to repair
   assert.doesNotMatch(html, /Repair the configuration/);
 });
@@ -115,7 +117,7 @@ test('the configuration reads in Spanish from Spain', async () => {
   const text = words(html);
   assert.match(text, /Configuración Compartida En conflicto/);
   assert.match(text, /Esta cuenta: un enlace a otro sitio Compartida: la carpeta de la cuenta predeterminada/);
-  assert.match(text, /Usar la compartida/);
+  assert.match(html, /aria-label="Usar lo compartido: agents en work"[^>]*>Usar lo compartido</);
 });
 
 test('a card names the projects whose rule keeps headroom on it', async () => {
