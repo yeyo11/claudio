@@ -23,8 +23,9 @@ for (const name of ['CLAUDE_CONFIG_DIR', 'CLAUDIO_DATA_DIR', 'CLAUDIO_WORKSPACE_
 
 // The CLI canary (packages/core/src/cli-canary.ts) runs by itself on a CLI version it has not seen,
 // which a test's Core reads at once: it would start a few processes beside every one that test counts.
-// Its own tests give it a fake CLI and ask for it.
-process.env.CLAUDIO_CLI_CANARY ??= 'off';
+// Its own tests give it a fake CLI and ask for it. A flag on the process, not a variable: a variable
+// would reach the fake CLIs a test spawns, which the child-environment tests forbid.
+globalThis[Symbol.for('claudio.cliCanaryOff')] = true;
 
 const made = new Set();
 const track = (dir) => {

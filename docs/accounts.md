@@ -489,7 +489,7 @@ retried, and one that could not run (no binary, a timeout, a server that never s
   by itself, so a restart costs nothing; a re-run replaces the rows of its version.
 - **When.** `CliCanaryWatch` (`packages/core/src/cli-canary.ts`) is told each CLI version the
   system read sees, one run at a time, in the background. `CLAUDIO_CLI_CANARY=off` stops the
-  automatic runs (the unit tests set it).
+  automatic runs (the unit tests switch it off through the preload).
 - **Where it shows.** `GET /accounts/canary` answers the version, whether a run is going and the
   result; `POST /accounts/canary/run` runs it again. The Accounts page has one line for it ("Checks
   for shared accounts": passed, failed, needs a signed-in account or could not run, with the

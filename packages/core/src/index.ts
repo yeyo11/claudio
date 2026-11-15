@@ -765,7 +765,8 @@ export class Core {
       onSpawn: (child) => this.children.add(child),
       changed: () => this.accountsChangedSoon(),
       closed: () => this.closed,
-      off: process.env.CLAUDIO_CLI_CANARY === 'off',
+      // The test preload sets the flag (scripts/test-tmp-preload.mjs); a person sets the variable
+      off: process.env.CLAUDIO_CLI_CANARY === 'off' || Boolean((globalThis as Record<symbol, unknown>)[Symbol.for('claudio.cliCanaryOff')]),
     });
     // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
     this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events, onChecked: () => void this.serverUpdates.inspect() });

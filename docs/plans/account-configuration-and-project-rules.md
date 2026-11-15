@@ -692,7 +692,7 @@ dir. Plugins (T2), the overlay (T3), the canary (T5) and the rules (T6 to T8) ar
   threaten anything today; a failing S2 or S3c does (the links of T1, the overlay of T3).
 - A re-run button and a route for it, which the plan did not name: a check that failed by a
   flake would otherwise stay failed until the next CLI version.
-- `CLAUDIO_CLI_CANARY=off`, set by the test preload, so a test's Core does not start processes
+- `CLAUDIO_CLI_CANARY=off`, switched off for tests by their preload, so a test's Core does not start processes
   beside the ones it counts.
 
 **Stays open.** What a failing S2 or S3c should switch off (owner). The canary runs once per version
