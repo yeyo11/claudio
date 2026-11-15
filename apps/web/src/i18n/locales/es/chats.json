@@ -343,9 +343,10 @@
   },
   "restartCut": {
     "title": "Claudio se reinició mientras este chat trabajaba",
-    "body": "Su turno se detuvo {{ago}}. Continúalo donde se quedó.",
-    "bodyOn": "Su turno se detuvo el {{date}}. Continúalo donde se quedó.",
-    "continue": "Continuar",
-    "failed": "No se ha podido continuar el chat: {{error}}"
+    "body": "Su turno se detuvo {{ago}}. Reanúdalo donde se quedó.",
+    "bodyOn": "Su turno se detuvo el {{date}}. Reanúdalo donde se quedó.",
+    "resume": "Reanudar",
+    "resuming": "Reanudando…",
+    "failed": "No se ha podido reanudar el chat: {{error}}"
   }
 }

@@ -343,9 +343,10 @@
   },
   "restartCut": {
     "title": "Claudio restarted while this chat was working",
-    "body": "Its turn stopped {{ago}}. Continue it where it left off.",
-    "bodyOn": "Its turn stopped on {{date}}. Continue it where it left off.",
-    "continue": "Continue",
-    "failed": "Could not continue the chat: {{error}}"
+    "body": "Its turn stopped {{ago}}. Resume it where it left off.",
+    "bodyOn": "Its turn stopped on {{date}}. Resume it where it left off.",
+    "resume": "Resume",
+    "resuming": "Resuming…",
+    "failed": "Could not resume the chat: {{error}}"
   }
 }

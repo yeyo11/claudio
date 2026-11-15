@@ -9,7 +9,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import i18n from '../src/i18n';
 import { RestartCutBanner, restartCut } from '../src/pages/chat/RestartCut';
 
-// The Continue a person's chat offers when Claudio restarted mid-turn and did not continue it by
+// The Resume a person's chat offers when Claudio restarted mid-turn and did not continue it by
 // itself (docs/plans/survive-restarts.md, D7): which chats show it, and what it says.
 
 (globalThis as { React?: typeof React }).React = React;
@@ -53,13 +53,13 @@ test.beforeEach(async () => {
   await i18n.changeLanguage('en');
 });
 
-test("a person's chat a restart cut, and nothing continued, offers Continue", () => {
+test("a person's chat a restart cut, and nothing continued, offers Resume", () => {
   assert.equal(restartCut(chat())?.id, 'e1');
   assert.equal(restartCut(chat({ origin: 'external' }))?.id, 'e1', 'a terminal chat Claudio drove');
   assert.equal(restartCut(chat({ executions: [execution({ purpose: undefined })] }))?.id, 'e1', 'one recorded before executions kept their purpose');
 });
 
-test('no Continue where it would not be the person’s to give', () => {
+test('no Resume where it would not be the person’s to give', () => {
   assert.equal(restartCut(chat({ alive: true })), null, 'it runs again');
   assert.equal(restartCut(chat({ control: { mode: 'readOnly', reason: 'x', action: 'fork' } })), null);
   for (const origin of ['api', 'internal', 'orchestration'] as const) assert.equal(restartCut(chat({ origin })), null, origin);
@@ -70,7 +70,7 @@ test('no Continue where it would not be the person’s to give', () => {
   assert.equal(restartCut(chat({ executions: [execution(), execution({ id: 'e2', outcome: 'failed' })] })), null, 'only the last execution counts');
 });
 
-test('the banner says when the turn stopped and offers Continue, in both languages', async () => {
+test('the banner says when the turn stopped and offers Resume, in both languages', async () => {
   const render = () =>
     renderToStaticMarkup(
       <QueryClientProvider client={new QueryClient()}>
@@ -79,12 +79,12 @@ test('the banner says when the turn stopped and offers Continue, in both languag
     );
   const en = text(render());
   assert.match(en, /Claudio restarted while this chat was working/);
-  assert.match(en, /Its turn stopped \S.*\. Continue it where it left off\./);
-  assert.match(en, /Continue/);
+  assert.match(en, /Its turn stopped \S.*\. Resume it where it left off\./);
+  assert.match(en, /Resume/);
   await i18n.changeLanguage('es');
   const es = text(render());
   assert.match(es, /Claudio se reinició mientras este chat trabajaba/);
-  assert.match(es, /Continuar/);
+  assert.match(es, /Reanudar/);
 });
 
 test('a cut older than a month is dated, not "stopped Oct 12"', () => {
@@ -96,5 +96,5 @@ test('a cut older than a month is dated, not "stopped Oct 12"', () => {
       </QueryClientProvider>,
     ),
   );
-  assert.match(html, /Its turn stopped on .+\. Continue it where it left off\./);
+  assert.match(html, /Its turn stopped on .+\. Resume it where it left off\./);
 });

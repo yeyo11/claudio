@@ -1,9 +1,10 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { errorMessage, RESTART_CONTINUE_TEXT, type Chat, type Execution } from '@claudio/shared';
-import { Play, RotateCcw } from 'lucide-react';
+import { CircleAlert, Play, RotateCcw } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { chatKeys } from '@claudio/chat-ui/lib/context';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
+import { Spinner } from '@claudio/ui/components/Spinner';
 import { formatDate, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { api } from '../../api';
 
@@ -41,17 +42,33 @@ export function RestartCutBanner({ chat, cut }: { chat: Chat; cut: Execution }) 
   const at = toMs(cut.endedAt) ?? Date.now();
   // Past a month `timeAgo` answers a bare date, which reads as "stopped Oct 12" without its "on"
   const when = Date.now() - at < OLD_MS ? t('restartCut.body', { ago: timeAgo(at) }) : t('restartCut.bodyOn', { date: formatDate(at) });
+  const failed = Boolean(go.error);
+  const sending = go.isPending || go.isSuccess;
   return (
-    <div className="alert alert-bad chat-banner restart-cut" role="status">
+    // Warn, not bad: a turn a restart stopped is stopped, not failed; only a resume that failed is bad
+    <div className="alert alert-warn chat-banner restart-cut" role="status">
       <RotateCcw {...ICON} className="alert-icon" aria-hidden />
       <div className="alert-body">
         <strong>{t('restartCut.title')}</strong>
-        <div>{when}</div>
-        {go.error && <div role="alert">{t('restartCut.failed', { error: errorMessage(go.error) })}</div>}
+        {/* One cell for both lines, the hidden one keeping its height: the error takes the time's place and nothing moves */}
+        <div className="restart-cut-lines" data-failed={failed}>
+          <span className="restart-cut-when">{when}</span>
+          <span className="restart-cut-error" role={failed ? 'alert' : undefined}>
+            <CircleAlert {...ICON_SM} aria-hidden />
+            <span>{failed ? t('restartCut.failed', { error: errorMessage(go.error) }) : ''}</span>
+          </span>
+        </div>
       </div>
-      {/* Held after it went through too: the banner stays until the chat reads back alive, and a second click would resume it twice */}
-      <button className="btn btn-small" onClick={() => go.mutate()} disabled={go.isPending || go.isSuccess}>
-        <Play {...ICON_SM} /> {t('restartCut.continue')}
+      {/* Held after it went through too: the notice stays until the chat reads back alive, and a second click would resume it twice */}
+      <button className="btn btn-small" onClick={() => go.mutate()} disabled={sending} aria-busy={go.isPending} data-states="idle|loading" data-state={sending ? 'loading' : 'idle'}>
+        <span className="btn-states">
+          <span className="btn-state-idle">
+            <Play {...ICON_SM} /> {t('restartCut.resume')}
+          </span>
+          <span className="btn-state-loading">
+            <Spinner /> {t('restartCut.resuming')}
+          </span>
+        </span>
       </button>
     </div>
   );
