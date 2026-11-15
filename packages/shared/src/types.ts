@@ -7079,6 +7079,46 @@ export interface AccountConfigResult {
   aside: string | null;
 }
 
+/**
+ * The three checks of the CLI canary (docs/plans/account-configuration-and-project-rules.md §5, §6.7):
+ * `s1` the CLI's rewrite of `.claude.json` keeps a symlink, `s2` a linked `plugins/` and `settings.json`
+ * survive a plugin install and update, `s3c` project MCP trust is read from the account's state file
+ * in Claudio's own stream-json mode.
+ */
+export type CliCanaryCheckId = 's1' | 's2' | 's3c';
+
+/**
+ * `pass` and `fail` are what the CLI did; `needs-sign-in` is a check the CLI would not run without an
+ * account signed in (none is run with one); `error` is a check that could not run at all (a timeout, no
+ * binary), which says nothing about the CLI.
+ */
+export type CliCanaryState = 'pass' | 'fail' | 'needs-sign-in' | 'error';
+
+export interface CliCanaryCheck {
+  id: CliCanaryCheckId;
+  state: CliCanaryState;
+  /** What the check saw, in English and without any credential: a path under the temp dir, a status */
+  observed: string;
+}
+
+/** What one CLI version did under the canary: all three checks, run together in a temp dir */
+export interface CliCanary {
+  version: string;
+  checkedAt: string;
+  /** `fail` if any check failed, else the first check that could not pass, else `pass` */
+  state: CliCanaryState;
+  checks: CliCanaryCheck[];
+}
+
+/** `GET /accounts/canary`: the installed CLI's version, whether a check is running now, and what it found */
+export interface CliCanaryStatus {
+  /** The CLI version Claudio last read; null when no CLI is installed */
+  version: string | null;
+  running: boolean;
+  /** For `version`; null until the canary has run on it */
+  result: CliCanary | null;
+}
+
 /** The account new work would start on, as Settings and the status bar name it */
 export interface AccountInUse {
   id: string;
