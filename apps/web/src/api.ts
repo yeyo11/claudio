@@ -171,6 +171,7 @@ import type {
   Milestone,
   ModelFallback,
   ModelFallbackSuggestion,
+  CliCanaryStatus,
   ModelFallbacksRequest,
   ModelOption,
   MoveWorkItemRequest,
@@ -1313,6 +1314,8 @@ export function createApi(base: string | (() => string)) {
     /** No body at all means every registered install; `{ id }` the one row a person aimed at */
     testPush: (body: SendTestPushRequest = {}) => request<PushSendResult>('/push/test', { method: 'POST', body }),
     accounts: (o: ReadOptions = {}) => request<Account[]>('/accounts', o),
+    cliCanary: (o: ReadOptions = {}) => request<CliCanaryStatus>('/accounts/canary', o),
+    runCliCanary: () => request<CliCanaryStatus>('/accounts/canary/run', { method: 'POST' }),
     /** Asks the CLI for the real usage of every enabled account (`get_usage`, no tokens); one that fails keeps its last reading and is named in `failed` */
     refreshAccounts: () => request<AccountsRefreshResult>('/accounts/refresh', { method: 'POST' }),
     /** Reads one account's usage and, for an API key, asks Anthropic whether it is accepted (free) */
@@ -1438,6 +1441,7 @@ export const keys = {
   accountPolicies: ['accounts', 'policies'] as const,
   modelFallbacks: ['accounts', 'model-fallbacks'] as const,
   accountEvents: ['accounts', 'events'] as const,
+  cliCanary: ['accounts', 'canary'] as const,
   accountLogin: (id: string) => ['accounts', 'login', id] as const,
   /** The same key the chat package's account picker reads the list under, so the two share it */
   accountModels: (id: string) => ['accounts', id, 'models'] as const,

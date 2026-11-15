@@ -124,6 +124,7 @@ import { ChatManager, type ChatConfinement, type ChatRuntime, type GuardSubject,
 import { Connectors } from './connectors.ts';
 import { ProjectDocsError, ProjectDocsService } from './project-docs.ts';
 import type { TranscriptSummary } from './cli-facts.ts';
+import { CliCanaryWatch } from './cli-canary.ts';
 import { detectCli, execCli, getAuthStatus, type CliAuth } from './cli.ts';
 import { CliVersionWatch } from './cli-version.ts';
 import { ReleaseWatch } from './release-watch.ts';
@@ -526,6 +527,8 @@ export class Core {
    */
   readonly restored: Promise<void>;
   readonly cliVersion: CliVersionWatch;
+  /** What the installed CLI did under S1, S2 and S3c; see `CliCanaryWatch` */
+  readonly cliCanary: CliCanaryWatch;
   /** Whether a newer Claudio has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
   /** Claudio updating itself inside its container: signed bundles under /data/app (docs/plans/container-polish.md, D4) */
@@ -756,6 +759,16 @@ export class Core {
     this.identity.declare(GATEWAY_CAPABILITY);
     this.workspace = new Workspace(config);
     this.cliVersion = new CliVersionWatch(config);
+    this.cliCanary = new CliCanaryWatch({
+      db: this.db,
+      claude: () => config.claudeBin,
+      log: (line) => console.warn(line),
+      onSpawn: (child) => this.children.add(child),
+      changed: () => this.accountsChangedSoon(),
+      closed: () => this.closed,
+      // The test preload sets the flag (scripts/test-tmp-preload.mjs); a person sets the variable
+      off: process.env.CLAUDIO_CLI_CANARY === 'off' || Boolean((globalThis as Record<symbol, unknown>)[Symbol.for('claudio.cliCanaryOff')]),
+    });
     // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
     this.release = new ReleaseWatch(config, { current: CLAUDIO_VERSION, events: this.events, onChecked: () => void this.serverUpdates.inspect() });
     const securityState = () => ({ mode: this.security.mode, readOnly: this.security.readOnly });
@@ -1927,6 +1940,7 @@ export class Core {
    * accounts watch's, so the first version seen only sets the mark.
    */
   private noteCliVersion(version: string | null): void {
+    this.cliCanary.note(version);
     if (!version || version === this.cliVersionSeen) return;
     const changed = this.cliVersionSeen !== null;
     this.cliVersionSeen = version;

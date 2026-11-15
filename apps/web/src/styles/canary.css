@@ -1,0 +1,64 @@
+/* The CLI canary's line on the Accounts page: a row of words with the failed checks under it */
+.canary-line {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.canary-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.canary-what,
+.canary-state {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.canary-heading {
+  margin: 0;
+  font-size: var(--fs-section);
+  font-weight: var(--fw-strong);
+}
+
+.canary-detail ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.canary-detail li,
+.canary-detail p {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.canary-detail p {
+  margin: 0;
+}
+
+@media (max-width: 640px) {
+  .canary-state .btn {
+    min-height: 44px;
+  }
+}
+
+.canary-result {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px 12px;
+  min-width: 0;
+}
+
+.canary-check {
+  font-weight: var(--fw-strong);
+}

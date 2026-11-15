@@ -290,5 +290,38 @@
     "team": "Team",
     "enterprise": "Enterprise",
     "apiKey": "Clave de API"
+  },
+  "canary": {
+    "label": "Claude Code {{version}}",
+    "heading": "Comprobaciones de las cuentas compartidas",
+    "notChecked": "Aún sin comprobar",
+    "running": "Comprobando…",
+    "again": "Volver a comprobar",
+    "againFailed": "No se han podido iniciar las comprobaciones",
+    "state": {
+      "pass": "Superadas",
+      "fail": "Fallidas",
+      "needs-sign-in": "Requiere una cuenta con la sesión iniciada",
+      "error": "No se han podido ejecutar"
+    },
+    "checks": {
+      "s1": "Archivo de estado enlazado",
+      "s2": "Plugins y ajustes enlazados",
+      "s3c": "Confianza en el proyecto"
+    },
+    "failed": "Esta versión se comporta distinto de lo que las cuentas compartidas necesitan. No se ha cambiado nada: las cuentas siguen funcionando como antes.",
+    "needsSignIn": "El CLI no ejecuta algunas comprobaciones sin una cuenta con sesión, y no se ha usado ninguna.",
+    "couldNotRun": "Estas comprobaciones no se han podido ejecutar, así que aún no se sabe nada de ellas.",
+    "whenFailed": {
+      "s1": "El CLI puede reemplazar un archivo de estado enlazado al escribir.",
+      "s2": "Instalar un plugin puede reemplazar una carpeta de plugins o un archivo de ajustes enlazados.",
+      "s3c": "Puede que la confianza en un proyecto ya no se lea de la cuenta."
+    },
+    "checkState": {
+      "needs-sign-in": "requiere una cuenta con la sesión iniciada",
+      "error": "no se ha podido ejecutar"
+    },
+    "now": "Comprobar ahora",
+    "checkLine": "{{name}}:"
   }
 }
