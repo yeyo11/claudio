@@ -1,0 +1,574 @@
+---
+created_at: 2026-11-15T12:00:00Z
+updated_at: 2026-11-15T12:00:00Z
+tags:
+    - plan
+    - study
+    - architecture
+    - restart
+    - desktop
+    - updates
+    - orchestration
+    - proposed
+---
+# Study: work that keeps running when Claudio closes, restarts or updates
+
+**Status: proposed (study only, no code). Waiting for the owner's decisions D1–D10 before anything is
+queued.**
+
+## The problem, in the owner's words
+
+On 2026-11-15 the owner wrote (translated):
+
+> When Claudio is closed or restarts (for example after an update) it looks like a catastrophe:
+> everything stops — subagents, chats, orchestrations. It cannot be like that: work should keep
+> running in the background even if the app is closed. This should be relatively simple, since most
+> of it is Claude Code processes, which already allow running in the background. Don't look for a
+> patch, look for the real solution.
+
+The study follows his method for studies
+([process-isolation.md](process-isolation.md) §1, memory `feedback-target-architecture-not-patches`):
+
+1. Stop the bleeding.
+2. Measure.
+3. Design the end state, with the local desktop as its degenerate case.
+4. Use what the vendor ships first.
+5. Name the spikes.
+
+**Confidence.** Every claim carries one of three marks:
+
+- **verified**: read in the code at the cited line, measured, or quoted from the vendor's page.
+- **inferred**: deduced, not reproduced.
+- **not determined**: the evidence is missing.
+
+## Summary
+
+- **Why everything dies (verified).** Today one process, Claudio's server, owns every Claude Code
+  process through its stdin and stdout pipes (`packages/core/src/chats.ts:2545`). The server itself
+  is a child of the Electron window process, and closing the window quits the app
+  (`apps/desktop/src/main.ts:928`).
+  - A clean stop (closing the window, quitting, an update) runs `stopAll`, which ends every CLI on
+    purpose (`packages/core/src/index.ts:4139`, `chats.ts:1920`).
+  - A crash ends them anyway: the reader of their pipes is gone. Measured with a stand-in, the
+    child read EOF on stdin about 100 ms after its parent was killed, and died on its next write.
+  - Everything the CLI holds inside a turn goes with it: the in-flight tool call, subagents,
+    background Bash, MCP servers. Only the conversation survives, in the transcript, for a later
+    `--resume`.
+- **The vendor already ships the shape, but not for programs (verified).** Claude Code has its own
+  background supervisor (`claude --bg`, `claude agents`, `claude daemon`). It keeps sessions alive
+  when the terminal closes and hands them over across its own updates. But `--bg` "can't be combined
+  with `-p`", and its job files "are not a stable interface". By the one rule Claudio cannot drive
+  it.
+  - What the vendor does document for programs is enough to build the same thing:
+    - the stream-json protocol over stdin and stdout;
+    - re-sending `initialize` "after a transport gap, such as reattaching to a session after a
+      disconnect", whose answer carries `pending_permission_requests`;
+    - `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` for the turns a restart did cut.
+- **The end state (recommended).** Three layers, each covering what the one below cannot:
+  1. **A control plane that outlives the window.** The desktop runs Claudio the way the container
+     already does: the unreplaceable launcher supervises the server, and Electron becomes only a
+     window and a tray that connect to it. Closing or quitting the window stops nothing.
+  2. **CLI processes that outlive the server.** Each CLI is started detached, with its stdin a FIFO
+     it holds open itself and its stdout an append-only file, in its own systemd scope. A server that
+     restarts (an update, a crash) re-attaches: it tails the file from its committed offset, writes
+     to the FIFO, and re-sends `initialize`. The CLI never notices.
+     - This holds with no runner process at all: measured, the wrapper costs about 2 MB per CLI,
+       against about 51 MB for a Node runner.
+  3. **A lossless resume** for what cannot survive: a reboot, a dead hand-over, an expired lease.
+     The documented `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` continues the cut turn, under the limits
+     that already exist.
+- **Order.** Layer 3 first, because it stops the bleeding cheaply and is the fallback forever. Then
+  layer 2, the foundation; without it, a daemon still dies on each update. Then layer 1. This is
+  the parked [process-isolation](process-isolation.md) study's "runner + host-scope provider",
+  reached with no runner: the scope per process is its first provider.
+
+## 1. Diagnosis: what dies today, and why
+
+### The process tree (verified, read-only on the owner's machine)
+
+Read on the owner's running app with `ps` and `/proc` (nothing was signalled):
+
+```
+/opt/Claudio/claudio                      pid 651124  (Electron main, in app-claudio-651124.scope)
+└─ /opt/Claudio/claudio …/server/server.mjs   pid 798679  (ELECTRON_RUN_AS_NODE, stdio pipes + IPC)
+   ├─ claude -p --input-format stream-json …  pid 904561  (stdin/stdout: socket pairs owned by 798679)
+   │  └─ /opt/Claudio/claudio …/server/mcp.mjs   (Claudio's MCP server, a child of the CLI)
+   └─ claude -p …                             pid 907001
+```
+
+What this shows:
+
+- **One process group and one session for everything.** All of them share process group and
+  session 2813, gnome-shell's.
+- **The CLI's stdin and stdout are socket pairs.** libuv's `stdio: 'pipe'` creates them, and the
+  server holds the other end (`/proc/904561/fd/0,1`).
+- **The CLI ignores SIGPIPE** (`SigIgn` bit 13), which it inherits from Node. With its reader gone,
+  a write fails with `EPIPE`, which the CLI then has to handle itself (**not determined**: the vendor
+  does not document what it does with it).
+- **The user manager lingers** (`Linger=yes`) and runs systemd 259. That matters for a daemon that
+  outlives the window (D3).
+
+### What each event does
+
+| Event | Path in the code | What happens to the CLI processes |
+|---|---|---|
+| **(a) Closing the window** | `window-all-closed` → `app.quit()` (`apps/desktop/src/main.ts:928`); `before-quit` → `shutdown()` → `stopServer()` (`main.ts:920-926`, `880-889`); `ServerProcess.stop()` sends SIGTERM, then SIGKILL after 5 s (`apps/desktop/src/server-process.ts:196`) | The server's SIGTERM handler (`apps/api/src/standalone.ts:31-34`) → `close()` → `core.shutdown()` → `runtime.stopAll()` (`packages/core/src/index.ts:4139`): every chat gets SIGTERM, then its whole tree gets SIGKILL after the grace (`chats.ts:1920-1957`). Pending permission prompts are denied with "the wrapper is shutting down" (`permissions.ts:11`). [desktop.md](../desktop.md) says it in so many words: "Closing the window still quits the app". |
+| **(b) Quitting** (tray, menu, logout) | Same `before-quit` path | Same as (a) |
+| **(c) An update or restart** | Payload update: `serverUpdates.onRestart` → `close()` → exit 75, and the shell's `PayloadHost` starts the new server (`apps/api/src/server.ts:184-188`, `apps/desktop/src/main.ts:165-216`). Shell update or "restart" from Updates: exit 76 → `relaunchShell()` (`main.ts:209-213`, `450-456`). Container: the launcher restarts on 75 (`packages/core/src/launcher/machine.ts:229-256`) | `close()` → `stopAll`, as in (a). The update routes answer `409 update.live-work` while chats are running and offer "Restart when nothing is running" ([updates.md](../updates.md)). That defers the loss, it does not avoid it. |
+| **(d) A server crash** (SIGKILL, OOM, a wedged loop the container's healthcheck kills) | Nothing runs. The desktop shell shows "The Claudio server stopped unexpectedly" and does not restart it (`main.ts:214-216`). The container's launcher returns the code, so the restart policy restarts the whole container (`machine.ts:256`) | The CLI reads EOF on stdin and gets EPIPE on its next stdout line. Measured with a stand-in in §4, M1: dead within about 200 ms. A real CLI that ignores SIGPIPE may live a little longer: Claudio has code for "a CLI process from a previous wrapper is still working on it" (`chats.ts:650-668`, `718-725`) and refuses to resume beside it. But its output has nowhere to go. |
+| **Reboot or logout** (without linger) | — | Everything ends. The vendor's own background sessions end too: "Shutting down or restarting your machine stops running background sessions" ([agent view](https://code.claude.com/docs/en/agent-view)). |
+
+### What is recoverable and what is lost (verified unless marked)
+
+| State | Where it lives today | After (a)–(d) |
+|---|---|---|
+| The conversation | The CLI's transcript `$CLAUDE_CONFIG_DIR/projects/<cwd>/<session>.jsonl` | **Kept.** `--resume <id>` continues it (`providers/claude-code/args.ts:24`) |
+| The chat's record, its executions, the orchestration rows, flow runs, waits | SQLite (`db.ts`) | **Kept.** The open execution is closed as `interrupted by a wrapper restart` (`live-chat.ts:761`) |
+| The turn in flight | The CLI's memory | **Lost.** The vendor: SIGTERM "leaves the turn that was in progress unfinished and records no result for it" ([headless](https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm)). A person's chat stays `interrupted` until someone writes in it |
+| Subagents and background Bash inside the turn | Children of the CLI | **Lost.** The vendor: "Background tasks are automatically cleaned up when Claude Code exits… processes that detached from the task's shell… stop too" ([interactive mode](https://code.claude.com/docs/en/interactive-mode)). On resume they appear only as a note that they did not finish ([sessions](https://code.claude.com/docs/en/sessions)) |
+| MCP servers of the chat (stdio) | Children of the CLI | **Lost**, started again with the next process |
+| Pending permission prompts | `PermissionBroker`, in memory only (`permissions.ts`) | **Lost**, denied at shutdown |
+| The chat's API credential (`CLAUDIO_API_TOKEN`) | `ChatTokenStore`, in memory and on purpose: "a restart of the wrapper revokes every chat token by construction" (`security/chat-tokens.ts:25-33`) | **Lost**, minted again at the next spawn |
+| The pending turn of a chat at its limit | Since t8 of [limit-resume-and-credits](limit-resume-and-credits.md#outcome), stored in the wait row | **Kept**, replayed after a restart |
+| Graph orchestration tasks | Rows | **Re-run.** The interrupted tasks run again as new attempts, using up `maxAttempts` (`orchestrator.ts:812-850`, `1404`) |
+| Workflow orchestrations | Rows | **Stopped.** They wait for `resume()` unless a limit wait holds them (`orchestrator.ts:812-830`) |
+| Flow runs | Rows | **Re-queued**, up to `MAX_FLOW_RESTARTS` (`flow.ts:2113-2140`) |
+| Terminals (PTYs) | The terminal host, a separate process the server lets go | **Lost** on purpose (`terminals/service.ts:374-390`) |
+
+**What costs the owner money and time.** Every restart re-does the interrupted turn from its last
+transcript line, spending tokens again. Long background commands (test suites, builds) are killed
+and re-run. Orchestration tasks spend an attempt. A person's chats wait for someone to notice.
+Payload updates come often, so this repeats.
+
+## 2. Vendor first: what Claude Code documents (verified on 2026-11-15, CLI 2.1.322)
+
+| Need | Documented? | Source and quote | Usable by the one rule? |
+|---|---|---|---|
+| Resume a conversation after the process is gone | Yes | `-r, --resume`, `--session-id`, `--fork-session` (`claude --help`); [sessions](https://code.claude.com/docs/en/sessions): restarting your process is a stated reason to resume | Yes (in use) |
+| Two processes on one session | Documented as **unsafe**: "both write to one transcript. When you resume that session later, messages from one of them can be missing" ([sessions](https://code.claude.com/docs/en/sessions#branch-a-session)) | — | It rules out a "start a second CLI beside the old one" design |
+| Continue a turn a restart cut | Yes: `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` "to automatically resume if the previous session ended mid-turn. Used in SDK mode so the model continues without requiring the SDK to re-send the prompt"; `CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS` bounds it: "Spawn scripts for long-running agents can set this so a restart against an old transcript doesn't re-run a stale prompt" ([env-vars](https://code.claude.com/docs/en/env-vars)) | Env vars | **Yes.** Claudio does not use it today (no match in `packages/core/src`) |
+| Re-attach to a **running** CLI after a transport gap | Yes, at the protocol level: `reinitialize()` "Re-sends the `initialize` control request to the running CLI… Use it after a transport gap, such as reattaching to a session after a disconnect, so pending permission requests reach your `canUseTool` callback again" (CLI ≥ 2.1.195). The `initialize` response carries `pending_permission_requests`: "the permission requests that this Claude Code process has issued and not yet resolved" (≥ 2.1.268). A repeated initialize over stdin returns `hooks_applied: true` ([Agent SDK TypeScript](https://code.claude.com/docs/en/agent-sdk/typescript)) | The stream-json control protocol | **Yes.** The transport (who holds stdin and stdout) is the program's, and the SDK's `spawnClaudeCodeProcess` exists "to run Claude Code in VMs, containers, or remote environments" |
+| A socket or port to re-attach to a `-p` process | **No** | — | No |
+| The CLI's own background supervisor | Documented for people: `--bg` "Start the session in the background and return immediately", `claude attach/logs/stop/respawn/agents`, `claude daemon`. "A separate supervisor process runs them, so you can close agent view, close your shell… and your dispatched work keeps going"; "Session state persists on disk through auto-updates and supervisor restarts" ([agent view](https://code.claude.com/docs/en/agent-view)) | But `--bg` "Can't be combined with `-p`/`--print`" ([CLI reference](https://code.claude.com/docs/en/cli-reference)); `claude agents --json` is "the supported way to read session state from outside"; "The files under `~/.claude/jobs/<id>/` are not a stable interface"; there is no documented way for a program to stream from or write to a background session | **Not for driving.** Watch it: if the vendor documents stream-json input for background sessions, it replaces layer 2 (D10) |
+| Inbox socket per session | Documented: `CLAUDE_CODE_MESSAGING_SOCKET`, posts messages into a session ([cross-session messaging](https://code.claude.com/docs/en/cross-session-messaging)) | Message delivery, not attach | Not a transport for the stream |
+| Signals | SIGTERM: exit 143, the turn unfinished, Bash trees terminated; "To end the turn instead, send SIGINT" ([headless](https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm)). SIGHUP, `nohup` and `setsid`: **not documented** | — | Use only SIGINT and SIGTERM, their documented meanings |
+| stdin closing | Only after a turn: "After Claude finishes its turn and stdin has closed, a `claude -p` run can stay open to wait for background work" (10-min ceiling, `CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS`). Mid-turn: **not documented** | — | Layer 2 must never let stdin close |
+| Transcript path | Path documented, format "internal to Claude Code and changes between versions" ([sessions](https://code.claude.com/docs/en/sessions#where-transcripts-are-stored)) | — | As today ([cli-surfaces.md](../cli-surfaces.md)) |
+
+**Conclusion.** No documented feature lets a program leave a `-p` session to the vendor's supervisor.
+The documented protocol does let a program keep the process alive itself and re-synchronise after a
+gap. That is layer 2, and it needs no new CLI surface: it is the one Claudio already uses, plus a
+re-sent `initialize`.
+
+## 3. Prior art and pitfalls
+
+Researched in English, Chinese, Russian, French and Spanish. The non-English searches found nothing
+beyond the English sources.
+
+| Who | How they survive a UI or daemon restart | Lesson for Claudio |
+|---|---|---|
+| **Claude Code's supervisor** ([agent view](https://code.claude.com/docs/en/agent-view)) | One supervisor owns per-session processes. On update it restarts and moves idle sessions over without interrupting working ones. If it dies, "your sessions stop unless a new supervisor connects within about a minute" | The same shape as layer 2, with a bounded hand-over window (D6) |
+| Claude Code [#79569](https://github.com/anthropics/claude-code/issues/79569) | Its daemon, run as a user unit, spawned its successor in the same cgroup. systemd's `KillMode=control-group` killed the successor and every worker when the old main pid exited | **Never keep CLIs in the server's or launcher's cgroup.** One scope per CLI (D9) |
+| Claude Code [#84468](https://github.com/anthropics/claude-code/issues/84468), [#90867](https://github.com/anthropics/claude-code/issues/90867), [#72413](https://github.com/anthropics/claude-code/issues/72413) | The daemon respawned session hosts without `--resume`, so context was lost. A desktop update relaunch killed 9 sessions. Jobs that were children of the Electron renderer died when it reloaded | The vendor hit the same failures. Layer 3 must always resume; nothing may hang from the window |
+| **Docker live-restore** ([docs](https://docs.docker.com/engine/daemon/live-restore/)) | Containers keep running while `dockerd` restarts; a shim holds them. Limits: patch upgrades only, and output goes into a 64 KB FIFO that blocks the container when nobody reads it | The closest model. Version the on-disk contract (D4); prefer a file for stdout over a FIFO, so a long gap does not block the CLI |
+| **systemd** ([systemd.kill](https://man.archlinux.org/man/systemd.kill.5.en), [fd store](https://systemd.io/FILE_DESCRIPTOR_STORE)) | `KillMode=control-group` kills the unit's whole cgroup on stop or restart. The fd store keeps fds across a *restart* job, but Node has no `sd_notify` with fds, and the CLIs would still die with the cgroup | The fd store is rejected (§5, F). `systemd-run --user --scope` per CLI escapes the server's cgroup, and the owner's user manager lingers |
+| **tmux / Claude Squad / agent-deck / Emdash** | The tmux server is detached from any client; sessions survive the UI but not a reboot. Emdash documents that resume is a separate mechanism ([emdash](https://emdash.com/docs/tmux-sessions)) | tmux holds a TTY. Driving `claude` through it is terminal scraping, which the one rule forbids. The idea of detaching is right; the TTY is not |
+| **Superset's terminal daemon** ([write-up](https://paradev.com/cs/blog/terminal-daemon-deep-dive)) | An Electron app moved its PTYs out of Electron main into a detached daemon on Electron's own Node (`ELECTRON_RUN_AS_NODE`), with NDJSON over Unix sockets and separate sockets for control and output. It never kills on disconnect, and keeps history on disk for a "cold restore" | Their lesson: "version the protocol from day one". It matches layer 1, which runs on the same runtime the desktop already uses for the server |
+| **VS Code Server, Zed remote** ([#6326](https://github.com/microsoft/vscode-remote-release/issues/6326), [zed](https://zed.dev/docs/remote-development)) | One server per client version in a versioned directory; old ones pile up. Zed requires an exact version match | Version skew is real: the UI may be newer than the daemon. Claudio's payload overlays already live in `<dataDir>/app/<version>`, so keep one while a live CLI references it |
+| **Happy** (slopus) | A Node daemon writes its pid, version and port to `daemon.state.json`; after an upgrade with a version mismatch, the fix is to stop and start it (secondary sources: [deepwiki](https://deepwiki.com/slopus/happy-cli/3.2-daemon-system)) | A state file is how the window finds the daemon (layer 1). A version mismatch must be handled automatically, never left to the person |
+| **Ollama desktop** ([FAQ](https://docs.ollama.com/faq)) | The tray app manages `ollama serve`; "Restart to update" stops it | The pattern Claudio has today, and the one the owner rejects |
+| **pm2** | `pm2 update` replaces its daemon and *restarts* the apps from a dump (**not confirmed**) | A "restore" that restarts is layer 3, not survival |
+
+**Pitfalls to design against:**
+
+- **Orphans when the holder dies.** In this study's own first runner attempt, killing the runner
+  left the stand-in CLI running, reparented to the user manager. A holder must end what it holds,
+  and only a cgroup catches everything (process-isolation §2).
+- **A pipe ties the child's life to its reader.** Node's docs: a detached child survives the parent
+  only when its stdio is not connected to the parent
+  ([Node](https://nodejs.org/api/child_process.html#optionsdetached)).
+- **A pipe read nobody reads blocks the writer at 64 KB.** This is Docker's FIFO limit.
+- **Double ownership after a restart.** Two servers writing one CLI's stdin, or two CLIs on one
+  session, which the vendor documents as losing messages.
+- **The binary replaced under a running daemon.** apt replaces files by rename, so a running
+  process keeps its old inodes. A file loaded lazily after the update, though, is the new version's.
+  - **AppImage (inferred):** its mount disappears when the AppImage process exits, so a process
+    running from the mount can fault. Nothing that outlives the window may run from the mount (S5).
+  - **Electron:** `before-quit` and `will-quit` do not always run (SIGINT goes to `app.quit`,
+    [electron#5273](https://github.com/electron/electron/issues/5273)).
+- **Version skew between the window and the daemon,** and between a running CLI's old `mcp.mjs` and
+  a newer API.
+- **Paid work with nobody watching.** If the CLIs outlive the control plane, nothing enforces
+  budgets, `maxParallel`, the spend cap or permission timeouts.
+
+## 4. Measurements
+
+All run in `/tmp/survive-spike` with a stand-in CLI: a Node script that streams five lines per input
+line, 200 ms apart, and logs its stdin, write errors, signals and exit. Every process started was
+ended by pid and none was left. The owner's app was only read. No tokens were spent.
+
+**M1. Today's shape: the server owns the pipes.** A parent spawns the stand-in with
+`stdio: 'pipe'`, as `chats.ts:2545` does, writes one turn, and is SIGKILLed 0.4 s in.
+
+```
++0 ms    start
++115 ms  stdin end            ← the reader of our stdin died with the parent
++330 ms  stdout error EPIPE   ← the next line of the turn has nowhere to go
++330 ms  got SIGPIPE → exit
+```
+
+The turn dies at its next output line. The real CLI ignores SIGPIPE, so it gets only the EPIPE; what
+it does then is **not determined**.
+
+**M2. A runner holds the pipes.** The runner is a Node process, started detached in its own session.
+It writes each stdout line to a log with a sequence number before relaying it, and serves clients on
+a Unix socket. The test:
+
+1. Server 1 started the runner, sent `turn-A` and was SIGKILLed after 1.0 s, at line 3 of 5.
+2. Lines 4 and 5 were written with nobody connected.
+3. Server 2 connected with cursor 2. It received lines 3–5 from the log, then sent `turn-B` and
+   received lines 6–10 live.
+
+Throughout, the CLI kept the same pid (2631612) and started once.
+
+- **Cost:** the runner's RSS was **51 MB** (Node 24); the stand-in's was 5 MB.
+- **A pitfall found:** the first version of the runner died when server 1's socket reset, because
+  readline re-emits the socket's error and nothing handled it. The CLI went down with the runner. A
+  runner must never die of a client.
+
+**M3. No runner: the CLI holds its own FIFO.** The stand-in is started as
+`setsid sh -c 'exec 0<>in.fifo; cli >>out.jsonl 2>>err.log; echo $? > exit.code'`. Linux allows a
+FIFO opened read-write ([fifo(7)](https://man7.org/linux/man-pages/man7/fifo.7.html)), so the CLI
+itself is always a writer of its stdin and never reads EOF. Its stdout is an append-only regular
+file, so a write never fails for lack of a reader.
+
+1. The server wrote `turn-A` to the FIFO and was SIGKILLed 0.5 s in.
+2. All five lines of `turn-A` reached `out.jsonl` with no server alive.
+3. A new writer sent `turn-B`, and its lines followed.
+
+Throughout, the CLI kept one pid, with `fd/0 → in.fifo` and `fd/1 → out.jsonl`. The `sh` waiting for
+it used **2 MB** RSS and recorded the exit code when the CLI was stopped.
+
+**M4. How much a CLI writes (upper bound only).** `/proc/<pid>/io` of the owner's two live CLIs
+shows `wchar` of 0.35 GB and 6.4 GB over about 11 h. That counts every write the process made:
+stdout, the transcript, its pipes to tools and MCP. The stdout share is **not determined**; S6
+measures it, because it sizes layer 2's disk use.
+
+## 5. Options
+
+| | What it is | (a) window closed | (b) app quit | (c) update / restart | (d) server crash | Reboot | Complexity | One rule |
+|---|---|---|---|---|---|---|---|---|
+| **A** | **Daemon:** the launcher supervises the server outside Electron; the window is a client | Survives | Survives (D1) | **Dies**: the server still owns the pipes | **Dies** | Dies | Medium: desktop lifecycle, discovery, credential | No change |
+| **B** | **Detached CLIs:** FIFO + append file + scope per CLI; the server re-attaches | Server stops, CLIs park, the lease expires → stopped (today's shell) | Same as (a) | **Survives** if a server re-attaches within the lease | **Survives** if one is restarted within the lease | Dies | High: adoption touches the chat runtime, tokens, admission, the fold | Yes: stream-json plus a re-sent `initialize` (documented) |
+| **C** | **Lossless resume:** auto-continue every cut chat with `--resume` + `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` | Dies, continues on the next start | Same | Dies, continues seconds later | Dies, continues when restarted | Continues at the next start | Low | Yes: documented env vars |
+| **D = A + B + C** | **Recommended end state** | Survives | Survives | Survives | Survives | Continues (C) | High, in phases | Yes |
+| E | Hand sessions to Claude Code's own `--bg` supervisor | — | — | — | — | — | — | **No**: `--bg` excludes `-p`, and program I/O is undocumented |
+| F | systemd fd store keeping the pipes across a restart of a server unit | — | — | Survives only with `KillMode=process`, which the man page advises against | — | — | High, plus a native module | Yes, but desktop-only and fragile |
+| G | A Node runner holding all pipes (M2) instead of B's FIFOs | as B | as B | as B | as B | — | High; 51 MB, and one process whose death takes every CLI | Yes |
+
+**What is lost in each "survives".** In A, B and D, nothing is lost: the turn, its subagents,
+background Bash and MCP servers are the CLI's own and keep running. With C, the cut turn's work is
+re-done (tokens again), background Bash and background subagents are lost, as the vendor documents,
+and permission prompts are asked again.
+
+**Why not B alone.** With today's shell, closing the window stops the server. Parked CLIs would run
+on with nobody enforcing budgets, the spend cap, `maxParallel` or permission timeouts. For paid
+automation, a CLI may outlive the control plane only for a bounded hand-over, so B needs A.
+
+**Why not A alone.** The daemon still has to restart on every payload update, and every restart
+kills what it owns. The owner's case (c) stays a catastrophe.
+
+**Why C regardless.** A reboot, a lease that expires or a hand-over that fails must not strand work.
+And C is the cheapest way to stop the bleeding now.
+
+## 6. The recommended end state (D)
+
+### Layer 1: the control plane outlives the window (A)
+
+- **The desktop takes the container's shape.** The launcher (`packages/core/src/launcher/`,
+  `node:*` only, "the part of Claudio an update cannot replace") supervises the server. Electron
+  becomes a window and a tray that connect to it.
+  - Electron starts the launcher if none answers, in a transient user unit:
+    `systemd-run --user --unit=claudio-<data-dir hash> --property=Restart=on-failure`. Without a
+    user manager, it starts it with `setsid` (D2).
+  - The data-dir lock (`data-dir-lock.ts`) already guarantees one server per data directory.
+- **Discovery and credential.** The daemon writes `<dataDir>/daemon.json` (0600): its pid and start
+  time, its URL, its version and protocol version, and a desktop credential that replaces today's
+  per-launch `CLAUDIO_DESKTOP_TOKEN`.
+  - The keyring key (`CLAUDIO_SECRET_KEY`, from Electron's `safeStorage`) can only come from
+    Electron. The window hands it to the daemon when it starts it, so a daemon is never started at
+    login without the app (D2).
+- **Closing the window** leaves the tray and the daemon running.
+- **Quitting** asks when work is live (D1): "Keep working in the background" or "Stop all work and
+  quit". The tray and a desktop notification say that work goes on.
+- **Version skew.** The window shows whatever version the daemon serves, because the page comes
+  from the daemon. Shell and daemon check their protocol version in `daemon.json`. A newer shell
+  with an older daemon asks the daemon to restart onto its payload; with layer 2 that loses nothing.
+- **The port is stable.** Running CLIs carry `CLAUDIO_API_URL` in their environment, so a server
+  that adopts processes must bind the URL they hold. Today a taken port makes the server pick
+  another (`apps/api/src/server.ts:131`, `portFallback`). With adopted processes it must refuse to
+  move instead.
+
+### Layer 2: CLI processes outlive the server (B, "parked processes")
+
+- **Start.** Every CLI process, which `spawnProcess` already starts in one place
+  (`chats.ts:2464`), starts through a wrapper:
+  `systemd-run --user --scope --unit=claudio-cli-<chat>-<n> -- sh -c 'exec 0<>in.fifo; claude … >>out.jsonl 2>>err.log; echo $? >exit.code'`.
+  The files live in `<dataDir>/procs/<id>/`, mode 0700/0600. Without a user manager (the container)
+  the wrapper runs under `setsid` (D9).
+  - The scope takes the CLI out of the server's cgroup (#79569) and is how it is stopped: the whole
+    tree, double forks included. It is also the host-scope provider of
+    [process-isolation](process-isolation.md) §5, with no limits, per that study's D1.
+- **A row per process.** A SQLite table `cli_processes`, added by a migration in `db.ts`, holds:
+  - the chat, the pid and its start time, the scope, the directory;
+  - the owner (server id and lease expiry);
+  - the stdout offset the fold has committed, and the last stdin sequence;
+  - the token hash, the payload dir it references, and the CLI version.
+
+  It holds rows, not a JSON file: two processes (the old and the new server) touch it, and a takeover
+  is a guarded update (`UPDATE … WHERE owner = ? AND lease_until < ?`) or a `BEGIN IMMEDIATE`, as
+  `flow.ts` does.
+- **Running.** The server tails `out.jsonl` (inotify, with polling as the fallback) into the same
+  `session.readLine` fold, and writes stdin through the FIFO.
+  - Every write also goes to `in.jsonl` with a sequence number, so a successor knows which control
+    responses were sent.
+  - At each `result` (a turn boundary) the server commits the offset and frees the bytes before it
+    with `fallocate --punch-hole`. The file keeps its offsets and the disk holds only the open turn
+    (S6).
+- **A restart.** `ChatManager.restore` (`chats.ts:650`) adopts each row whose pid and start time
+  still match. That replaces today's "stray" path (`chats.ts:656-697`), which refuses to resume
+  beside such a process. Adoption:
+  1. Take the lease.
+  2. Replay `out.jsonl` from the committed offset through the fold. That rebuilds the open turn's
+     volatile state: `turnOpen`, the foreground calls, the activity, the branches.
+  3. Re-send `initialize`. The answer's `pending_permission_requests` goes to the
+     `PermissionBroker`, idempotent per request id, as the vendor asks.
+  4. Count the slot in admission, and re-arm the permission timeouts.
+
+  Orchestrations and flows already skip a chat that is busy (`flow.ts:2116`), and `recover()` must
+  treat an adopted task as `running`, not `interrupted`.
+- **A graceful stop no longer stops chats.** `core.shutdown()` detaches: it ends its tails and
+  releases the leases. It stops a chat only when a person asked to "stop all work" or the chat is
+  not parkable (D1).
+- **The lease.** The wrapper's `sh` also runs a watchdog. When the lease file is older than the
+  hand-over window (D6), it sends **SIGINT**, which the vendor documents as ending the turn rather
+  than abandoning it, and the chat is then layer 3's.
+- **What has to change to keep running across a restart:**
+  - **Chat tokens** are in memory by design. Their hashes go to the row, bound to the pid and start
+    time, and are revoked when the process ends (D5).
+  - **Payload dirs** referenced by a live CLI are kept: `mcp.mjs` comes from the payload's directory
+    (`server.ts`, `bundledMcp`).
+  - `removeChatExtrasConfigs` at restore (`chats.ts:714`) must spare adopted chats.
+  - The guard's hook command is the shell's `guard.mjs` and calls no API (`guards/`). It keeps
+    working across the gap (**inferred**; checked in S3).
+
+### Layer 3: lossless resume for what still dies (C)
+
+- Every cut chat is respawned with `--resume` and
+  `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` plus `CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS`.
+  Orchestrations and flows keep their existing gates: `maxAttempts`, `MAX_FLOW_RESTARTS`, budget and
+  the spend cap. A person's chats follow D7.
+- **What it covers:** a reboot, an expired lease, a CLI whose row cannot be adopted (a different
+  data-dir layout), and the container whose pod or container restarted. In the container the
+  launcher already survives payload restarts, so layer 2 covers those.
+
+### Updates under D
+
+| Update | What restarts | Effect on work |
+|---|---|---|
+| Payload (in-app, frequent) | The server (exit 75); the launcher restarts it | None. The CLIs park for seconds and are adopted. `409 update.live-work` remains only for open terminals |
+| Shell `.deb` (apt) | The window, at the person's convenience. The launcher runs on the old inodes until it restarts onto the new one (protocol check) | None |
+| Launcher's own protocol | The launcher. The CLIs sit in their own scopes | None, within the lease |
+| Claude Code | Nothing. Running CLIs keep their version (`~/.local/share/claude/versions/<v>`); new processes start on the new one | None, as today |
+| Reboot | Everything | Layer 3 |
+
+### What does not change
+
+- **The one rule.** Stream-json over stdin and stdout, as today; `initialize` re-sent, as the
+  vendor documents for a transport gap; `--resume` and two documented environment variables.
+  [cli-surfaces.md](../cli-surfaces.md) gains two rows: "Re-attach to a running CLI after a server
+  restart" and "Continue a turn a restart cut".
+- **Paid-automation limits.** Budgets, `maxParallel`, bounces, the spend cap, the denied
+  `git push` and the person-only move to Done all live in the control plane, which layers 1 and 2
+  keep alive. The lease bounds the time any CLI runs without it.
+- **Security.** `procs/` is owner-only. An agent running as the same user could write into another
+  chat's FIFO, a new capability, close to the vendor's own inbox socket. `procs/` joins the guards'
+  protected paths, and a confined chat never sees the data dir (risk R3).
+
+## 7. Decisions for the owner
+
+**D1. What "keep running" means when the person quits.**
+
+- Options:
+  - (a) Always keep running; the tray's Quit offers "Stop all work".
+  - (b) Ask on quit when work is live, defaulting to "keep working".
+  - (c) A setting.
+- **Recommendation: (b).** Closing the window never stops anything.
+
+**D2. Who runs the daemon on the desktop.**
+
+- Options:
+  - (a) The window starts the launcher in a transient `systemd-run --user` unit, falling back to
+    `setsid`.
+  - (b) A user unit the `.deb` enables at login. It would need the keyring key without Electron, so
+    the daemon would read the Secret Service itself.
+  - (c) Plain `setsid` everywhere.
+- **Recommendation: (a).** Nothing to install, and `Restart=on-failure` for free.
+
+**D3. Logout.** The owner's user manager lingers, so a daemon in a user unit outlives logout.
+
+- Options:
+  - (a) Work continues after logout.
+  - (b) Stop it at the end of the graphical session (layer 3 resumes at the next login).
+- **Recommendation: (a)**, since linger is already on and that is the owner's own setting. Reboot
+  always ends it.
+
+**D4. How a CLI is held.**
+
+- Options:
+  - (a) No runner: FIFO + append file + an `sh` wrapper, 2 MB per CLI (M3).
+  - (b) One Node runner per data dir, 51 MB, but its death takes every CLI (M2, G).
+  - (c) A Node runner per CLI, 51 MB each.
+- **Recommendation: (a).** The on-disk layout is the versioned contract, with a `version` file in
+  each `procs/<id>/`.
+
+**D5. Chat tokens across a restart.** They are in memory today on purpose.
+
+- Options:
+  - (a) Store the hashes in the process row, bound to its pid and start time, revoked when it ends.
+  - (b) An adopted process loses its API: Claudio's MCP tools and the orchestration tools fail
+    after every update.
+- **Recommendation: (a).** [security-model.md](../security-model.md) is updated with it.
+
+**D6. The hand-over window**: how long a parked CLI runs with no server.
+
+- Options:
+  - (a) 5 minutes, then SIGINT (the vendor's own is "about a minute").
+  - (b) Until its turn ends.
+  - (c) Unlimited.
+- **Recommendation: (a)**, with `CLAUDIO_HANDOVER_SECONDS` to change it. Unlimited means paid work
+  that nobody limits.
+
+**D7. Person chats cut by something layer 2 could not save.**
+
+- Options:
+  - (a) Continue them automatically with `CLAUDE_CODE_RESUME_INTERRUPTED_TURN`, bounded to 1 h of
+    age.
+  - (b) Keep today's `interrupted`, with a one-click "Continue".
+- **Recommendation: (a)** for turns cut less than an hour ago, and (b) beyond that. Orchestrations
+  and flows keep their existing restart gates.
+
+**D8. Terminals.**
+
+- Options:
+  - (a) They keep dying with the server, as today.
+  - (b) The terminal host gets the same layer-1 lifetime later.
+- **Recommendation: (a) now**, and (b) as its own study. The host already is a separate process.
+
+**D9. A scope per CLI.**
+
+- Options:
+  - (a) `systemd-run --user --scope` per CLI whenever a user manager exists, and `setsid` otherwise.
+  - (b) `setsid` only.
+- **Recommendation: (a).** It is what keeps CLIs out of a restarted unit's cgroup (#79569), and it
+  is phase 1 of the isolation study at no extra cost.
+
+**D10. Re-check the vendor's supervisor.** If Claude Code documents stream-json I/O for `--bg`
+sessions, layer 2 should move onto it.
+
+- **Recommendation:** add a check to the CLI version watch (`cliVersionWatch`) notes and re-read
+  [agent view](https://code.claude.com/docs/en/agent-view) at each minor version.
+
+## 8. Spikes
+
+The free ones come first. Each is a short task with a pass criterion. All run against a sandbox data
+dir and the e2e fake CLI (`e2e/fake-cli/claude.mjs`) or a scratch `CLAUDE_CONFIG_DIR`.
+
+- **S1. Adoption with the fake CLI (free).**
+  - Question: can a Claudio server in a sandbox data dir, killed with SIGKILL mid-turn, be
+    restarted and adopt the parked process with no gap and no duplicate?
+  - Pass: the turn's events arrive once, the chat ends `completed` on the same pid, and the spend
+    rows are not double counted.
+- **S2. A real CLI behind a FIFO (free, no turn).**
+  - Question: does `claude -p --input-format stream-json` accept a FIFO as stdin and a regular file
+    as stdout, and answer `initialize` twice from two successive writers, with
+    `pending_permission_requests: []`?
+  - Run it with a scratch `CLAUDE_CONFIG_DIR` and no credential: `initialize` is a control request,
+    with no prompt, no turn and no tokens, which Claudio already relies on for the model list.
+- **S3. A pending prompt across the gap (one trivial turn; only with the owner's OK).**
+  - Question: with a permission request pending, does SIGKILLing the server, then adopting and
+    re-sending `initialize`, deliver the same request again and accept the answer? Do guard hooks
+    keep working during the gap?
+  - Cost: one `claude -p` turn on Haiku with `--max-budget-usd 0.05`. It needs a signed-in account,
+    which is why it waits for the owner's approval.
+- **S4. Scopes and restarts (free).**
+  - Question: are fake CLIs in `systemd-run --user --scope` units untouched when the launcher's
+    transient unit is stopped and restarted? Does `systemctl --user stop` on one scope leave zero
+    processes, double forks included?
+- **S5. AppImage (free).**
+  - Question: does a process started from the AppImage mount, then left running after the
+    AppImage's main process exits, fault?
+  - Pass decides whether the AppImage launcher copies itself to `<dataDir>/app/` before it detaches.
+- **S6. Stdout volume and punching holes (free).**
+  - Count the bytes the server reads from each CLI's stdout for a day (a counter; nothing stored).
+  - Check that `fallocate --punch-hole` on an `O_APPEND` file the CLI is writing keeps the CLI's
+    writes and offsets intact.
+
+## 9. Tasks
+
+Each task owns its files; a task that needs another's file depends on it. Models: **Opus** for the
+tasks that carry design, **Sonnet** for patches with a clear test. Layer 3 comes first (it stops the
+bleeding), then the spikes, then layer 2, then layer 1.
+
+| Id | What it does | Depends on | Files it owns | Model |
+|---|---|---|---|---|
+| `t1` | **Stop the bleeding (layer 3).** Respawn cut chats with `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1` and a max age (D7); a person's chat cut less than 1 h ago continues by itself, older ones show "Continue"; workflow orchestrations cut by a restart resume instead of stopping; a row in `cli-surfaces.md` | D7 | `packages/core/src/chats.ts` (restore → respawn), `packages/core/src/live-chat.ts`, `packages/core/src/providers/claude-code/args.ts` (env), `packages/core/src/orchestrator.ts` (`interrupt`, `recover`), `packages/core/test/restart-resume.test.ts` (new), `docs/cli-surfaces.md` | Opus |
+| `t2` | Spikes S1, S2, S4, S5, S6 (free); S3 only with the owner's OK; written up as `docs/decisions/parked-cli-processes.md` | — | `docs/decisions/parked-cli-processes.md` (new), scratch scripts outside the repo | Sonnet |
+| `t3` | **Parked processes (layer 2, start and run).**<br>- the `cli_processes` migration and its store;<br>- the wrapper (FIFO, append file, exit code, lease watchdog, scope per D9);<br>- the tail reader and FIFO writer behind the driver's `SessionIO`;<br>- `in.jsonl` and the committed offset;<br>- hole punching at turn boundaries | `t2`, D4, D6, D9 | `packages/core/src/db.ts`, `packages/core/src/parked/*.ts` (new), `packages/core/src/chats.ts` (`spawnProcess` only), `packages/core/src/processes.ts`, `packages/core/test/parked.test.ts` (new) | Opus |
+| `t4` | **Adoption (layer 2, restart).**<br>- `restore` adopts live rows: lease, replay from the offset, re-sent `initialize`, pending prompts to the broker, admission slots;<br>- `shutdown` detaches instead of `stopAll` unless asked;<br>- `orchestrator.recover`, `flow.recover` and the rotation see adopted chats as running;<br>- the stray path goes away | `t3` | `packages/core/src/chats.ts` (restore, stopAll, strays), `packages/core/src/index.ts` (`shutdownOnce`), `packages/core/src/orchestrator.ts`, `packages/core/src/flow.ts`, `packages/core/src/permissions.ts`, `packages/core/src/admission-queue.ts`, `packages/core/test/adopt.test.ts` (new) | Opus |
+| `t5` | What a running CLI holds from its server:<br>- chat token hashes in the row (D5);<br>- a stable port while adopted processes exist;<br>- payload dirs kept while referenced;<br>- `removeChatExtrasConfigs` sparing adopted chats;<br>- `security-model.md` | `t3`, D5 | `packages/core/src/security/chat-tokens.ts`, `apps/api/src/server.ts`, `packages/core/src/launcher/protocol.ts` (overlay retention), `packages/core/src/chat-tools.ts`, `docs/security-model.md`, tests | Sonnet |
+| `t6` | **The daemon (layer 1).**<br>- the launcher as the desktop's supervisor in a transient user unit (D2), `daemon.json`, the desktop credential and the key handed at start;<br>- Electron as a client: close keeps working, the quit question (D1), the tray says work goes on;<br>- the shell relaunch no longer restarts the daemon unless its protocol changed;<br>- the crash path restarts the server instead of showing an error | `t4`, `t5`, D1, D2, D3 | `apps/desktop/src/main.ts`, `server-process.ts`, `payload.ts`, `tray.ts`, `packages/core/src/launcher/*`, `apps/desktop/test/*` | Opus |
+| `t7` | Updates: payload restarts no longer refuse over live chats (`update.live-work` only for terminals, D8); docs | `t4`, `t6` | `packages/core/src/updates/*`, `apps/web/src/pages/config/UpdatesCard.tsx`, `apps/web/src/lib/updates.ts` (copy, through `claudio-ui`), i18n, `docs/updates.md` | Sonnet |
+| `t8` | The browser e2e: a spec that restarts the server mid-turn with the fake CLI, then checks that the chat finishes on the same process and that a graph task is not re-run | `t4` | `e2e/specs/survive-restart.spec.mjs` (new), `e2e/fake-cli/claude.mjs` (if it needs a slow turn) | Sonnet |
+| `t9` | Docs: `desktop.md` (window, quit, tray), `deploy.md` (signals table: SIGTERM detaches), `orchestrations.md`, `providers.md`; this plan's Outcome | `t6`, `t7` | the docs named | Sonnet |
+
+`t1` is independent and can start at once. `t3`–`t5` make updates and crashes lossless on every
+distribution, the container included. `t6` adds case (a) and (b) on the desktop.
+
+## 10. Risks
+
+- **R1. The fold replay.** Rebuilding a turn's volatile state from its stdout tail assumes the fold
+  is deterministic and idempotent for the lines after the committed offset. Spend and journal writes
+  must key on something the replay repeats (S1).
+- **R2. An undocumented reaction.** What the CLI does on EPIPE or on a stdin that stays open forever
+  is undocumented. Layer 2 avoids both conditions, but a CLI change could still surface either.
+- **R3. A new capability for same-user agents.** They could write into another chat's FIFO (§6,
+  Security).
+- **R4. Two writers.** A bug that lets two servers write one FIFO would interleave messages over
+  4 KB (`PIPE_BUF`). The lease is the guard; S1 tests a takeover race.
+- **R5. Daemon life on other desktops.** A desktop without a systemd user manager loses
+  `Restart=on-failure` and the scopes, and falls back to `setsid`, with orphans possible after a hard
+  kill. The layer-2 rows let the next start reap them (as `terminals/service.ts:397` does for
+  shells).
+
+## 11. What was verified, inferred and not determined
+
+- **Verified:**
+  - the process tree, the socket-pair stdio, the CLI's ignored SIGPIPE and the linger setting
+    (read-only on the owner's machine);
+  - every code path in §1;
+  - the vendor quotes in §2 (fetched 2026-11-15, CLI 2.1.322);
+  - M1–M3.
+- **Inferred:**
+  - the AppImage fault (S5);
+  - that guard hooks keep working through a hand-over (S3);
+  - pm2's restore behaviour;
+  - Happy's daemon details (secondary sources).
+- **Not determined:**
+  - what the real CLI does on EPIPE;
+  - the stdout share of a CLI's writes (S6);
+  - whether the vendor will open `--bg` to programs.
+
+## Related
+
+[[plans/process-isolation.md]] · [[plans/limit-resume-and-credits.md]] · [[plans/unified-updates.md]] · [[plans/remote-updates.md]] · [[plans/headless-image.md]] · [[plans/claudio-servers.md]] · [[updates.md]] · [[desktop.md]] · [[deploy.md]] · [[resource-control.md]] · [[providers.md]] · [[cli-surfaces.md]] · [[orchestrations.md]] · [[accounts.md]] · [[security-model.md]] · [[terminal.md]] · [[servers.md]]
