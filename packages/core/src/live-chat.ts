@@ -572,9 +572,21 @@ export class LiveChat {
   /**
    * The lead agent is on a turn: from the message that starts one (or a line of its own, after a
    * task notification) until its result. Unlike `status`, a background agent's lines never set it,
-   * so it is what says whether an interrupt has a result coming to clear its mark.
+   * so it is what says whether an interrupt has a result coming to clear its mark. Mirrored on the
+   * live execution (`Execution.turnOpen`), which is how a restart tells a turn it cut from a process
+   * that sat idle; whoever opens a turn writes the chat down (`ChatManager.persist`).
    */
-  turnOpen = false;
+  get turnOpen(): boolean {
+    return this.openTurn;
+  }
+
+  set turnOpen(open: boolean) {
+    this.openTurn = open;
+    const execution = this.execution;
+    if (execution && (execution.turnOpen ?? false) !== open) execution.turnOpen = open;
+  }
+
+  private openTurn = false;
   /**
    * The lead's calls the running turn waits on and has no result for, newest last: a foreground
    * agent or command, which a message written now is not read before (`ChatPendingMessage.blockedBy`)
@@ -588,6 +600,12 @@ export class LiveChat {
   readonly notRead = new Set<string>();
   /** Runs once the CLI has had its moment to start on what was queued at a result; see `chat-fold.ts` */
   settleTimer: NodeJS.Timeout | null = null;
+  /**
+   * Set while a process started to continue a cut turn (`ChatManager.continueCut`) has shown nothing
+   * of that turn yet: the agent may decline (the cut is too old, or it was not mid-turn after all) and
+   * start idle, which only the lack of a turn shows. Cleared by the turn's first sign (`chat-fold.ts`).
+   */
+  continueTimer: NodeJS.Timeout | null = null;
   /** What the live process is doing right now, folded from the stream as it arrives */
   readonly activity: ChatActivityTracker;
   /** The last activity announced on the feed, so a line that changes nothing costs no summary */
@@ -932,6 +950,8 @@ export class LiveChat {
       costUsd: null,
       tokens: emptyTokenUsage(),
       turns: 0,
+      // What a restart reads to tell a person's cut turn from an owner's (docs/plans/survive-restarts.md, D7)
+      ...(this.opts.purpose ? { purpose: this.opts.purpose } : {}),
     };
     this.executions.push(execution);
     return execution;

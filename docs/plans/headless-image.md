@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-28T21:00:00Z
-updated_at: 2026-11-08T12:00:00Z
+updated_at: 2026-11-15T18:00:00Z
 tags:
     - plan
     - docker
@@ -778,6 +778,7 @@ records what started in `core.started`; `packages/core/test/profile.test.ts` che
 | `serverUpdates`, `releaseWatch` (server) | dropped | D6 |
 | `cliVersionWatch` (server) | dropped | The image pins the CLI, and no install route is served |
 | `orchestrationRecovery`, `evals`, `flow`, `assistant` | dropped | None of them is served |
+| `restartResume` | dropped | Continues a person's cut turn; headless runs only API chats, which are never replayed ([survive-restarts.md](survive-restarts.md)) |
 | `tunnel` (server) | dropped | `CLAUDIO_TUNNEL=off`; the host's proxy serves the port |
 
 Constructed in both profiles but not started on their own: the stores, the push service (an

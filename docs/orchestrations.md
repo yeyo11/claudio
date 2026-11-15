@@ -336,6 +336,14 @@ holds or rotates at a usage limit, and is never left running unwatched.
 
 What the orchestrator does when something it asked for is refused or interrupted (the audit's §9):
 
+- **A restart of the server does not stop a graph.** A graph's interrupted tasks go on in their own
+  chats once the chats are restored, each continuation spending an attempt as before. A **workflow**
+  the restart cut is resumed from its cache in its own session, as a person's Resume would, without
+  spending any task's attempt ([plans/survive-restarts.md](plans/survive-restarts.md), t1). Each
+  resume is claimed in the `restart_continuations` table, keyed by the lead's cut execution, so two
+  processes never resume it twice; one cut `MAX_WORKFLOW_RESTARTS` (3) times, or one whose run left no
+  cache to resume from, stays stopped with the reason for a person to resume.
+
 - **A refused workflow resume does not end the server.** The resume runs detached, and a refusal
   there used to be an unhandled rejection that ended the API process. A place that frees up by itself
   (a transient refusal, [resource-control.md](resource-control.md)) is waited for and the launch tried

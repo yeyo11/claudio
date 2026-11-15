@@ -71,7 +71,20 @@ export const NOT_READ = 'the agent went on without reading it';
  * commands, the executions and the feed. Whatever the agent's protocol looked like, this is all
  * `ChatManager` knows of it.
  */
+/**
+ * What the agent sends only while a turn runs: the first of these, after a process was started to
+ * continue a cut turn, says it did. The start's own lines (`init`), notices and stderr say nothing.
+ */
+const TURN_SIGNS: ReadonlySet<DriverEvent['kind']> = new Set([
+  'message', 'delta', 'block-started', 'block-stopped', 'structured-delta', 'stop-reason', 'command-started', 'command-ended',
+  'heartbeat', 'task', 'permission-request', 'delivered', 'compacting', 'compacted', 'rate-limit', 'failed', 'result',
+]);
+
 export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): void {
+  if (chat.continueTimer && TURN_SIGNS.has(event.kind)) {
+    clearTimeout(chat.continueTimer);
+    chat.continueTimer = null;
+  }
   switch (event.kind) {
     case 'init': {
       // The session exists now: a respawn resumes it, and a fork is no longer waiting to be made
@@ -225,8 +238,11 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         chat.setStatus('busy');
       }
       if (event.mainAgent) {
-        // The lead is on a turn, whether a message started it or a task notification did
+        // The lead is on a turn, whether a message started it or a task notification did; one it
+        // opened on its own is written down as one a message opens is
+        const opened = !chat.turnOpen;
         chat.turnOpen = true;
+        if (opened) host.persist(chat);
         if (event.stopReason !== undefined) chat.stopReason = event.stopReason;
         const text = entryText(entry);
         if (text) chat.lastText = text.slice(0, 2000);

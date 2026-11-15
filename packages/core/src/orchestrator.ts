@@ -183,6 +183,12 @@ const WORKER_CLOSING = 'Finish with a concise report of what you did and found; 
  */
 const DECISION_CLOSING = 'If you took a step, finish with a concise report of what you did and found; it is handed to the next workers. If nothing was owed, your earlier report stands.';
 const DEFAULT_ATTEMPTS = 2;
+/**
+ * How many times a restart may resume one workflow by itself (docs/plans/survive-restarts.md, t1):
+ * after that it stays stopped for a person to resume, since whatever keeps taking the server down
+ * with it would keep spending.
+ */
+export const MAX_WORKFLOW_RESTARTS = 3;
 /** The words a decision's state counts attempts in: Jev is weak at numbers, so code keeps the arithmetic */
 const ORDINALS = ['first', 'second', 'third', 'fourth', 'fifth'];
 /** What a decision's state carries of an error or a check's output: the end of it, where it says what failed */
@@ -632,6 +638,8 @@ export class Orchestrator {
   private readonly recordEnded = new Set<string>();
   /** Workflow graphs between a launch into their session and the turn that takes it: no watcher yet, and none missing */
   private readonly workflowLaunching = new Set<string>();
+  /** Workflows the restart this start came back from cut: `recover()` resumes them from their cache */
+  private readonly cutWorkflows = new Set<string>();
   /** Where status changes, task changes and merge conflicts are announced; set by Core */
   bus: EventBus | null = null;
   private readonly tracker = new OrchestrationEventTracker();
@@ -805,9 +813,9 @@ export class Orchestrator {
    * Workers do not survive a wrapper restart, but a restart is not a decision to stop: what was
    * running is `interrupted`, at the moment its chat was last heard from and not when the wrapper
    * came back, and `stopped` stays for what a person stopped. A graph with work left stays running,
-   * and `recover()` continues it once the chats are back; one that had already finished its tasks
-   * (it was integrating or synthesising) and a workflow, which is one session the CLI replays from
-   * its cache, wait for `resume()`.
+   * and `recover()` continues it once the chats are back; so does a workflow, which is one session
+   * the CLI replays from its cache (docs/plans/survive-restarts.md, t1). One that had already
+   * finished its tasks (it was integrating or synthesising) waits for `resume()`.
    */
   private interrupt(orch: Orchestration): void {
     // A workflow whose lead waits for a limit to reset was not cut off: the wait outlives the restart,
@@ -822,6 +830,8 @@ export class Orchestrator {
     }
     const goesOn = orch.engine === 'graph' && !orch.endedAt && orch.tasks.some((t) => t.status === 'pending' || t.status === 'interrupted');
     if (goesOn) return;
+    // Stopped as before, so a workflow `recover()` cannot resume reads as cut; the resume, when it comes, runs it again
+    if (orch.engine === 'workflow' && !orch.endedAt) this.cutWorkflows.add(orch.id);
     orch.status = 'stopped';
     orch.endedAt ??= lastHeard || (orch.workflow?.runId ? this.db.chatUpdatedAt(orch.workflow.runId) : null) || now();
   }
@@ -845,6 +855,36 @@ export class Orchestrator {
         t.endedAt = null;
       }
       this.schedule(orch);
+    }
+    for (const id of this.cutWorkflows) {
+      const orch = this.items.get(id);
+      if (orch?.status === 'stopped') this.resumeCutWorkflow(orch);
+    }
+    this.cutWorkflows.clear();
+  }
+
+  /**
+   * Resumes a workflow the restart cut, from its cache, as a person's Resume would: the agents that
+   * finished are replayed from the CLI's cache rather than run again, and no task spends an attempt.
+   * Only one whose lead's process the restart cut and whose run left a cache to resume from; each
+   * resume is claimed, keyed by the lead's cut execution, so two processes (or two passes) never
+   * resume it twice, and a workflow a restart cut `MAX_WORKFLOW_RESTARTS` times waits for a person.
+   */
+  private resumeCutWorkflow(orch: Orchestration): void {
+    const lead = orch.workflow?.runId ? this.runs.get(orch.workflow.runId) : null;
+    const cut = lead?.executions[lead.executions.length - 1];
+    if (!lead || cut?.outcome !== 'interrupted' || !orch.workflow?.workflowRunId) return;
+    if (this.db.restartContinuations(orch.id, orch.createdAt) >= MAX_WORKFLOW_RESTARTS) {
+      orch.error = `Claudio restarted ${String(MAX_WORKFLOW_RESTARTS + 1)} times while this workflow ran; resume it to go on from its cache`;
+      this.persist();
+      return;
+    }
+    if (!this.db.claimRestartContinuation(`workflow:${cut.id}`, orch.id, now())) return;
+    try {
+      this.resume(orch.id);
+    } catch (err) {
+      orch.error = `a restart cut it, and it could not go on by itself: ${errorMessage(err)}`;
+      this.persist();
     }
   }
 
