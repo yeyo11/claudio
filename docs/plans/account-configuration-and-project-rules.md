@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T19:00:00Z
+updated_at: 2026-11-15T21:00:00Z
 tags:
     - plan
     - study
@@ -13,7 +13,7 @@ tags:
 # Plan: account configuration (shared or independent) and project rules
 
 Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
-`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
+`feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T3 is built** on `feat/mcp-overlay` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
 (2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
@@ -845,6 +845,46 @@ was set before the rule existed, and the refusal here never sees it.
 `reason` carry the words; rotation events have reason `rule` and `data.once`; "reserved for project
 X while it has work" needs the reserves served (`ChatManager.activity.reserves`), which no route
 does yet.
+
+**T3** (`feat/mcp-overlay`, 2026-11-15): the spawn-time overlay of a shared account. Described in
+[accounts.md](../accounts.md#an-account) and [cli-surfaces.md](../cli-surfaces.md#the-state-file-keys-the-overlay-reads).
+- `packages/accounts/src/overlay.ts`: `readStateConfig` (the state file's configuration keys, a
+  `ShapeError` on a changed shape), `projectKeyOf` (the main checkout, a worktree's included, S3d),
+  `readProjectServers` (the `.mcp.json` files from the working folder up to the checkout),
+  `buildOverlay` (user, then trusted project, then local servers, less `disabledMcpServers` and
+  `disabledMcpjsonServers`; the `.mcp.json` approval keys as settings) and `McpOverlay`, cached per
+  working folder on the mtime and size of the state file and of the `.mcp.json` files.
+- `AccountRef.sharedConfig`, set by `AccountStore.ref` for a non-default account in `shared` mode
+  with no switch under way (the same predicate as the before-spawn reconcile).
+- `packages/core/src/account-overlay.ts` (`AccountOverlay`), hooked into `ClaudeCodeDriver.launch`
+  as `accountOverlay` (set by `ChatManager` beside `modelSource`, one line in `chats.ts`'s
+  constructor). It joins the overlay's servers with the chat's non-strict `--mcp-config` file (Claudio's
+  own server and callers' additions win a name) and the overlay's settings under the guard's into one
+  file; `SessionLaunch.settingsFile` makes `buildArgs` pass one `--settings`. Files are
+  `<data>/mcp/overlay-<chat id>-<hash>(.settings).json`, 0600, cleaned with the extras files
+  (`removeChatExtrasConfigs`). `CLAUDIO_ACCOUNT_OVERLAY=off` is the off switch.
+- Proved on CLI 2.1.322 in a scratch, signed-out dir with `mcp_status` (no turn): with no flag a
+  project's two stdio servers connect; `--settings` with `disabledMcpjsonServers` drops the one named
+  (B5 for project servers); with the overlay's `--mcp-config` a user server is added and connected
+  (B4), the project server re-declared by the flag connects from the flag's definition with no
+  duplicate (S4), the disabled one stays off, and nothing is strict. B3 rests on S3e (a flag-given
+  server's `headersHelper` runs without trust), which was not re-run.
+
+**Differs from the plan.**
+- `hasClaudeMdExternalIncludesApproved` is not carried: it is a state-file key only (no setting reads
+  it, S7), so the overlay logs once per project that relies on it. The per-project `allowedTools` of
+  the state file is not carried either; the plan did not ask for it.
+- A chat that chose its servers gets no overlay: its strict file already holds definitions read from
+  the default's files, and adding the overlay would break the choice. §6.4's "merged into the chosen
+  set" is that.
+- D5's "switch that is on for shared accounts" is a server-wide `CLAUDIO_ACCOUNT_OVERLAY=off` for
+  now; a per-account switch waits for T9/T10's screens.
+- A server the account has of its own under a name the overlay also carries is shadowed by the
+  default's (the flag wins, S4): a shared account runs the default's configuration.
+
+**Stays open.** S6 (OAuth MCP servers across accounts: the token is kept per config dir, so an
+OAuth server passed by the overlay may need its own sign-in on each account). A canary check for S3e
+(flag-given servers skip trust), which B3's fix depends on and the canary does not test today.
 
 ## The owner's decisions (2026-11-13)
 
