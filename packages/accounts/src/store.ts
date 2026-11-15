@@ -365,7 +365,8 @@ export class AccountStore {
     if (id === DEFAULT_ID) return { id, kind: 'login', dir: this.defaultDir };
     const a = this.entry(id);
     this.reconcile(id);
-    return { id, kind: a.kind, dir: this.dirOf(id) };
+    const shared = (a.config?.mode ?? 'shared') === 'shared' && !a.config?.switching;
+    return { id, kind: a.kind, dir: this.dirOf(id), ...(shared ? { sharedConfig: true as const } : {}) };
   }
 
   /**

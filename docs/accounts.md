@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T17:00:00Z
+updated_at: 2026-11-15T21:00:00Z
 tags:
     - accounts
     - rotation
@@ -105,6 +105,44 @@ account, are in [reports/accounts-a0.md](reports/accounts-a0.md).
     sum-up `state` (`ok`, `repair`, `conflict`), a switch cut short, and the dirs kept aside. Every
     write is refused to a chat's token; reads are not.
   - Removing an account deletes its dir, the copies kept aside in it included.
+- **The MCP overlay of a shared account** (plan §6.4, D5; `packages/accounts/src/overlay.ts`,
+  `packages/core/src/account-overlay.ts`). What the default's state file holds as configuration
+  cannot be linked (the file also holds the account's identity), so a process of a `shared`,
+  non-default account is handed it at spawn through documented flags:
+  - **`--mcp-config`, never `--strict-mcp-config`**: the default's user-scope servers, the project's
+    local servers, and, only when the default's state file trusts the project, the project's
+    `.mcp.json` servers (the files from the working folder up to the checkout, the nearer winning),
+    less those the person turned off for the project (`disabledMcpServers`, `disabledMcpjsonServers`).
+    A repeated name ranks local over project over user, as the CLI does. A server given by the flag
+    connects without the account's trust (spike S3e), so a project server's `headersHelper` runs on
+    the shared account as on the default (B3); the flag's definition replaces a same-named one with
+    no duplicate (S4), so a server the account has of its own under the same name is shadowed: a
+    shared account runs the default's configuration. Strict mode would drop the account's claude.ai
+    connectors and the project's `.mcp.json` (S4), so it is never used.
+  - **The one `--settings` file**: `enabledMcpjsonServers`, `disabledMcpjsonServers` (with the
+    project servers turned off by `disabledMcpServers`) and `enableAllProjectMcpServers` from the
+    project's entry, so a project server the person turned off stays off when the account's CLI reads
+    `.mcp.json` itself (B5). A guarded process gets one file holding the guard's settings with these
+    keys under them: two `--settings` flags do not merge, the last wins (S3f). If the guard's file
+    cannot be read, the guard's file is passed alone.
+  - **When**: every process of a shared account that loads the servers the CLI finds on its own (a
+    chat that chose no servers, Claudio's own server and callers' additions joined into the same file,
+    theirs winning a name). Not for the default account, an independent one, an account mid-switch, a
+    chat that chose its servers (strict, and its definitions come from the default's files already),
+    or a confined chat. `CLAUDIO_ACCOUNT_OVERLAY=off` turns it off for the server.
+  - **Cached** on the state file's mtime and size, and on those of the project's `.mcp.json` files, per
+    working folder: a spawn with nothing changed reads no file. The state file is only read.
+  - **Not carried**: project trust itself (no documented way; issue #79707) and
+    `hasClaudeMdExternalIncludesApproved` (S7: per project in the state file, no setting or flag), so
+    an external `@import` in a project's `CLAUDE.md` is still skipped on a shared account; the log
+    says so once per project.
+  - **Undocumented keys.** The overlay depends on key names of the state file (listed in
+    [cli-surfaces.md](cli-surfaces.md#the-state-file-keys-the-overlay-reads)). A shape it does not know gives
+    no overlay and one log line, and `packages/accounts/test/overlay.test.ts` pins the shapes.
+  - **Files**: `<data>/mcp/overlay-<chat id>-<hash>.json` and `….settings.json`, mode 0600 (server
+    definitions carry headers and tokens), replaced at the chat's next spawn and removed with the chat
+    and, at start-up, for every chat with no live process. No route serves them and nothing logs their
+    content.
 - **Writes keep the links.** Claudio's own writers (`writeAtomic` in `packages/accounts` and in
   `packages/core/src/config`) write the file a link ends at, so saving `settings.json`, `CLAUDE.md` or
   an agent file from Settings does not replace the link with a plain copy.
@@ -627,6 +665,8 @@ retried, and one that could not run (no binary, a timeout, a server that never s
     credits".
 
 ## Tests
+
+The MCP overlay is guarded by `packages/accounts/test/overlay.test.ts` (the state-file shapes read and refused, trust, disabled servers, worktree keys, the cache on the stamp) and `packages/core/test/args-overlay.test.ts` (one `--settings`, no strict mode, 0600 files, the merge with Claudio's own servers and the guard's settings, cleanup, and a chat on a shared account against one on the default through the fake CLI).
 
 The canary is guarded by `packages/accounts/test/canary.test.ts` (a fake CLI that breaks each check in turn, the environment it is given, and the installed CLI when there is one), `packages/core/test/cli-canary.test.ts` and the accounts route tests.
 

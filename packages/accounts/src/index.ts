@@ -12,3 +12,4 @@ export { cliConfigFile, fold, readCache, readingFromEvent, Readings, type EventR
 export { apiKeyOf, checkApiKey, checkCredential, parseUsage, usageOf, type CredentialCheck, type KeyCheckOptions } from './cli-usage.ts';
 export { controlRequest, type ControlOptions } from './control.ts';
 export { runCanary, type CanaryOptions } from './canary.ts';
+export { buildOverlay, isEmptyOverlay, McpOverlay, projectKeyOf, readProjectServers, readStateConfig, ShapeError, type McpOverlayOptions, type Overlay, type OverlaySettings, type ProjectState, type ServerMap, type StateConfig } from './overlay.ts';
