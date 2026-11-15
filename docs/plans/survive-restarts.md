@@ -569,6 +569,18 @@ distribution, the container included. `t6` adds case (a) and (b) on the desktop.
   - the stdout share of a CLI's writes (S6);
   - whether the vendor will open `--bg` to programs.
 
+## The owner's decisions (2026-11-15)
+
+Taken in the chat that commissioned the study:
+
+- **Approach:** D, all three layers, built in the order of section 9 (C first, then the parked
+  processes B, then the desktop daemon A), each task its own pull request.
+- **D1:** quitting with live work asks, and keeps working by default.
+- **D5:** chat tokens survive a restart as hashes in the process row, bound to the pid, never in clear.
+- **S3:** authorised, one Haiku turn capped at 0.05 USD, in a scratch directory.
+- **D2, D3, D4, D6, D7, D8, D9, D10:** the recommended option of section 7 (not discussed one by one;
+  the owner accepted the plan as recommended).
+
 ## Related
 
 [[plans/process-isolation.md]] · [[plans/limit-resume-and-credits.md]] · [[plans/unified-updates.md]] · [[plans/remote-updates.md]] · [[plans/headless-image.md]] · [[plans/claudio-servers.md]] · [[updates.md]] · [[desktop.md]] · [[deploy.md]] · [[resource-control.md]] · [[providers.md]] · [[cli-surfaces.md]] · [[orchestrations.md]] · [[accounts.md]] · [[security-model.md]] · [[terminal.md]] · [[servers.md]]
