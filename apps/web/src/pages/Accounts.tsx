@@ -13,6 +13,7 @@ import { PageHeader } from '../components/PageHeader';
 import { formatDateTime, timeAgo, toMs } from '@claudio/ui/lib/format';
 import { accountName, accountUsable, sortAccounts, usageStale, useAccountView } from '../lib/accounts';
 import { AccountCard } from './accounts/AccountCard';
+import { CliCanaryLine } from './accounts/CliCanaryLine';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
 import { SignInAgainDialog } from './accounts/SignInAgainDialog';
 import { ModelFallbacksCard } from './accounts/ModelFallbacksCard';
@@ -235,6 +236,9 @@ export function Accounts() {
           ))}
         </ul>
       )}
+
+      {/* Only shared accounts stand on what it checks, and with none there is nothing to say */}
+      {accounts.length > 0 && <CliCanaryLine />}
 
       {settings.data && <RotationCard settings={settings.data} accounts={data} />}
 
