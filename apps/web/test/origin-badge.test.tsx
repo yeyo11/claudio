@@ -71,10 +71,16 @@ test('every origin badge is a Tab stop, so a keyboard opens its tooltip', async 
 
 test('the origin badge keeps its visible word: the label passed in, or the origin name', async () => {
   await i18n.changeLanguage('en');
-  assert.match(render('orchestration', 'Release · Build'), /<\/svg> Release · Build<\/span>/);
-  assert.match(render('api'), /<\/svg> API<\/span>/);
+  assert.match(render('orchestration', 'Release · Build'), /<\/svg> <span class="badge-text">Release · Build<\/span><\/span>/);
+  assert.match(render('api'), /<\/svg> <span class="badge-text">API<\/span><\/span>/);
   const { hint } = described(render('api'));
   assert.equal(hint, 'Started by a client of the OpenAI-compatible API');
+});
+
+test('a long label is the shrinking part of the badge, so it ends in an ellipsis instead of widening its column', async () => {
+  await i18n.changeLanguage('en');
+  // `.badge-text` is what feedback.css clips (min-width 0, overflow hidden, an ellipsis): the label must be in it, and the icon outside it
+  assert.match(render('orchestration', 'A long orchestration name · A long task name'), /<svg[^>]*>.*<\/svg> <span class="badge-text">A long orchestration name · A long task name<\/span>/);
 });
 
 test('two origin badges on one screen point at their own hints', async () => {

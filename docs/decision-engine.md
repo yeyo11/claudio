@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T18:00:00Z
-updated_at: 2026-11-13T21:30:00Z
+updated_at: 2026-11-15T12:00:00Z
 tags:
     - decisions
     - decision-engine
@@ -563,8 +563,11 @@ occurrence:
 - **A structured draft decides first.** The chat answers under `--json-schema` with `{ stuck, hint }`
   (`SUPERVISOR_SCHEMA`), no reasoning field. Its prompt says the health check measures time and
   repetition, not intent, so a worker waiting on a command or a batch of calls that is doing work, on
-  CI or on agents it delegated to, is not stuck. A draft that says so sends nothing and proposes
-  nothing: the occurrence is kept with the proposal status `not-stuck` (statuses are `proposed`,
+  CI or on agents it delegated to, is not stuck, and that a hint may assert nothing (a number, a
+  limit, a budget, a cost, a duration, a rule or a convention) that the prompt did not give it. A
+  `stuck: true` whose own hint says nothing is wrong ("nothing is stalled", "the silence is expected",
+  "no action is needed": `saysNothingWrong`) is read as not stuck. A draft that says so sends nothing
+  and proposes nothing: the occurrence is kept with the proposal status `not-stuck` (statuses are `proposed`,
   `sent`, `dismissed` and `not-stuck`) and the cost of the draft is charged all the same. A person
   cannot send a `not-stuck` proposal (`409`).
 - **A "not stuck" draft is asked again.** Honest work at minute twenty can hang for hours after, so
@@ -590,6 +593,11 @@ occurrence:
   longer, which is then timed from that limit. A kind of command with history is slow after the largest of 30 s, 3
   times its median and 1.5 times its 90th percentile, and `bad`, which is what wakes the Supervisor,
   after twice that (3 minutes at least); a kind with no history warns at 3 minutes and is `bad` at 10.
+  A command that bounds itself (`timeout N …`, `selfBoundMs`: the largest such bound in the command,
+  its `-k` grace included) is not `bad` before N plus a minute (`SELF_BOUND_GRACE_MS`), so a
+  `timeout 2700 gh pr checks --watch` is a warning at minute fifteen, not a cancel; the same holds for
+  the running call of a `repeat-stall`. Elapsed time is all those rules measure, so a bound the worker
+  wrote wins over them; past it, the old rules apply.
   The durations on that same clock are what `command_durations` keeps and the resolver reads: a
   hung-command row is judged by whether the command ended on its own, or by whom it was cancelled.
 - **Active sends on its own only for the signal kinds the owner lists.** `supervisor.autoSignals` in
@@ -641,6 +649,33 @@ occurrence:
   agent that ran it, a subagent included (its commands are children of the CLI like the lead's). The
   hint is sent as a message only when the cancel is refused (the command ended, or its process cannot
   be told from a background command's). Shadow cancels nothing.
+- **A cancel's notice goes to the agent that ran the command.** `cancelCommand` reads whose call it
+  was from the trace (`parentToolUseId`), for a person's cancel and the Supervisor's alike. The lead's
+  own command is told to the lead as before ("Claudio cancelled the command on its own `…` while it
+  was running: <why>. It did not fail by itself."). A subagent's is told to the subagent: straight
+  through `messageAgent` when it has an agent id, is not stopped and the chat's bridge is up, else
+  through the lead framed by `relayToSubagent` as a message to pass on. The lead gets no words in the
+  second person about a command it did not run; its page keeps the passive notice row, whose data
+  names the subagent's `parentToolUseId`. Before, the lead was sent the subagent's hint as its own
+  user turn and the subagent saw only `Exit code 144`.
+- **The signal's agent decides the recipient**, on every path: the cancel above, Active's send and a
+  person's Send (`deliver`). A hint about the lead goes to the lead; a hint about a subagent goes to it
+  straight or as a relay, never as an instruction to the lead.
+- **One message per agent per event.** Once a message reaches an agent (a cancel, a hint, a relay,
+  sent by the Supervisor or by a person), every other signal about the same agent of the same chat is
+  not drafted for 30 minutes (`SAME_TARGET_WINDOW_MS`): a cancel, then the no-progress and the silence
+  it caused, are one event. The window reads the time of the send in memory, and the sent rows' `at`
+  across a restart; two signals about one agent are never asked about at once. A second hung command
+  of the same subagent in the window is not cancelled.
+- **A hint whose premise is gone is not delivered late.** Before Active sends a draft on its own, it
+  reads the chat's signals again (`HealthMonitor.current`) and sends nothing when the one it answers
+  has cleared (the proposal stays `proposed`, and the panel shows it only while its signal does). A
+  hint it queued for a lead (a hint or a relay; each carries a message id) is watched on every pass of
+  the monitor (`Supervisor.premise`, for up to six hours): when its signal clears while the lead has
+  not read it (a lead inside a long call reads its queue only when the call returns), it is taken back
+  with `cancelMessage` (`cancel_async_message`), which the CLI refuses once the lead has read it. A
+  person's Send is never taken back. A message written straight to a subagent through the bridge is
+  not watched: the bridge hands it over within seconds.
 - **Confined, with its own cap.** Its chat runs like a decision's one-shot: `--restricted`, the
   `read-only` preset's tools only (`--tools`), no settings sources, `--strict-mcp-config` with no
   server, no API url or token, `dontAsk`, no transcript and no guard. Its cap is
@@ -946,4 +981,5 @@ labels, replays, settings, credentials, consent and feedback are refused to a ch
 - [[prompts.md]]: the `cli` provider's prompt and the twelve-point check.
 - [[team-and-flow.md]] · [[assistant.md]] · [[work-items.md]]: where most points act.
 - [[plans/agent-observability.md]]: the health signals and the supervisor.
+- [[reports/supervisor-routing-2026-11-14.md]]: the session that showed the Supervisor addressing the wrong agent, and what changed.
 - [[layered-settings.md]] · [[design-system.md]]

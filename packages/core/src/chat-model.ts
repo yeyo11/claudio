@@ -12,7 +12,7 @@ import {
   type HealthSignalAgent,
   type RunStatus,
 } from '@claudio/shared';
-import { slowAfterMs, type UsualDuration } from './commands.ts';
+import { selfBoundMs, slowAfterMs, type UsualDuration } from './commands.ts';
 import { HEALTH_REASONS, oneLine, said, wholeMinutes } from './health-strings.ts';
 
 // The adapter between what the Claude Code CLI reports and Claudio's model. Everything the CLI says
@@ -159,6 +159,8 @@ export const HUNG_COMMAND_BAD_MS = 10 * 60_000;
 export function hungAfterMs(slowAfter: number): number {
   return Math.max(HUNG_COMMAND_MS, 2 * slowAfter);
 }
+/** How long past its own `timeout` bound a command may run before it is a problem: the bound's kill and its result take a moment */
+export const SELF_BOUND_GRACE_MS = 60_000;
 /** The same limits for a chat that is working and has said nothing at all. */
 export const SILENCE_MS = 3 * 60_000;
 export const SILENCE_BAD_MS = 10 * 60_000;
@@ -182,11 +184,25 @@ export interface RunningCommandFacts {
   queued?: boolean;
 }
 
+/**
+ * The one agent of a chat that could be silent: it has nothing in flight (no open call of any tool,
+ * and for the lead no subagent, background task or workflow running), so a stretch with no event is
+ * its own silence and not a wait. `since` is that agent's own last event; `agent` is absent for the lead.
+ */
+export interface SilentParty {
+  since: string;
+  agent?: HealthSignalAgent;
+}
+
 /** What health is read from. Every field is something Claudio already holds. */
 export interface HealthFacts {
   state: ChatState;
-  /** What Claudio's process on the chat is doing; null while there is none, which is when nothing can be silent or hung */
-  live: { lastEventAt: string; commands: RunningCommandFacts[] } | null;
+  /**
+   * What Claudio's process on the chat is doing; null while there is none, which is when nothing can
+   * be silent or hung. `silent` is who could be silent (`quietParty` in `health.ts`), null when every
+   * agent of the chat is waiting on something; absent, the lead is, whenever no shell command runs.
+   */
+  live: { lastEventAt: string; commands: RunningCommandFacts[]; silent?: SilentParty | null } | null;
   /** Signals worked out elsewhere (`health.ts`) that only mean something while the chat is working: a loop, no progress */
   extra?: HealthSignal[];
   /** Signals that stay true while the process is up, waiting or not: a test made weaker, a limit coming close */
@@ -234,7 +250,10 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
       if (command.queued) continue;
       const age = commandAge(command, nowMs);
       const limit = command.usual ? slowAfterMs(command.usual) : HUNG_COMMAND_MS;
-      const badAt = command.usual ? hungAfterMs(limit) : HUNG_COMMAND_BAD_MS;
+      // A command that bounded itself (`timeout N …`) is not a problem before its own bound: only
+      // `bad` wakes the Supervisor, and Active cancels on it, overruling a wait the worker planned
+      const bound = selfBoundMs(command.command);
+      const badAt = Math.max(command.usual ? hungAfterMs(limit) : HUNG_COMMAND_BAD_MS, bound === null ? 0 : bound + SELF_BOUND_GRACE_MS);
       if (age < limit) continue;
       // One param for the reason and the hint, so the command is cut once, to the hint's length
       const figures = { command: oneLine(command.command, 80), minutes: wholeMinutes(age) };
@@ -250,15 +269,19 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
         ...(command.agent ? { agent: command.agent } : {}),
       });
     }
-  } else if (working && facts.live) {
-    // A command in flight is a reason to be quiet; with none, a chat that says nothing is stalled
+  }
+  if (working && facts.live) {
+    // Anything in flight is a reason to be quiet: silence is an agent with nothing in flight, and only
+    // when the whole chat has said nothing (`lastEventAt` is any event of any agent, heartbeats too)
+    const party = facts.live.silent !== undefined ? facts.live.silent : commands.length ? null : { since: facts.live.lastEventAt };
     const quiet = nowMs - Date.parse(facts.live.lastEventAt);
-    if (quiet >= SILENCE_MS) {
+    if (party && quiet >= SILENCE_MS) {
       signals.push({
         kind: 'silence',
         level: quiet >= SILENCE_BAD_MS ? 'bad' : 'warn',
         ...said('health.silence', { minutes: wholeMinutes(quiet) }, 'health.hint.silence'),
-        since: facts.live.lastEventAt,
+        since: party.since,
+        ...(party.agent ? { agent: party.agent } : {}),
       });
     }
   }

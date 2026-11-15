@@ -49,7 +49,7 @@ import { ThrottledLog } from './throttled-log.ts';
 import { localDayOf } from './spend.ts';
 import type { CoreConfig } from './paths.ts';
 import type { PermissionBroker } from './permissions.ts';
-import { runningCommands, type GuardTraceEntry, type ToolCall, type Trace, type TraceAgent } from './health.ts';
+import { runningCommands, type DelegatedAgent, type GuardTraceEntry, type ToolCall, type Trace, type TraceAgent } from './health.ts';
 import { cliProcessOf, commandRoots, descendantsOf, processTable, terminateTree, type ProcessEntry } from './processes.ts';
 import { ClaudeCodeDriver } from './providers/claude-code/driver.ts';
 import type { BranchTracker, DriverEvent, InterruptReceipt, ModelUsage, ProviderDriver, SessionLaunch } from './providers/driver.ts';
@@ -882,8 +882,11 @@ export class ChatManager extends EventEmitter {
     if (!chat || !live || !chat.alive) return null;
     const calls = new Map<string, ToolCall>();
     const guards: GuardTraceEntry[] = [];
+    // Each agent's own last event, the lead's under '': silence is judged per agent
+    const activity = new Map<string, string>();
     for (const event of chat.events) {
       if (event.ts < live.startedAt) continue;
+      if (event.entry) activity.set(event.entry.parentToolUseId ?? '', event.ts);
       if (event.kind === 'guard' && event.guard) {
         guards.push({ at: event.ts, outcome: event.guard.outcome, rule: event.guard.rule });
         continue;
@@ -911,6 +914,23 @@ export class ChatManager extends EventEmitter {
       const sub = chat.branches.subagents.get(call.parentToolUseId);
       agents.set(call.parentToolUseId, sub ? { ...(sub.agentId ? { agentId: sub.agentId } : {}), description: sub.description, subagentType: sub.subagentType } : {});
     }
+    // What the lead delegated and still runs: it is waiting on that, not silent
+    const subagents: DelegatedAgent[] = [];
+    for (const sub of chat.branches.subagents.values()) {
+      if (sub.status !== 'running' && sub.status !== 'waiting') continue;
+      subagents.push({
+        toolUseId: sub.toolUseId,
+        status: sub.status,
+        startedAt: sub.runs?.[sub.runs.length - 1]?.startedAt ?? sub.startedAt,
+        ...(sub.agentId ? { agentId: sub.agentId } : {}),
+        description: sub.description,
+        subagentType: sub.subagentType,
+        ...(sub.cwd ? { cwd: sub.cwd } : {}),
+      });
+    }
+    let background = 0;
+    for (const task of chat.branches.tasks.values()) if (task.status === 'running') background++;
+    for (const workflow of chat.branches.workflows.values()) if (workflow.status === 'running') background++;
     return {
       executionStartedAt: live.startedAt,
       lastEventAt: chat.activityAt,
@@ -918,6 +938,8 @@ export class ChatManager extends EventEmitter {
       heartbeats: new Map(chat.heartbeats),
       ...(guards.length ? { guards } : {}),
       ...(agents.size ? { agents } : {}),
+      activity,
+      delegated: { subagents, background },
     };
   }
 
@@ -928,7 +950,7 @@ export class ChatManager extends EventEmitter {
    * {@link commandRoots}); nothing is matched on a command line. Refuses rather than guesses when
    * the command has no process of its own to be found.
    */
-  cancelCommand(id: string, toolUseId: string): { command: string; processes: number } {
+  cancelCommand(id: string, toolUseId: string): { command: string; processes: number; parentToolUseId?: string } {
     const chat = this.chats.get(id);
     if (!chat) throw new ChatNotFoundError();
     const trace = this.trace(id);
@@ -952,7 +974,7 @@ export class ChatManager extends EventEmitter {
     }
     chat.cancelled.add(toolUseId);
     const command = typeof call.input.command === 'string' ? call.input.command : 'a command';
-    return { command, processes: terminateTree(root, table) };
+    return { command, processes: terminateTree(root, table), ...(call.parentToolUseId ? { parentToolUseId: call.parentToolUseId } : {}) };
   }
 
   events(id: string, sinceSeq = 0): RunEvent[] {

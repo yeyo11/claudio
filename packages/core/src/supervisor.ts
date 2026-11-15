@@ -32,9 +32,15 @@ import { NotFoundError } from '@claudio/shared';
 // What it answers is one occurrence of a signal (D5 of docs/plans/regression-fixes-2026-10-29.md):
 // the call a signal is about, or when it started. A hint is a message the agent reads only once the
 // call it is blocked in returns, so for a hung command Active cancels the command with the hint as
-// the reason, and sends the hint only when the cancel is refused. A signal about a subagent's call
-// names that agent; the hint goes to the lead, the only one Claudio can write to, and asks it to
-// relay the hint or stop the agent.
+// the reason, and sends the hint only when the cancel is refused. A signal about a subagent names
+// that agent, and the agent decides the recipient on every path: the hint (and a cancel's notice) is
+// written to the subagent straight when its chat's bridge can carry it, else handed to the lead framed
+// as a relay for that subagent, never as an instruction to the lead
+// (docs/reports/supervisor-routing-2026-11-14.md).
+//
+// One target, one message: a sent hint holds every other signal about the same agent of the same chat
+// for {@link SAME_TARGET_WINDOW_MS}, and a hint whose signal is gone by the time it would be read is
+// not sent, or is taken back from the lead's queue while the lead has not read it.
 
 /** The shipped `read-only` preset, for an install whose person deleted theirs: the supervisor reads, never writes. */
 export const DEFAULT_SUPERVISOR_PRESET: ToolPreset = DEFAULT_TOOL_PRESETS.find((p) => p.id === 'read-only') ?? {
@@ -99,11 +105,38 @@ export const SUPERVISOR_SCHEMA: Record<string, unknown> = {
   additionalProperties: false,
 };
 
+/**
+ * A "hint" that only says the agent is fine, or what it is doing: the draft's text overruling its own
+ * `stuck: true`. Matched on the phrases such drafts used (docs/reports/supervisor-routing-2026-11-14.md);
+ * a hint that is any use names something to check or do, and none of these.
+ */
+const NOTHING_WRONG = new RegExp(
+  [
+    String.raw`\bnot (?:actually |really )?stuck\b`,
+    String.raw`\bnothing (?:is |seems |appears )?(?:stalled|stuck|wrong|amiss)\b`,
+    String.raw`\bno (?:action|intervention|hint|change)s? (?:is |are )?(?:needed|required|necessary)\b`,
+    String.raw`\b(?:the )?(?:silence|wait|waiting|delay|pause|quiet) is (?:expected|normal|fine)\b`,
+    String.raw`\b(?:is|are) (?:working|progressing|running) (?:as expected|normally|fine)\b`,
+  ].join('|'),
+  'i',
+);
+
+/** Whether a drafted hint is only status: it says nothing is wrong, so it is no hint */
+export const saysNothingWrong = (hint: string): boolean => NOTHING_WRONG.test(hint);
+
 /** What a draft comes to: nothing to send, or the hint to propose */
 export type SupervisorDraft = { stuck: false } | { stuck: true; hint: string };
 
 /** The signals about one command still running, which Active answers by cancelling it */
 const COMMAND_SIGNALS: ReadonlySet<HealthSignalKind> = new Set(['hung-command', 'repeat-stall']);
+/**
+ * After a message reaches an agent (a hint, a relay, a cancel), how long every other signal about the
+ * same agent of the same chat waits: a hung command's cancel, then the lack of progress and the silence
+ * it caused, were three messages about one event (docs/reports/supervisor-routing-2026-11-14.md).
+ */
+export const SAME_TARGET_WINDOW_MS = 30 * 60_000;
+/** How long a hint sent to the lead's queue is watched for its premise: past this it was read long ago */
+export const PREMISE_WATCH_MS = 6 * 60 * 60_000;
 /** A question that failed is asked again after this long: one broken answer is not the last word on a long chat */
 export const FAILED_RETRY_MS = 15 * 60_000;
 /** A "not stuck" occurrence that is not a running command is drafted again after this long: longer than a failed draft's wait, since this one was answered */
@@ -128,9 +161,10 @@ export interface SupervisorDeps {
   steps: (chatId: string, agent?: HealthSignalAgent) => Promise<TranscriptEntry[]>;
   /**
    * Delivers a proposal's hint to its worker through the hint route of the chat or the task:
-   * `person` when someone pressed Send on it, `supervisor` when it went out on its own (C2)
+   * `person` when someone pressed Send on it, `supervisor` when it went out on its own (C2). Resolves
+   * with the id of the message it queued for the lead, when known, so a stale one can be taken back.
    */
-  hint: (proposal: SupervisorProposal, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<void>;
+  hint: (proposal: SupervisorProposal, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<string | void>;
   /**
    * Writes straight to one subagent (the claudio-bridge mod) and resolves with whether it was
    * delivered, waiting for the answer for a bounded time. Rejects when the message is refused up
@@ -142,13 +176,22 @@ export interface SupervisorDeps {
    * to `target` (`relayToSubagent`), which the page draws as a system row and not as a hint. Absent, the
    * lead is sent `relayHint` through `hint`, as before.
    */
-  relay?: (proposal: SupervisorProposal, target: RelayTarget, words: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<void>;
+  relay?: (proposal: SupervisorProposal, target: RelayTarget, words: string, source: Extract<ChatMessageSource, 'person' | 'supervisor'>) => Promise<string | void>;
   /**
    * Cancels the command `toolUseId` of the proposal's chat with its hint as the reason: the failed
-   * result reaches the agent blocked in it, which a message would not until the call returned.
-   * Rejects when the cancel is refused (the command ended, its process cannot be told apart).
+   * result reaches the agent blocked in it, which a message would not until the call returned, and
+   * the notice of who cancelled it and why goes to the agent that ran it (a subagent's to the subagent,
+   * the lead seeing only a system row). Rejects when the cancel is refused (the command ended, its
+   * process cannot be told apart).
    */
   cancel?: (proposal: SupervisorProposal, toolUseId: string) => Promise<void>;
+  /**
+   * The chat's stuck signals now, or null when it is not watched any more: read again before a hint
+   * the Supervisor drafted goes out on its own, since a draft takes a while and the agent moves on
+   */
+  current?: (chatId: string) => readonly HealthSignal[] | null;
+  /** Takes back a message the lead has not read yet; resolves with whether it was taken back */
+  withdraw?: (chatId: string, messageId: string) => Promise<boolean>;
   emit: (event: ClaudioEventInput) => void;
   /** Adds what the supervisor spent on a task's worker to its graph */
   charge: (orchestrationId: string, costUsd: number) => void;
@@ -271,7 +314,11 @@ export function supervisorPrompt(signal: HealthSignal, steps: string, task: Task
     '',
     `Answer in the structured result. \`stuck\`: whether it is stuck. \`hint\`: when it is stuck, one or two short lines addressed to the ${who}, ` +
       'specific to what it is doing, saying what to check or do differently, with no preamble; when it is not stuck, an empty string. ' +
+      'A hint that says nothing is wrong, or only describes what it is doing or waiting for, is not a hint: answer not stuck instead. ' +
       'Do not change anything yourself.',
+    '',
+    'Use only what is written above. Do not state a number, a limit, a budget, a cost, a duration, a rule or a convention that is not ' +
+      'written above, and do not guess one: a hint that asserts a fact you were not given misleads the agent it is sent to.',
     ...thinkThrough(model),
   ].join('\n');
 }
@@ -281,7 +328,9 @@ export function draftOf(structured: unknown): SupervisorDraft | null {
   if (!isRecord(structured) || typeof structured.stuck !== 'boolean') return null;
   if (!structured.stuck) return { stuck: false };
   const hint = typeof structured.hint === 'string' ? hintFrom(structured.hint) : '';
-  return hint ? { stuck: true, hint } : null;
+  if (!hint) return null;
+  // Its own words say it is not stuck: that is the answer, whatever the flag says
+  return saysNothingWrong(hint) ? { stuck: false } : { stuck: true, hint };
 }
 
 /** The answer made fit to send: the first two lines that say something, and no more than a hint needs. */
@@ -313,6 +362,14 @@ function answers(proposal: SupervisorProposal, signal: HealthSignal, occurrence:
   // A hung command that is also the third stall of its kind is one thing to act on, not two
   return !!signal.toolUseId && COMMAND_SIGNALS.has(signal.kind) && COMMAND_SIGNALS.has(proposal.signal) && proposal.occurrence === signal.toolUseId;
 }
+
+/** Whether the signal a proposal answers still holds among `signals`: the premise of its hint */
+export function premiseHolds(proposal: SupervisorProposal, signals: readonly HealthSignal[]): boolean {
+  return signals.some((s) => answers(proposal, s, occurrenceOf(s)));
+}
+
+/** Which agent of its chat a signal or proposal is about: its subagent's launching call, `''` for the lead */
+const targetOf = (agent: HealthSignalAgent | undefined): string => agent?.parentToolUseId ?? '';
 
 /**
  * Whether a `not-stuck` answer is due to be drafted again. A running command is asked again once its
@@ -362,8 +419,47 @@ export class Supervisor {
    * "not stuck" draft, and the monitor wakes a chat that stays bad every few minutes)
    */
   private readonly failed = new Map<string, number>();
+  /** The agents being asked about right now, by chat and target: two signals about one agent are one question */
+  private readonly askingTargets = new Set<string>();
+  /** When a message last reached each agent, by chat and target: a person's late Send counts from when it went */
+  private readonly messagedAt = new Map<string, number>();
+  /** Hints the Supervisor queued for a lead on its own, watched until read: one whose signal is gone is taken back */
+  private readonly outstanding = new Map<string, { proposal: SupervisorProposal; messageId: string; until: number }>();
 
   constructor(private readonly deps: SupervisorDeps) {}
+
+  /**
+   * Whether a message reached this agent of the chat within {@link SAME_TARGET_WINDOW_MS}: one sent
+   * this run, or a sent proposal's row (drafted at `at`), which holds across a restart
+   */
+  private recentlyMessaged(chatId: string, target: string, proposals: readonly SupervisorProposal[]): boolean {
+    const since = this.now() - SAME_TARGET_WINDOW_MS;
+    if ((this.messagedAt.get(`${chatId}:${target}`) ?? 0) > since) return true;
+    return proposals.some((p) => p.status === 'sent' && targetOf(p.agent) === target && Date.parse(p.at) > since);
+  }
+
+  private messaged(proposal: SupervisorProposal): void {
+    this.messagedAt.set(`${proposal.chatId}:${targetOf(proposal.agent)}`, this.now());
+  }
+
+  /**
+   * Takes back the hints this chat's lead has not read yet whose signal no longer holds: a hint queued
+   * while the lead sat in a long call was read when the call returned, forty minutes on, about something
+   * long over. Called on every pass of the health monitor with the chat's stuck signals ([] once it is
+   * not watched). Resolves with how many were taken back.
+   */
+  async premise(chatId: string, signals: readonly HealthSignal[]): Promise<number> {
+    let withdrawn = 0;
+    for (const [id, watched] of [...this.outstanding]) {
+      if (watched.proposal.chatId !== chatId) continue;
+      if (this.now() < watched.until && premiseHolds(watched.proposal, signals)) continue;
+      this.outstanding.delete(id);
+      if (this.now() >= watched.until || !this.deps.withdraw) continue;
+      // Refused once the lead has read it: then it was on time, and there is nothing to take back
+      if (await this.deps.withdraw(chatId, watched.messageId).catch(() => false)) withdrawn++;
+    }
+    return withdrawn;
+  }
 
   private now(): number {
     return this.deps.now?.() ?? Date.now();
@@ -423,11 +519,14 @@ export class Supervisor {
     if (this.deps.spendOpen?.() === false) return null;
     const proposals = this.deps.db.proposalsOf(chat.id);
     const keyOf = (s: HealthSignal) => `${chat.id}:${s.kind}:${occurrenceOf(s)}`;
+    const targetKey = (s: HealthSignal) => `${chat.id}:${targetOf(s.agent)}`;
     const answerOf = (s: HealthSignal): SupervisorProposal | undefined => proposals.find((p) => answers(p, s, occurrenceOf(s)));
     const signal = signals.find((s) => {
       if (s.level !== 'bad') return false;
       const key = keyOf(s);
       if (this.asking.has(key) || this.failedRecently(key)) return false;
+      // One message per agent per event: what follows from a hint just sent waits for its window
+      if (this.askingTargets.has(targetKey(s)) || this.recentlyMessaged(chat.id, targetOf(s.agent), proposals)) return false;
       const answer = answerOf(s);
       return !answer || this.redraftDue(answer, s);
     });
@@ -435,8 +534,10 @@ export class Supervisor {
     // Set when this is a "not stuck" occurrence asked again: its row takes the new answer
     const previous = answerOf(signal) ?? null;
     const key = keyOf(signal);
+    const target = targetKey(signal);
     const agent = signal.agent ?? null;
     this.asking.add(key);
+    this.askingTargets.add(target);
     try {
       const entries = await this.deps.steps(chat.id, signal.agent).catch((): TranscriptEntry[] => []);
       // A worker the decision says no hint can help gets none; the signal itself stays on the chat
@@ -507,6 +608,10 @@ export class Supervisor {
       // Read again: a person who switched the point while the hint was being drafted decides. Under
       // Active only the kinds the owner listed are sent on their own; the rest wait for a person
       if (this.mode() !== 'active' || !this.actsOn(signal.kind)) return stored;
+      // The draft took a while: a signal that has cleared meanwhile has nothing left to answer, and its
+      // proposal stays for a person (the health panel shows it only while its signal does)
+      const now = this.deps.current?.(chat.id);
+      if (now && !premiseHolds(stored, now)) return stored;
       try {
         return await this.act(stored, signal, hint);
       } catch {
@@ -518,6 +623,7 @@ export class Supervisor {
       return null;
     } finally {
       this.asking.delete(key);
+      this.askingTargets.delete(target);
     }
   }
 
@@ -552,6 +658,7 @@ export class Supervisor {
       try {
         // The failed result reaches the agent that ran the command, the subagent too: the hint is its own words
         await cancel({ ...proposal, hint }, signal.toolUseId);
+        this.messaged(proposal);
         if (!this.deps.db.settleProposal(proposal.id, 'sent', 'supervisor')) throw new SupervisorConflictError('the proposal was settled in the meantime');
         return { ...proposal, status: 'sent', sentBy: 'supervisor' };
       } catch (error) {
@@ -601,7 +708,10 @@ export class Supervisor {
    */
   async send(id: string, owner: ProposalOwner, source: SupervisorProposalSender = 'person'): Promise<SupervisorProposal> {
     const proposal = this.owned(id, owner);
-    await this.deliver(proposal, source);
+    const messageId = await this.deliver(proposal, source);
+    this.messaged(proposal);
+    // Only what it sent on its own is taken back: a person who pressed Send chose to send it as it stood
+    if (messageId && source === 'supervisor') this.outstanding.set(proposal.id, { proposal, messageId, until: this.now() + PREMISE_WATCH_MS });
     if (!this.deps.db.settleProposal(id, 'sent', source)) throw new SupervisorConflictError('the proposal was settled in the meantime');
     return { ...proposal, status: 'sent', sentBy: source };
   }
@@ -609,9 +719,10 @@ export class Supervisor {
   /**
    * Straight to the subagent when the proposal is about one that can be addressed; once, and only
    * once, through the lead (`relayHint`) when that is refused or comes back undelivered. A hint about
-   * the lead itself, or a proposal made before the agent id was known, goes the old way.
+   * the lead itself, or a proposal made before the agent id was known, goes the old way. Resolves with
+   * the id of the message queued for the lead, when it went that way and the route says.
    */
-  private async deliver(proposal: SupervisorProposal, source: Extract<ChatMessageSource, 'person' | 'supervisor'>): Promise<void> {
+  private async deliver(proposal: SupervisorProposal, source: Extract<ChatMessageSource, 'person' | 'supervisor'>): Promise<string | void> {
     const agent = proposal.agent;
     const direct = this.deps.messageAgent;
     // A proposal stored as the lead's sentence (before the relay had its own frame) goes as it was written
