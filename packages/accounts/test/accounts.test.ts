@@ -268,7 +268,7 @@ describe('readings', () => {
 });
 
 describe('choose', () => {
-  const settings: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [], newAccountConfig: 'shared' };
+  const settings: AccountsSettings = { rotateOnLimit: true, threshold: 90, hysteresis: 10, cooldownSeconds: 300, strategy: 'order', preferred: null, order: [], newAccountConfig: 'shared', credits: {} };
   const accts = ['a', 'b', 'c'].map((id) => ({ id, enabled: true, signedIn: true }));
   const lim = (u: number | null, extra: Partial<AccountLimit> = {}): AccountLimit => ({
     state: u === null ? 'unknown' : u >= 1 ? 'exhausted' : u >= 0.75 ? 'near' : 'ok',

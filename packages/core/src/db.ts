@@ -1697,6 +1697,13 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // Replay cases whose stored state could not rebuild the point's questions and were asked the
   // label's own: such a run is stored under the hash of what was asked and never counts for the gate
   `ALTER TABLE decision_replays ADD COLUMN fallback_cases INTEGER NOT NULL DEFAULT 0;`,
+
+  // The hold sweeper (t8 of docs/plans/limit-resume-and-credits.md): a wait keeps when it looks again
+  // and the turn it replays, so a restart loses neither. A row an older Claudio opened has no
+  // `next_look_at`, which reads as due now: the first pass of the sweeper takes it over
+  `ALTER TABLE provider_moves ADD COLUMN next_look_at TEXT;
+   ALTER TABLE provider_moves ADD COLUMN turn TEXT;
+   ALTER TABLE provider_moves ADD COLUMN probe_count INTEGER NOT NULL DEFAULT 0;`,
 ];
 
 /**
@@ -1774,6 +1781,9 @@ export const WEBHOOKS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 
 
 /** The version that added the provider limits and moves, for the test that upgrades a database from the one before */
 export const PROVIDER_ROTATION_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('CREATE TABLE provider_moves')) + 1;
+
+/** The migration that gave the waits their next look, their turn and their probe count: a test starts a database from just before it */
+export const LIMIT_HOLDS_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes('ADD COLUMN next_look_at')) + 1;
 
 /** The migration that rewrote the values stored under the old product name: a test starts a database from just before it */
 export const RENAME_SCHEMA_VERSION = MIGRATIONS.findIndex((m) => typeof m === 'string' && m.includes("'$.agentryAssistant'")) + 1;
@@ -1950,8 +1960,21 @@ interface ProviderMoveRow {
   decided_by: string;
   decision_id: string | null;
   resets_at: string | null;
+  claimed_until?: string | null;
   reason: string | null;
   updated_at: string;
+  next_look_at?: string | null;
+  turn?: string | null;
+  probe_count?: number;
+}
+
+/**
+ * An open wait as the hold sweeper reads it: the move, with the claim that holds it and the turn it
+ * replays (JSON, as the rotation wrote it), which only the rotation reads.
+ */
+export interface OpenHold extends ProviderMove {
+  claimedUntil: string | null;
+  turn: string | null;
 }
 
 function toProviderMove(row: ProviderMoveRow): ProviderMove {
@@ -1974,6 +1997,8 @@ function toProviderMove(row: ProviderMoveRow): ProviderMove {
     resetsAt: row.resets_at,
     reason: row.reason,
     updatedAt: row.updated_at,
+    nextLookAt: row.next_look_at ?? null,
+    probeCount: Number(row.probe_count ?? 0),
   };
 }
 
@@ -2744,17 +2769,18 @@ export class Db {
    * Records a move. Returns false, and writes nothing, when the chat already has an open wait and
    * this one is open too: two processes cannot both arm a wait for one chat.
    */
-  insertProviderMove(move: ProviderMove): boolean {
+  insertProviderMove(move: ProviderMove, turn: string | null = null): boolean {
     const result = this.db
       .prepare(
         `INSERT INTO provider_moves (id, at, subject_kind, subject_id, project_id, from_chat, to_chat, from_provider, to_provider,
-           from_model, to_model, action, state, decided_by, decision_id, resets_at, reason, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           from_model, to_model, action, state, decided_by, decision_id, resets_at, reason, updated_at, next_look_at, turn, probe_count)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
          ON CONFLICT DO NOTHING`,
       )
       .run(
         move.id, move.at, move.subjectKind, move.subjectId, move.projectId, move.fromChat, move.toChat, move.fromProvider, move.toProvider,
         move.fromModel, move.toModel, move.action, move.state, move.decidedBy, move.decisionId, move.resetsAt, move.reason, move.updatedAt,
+        move.nextLookAt ?? null, turn, move.probeCount ?? 0,
       );
     return Number(result.changes) > 0;
   }
@@ -2795,6 +2821,36 @@ export class Db {
     return rows.map(toProviderMove);
   }
 
+  /**
+   * Every open wait (`waiting`, or `resuming` under a claim live or lapsed), oldest first: what the
+   * hold sweeper looks over on each pass. Few rows: one per chat at most, by the unique index.
+   */
+  openHolds(): OpenHold[] {
+    const rows = this.db.prepare("SELECT * FROM provider_moves WHERE state IN ('waiting', 'resuming') ORDER BY at, id").all() as unknown as ProviderMoveRow[];
+    return rows.map((row) => ({ ...toProviderMove(row), claimedUntil: row.claimed_until ?? null, turn: row.turn ?? null }));
+  }
+
+  /**
+   * When an open wait looks again, and what the look learnt: a probe counted, an earlier reset. A
+   * closed row is left as it is. `updated_at` moves too: it is when the wait last looked, which is
+   * what a probe compares the accounts' readings with.
+   */
+  scheduleProviderMove(id: string, now: string, nextLookAt: string, patch: { probed?: boolean; resetsAt?: string } = {}): boolean {
+    const result = this.db
+      .prepare(
+        `UPDATE provider_moves SET next_look_at = ?, updated_at = ?, probe_count = probe_count + ?, resets_at = COALESCE(?, resets_at)
+         WHERE id = ? AND state IN ('waiting', 'resuming')`,
+      )
+      .run(nextLookAt, now, patch.probed ? 1 : 0, patch.resetsAt ?? null, id);
+    return Number(result.changes) > 0;
+  }
+
+  /** The turn a wait replays (JSON, as the rotation wrote it); null when it kept none. */
+  providerMoveTurn(id: string): string | null {
+    const row = this.db.prepare('SELECT turn FROM provider_moves WHERE id = ?').get(id) as { turn: string | null } | undefined;
+    return row?.turn ?? null;
+  }
+
   /** Waits not yet resumed, and resumes whose claim ran out: what a start-up replays. Oldest first. */
   openProviderMoves(now: string): ProviderMove[] {
     const rows = this.db
@@ -2821,7 +2877,7 @@ export class Db {
   closeProviderMove(id: string, state: Exclude<ProviderMoveState, 'waiting' | 'resuming'>, now: string, patch: { toChat?: string | null; toProvider?: string | null; toModel?: string | null; reason?: string | null } = {}): boolean {
     const result = this.db
       .prepare(
-        `UPDATE provider_moves SET state = ?, claimed_until = NULL, updated_at = ?,
+        `UPDATE provider_moves SET state = ?, claimed_until = NULL, next_look_at = NULL, updated_at = ?,
            to_chat = COALESCE(?, to_chat), to_provider = COALESCE(?, to_provider), to_model = COALESCE(?, to_model), reason = COALESCE(?, reason)
          WHERE id = ? AND state IN ('waiting', 'resuming')`,
       )

@@ -36,6 +36,7 @@ const settings = (over: Partial<AccountsSettings> = {}): AccountsSettings => ({
   preferred: null,
   order: [],
   newAccountConfig: 'shared',
+  credits: {},
   ...over,
 });
 

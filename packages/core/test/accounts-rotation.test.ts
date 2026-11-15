@@ -464,7 +464,7 @@ test('a reading that leaves every account out moves the wait to the earliest res
     // loaded machine takes its time over the reading (R17 of docs/plans/ci-and-regression-open.md).
     // Timers stay real, so the wait's timer still fires and reads the clock the test set.
     t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
-    const rechecks = t.mock.method(r.rotation as unknown as { recheck(): Promise<void> }, 'recheck');
+    const rechecks = t.mock.method(r.rotation, 'sweep');
     // Beta's window is reported to reset in a moment: still out now, back soon
     const soon = Date.now() + 400;
     const reading = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: soon / 1000, unifiedWindows: { five_hour: { utilization: 1, resetsAt: soon / 1000 } } }, Date.now());
@@ -503,7 +503,7 @@ test('a wait keeps waiting for a reset the frozen clock has not reached, however
     const [move] = r.db.providerMoves({ chatId: chat.id });
     process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
     t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
-    const rechecks = t.mock.method(r.rotation as unknown as { recheck(): Promise<void> }, 'recheck');
+    const rechecks = t.mock.method(r.rotation, 'sweep');
     const soon = Date.now() + 400;
     const reading = readingFromEvent({ status: 'rejected', rateLimitType: 'five_hour', resetsAt: soon / 1000, unifiedWindows: { five_hour: { utilization: 1, resetsAt: soon / 1000 } } }, Date.now());
     assert.ok(reading);
@@ -530,19 +530,22 @@ test('a wait keeps waiting for a reset the frozen clock has not reached, however
 // Cause 9 of docs/plans/limit-resume-and-credits.md: a failure was compared with the account's latest
 // reading, so a reading taken after the reset (not out, about a time the account was out) left the
 // failure counting against the account until a turn went through.
-test('an account the turn died on is a candidate again once the reset its failure recorded has passed, whatever reading came after', async () => {
-  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 1, pollMs: 3_600_000 });
+test('an account the turn died on is a candidate again once the reset its failure recorded has passed, whatever reading came after', async (t) => {
+  // The reset is an hour away and the clock is moved past it, never waited for: with a reset one real
+  // second away, a loaded machine took longer than that over the four spawns, so the first account
+  // was back before the last one had refused, the chat went round them for ever and no wait opened
+  const r = await rig({ work, limited: (d) => Object.values(d), resetsIn: 3600, pollMs: 3_600_000 });
   try {
     const chat = r.chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
     await waitFor(() => r.db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
     await r.rotation.close();
     const failures = r.chats.get(chat.id)?.executions.filter((e) => e.cause === 'rate-limit') ?? [];
-    // The reset is a second away, so the wait may already have replayed the turn more than once
     assert.ok(failures.length >= 1, 'the turn died on an account');
     assert.ok(failures.every((e) => !!e.limitResetsAt), `each failure recorded the reset it was refused with; saw ${JSON.stringify(failures.map((e) => [e.account, e.limitResetsAt ?? null, e.endedAt]))}`);
     const failedOn = new Set(failures.map((e) => e.account ?? DEFAULT_ID));
 
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    // The rotation is closed, so nothing of the rig is left reading another clock (R10)
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() + 3_601_000 });
     // Readings taken after the reset. An account the turn died on reads fine now, and says nothing of
     // the time the failure happened; every other account is out for an hour, so only a failure's
     // recorded reset can make one of them a candidate

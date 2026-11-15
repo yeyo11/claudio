@@ -479,6 +479,10 @@ export interface RateLimitInfo {
   /** Unix seconds */
   overageResetsAt?: number;
   overageDisabledReason?: string;
+  /** Documented on `allowed_warning` only (CLI 2.1.295+): whether the account has usage credits on */
+  overageEnabled?: boolean;
+  /** Documented (CLI 2.1.181+): `credits_required` on a rejection whose included usage is spent with no credits to cover it */
+  errorCode?: string;
   observedAt: string;
 }
 
@@ -4505,6 +4509,8 @@ export interface LimitWait {
   /** ISO time the limit resets; null when unknown, and the wait ends at the cap */
   resetsAt: string | null;
   moveId: string;
+  /** ISO time the wait looks again (its reset, or the next probe of an unknown one); null when due now */
+  nextLookAt?: string | null;
 }
 
 /** A step of a graph that is no task (its integrator, synthesis, a fixer, a reviewer) waiting for its usage limit to reset */
@@ -6838,6 +6844,7 @@ export interface ScopedRateLimit extends RateLimitWindow {
  * are in minor units (`1230` with `exponent: 2` is 12.30), as the CLI states them.
  */
 export interface AccountCredits {
+  /** `extra_usage.is_enabled`, the typed answer: false while credits cannot cover sends */
   enabled: boolean;
   /** Spent this month, in minor units */
   usedMinor: number;
@@ -6847,7 +6854,7 @@ export interface AccountCredits {
   currency: string | null;
   /** Decimal places of the currency (2 for USD, EUR) */
   exponent: number;
-  /** The cap is reached: nothing more is spent until the month turns */
+  /** The cap is reached: nothing more is spent until the month turns. Worked out from the spend and the cap when the CLI does not say */
   limitReached: boolean;
   /** Why the CLI says they are off, when it does */
   disabledReason: string | null;
@@ -6889,6 +6896,47 @@ export interface AccountLimit {
    * per-model limits and the credits come from it only. Absent until the account was refreshed.
    */
   cli?: AccountCliUsage;
+  /**
+   * Set only while `state` is `exhausted`: whether the account's usage credits cover sends past its
+   * spent plan, by `get_usage` (`cli.credits` on and not at their cap) and no rejection since. True
+   * is the `overage` state ({@link AccountLimitState}). `state` stays `exhausted` so that whatever
+   * does not read this field treats the account as out, which is the credits setting's default.
+   */
+  creditsCover?: boolean;
+  /** What the stream last said of the account's credits; hints only, never a reason to decide alone */
+  overageHints?: AccountOverageHints;
+}
+
+/**
+ * What an account's state is for a person: the folded `state`, with `overage` where it is
+ * `exhausted` and `creditsCover` is true (the plan is spent and its credits pay for what runs there).
+ */
+export type AccountLimitState = ProviderLimitState | 'overage';
+
+/**
+ * The overage fields of the account's last `rate_limit_event` that carried any. The SDK types them
+ * with no meaning, and only `overageEnabled` and `errorCode` are documented
+ * (docs/decisions/credits-in-the-stream.md), so they are kept to look again (`get_usage`) or to word
+ * a reason, never to decide by themselves that money is being spent.
+ */
+export interface AccountOverageHints {
+  /** ISO time of the event */
+  observedAt: string;
+  /** `isUsingOverage` */
+  using?: boolean;
+  /** `overageStatus`: `allowed`, `allowed_warning` or `rejected` */
+  status?: string;
+  /** `overageDisabledReason`, as the CLI words it; the list of values grows, so never branch on it */
+  disabledReason?: string;
+  /** `overageEnabled` (documented, on `allowed_warning` only) */
+  enabled?: boolean;
+  /** The event was a rejection with `errorCode: credits_required`: included usage spent, no credits to cover it */
+  creditsRequired?: boolean;
+  /**
+   * The `seven_day_overage_included` window, a window of the plan (not a model's): shown, never one
+   * the account's state is folded from, since what it counts is not documented
+   */
+  included?: RateLimitWindow;
 }
 
 /** One Claude account: a config directory of its own, chosen per process. */
@@ -7105,6 +7153,30 @@ export interface AccountsSettings {
    * An independent account starts from a copy of the shared configuration.
    */
   newAccountConfig: AccountConfigMode;
+  /**
+   * Whether work may run on each account's usage credits once its plan is spent, by account id. An
+   * account it does not name is `never`, the default: Claudio spends credits only where a person
+   * switched that on for the account here, even when they are on at claude.ai.
+   */
+  credits: Record<string, AccountCreditsSetting>;
+}
+
+/**
+ * How an account's usage credits may be spent by Claudio's work.
+ *
+ * - `never`: an account in the `overage` state is out, as one with its plan spent.
+ * - `last-resort`: it is taken only when no account has plan quota left.
+ * - `allow`: it is taken as an account over the threshold is, after the accounts with room.
+ */
+export type AccountCreditsUse = 'never' | 'last-resort' | 'allow';
+
+export interface AccountCreditsSetting {
+  use: AccountCreditsUse;
+  /**
+   * Claudio's own monthly cap on the account's credits, in minor units of their currency: work stops
+   * taking the account once the month's spend reaches it. Null leaves only the cap set at claude.ai.
+   */
+  capMinor: number | null;
 }
 
 /** How far an account's sign-in can be trusted. */
@@ -8853,6 +8925,13 @@ export interface ProviderMove {
   resetsAt: string | null;
   reason: string | null;
   updatedAt: string;
+  /**
+   * ISO time an open wait looks again: its reset, the next `get_usage` probe of a reset nobody gave,
+   * or the next poll. Null on a closed move, and on a wait no look has scheduled yet (due now)
+   */
+  nextLookAt?: string | null;
+  /** How many times the wait asked `get_usage` for its accounts, with no turn, because nothing said when they reset */
+  probeCount?: number;
 }
 
 /**

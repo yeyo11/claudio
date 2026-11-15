@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-14T16:00:00Z
+updated_at: 2026-11-15T00:30:00Z
 tags:
     - accounts
     - rotation
@@ -202,6 +202,15 @@ each starts a CLI process.
   only to a chat that runs that model: `choose` skips an account whose limit for the chat's model is
   at 100 % until its reset, and waits for that reset when every account is out of it. The model is
   matched by its display name inside the chat's model id.
+- **The `overage` state and the overage window.** A spent plan whose credits are on (`extra_usage.is_enabled`,
+  the typed answer, which wins over the observed `spend.enabled`) and under their cap, with no
+  refusal since that reading, is `creditsCover: true` on the limit and reads `overage` through
+  `accountState` (`thresholds.ts`). The folded `state` stays `exhausted`, so whatever does not read
+  `creditsCover` treats the account as out, which is what the default wants. The stream's
+  `isUsingOverage`, `overageStatus`, `overageDisabledReason`, `overageEnabled` and `errorCode` are kept
+  as `overageHints`, carried over events that have none, and never make the state alone.
+  `seven_day_overage_included` is a window of the plan, kept apart as `overageHints.included`: it is
+  neither a scoped model (it showed as `Overage_included` before) nor a window the state folds from.
 - **Credits.** `rate_limits.spend` (amounts with their currency and exponent) and `extra_usage`
   (`credits_ever_enabled`, `spend_limit_reached`) become `limits.cli.credits`: enabled, used and
   monthly limit in minor units, currency, decimal places, whether the cap is reached and why they
@@ -294,6 +303,13 @@ tell a refused credential from an unreachable network. The four raw answers are 
   rejection gave no reset, `cooldownSeconds` leaves *that account* alone for the time: it is written
   on its reading as `outUntil`, so the account reads exhausted until then. There is no longer a
   global gap between switches, which held every other account back as well.
+- **Credits setting.** `credits` in `accounts.json`'s settings maps an account id to
+  `{ use: never | last-resort | allow, capMinor }`; an account it does not name is `never` (D3:
+  credits are spent only where a person switched that on). Under `never` an account in `overage` is
+  out like any spent one, a pin included. Under `allow` it is taken as an account over the threshold
+  is, after those with room, and kept while the work runs there. Under `last-resort` it is taken only
+  when no account has plan quota left. Both stop at `capMinor` (Claudio's cap, against
+  `cli.credits.usedMinor`), and `choose` marks such a choice `credits: true`. The wait is for the plan's reset.
 - **The model the chat asked for is what the choice filters on** (`chat.opts.model`), not the one the
   CLI resolved: a chat started on `default` runs on any account, instead of waiting for one that
   offers the Opus it resolved to. A pick that finds no account able to run a named model waits.
@@ -313,12 +329,29 @@ tell a refused credential from an unreachable network. The four raw answers are 
   sends the turn that died, not the nudge, because a refused replay is no replay (`replayLastTurn`
   puts the flags, the count and the account it chose back). A wait whose chat no process has any
   more is closed `failed`.
+- **The wait row is the hold** (t8 of [limit-resume-and-credits](plans/limit-resume-and-credits.md)).
+  A wait is its `provider_moves` row and nothing in memory: the row keeps when it looks again
+  (`next_look_at`), the turn it replays (`turn`: the text and upload ids of each message of the
+  turn that died) and how many times it probed (`probe_count`). One sweeper per process
+  (`ProviderRotation.sweep`) looks at the open rows whose chat it has: at the earliest
+  `next_look_at`, every 30 s at the latest, and over every row when an account's reading changes.
+  A known reset is looked at by then, a poll (5 min) away at the latest. A wait that knows no reset
+  asks `get_usage` (no turn, no tokens) for the accounts the chat could go on with whose reading is
+  older than its last look (`probeTargets`: its pinned account, else every enabled, signed-in
+  subscription account), at 5, 15, 30 and then every 60 min, one probe per account at a time and
+  bounded by 30 s; what they answer reaches the waits as any reading does. `maxWaitHours` gives such
+  a wait up only once a probe taken past it answered nothing. A sign-in failure is not probed: only
+  a person signs in again. A restarted process takes its rows over at its first pass: a claim a
+  restart cut short is taken again once it lapses, and a row an older Claudio opened (no
+  `next_look_at`) is due at once.
 - **A limit survives a restart.** An execution that died on a limit records the reset it knew
   (`Execution.limitResetsAt`) beside its `cause` and account. A restored chat whose last execution
   died that way, on the account the chat is still on, is at its limit again (`LiveChat.restore`):
   the banner shows, `POST /chats/:id/wait` opens the wait, and the reset it waits for is the recorded
-  one. It is not retired from memory while it is. The turn that died is not kept, so the replay
-  after a restart is the nudge (`LIMIT_CONTINUE_TEXT`): the CLI's session has the person's last
+  one. It is not retired from memory while it is. A wait opened before the restart replays the
+  turn its row kept, word for word (`ChatManager.replayLastTurn` with the stored turn); only a wait
+  that kept none (opened by an older Claudio, or after the restart, when the chat no longer knows
+  its turn) sends the nudge (`LIMIT_CONTINUE_TEXT`): the CLI's session has the person's last
   message.
 - **The replay count** (`MAX_LIMIT_REPLAYS`, one per execution) counts replays that landed on no new
   account, between two turns that went through. A turn that completes without error resets it, and a
@@ -351,7 +384,7 @@ tell a refused credential from an unreachable network. The four raw answers are 
   stops the limited process (`keepLimitCause` in `chats.ts`): stopped without it, the execution
   ended with no cause and a restart forgot the account it died on
   (`orchestration-limit-account-switch.test.ts`). A reading that leaves every account out but brings a reset
-  closer moves the wait's timer to it. Graph tasks and workflow leads go through the same path.
+  closer moves the wait's next look to it, and the row keeps that reset. Graph tasks and workflow leads go through the same path.
 - **Run now.** Beside "Stop waiting", a person can end a wait by sending its turn on at once
   (`POST /limits/waits/:id/run-now`, `ProviderRotation.runNow`): on an account a newer reading
   gives room if there is one, else on the first the readings allow, passing over the accounts the
