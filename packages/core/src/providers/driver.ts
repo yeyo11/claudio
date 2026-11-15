@@ -149,6 +149,11 @@ export interface SessionLaunch {
   /** The settings file that registers the guard's hooks; the driver passes it and asks for the hook events */
   guard?: { settingsPath: string };
   /**
+   * The one `--settings` file when it holds more than the guard's (a shared account's overlay, with
+   * the guard's keys in it): the CLI reads the last `--settings` flag only (S3f)
+   */
+  settingsFile?: string;
+  /**
    * Plugin directories loaded for this process alone (`--plugin-dir`): Claudio's `claudio-bridge` mod,
    * for a run that holds a chat token (docs/agent-messages.md)
    */

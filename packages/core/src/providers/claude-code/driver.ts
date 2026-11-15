@@ -28,6 +28,7 @@ import { claudeCodeManifest } from './manifest.ts';
 import { translateClaudePolicy } from './policy.ts';
 import { ClaudeStream } from './stream.ts';
 import { childEnv } from '../../child-env.ts';
+import type { OverlayLaunch } from '../../account-overlay.ts';
 
 /** The session a `claude -p --input-format stream-json` process drives, read from its arguments. */
 function sessionOf(argv: readonly string[]): string | null {
@@ -148,6 +149,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
 
   /** The default account's list from the CLI's `initialize`, null before it was read; set by the manager */
   modelSource: { listed: () => ModelOption[] | null } | null = null;
+  /** What a shared account's process adds to its launch (`account-overlay.ts`); set by the manager, like `modelSource` */
+  accountOverlay: { launch: (spec: SessionLaunch) => OverlayLaunch | null } | null = null;
 
   /** A function when the binary can change under a running server (an in-app CLI update) */
   constructor(private readonly claudeBin: string | (() => string)) {}
@@ -175,7 +178,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
   }
 
   launch(spec: SessionLaunch): LaunchPlan {
-    return { bin: typeof this.claudeBin === 'function' ? this.claudeBin() : this.claudeBin, args: buildArgs(spec), env: childEnv('claude-code', process.env, spec.account), unsetEnv: [] };
+    const launched = { ...spec, ...(this.accountOverlay?.launch(spec) ?? {}) };
+    return { bin: typeof this.claudeBin === 'function' ? this.claudeBin() : this.claudeBin, args: buildArgs(launched), env: childEnv('claude-code', process.env, spec.account), unsetEnv: [] };
   }
 
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession {
