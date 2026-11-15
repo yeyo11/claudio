@@ -163,9 +163,11 @@
 }
 
 /* The restart's notice (RestartCut.tsx): the time line and the error of a failed resume share one
-   cell, so the error replaces the line without moving the composer below */
+   cell, so the error replaces the line without moving the composer below. The cell always holds the
+   two lines the error may take, whichever line shows */
 .restart-cut-lines {
   display: grid;
+  min-height: 2lh;
 }
 
 .restart-cut-lines > * {

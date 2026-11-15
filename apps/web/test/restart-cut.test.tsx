@@ -1,6 +1,7 @@
 // tsx compiles test files with the classic runtime; this one renders JSX like the app does
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import type { Chat, Execution } from '@claudio/shared';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -97,4 +98,19 @@ test('a cut older than a month is dated, not "stopped Oct 12"', () => {
     ),
   );
   assert.match(html, /Its turn stopped on .+\. Resume it where it left off\./);
+});
+
+test('the line under the title always holds two lines, so a failed resume’s error takes its place without moving anything', () => {
+  const css = readFileSync(new URL('../../../packages/chat-ui/src/styles/chat.css', import.meta.url), 'utf8');
+  const rule = /\.restart-cut-lines\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.match(rule, /min-height:\s*2lh/, 'the cell reserves the error’s two lines in both states');
+  const clamp = /\.restart-cut-error > span\s*\{([^}]*)\}/.exec(css)?.[1] ?? '';
+  assert.match(clamp, /-webkit-line-clamp:\s*2/, 'and the error never grows past them');
+  const html = renderToStaticMarkup(
+    <QueryClientProvider client={new QueryClient()}>
+      <RestartCutBanner chat={chat()} cut={execution()} />
+    </QueryClientProvider>,
+  );
+  assert.match(html, /class="restart-cut-lines" data-failed="false"/, 'both lines are in the cell from the start');
+  assert.match(html, /class="restart-cut-error"/);
 });
