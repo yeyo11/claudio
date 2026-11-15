@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T12:00:00Z
+updated_at: 2026-11-15T18:00:00Z
 tags:
     - plan
     - study
@@ -12,7 +12,7 @@ tags:
 ---
 # Study: work that does not resume after a usage limit, and the credits Claudio ignores
 
-Status: **proposed**; `t7` is built on `feat/credits-setting`; `t8` is built on `feat/limit-hold-sweeper`; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
+Status: **proposed**; the early-reset probe (cause 12) is built on `fix/early-quota-reset`; `t7` is built on `feat/credits-setting`; `t8` is built on `feat/limit-hold-sweeper`; `t1` is built on `fix/chat-waits-at-limit`, `t2` on `fix/limit-survives-restart` and `t3` on `fix/graph-steps-wait-at-limit` (see [Outcome](#outcome)). Was: `t1` and `t2` built, the rest **proposed**.
 
 On 2026-11-13 the owner reported two problems:
 
@@ -207,6 +207,7 @@ Ordered by how much work they strand.
 | 9 | `resetSince` folds the account's current reading at the time of the failure, so a reading taken after the reset can make the failure count until a turn goes through | `chats.ts:102-104`, `store.ts:386` | possibly C5 (not determined) | Keep the out-until of each failure (`limitedAccounts` → `{ at, until }`) and compare with now | "an account the turn died on is a candidate again once its recorded reset passed" | Patch |
 | 10 | A `seven_day_overage_included` window is read as a model "Overage_included" | `accounts/src/usage.ts:50-53` | `limits.json` of A2 (**verified**) | Treat `*overage*` keys as overage, not a model | "an overage window is not a scoped model limit" | Patch |
 | 11 | `/v1` gives no `Retry-After`, and may replay a turn nobody waits for | `apps/api/src/routes/openai.ts:593-601` | — | `Retry-After` from `limitResetOf`; an API client's chat is never replayed | "a `/v1` limit answers 429 with Retry-After and leaves no wait" | Patch |
+| 12 | A wait with a known reset never asks `get_usage`, so a quota a person resets early from Claude's settings (the window starts again before the announced reset) goes unseen until some other reading comes; and `resetSince` took a reading taken after the failure that shows room as no evidence, because folded at the failure's time it does not say "out then" | `rotation.ts` `look` (known reset: reschedule only), `chats.ts` `resetSince` | the owner, 2026-11-14 on v0.17.0: a chat at its limit stayed blocked after he reset the account's quota | Probe a known-reset wait sparsely (15, 30, then every 60 min); a reading observed after the failure that is not `exhausted` ends the failure | "a wait for a reset four hours away goes on at its next probe once the account was reset early, and not before"; "… a candidate again before the reset its refusal recorded once a reading taken after the refusal shows it with room"; "… stays passed over while the only reading that shows it with room was taken before the refusal" | Patch on t8's sweeper |
 
 **The design reading.** Causes 1, 2, 4, 5 and 8 share one shape: whoever starts a wait or watches it believes someone else will wake the work.
 
@@ -522,6 +523,35 @@ What differs from the plan:
 Kept as they were: a person's chat waits and resumes by itself; a person's message cancels its wait; a refused resume keeps its claim as the back-off and leaves the chat as it was; an `origin: 'api'` chat is never held; an `internal` chat ends at its limit; graph steps that are no task wait like tasks.
 
 Still open: a graph step's wait across a restart is still closed by the orchestrator (`t3`), not resumed; `t9` shows `nextLookAt`.
+
+### Cause 12, an early quota reset (branch `fix/early-quota-reset`)
+
+Built in `packages/core/src/rotation.ts` (the probe of a known reset) and `chats.ts` (`resetSince`);
+tests in `packages/core/test/limit-holds.test.ts` and `accounts-rotation.test.ts`. `choose.ts` is
+unchanged.
+
+- **The probe.** A due wait whose reset is known asks `get_usage` through t8's `probe` (same
+  `probeTargets`, same sharing of one call per account in Core, same `probe_count` and
+  `next_look_at`): 15 min after the wait began, 30 min after that, then every 60 min
+  (`resetProbeMs`), and never once the reset comes before the next probe. A look between two probes
+  (the 5 min poll, an account's reading) never probes. The accounts asked are those whose reading is
+  not newer than the wait's last probe, so another wait's probe or any other reading in between
+  saves the call. When the last probe settled is kept in memory; a restart counts the gaps from
+  the wait's start, which costs one probe at most. A sign-in failure's wait is still not probed.
+- **The readings.** `roomFor` already let an account the turn died on be a candidate once a reading
+  newer than the wait's start was not `exhausted` (R10), so a probe's answer ends the wait. The gap
+  was `chooseNext` (a new limit, a person's Wait, Run now's refusal), through `resetSince`: it asked
+  whether the reading said "out" at the failure's time, and a fresh reading with a new window does
+  not, so the failure counted until the old recorded reset. `resetSince` now also ends a failure on
+  a reading observed after it that is not `exhausted`. A reading at or before the failure (the
+  refusal's own, or one from before the turn) is no evidence, so a stale "room" never lifts it.
+- **"Whatever reading came after".** That test (t2, cause 9) is about the other direction: once the
+  recorded reset has passed, the failure is over even when the latest reading, taken after the
+  reset, says nothing about the time of the failure. It is kept as it was, and still passes.
+
+Still open: whether the probe gaps should be a setting (they are constants, like t8's back-off); a
+person's chat with `rotateOnLimit` off has no wait, so it is never probed: its banner's Wait or Run
+now sees an early reset only through a reading (a Refresh on the Accounts page gives one).
 
 ### t5, spikes S1 and S4 (branch `docs/credits-in-the-stream`)
 

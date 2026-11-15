@@ -357,6 +357,146 @@ test('a wait for a reset days away sleeps until its next look instead of passing
   }
 });
 
+test('a wait for a known reset asks get_usage at 15, 45 and then every 60 minutes, never between, and not once its reset comes first', async () => {
+  const probes: number[] = [];
+  const clock = Date.parse('2026-11-14T10:00:00.000Z');
+  const r = boot({ clock, pollMs: 5 * MIN, probe: () => (probes.push(r.now() - clock), Promise.resolve()) });
+  try {
+    const id = await r.limited();
+    const row = openRow(id, new Date(clock).toISOString(), new Date(clock + 4 * HOUR).toISOString());
+    assert.equal(r.db.insertProviderMove(row), true);
+    await r.rotation.recover();
+    const at = async (minutes: number): Promise<void> => {
+      r.skip(clock + minutes * MIN - r.now());
+      await r.rotation.sweep();
+      // The probe settles in the background; what it records is in place before the next look
+      await new Promise((res) => setImmediate(res));
+      await r.rotation.sweep();
+    };
+    for (const m of [5, 10, 14]) await at(m);
+    assert.deepEqual(probes, [], 'the poll looks without asking');
+    await at(15);
+    await r.rotation.sweep(true);
+    assert.deepEqual(probes, [15 * MIN], 'one probe per look, however many passes');
+    for (const m of [20, 30, 40, 44]) await at(m);
+    assert.equal(probes.length, 1, 'nothing is asked between two probes');
+    for (let m = 45; m < 240; m += 5) await at(m);
+    assert.deepEqual(probes.map((ms) => ms / MIN), [15, 45, 105, 165, 225], 'the reset at 240 comes before the probe at 285');
+    const open = r.db.providerMove(row.id);
+    assert.equal(open?.state, 'waiting');
+    assert.equal(open?.probeCount, 5);
+    assert.equal(open?.resetsAt, row.resetsAt, 'a probe that saw nothing new leaves the reset as it was');
+  } finally {
+    r.close();
+  }
+});
+
+test('a wait for a reset four hours away goes on at its next probe once the account was reset early, and not before', async (t) => {
+  const config = { ...tempConfig(), claudeBin: FAKE_CLAUDE };
+  const saved = { dirs: process.env.FAKE_CLAUDE_LIMITED_DIRS, resets: process.env.FAKE_CLAUDE_LIMIT_RESETS_IN, dir: process.env.CLAUDE_CONFIG_DIR, key: process.env.ANTHROPIC_API_KEY };
+  const db = new Db(config);
+  let live: ChatManager | null = null;
+  const store = new AccountStore({ dataDir: config.dataDir, defaultDir: config.configDir, claude: FAKE_CLAUDE, liveChatsOn: (id) => live?.liveChatsOn(id) ?? [] });
+  await store.setSettings({ strategy: 'order' });
+  const a = await store.add({ kind: 'token', alias: 'alpha', secret: 'tok-alpha' });
+  process.env.CLAUDE_CONFIG_DIR = config.configDir;
+  process.env.ANTHROPIC_API_KEY = 'wrapper-key';
+  // Every account refuses, and says it is out for four hours
+  process.env.FAKE_CLAUDE_LIMITED_DIRS = [config.configDir, store.ref(a.id).dir].join(',');
+  process.env.FAKE_CLAUDE_LIMIT_RESETS_IN = String(4 * 3600);
+  const chats = new ChatManager(config, db, [new ClaudeCodeDriver(FAKE_CLAUDE)]);
+  chats.accounts = store;
+  live = chats;
+  const settings = defaultProvidersSettings(['claude-code']);
+  settings.rotation = defaultRotationSettings();
+  let t0 = 0;
+  let early = false;
+  let resetAt = 0;
+  const asked: Array<{ minutes: number; targets: string[] }> = [];
+  let settled = 0;
+  const rotation = new ProviderRotation({
+    db,
+    runtime: chats,
+    settings: () => settings,
+    projectProviders: () => null,
+    projectOf: () => null,
+    emit: () => undefined,
+    accountsChanged: (listener) => store.onChange(listener),
+    // What `get_usage` answers: the window still spent until the person resets it, then a new one with room
+    probe: async (chatId, since) => {
+      const run = chats.get(chatId);
+      const targets = run ? probeTargets(run, store.list(), since) : [];
+      asked.push({ minutes: (Date.now() - t0) / MIN, targets });
+      // What the account says at the moment it is asked, whatever happens while the answer is recorded
+      const wasReset = early;
+      for (const id of targets) {
+        const at = Date.now();
+        const reading = wasReset
+          ? readingFromEvent({ status: 'allowed', rateLimitType: 'five_hour', unifiedWindows: { five_hour: { utilization: 0.02, resetsAt: Math.floor(at / 1000) + 5 * 3600 } } }, at)
+          : readingFromEvent({ status: 'allowed', rateLimitType: 'five_hour', unifiedWindows: { five_hour: { utilization: 1, resetsAt: Math.floor(resetAt / 1000) } } }, at);
+        assert.ok(reading);
+        await chats.noteAccountReading(id, reading);
+      }
+      settled++;
+    },
+    // One clock: the chats, the accounts and the rotation all read `Date`, which the test moves
+    now: () => Date.now(),
+    pollMs: 5 * MIN,
+    slackMs: 0,
+    sweepMs: HOUR,
+  });
+  rotation.start();
+  try {
+    const chat = chats.start({ prompt: 'hello', name: 'all out', keepAlive: false });
+    await waitFor(() => db.providerMoves({ chatId: chat.id }).some((m) => m.state === 'waiting'));
+    const [wait] = db.providerMoves({ chatId: chat.id });
+    assert.ok(wait?.resetsAt && Date.parse(wait.resetsAt) > Date.now() + 3 * HOUR, 'the refusal named a reset hours away');
+    resetAt = Date.parse(wait.resetsAt);
+    t.mock.timers.enable({ apis: ['Date'], now: Date.now() });
+    t0 = Date.parse(wait.at);
+    const to = async (minutes: number): Promise<void> => {
+      t.mock.timers.tick(Math.max(0, t0 + minutes * MIN - Date.now()));
+      await rotation.sweep();
+      await new Promise((res) => setImmediate(res));
+      await rotation.sweep();
+    };
+
+    await to(5);
+    await to(10);
+    assert.equal(asked.length, 0, 'the poll looks without asking');
+    await to(15);
+    await waitFor(() => settled === 1);
+    await to(15);
+    assert.ok(asked[0]?.targets.includes(a.id), 'the account the chat could go on with is asked');
+    assert.equal(db.providerMove(wait.id)?.state, 'waiting', 'still spent: the wait goes on');
+
+    // The person resets the account's quota from Claude's settings
+    early = true;
+    process.env.FAKE_CLAUDE_LIMITED_DIRS = '';
+    await to(20);
+    await to(40);
+    assert.equal(asked.length, 1, 'nothing is asked before the next probe');
+    assert.equal(db.providerMove(wait.id)?.state, 'waiting', 'and nothing else says it was reset');
+
+    await to(45);
+    await waitFor(() => db.providerMove(wait.id)?.state === 'resumed');
+    assert.deepEqual(asked.map((p) => p.minutes), [15, 45]);
+    assert.ok(Date.now() < resetAt, 'it went on hours before the reset the refusal announced');
+    assert.equal(db.providerMove(wait.id)?.probeCount, 2);
+    assert.equal(store.get(a.id).limits?.state, 'ok', 'the account shows the reading the probe took');
+    await waitFor(() => (chats.get(chat.id)?.executions.length ?? 0) >= 3 && chats.get(chat.id)?.status !== 'busy' && chats.get(chat.id)?.status !== 'starting');
+    assert.equal(chats.atLimit(chat.id), false, 'the turn went through');
+  } finally {
+    void rotation.close();
+    chats.stopAll();
+    db.close();
+    for (const [name, value] of [['FAKE_CLAUDE_LIMITED_DIRS', saved.dirs], ['FAKE_CLAUDE_LIMIT_RESETS_IN', saved.resets], ['CLAUDE_CONFIG_DIR', saved.dir], ['ANTHROPIC_API_KEY', saved.key]] as const) {
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  }
+});
+
 test('a probe asks only the accounts a chat could go on with whose reading is older than the last look', () => {
   const reading = (at: string) => ({ state: 'exhausted', observedAt: at }) as unknown as NonNullable<Account['limits']>;
   const accounts = [

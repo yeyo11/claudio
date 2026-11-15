@@ -53,6 +53,10 @@ import { LIMIT_CONTINUE_TEXT, errorMessage } from '@claudio/shared';
  * - A wait that knows no reset asks `get_usage` (no turn, no tokens) for the accounts it could go on
  *   with whose reading is older than its last look, backing off 5, 15, 30 then every 60 min; it never
  *   starts a turn to find out. `maxWaitHours` ends it only once a probe past the cap answered nothing.
+ * - A wait that knows its reset asks too, more sparsely (15 min after it began, 30 min later, then every
+ *   60 min, never once the reset comes first): a person can reset an account's quota early from
+ *   Claude's settings, and nothing but a reading says so (cause 12 of
+ *   docs/plans/limit-resume-and-credits.md). The answer reaches the wait as any reading does.
  */
 
 /** A reset is taken as passed a moment late: the provider's own clock may differ from ours */
@@ -65,6 +69,11 @@ const CLAIM_MS = 2 * 60_000;
 const SWEEP_MS = 30_000;
 /** 5, 15, 30, then every 60 min: a `get_usage` takes seconds, and an account out for hours says so at the first one */
 const PROBE_BACKOFF_MS = [5 * 60_000, 15 * 60_000, 30 * 60_000, 60 * 60_000] as const;
+/**
+ * 15, 30, then every 60 min: a wait whose reset is known only probes for an early reset, which a
+ * person does rarely; an hour late at worst is far better than the hours to the announced reset
+ */
+const RESET_PROBE_MS = [15 * 60_000, 30 * 60_000, 60 * 60_000] as const;
 /** The least a sweeper sleeps: a row a pass could not move on is never looked at in a tight loop */
 const MIN_SWEEP_GAP_MS = 5;
 /** `setTimeout` takes a signed 32-bit number */
@@ -135,6 +144,8 @@ export interface RotationDeps {
   sweepMs?: number;
   /** The probe back-off of a wait with no known reset: the first look, then after each probe; the last one repeats */
   probeBackoffMs?: readonly number[];
+  /** The probe back-off of a wait whose reset is known, for an early reset: the first probe after the wait began, then after each probe; the last one repeats */
+  resetProbeMs?: readonly number[];
   /** How long after a reset the turn is replayed; five seconds by default */
   slackMs?: number;
   /** How long a claim holds a wait, which is also how long a resume the runtime refused for room waits to try again; two minutes by default */
@@ -208,6 +219,12 @@ export class ProviderRotation {
   private readonly claimMs: number;
   private readonly sweepMs: number;
   private readonly backoff: readonly number[];
+  private readonly resetBackoff: readonly number[];
+  /**
+   * When each wait's last probe settled (epoch ms). Memory only: after a restart the next probe of a
+   * known reset is counted from when the wait began, which costs one probe at most
+   */
+  private readonly probedAt = new Map<string, number>();
   private readonly listener = (run: ChatRuntime, limitResetsAt: string | null): void => {
     void this.onLimitHit(run, limitResetsAt);
   };
@@ -236,6 +253,7 @@ export class ProviderRotation {
     this.claimMs = deps.claimMs ?? CLAIM_MS;
     this.sweepMs = deps.sweepMs ?? SWEEP_MS;
     this.backoff = deps.probeBackoffMs?.length ? deps.probeBackoffMs : PROBE_BACKOFF_MS;
+    this.resetBackoff = deps.resetProbeMs?.length ? deps.resetProbeMs : RESET_PROBE_MS;
   }
 
   /** Starts listening for `limit-hit`. */
@@ -267,6 +285,7 @@ export class ProviderRotation {
     this.waits.clear();
     this.refused.clear();
     this.progress.clear();
+    this.probedAt.clear();
     return Promise.allSettled([...this.inflight]).then(() => undefined);
   }
 
@@ -491,6 +510,7 @@ export class ProviderRotation {
   private drop(move: Pick<ProviderMove, 'id' | 'fromChat'>): void {
     this.refused.delete(move.id);
     this.progress.delete(move.id);
+    this.probedAt.delete(move.id);
     if (this.waits.get(move.fromChat) === move.id) this.waits.delete(move.fromChat);
   }
 
@@ -600,12 +620,23 @@ export class ProviderRotation {
     const reset = room.reset;
     const nowIso = new Date(now).toISOString();
     if (reset) {
-      if (now >= Date.parse(reset) + this.slackMs) {
+      const back = Date.parse(reset) + this.slackMs;
+      if (now >= back) {
         await this.resume(row);
         return;
       }
-      // A known reset holds however far off it is (D2); it is looked at a poll from now at the latest
-      this.deps.db.scheduleProviderMove(row.id, nowIso, new Date(Math.min(Date.parse(reset) + this.slackMs, now + this.pollMs)).toISOString());
+      // A known reset holds however far off it is (D2); it is looked at a poll from now at the latest.
+      // The window may start again before it (an early reset), which only `get_usage` would say: a
+      // due look asks, sparsely, unless the reset comes first
+      const probeAt = this.probes(row) ? this.resetProbeAt(row) : null;
+      if (due && probeAt !== null && probeAt < back && now >= probeAt) {
+        const count = (row.probeCount ?? 0) + 1;
+        const after = now + this.resetGap(count);
+        this.probe(row, run, now, Math.min(back, now + this.pollMs, after), this.probedAt.get(row.id) ?? Date.parse(row.updatedAt));
+        return;
+      }
+      const next = probeAt !== null && probeAt < back ? Math.max(probeAt, now + MIN_SWEEP_GAP_MS) : back;
+      this.deps.db.scheduleProviderMove(row.id, nowIso, new Date(Math.min(back, now + this.pollMs, next)).toISOString());
       return;
     }
     // No reset known. A look out of turn (a new reading) found no room: the row keeps its time
@@ -617,7 +648,8 @@ export class ProviderRotation {
         this.end(row, 'failed', 'limit-wait-expired');
         return;
       }
-      this.probe(row, run, now);
+      const wait = this.backoff[Math.min((row.probeCount ?? 0) + 1, this.backoff.length - 1)] ?? this.pollMs;
+      this.probe(row, run, now, now + wait, Date.parse(row.updatedAt));
       return;
     }
     if (now >= cap) this.end(row, 'failed', 'limit-wait-expired');
@@ -629,17 +661,34 @@ export class ProviderRotation {
     return (row.probeCount ?? 0) > 0 && Date.parse(row.updatedAt) >= cap;
   }
 
+  /** The gap before probe number `n` (0: the first, counted from when the wait began) of a wait whose reset is known */
+  private resetGap(n: number): number {
+    return this.resetBackoff[Math.min(n, this.resetBackoff.length - 1)] ?? HOUR_MS;
+  }
+
   /**
-   * Asks `get_usage` for the accounts the waiting chat could go on with, in the background: the row
-   * says first when it looks again (the back-off), so a probe that hangs or a restart in the middle
-   * costs one look, never a loop. What the accounts answer reaches the waits as any reading does.
+   * When a wait whose reset is known next asks `get_usage`: a gap after its last probe. A process
+   * that does not remember that probe (a restart) counts the gaps from when the wait began, so a
+   * long sleep costs one probe at once, never one per missed gap.
    */
-  private probe(row: OpenHold, run: ChatRuntime, now: number): void {
-    const probe = this.deps.probe;
+  private resetProbeAt(row: Pick<ProviderMove, 'id' | 'at' | 'probeCount'>): number {
     const count = row.probeCount ?? 0;
-    const wait = this.backoff[Math.min(count + 1, this.backoff.length - 1)] ?? this.pollMs;
-    const since = Date.parse(row.updatedAt);
-    this.deps.db.scheduleProviderMove(row.id, new Date(now).toISOString(), new Date(now + wait).toISOString(), { probed: true });
+    const last = this.probedAt.get(row.id);
+    if (last !== undefined) return last + this.resetGap(count);
+    let at = Date.parse(row.at);
+    for (let n = 0; n <= count; n++) at += this.resetGap(n);
+    return at;
+  }
+
+  /**
+   * Asks `get_usage` for the accounts the waiting chat could go on with whose reading is not newer than
+   * `since`, in the background: the row says first when it looks again (`next`), so a probe that hangs
+   * or a restart in the middle costs one look, never a loop. What the accounts answer reaches the
+   * waits as any reading does.
+   */
+  private probe(row: OpenHold, run: ChatRuntime, now: number, next: number, since: number): void {
+    const probe = this.deps.probe;
+    this.deps.db.scheduleProviderMove(row.id, new Date(now).toISOString(), new Date(next).toISOString(), { probed: true });
     if (!probe || this.probing.has(row.id)) return;
     this.probing.add(row.id);
     const work = probe(run.id, since)
@@ -647,7 +696,10 @@ export class ProviderRotation {
       .then(() => {
         // From now on a reading older than this is no news to the next probe
         const open = this.deps.db.providerMove(row.id);
-        if (open && (open.state === 'waiting' || open.state === 'resuming') && open.nextLookAt) this.deps.db.scheduleProviderMove(row.id, new Date(this.now()).toISOString(), open.nextLookAt);
+        if (!open || (open.state !== 'waiting' && open.state !== 'resuming')) return;
+        const settled = this.now();
+        this.probedAt.set(row.id, settled);
+        if (open.nextLookAt) this.deps.db.scheduleProviderMove(row.id, new Date(settled).toISOString(), open.nextLookAt);
       })
       .catch(() => undefined)
       .finally(() => {

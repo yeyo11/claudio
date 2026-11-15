@@ -114,11 +114,19 @@ export function limitedTailAt(executions: readonly Execution[]): ({ account: str
  * reading taken after the reset says "not out" about a time it was out, so the failure counted until a
  * turn went through (cause 9 of docs/plans/limit-resume-and-credits.md). An earlier reset than the
  * recorded one is still seen through the reading (R10).
+ *
+ * A reading taken after the failure that does not call the account exhausted is evidence too: a person
+ * can reset an account's quota early from Claude's settings, and the window starts again before the
+ * recorded reset (cause 12 of docs/plans/limit-resume-and-credits.md). The comparison above cannot see
+ * it, since that reading, folded at the failure's time, says nothing of being out then. One taken at or
+ * before the failure (the refusal's own, or one kept from before the turn) says nothing of after it.
  */
 function resetSince(accounts: Pick<ChatAccounts, 'find'>, account: string, failure: LimitFailure, at: number): boolean {
   // A reset not after the failure is no evidence (a refusal can quote one already past): the failure counts as if none was said
   if (failure.until !== null && failure.until > failure.at && at >= failure.until) return true;
-  return isOut(accounts.find(account, failure.at)?.limits, failure.at) && !isOut(accounts.find(account, at)?.limits, at);
+  const latest = accounts.find(account, at)?.limits;
+  if (latest && latest.state !== 'exhausted' && Date.parse(latest.observedAt) > failure.at) return true;
+  return isOut(accounts.find(account, failure.at)?.limits, failure.at) && !isOut(latest, at);
 }
 /**
  * What starting or continuing a chat refuses on purpose (no prompt, the runtime full, the session
