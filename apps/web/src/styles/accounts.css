@@ -421,13 +421,13 @@
   color: var(--fg-2);
 }
 
-/* A narrow card: one column, so the cap keeps room for an amount between its steppers; an unused
-   cap takes none there, since nothing beside it would move */
+/* A narrow card: one column, so the cap keeps room for an amount between its steppers. An unused
+   cap keeps its line and the sentence three (the longest, in Spanish too), so changing the use never moves what follows */
 @container (max-width: 480px) {
   .rotation-credits-row {
     grid-template-columns: minmax(0, 1fr);
   }
-  .rotation-credits-cap.is-unused {
-    display: none;
+  .rotation-credits-hint {
+    min-height: 3lh;
   }
 }
