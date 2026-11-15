@@ -190,6 +190,15 @@ const closeAfterExitMs = (): number => Number(process.env.CLAUDIO_CLOSE_AFTER_EX
 /** Who wrote a message besides a person, and the words it carries without Claudio's framing (`SentMessage`). */
 export type MessageFrom = Partial<Pick<SentMessage, 'source' | 'words'>>;
 
+/** One message of a turn that died at a limit, as a wait's row keeps it: the replay sends it again after a restart */
+export interface LimitTurnMessage {
+  text: string;
+  /** Upload ids */
+  attachments: string[];
+  source: SentMessage['source'];
+  words?: string;
+}
+
 /** Who wrote a message, to send it again as it was */
 const fromOf = (message: SentMessage): MessageFrom => ({ source: message.source, ...(message.words !== undefined ? { words: message.words } : {}) });
 
@@ -3036,9 +3045,11 @@ export class ChatManager extends EventEmitter {
    * Re-sends the turn that died against the limit, on the same chat and provider: what `wait` does
    * once the reset has passed. The process is gone by now, so `send` respawns it with `--resume`.
    */
-  async replayLastTurn(id: string, account?: string): Promise<boolean> {
+  async replayLastTurn(id: string, account?: string, stored?: readonly LimitTurnMessage[]): Promise<boolean> {
     const chat = this.chats.get(id);
-    if (!chat || !chat.lastUserTurn) return false;
+    if (!chat) return false;
+    // A restart forgot the turn; the wait's row kept it (`limitTurnOf`), and that is what goes again
+    if (!chat.lastUserTurn) return stored?.length ? this.replayStored(chat, stored, account) : false;
     // Taken before anything changes: a resume the runtime refuses (run slots, memory) leaves the chat at its limit, as it was
     const before = this.limitStateOf(chat);
     // A move to another account is not the second failure the counter guards against: every account
@@ -3076,6 +3087,41 @@ export class ChatManager extends EventEmitter {
       throw error;
     } finally {
       this.replaying.delete(id);
+    }
+    return true;
+  }
+
+  /**
+   * The turn a limit replay would send now, as the text and attachment ids of each message: what a
+   * wait keeps in its row, so the turn that died still goes again after a restart has emptied the
+   * chat's memory of it. Null when the chat has no turn to replay.
+   */
+  limitTurnOf(id: string): LimitTurnMessage[] | null {
+    const chat = this.chats.get(id);
+    if (!chat || !chat.lastUserTurn) return null;
+    const waiting = new Set(chat.pending.keys());
+    const turn = [...chat.turnMessages.filter((m) => !waiting.has(m.id)), ...chat.pending.values()].sort((a, b) => a.sentAt.localeCompare(b.sentAt));
+    return turn.map((m) => ({ text: m.text, attachments: m.attachments.map((a) => a.id), source: m.source, ...(m.words !== undefined ? { words: m.words } : {}) }));
+  }
+
+  /** `replayLastTurn` for a chat restored from its records: the turn comes from the wait's row, under new ids. */
+  private replayStored(chat: LiveChat, turn: readonly LimitTurnMessage[], account?: string): boolean {
+    const before = this.limitStateOf(chat);
+    if (account) chat.forcedAccount = account;
+    else if (chat.limitReplays >= MAX_LIMIT_REPLAYS) return false;
+    else chat.limitReplays++;
+    chat.rateLimited = false;
+    chat.authFailed = false;
+    chat.limitRequested = false;
+    const held = new Map(chat.pending);
+    this.replaying.add(chat.id);
+    try {
+      for (const message of turn) this.sendMessage(chat.id, message.text, message.attachments, undefined, undefined, { source: message.source, ...(message.words !== undefined ? { words: message.words } : {}) });
+    } catch (error) {
+      this.restoreLimitState(chat, before, held);
+      throw error;
+    } finally {
+      this.replaying.delete(chat.id);
     }
     return true;
   }

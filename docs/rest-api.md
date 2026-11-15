@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-14T16:00:00Z
+updated_at: 2026-11-14T18:00:00Z
 tags:
     - rest-api
     - api
@@ -169,7 +169,9 @@ has any; it never sends the work to another vendor.
   banner (`limit-hit`); a click on wait calls `POST /chats/:id/wait`.
 - **Automated work** (flow runs, orchestration tasks, the assistant) waits on its own.
 - **A wait** is a row, so two processes on one data directory replay a turn once and a restart picks
-  it up again; with no reset time known it ends at `maxWaitHours`.
+  it up again, turn included. A row carries `nextLookAt` (when it looks again) and `probeCount`
+  (how many times it asked `get_usage`, with no turn, because no reset time was known); such a wait
+  ends at `maxWaitHours` only once a probe past it answered nothing.
 
 | Method | Route | Description |
 | --- | --- | --- |
