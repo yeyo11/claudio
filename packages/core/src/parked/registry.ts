@@ -2,7 +2,9 @@ import { execFile, spawn, spawnSync } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { chmodSync, closeSync, constants, existsSync, mkdirSync, openSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { Socket } from 'node:net';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { MCP_ENTRY_ENV } from '../claudio-mcp.ts';
+import { CHAT_TOKEN_MAX_AGE_MS, chatTokenHash, type StoredChatTokens } from '../security/chat-tokens.ts';
 import { descendantsOf, processEntry, processTable } from '../processes.ts';
 import { ParkedProcess, type ParkedLedger } from './process.ts';
 import { CliProcessStore, type CliProcessRow, type ProcessIdentity } from './store.ts';
@@ -40,7 +42,18 @@ function selfIdentity(): ProcessIdentity {
   return { pid: process.pid, started: processEntry(process.pid)?.started ?? 0 };
 }
 
+const samePid = (a: ProcessIdentity, b: ProcessIdentity): boolean => a.pid === b.pid && a.started === b.started;
+
 const alive = (who: ProcessIdentity | null): boolean => who !== null && processEntry(who.pid)?.started === who.started;
+
+/** Where the MCP server this CLI may start comes from: the payload directory, which an update must not delete under it */
+function payloadDirOf(env: NodeJS.ProcessEnv): string | null {
+  const entry = env[MCP_ENTRY_ENV] ?? process.env[MCP_ENTRY_ENV];
+  return entry ? dirname(entry) : null;
+}
+
+/** Whether what a row names still runs: its CLI, or its wrapper until the CLI's pid is written. */
+const running = (row: CliProcessRow): boolean => alive(row.cli ?? row.wrapper);
 
 let probedUserManager: boolean | null = null;
 
@@ -67,7 +80,7 @@ function systemctl(args: string[]): Promise<void> {
  * rows, and reaps what a previous server left. Adopting a live process at start-up is t4's; until
  * then a start stops what it finds, and the chats a restart cut are continued by layer 3 as before.
  */
-export class ParkedProcesses implements ParkedLedger {
+export class ParkedProcesses implements ParkedLedger, StoredChatTokens {
   readonly root: string;
   private readonly store: CliProcessStore;
   private readonly handoverSeconds: number;
@@ -79,6 +92,8 @@ export class ParkedProcesses implements ParkedLedger {
   private readonly live = new Map<string, ParkedProcess>();
   private renewTimer: NodeJS.Timeout | null = null;
   private canPunch = true;
+  /** The CLI's version, recorded in each row (t5): set by the core, which learns it from the CLI */
+  cliVersion: () => string | null = () => null;
 
   constructor(options: ParkedOptions) {
     this.root = join(options.dataDir, 'procs');
@@ -118,6 +133,7 @@ export class ParkedProcesses implements ParkedLedger {
       writeFileSync(file('version'), `${String(PARKED_LAYOUT)}\n`, { mode: 0o600 });
       writeFileSync(file('script'), wrapperScript({ dir, command: [spec.bin, ...spec.args], tickSeconds: this.tickSeconds }), { mode: 0o600 });
       this.writeLease(dir);
+      if (spec.env.CLAUDIO_API_URL) writeFileSync(file('apiUrl'), `${spec.env.CLAUDIO_API_URL}\n`, { mode: 0o600 });
       const made = spawnSync('mkfifo', ['-m', '600', file('fifo')], { stdio: 'ignore' });
       if (made.status !== 0) throw new Error(`could not make the FIFO of a parked process (mkfifo exited ${String(made.status ?? made.signal)})`);
     } catch (error) {
@@ -154,6 +170,9 @@ export class ParkedProcesses implements ParkedLedger {
         committedOffset: 0,
         stdinSeq: 0,
         turnOffset: null,
+        tokenHash: spec.env.CLAUDIO_API_TOKEN ? chatTokenHash(spec.env.CLAUDIO_API_TOKEN) : null,
+        payloadDir: payloadDirOf(spec.env),
+        cliVersion: this.cliVersion(),
         startedAt: new Date(this.now()).toISOString(),
       });
       this.live.set(id, parked);
@@ -172,6 +191,45 @@ export class ParkedProcesses implements ParkedLedger {
       }
     }
     this.store.renew(this.owner, new Date(this.leaseUntilMs()).toISOString());
+  }
+
+  /**
+   * The chat a stored token hash was made for (D5), while its process runs and this server holds it.
+   * Bound to the process by the pid and start time of the row, so a pid the kernel reused, a process
+   * no server holds, and a row older than a token may live (`CHAT_TOKEN_MAX_AGE_MS`) all answer null.
+   */
+  chatForTokenHash(hash: string): string | null {
+    const row = this.store.byTokenHash(hash);
+    if (!row?.owner || !samePid(row.owner, this.owner) || !running(row)) return null;
+    return this.now() - Date.parse(row.startedAt) < CHAT_TOKEN_MAX_AGE_MS ? row.chatId : null;
+  }
+
+  /** The chats whose parked CLI still runs: what start-up must not delete the files of. */
+  chatsInUse(): Set<string> {
+    return new Set(this.store.all().filter(running).map((row) => row.chatId));
+  }
+
+  /**
+   * The port the running CLIs hold in their `CLAUDIO_API_URL`, or null when none runs (or none had
+   * an address). Several ports can only come from a port that was changed while CLIs lived: the one
+   * most of them hold wins, the newest on a tie, since a CLI can reach the API only there.
+   */
+  apiPort(): number | null {
+    const held = new Map<number, { count: number; newest: string }>();
+    for (const row of this.store.all()) {
+      if (!running(row)) continue;
+      let port = 0;
+      try {
+        port = Number(new URL(readFileSync(join(row.dir, PARKED_FILES.apiUrl), 'utf8').trim()).port);
+      } catch {
+        continue;
+      }
+      if (!Number.isInteger(port) || port <= 0) continue;
+      const seen = held.get(port);
+      held.set(port, { count: (seen?.count ?? 0) + 1, newest: seen && seen.newest > row.startedAt ? seen.newest : row.startedAt });
+    }
+    const [best] = [...held].sort((a, b) => b[1].count - a[1].count || (a[1].newest < b[1].newest ? 1 : -1));
+    return best ? best[0] : null;
   }
 
   /** The CLIs (by pid) of the rows `reap` would stop now: those whose server is gone and that still run. */

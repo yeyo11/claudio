@@ -25,6 +25,14 @@ export interface CliProcessRow {
   stdinSeq: number;
   /** Where the open turn's output starts in `out.jsonl`; null between turns */
   turnOffset: number | null;
+  /**
+   * What a restart must keep of what the process was given (t5, D5): the SHA-256 of its chat token as
+   * hex (never the token), the payload directory its MCP server runs from, and the CLI's version.
+   * Null for a row written before, or one that had none of them.
+   */
+  tokenHash: string | null;
+  payloadDir: string | null;
+  cliVersion: string | null;
   startedAt: string;
 }
 
@@ -44,6 +52,9 @@ interface Row {
   committed_offset: number;
   stdin_seq: number;
   turn_offset: number | null;
+  token_hash: string | null;
+  payload_dir: string | null;
+  cli_version: string | null;
   started_at: string;
 }
 
@@ -60,6 +71,9 @@ const fromRow = (r: Row): CliProcessRow => ({
   committedOffset: Number(r.committed_offset),
   stdinSeq: Number(r.stdin_seq),
   turnOffset: r.turn_offset === null ? null : Number(r.turn_offset),
+  tokenHash: r.token_hash,
+  payloadDir: r.payload_dir,
+  cliVersion: r.cli_version,
   startedAt: r.started_at,
 });
 
@@ -74,8 +88,8 @@ export class CliProcessStore {
     this.sql
       .prepare(
         `INSERT INTO cli_processes (id, chat_id, layout, dir, scope, wrapper_pid, wrapper_started, cli_pid, cli_started,
-           owner_pid, owner_started, lease_until, committed_offset, stdin_seq, turn_offset, started_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           owner_pid, owner_started, lease_until, committed_offset, stdin_seq, turn_offset, token_hash, payload_dir, cli_version, started_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         row.id,
@@ -93,6 +107,9 @@ export class CliProcessStore {
         row.committedOffset,
         row.stdinSeq,
         row.turnOffset,
+        row.tokenHash,
+        row.payloadDir,
+        row.cliVersion,
         row.startedAt,
       );
   }
@@ -104,6 +121,12 @@ export class CliProcessStore {
 
   all(): CliProcessRow[] {
     return (this.sql.prepare('SELECT * FROM cli_processes ORDER BY started_at, id').all() as unknown as Row[]).map(fromRow);
+  }
+
+  /** The process a chat token's hash was stored for, if its row is still there. */
+  byTokenHash(hash: string): CliProcessRow | null {
+    const row = this.sql.prepare('SELECT * FROM cli_processes WHERE token_hash = ?').get(hash) as Row | undefined;
+    return row ? fromRow(row) : null;
   }
 
   /** The CLI's own pid, once the wrapper has written it. */

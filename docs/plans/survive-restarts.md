@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-16T12:00:00Z
+updated_at: 2026-11-16T18:00:00Z
 tags:
     - plan
     - study
@@ -709,6 +709,48 @@ the pid (the wrapper's argv replaces `systemd-run`'s) and the unit is gone after
 100 KB line through the non-blocking FIFO socket arrives whole; SIGUSR1 to the wrapper, then closing
 the server's writer, delivers EOF and the CLI's own exit code (7) to `exit.code`. Nothing touched the
 owner's running app.
+
+## Outcome of t5 (what a running CLI holds from its server, 2026-11-16)
+
+Still behind `CLAUDIO_PARKED_PROCESSES` (off). With it off nothing is written or read: the token store
+has no stored source to ask, no row exists, the port is the one asked for.
+
+| Piece | As built |
+|---|---|
+| Token hash | At `ParkedProcesses.start` the row gets `token_hash` = SHA-256 hex of the `CLAUDIO_API_TOKEN` in the process's environment (`chatTokenHash`), nothing else of it. `ChatTokenStore.stored` (a `StoredChatTokens`) is asked when a token is not in memory, in `verify` and in `holds` (masking). `ParkedProcesses.chatForTokenHash` answers only when the row's owner is this server (pid + start time), the CLI of the row runs (pid + start time; its wrapper until the CLI's pid is written) and the row is under `CHAT_TOKEN_MAX_AGE_MS`. The row going (`ended`, `reap`) revokes it. Tokens minted in memory are unchanged, so a non-parked chat behaves as before |
+| Port | `ParkedProcesses.apiPort()` reads `<dir>/api-url` (new file, the `CLAUDIO_API_URL` the CLI was given) of every running row: the port most CLIs hold, the newest on a tie. `startServer` listens there, whatever port it was asked for (a warning when it differs), with no fallback, and throws `AdoptedPortTakenError` (`code: EADDRINUSE`, so `index.ts` still names the problem) when it is taken. No setting. The desktop already restarts on the port it remembers, so a normal restart asks for the same one; the headless image and `pnpm dev` ask for a fixed one. No launcher changed |
+| Payload dirs | `payload_dir` = the directory of `CLAUDIO_MCP_ENTRY` at the start. `collectOverlays` (`launcher/machine.ts`) keeps an overlay `<data>/app/<version>` that a running row's `payload_dir` is under, reading the rows read-only through `MachineFiles.pinned` (`pinnedPayloads`: `node:sqlite` through `createRequire`, a row counts while its CLI runs by pid + start time; unreadable keeps every overlay). `.staging-*` still goes |
+| Chat configs | `restore` ends with `removeChatExtrasConfigs(…, chat => !parked.chatsInUse().has(chat) && !alive)`: the `extra-*` and `overlay-*` files of a chat whose parked CLI runs stay. They go with the chat or the process as before |
+| CLI version | `cli_version` = what the core last read from the CLI (`Core.cliVersionSeen`), or null |
+
+**Where t4 and t6 touch this.**
+
+- `chats.ts`: one hunk, in `restore`, the last `removeChatExtrasConfigs` call (it now reads
+  `this.parked.chatsInUse()`). `index.ts`: two lines after `this.runtime.chatTokens = …`
+  (`chatTokens.stored = runtime.parked`, `parked.cliVersion`). `parked/registry.ts`: `start` (derived
+  fields in the `insert`, the `api-url` write) and four new methods; `parked/store.ts`: three row fields
+  and `byTokenHash`; `parked/wrapper.ts`: the `apiUrl` file name. `db.ts`: nothing (the columns were t3's).
+- **t4 must make the adopting server the row's owner** (`take`) before it counts the chat as running:
+  the token is accepted only for a row this server owns, so a chat the server has not taken answers
+  `401` with its own token. It should call nothing else: the stored token needs no step at adoption,
+  and `ended()` deleting the row is the revocation. A detach (`release`) makes the token unusable until
+  the next server takes the row, which is the intended gap.
+- **t6 must keep the port** the CLIs hold: the daemon's server is started with the `PORT` the shell
+  remembers, and the crash path restarts it the same way. `AdoptedPortTakenError` is an exit with
+  `EADDRINUSE`; the supervisor should show it as "the port is taken", not retry in a loop. The
+  launcher already collects overlays through `collectOverlays`, so t6's units get the retention.
+- Not done: attachments (`uploads/`) have no start-up sweep to spare; a parked CLI's per-run temp dirs
+  (`CHAT_TMP`) were not looked at; the old overlay of a CLI is kept only while its row lives, as in the
+  plan.
+
+**Tests.** `packages/core/test/parked-holds.test.ts` (the hash only in the row and in no file, the token
+accepted by a fresh store over the rows, refused after the process ends, for a different pid or start
+time, for a row nobody holds or another server holds, after a day; a token minted in memory unaffected;
+the address, payload and version recorded; the port choice; a chat's configs spared by `restore`; the
+overlay retention, with nothing pinned and with unreadable pins; the pins read from rows) and
+`apps/api/test/adopted-port.test.ts` (a started server listens on the port a running CLI holds, does
+not fall back when it is taken, and falls back as before with none). Documents:
+[security-model.md](../security-model.md#parked-cli-processes), [chat-environment.md](../chat-environment.md).
 
 ## The owner's decisions (2026-11-15)
 

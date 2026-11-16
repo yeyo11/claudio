@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-27T12:00:00Z
-updated_at: 2026-10-18T20:00:00Z
+updated_at: 2026-11-16T18:00:00Z
 tags:
     - chats
     - api
@@ -18,7 +18,10 @@ Every chat Claudio starts gets these variables in its environment:
 - `CLAUDIO_CHAT_ID`: the chat's own id.
 - `CLAUDIO_API_TOKEN`: a credential of the chat's own for that API, minted for each process (each
   turn) whenever `CLAUDIO_API_URL` is set. Send it as `Authorization: Bearer $CLAUDIO_API_TOKEN`.
-  Under `mode: none` nothing reads it.
+  Under `mode: none` nothing reads it. With parked CLI processes on, it also survives a restart of the
+  server for as long as that CLI runs, and the URL then keeps its port (a restarted server listens
+  on the port the running CLIs hold, or does not start); see
+  [security-model.md](security-model.md#parked-cli-processes).
 
 ## Why
 
@@ -43,7 +46,7 @@ app the person was looking at. Nothing told the agent where its own wrapper was.
     the chat id, the process and the mint time; never in `auth.json`, SQLite or a log.
   - Revoked when its own process exits or fails to spawn (keyed by that process's token, so a late
     exit of an earlier process leaves the current one alone), on `stopAll`, on a restart by
-    construction, and after `CHAT_TOKEN_MAX_AGE_MS` (24 h) at most.
+    construction (a parked CLI's token is the exception: its hash is in its row while it runs), and after `CHAT_TOKEN_MAX_AGE_MS` (24 h) at most.
   - Accepted in `token` and `oidc` modes only from a loopback peer, on a loopback `Host`, with no
     `Forwarded`, `X-Forwarded-For` or tunnel client-IP header: the tunnel arrives from 127.0.0.1 too.
     Anything else answers the same `401` as a wrong token and counts toward the wait.

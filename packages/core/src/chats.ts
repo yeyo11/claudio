@@ -801,7 +801,10 @@ export class ChatManager extends EventEmitter {
     this.persist(...cut);
     // What the servers core's callers added pointed at (a stub in a server that is gone) died with
     // the processes that read them: no process of this wrapper is running yet
-    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !this.chats.peek(chatId)?.alive);
+    // A parked CLI that outlived the last server reads the files its chat's start wrote (its
+    // `--mcp-config`, its account overlay): they go with the process, not with the restart
+    const held = this.parked.chatsInUse();
+    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !held.has(chatId) && !this.chats.peek(chatId)?.alive);
   }
 
   /** Processes found at start working on a restored chat's session that are still up. */

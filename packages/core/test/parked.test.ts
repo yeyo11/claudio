@@ -295,6 +295,9 @@ test('only the server that holds a row moves it', () => {
     committedOffset: 100,
     stdinSeq: 0,
     turnOffset: null,
+    tokenHash: null,
+    payloadDir: null,
+    cliVersion: null,
     startedAt: '2026-11-16T09:00:00.000Z',
   });
   const stranger = { pid: 11, started: 5 };
