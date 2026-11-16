@@ -1678,6 +1678,12 @@ export interface Chat {
   account?: string | null;
   /** The account a person chose while a turn was running: it takes over when the turn ends; null when none waits */
   pendingAccount?: string | null;
+  /**
+   * Why the chat runs on `account`: the rotation's explanation of its last choice, with the pin a
+   * project rule ignored in `passedOver`. Kept in the server's memory only; absent after a restart,
+   * before the chat's first choice, and when a person put the chat on its account.
+   */
+  accountWhy?: AccountChoiceWhy;
   state: ChatState;
   control: ChatControl;
   /**
@@ -4528,6 +4534,8 @@ export interface LimitWait {
   nextLookAt?: string | null;
   /** `resuming` while the turn is being sent again; `waiting` otherwise. Absent on a wait an older Claudio served */
   state?: 'waiting' | 'resuming';
+  /** The project's rule, when it is why no account had room; absent otherwise */
+  rule?: NoRoomRule;
 }
 
 /** A step of a graph that is no task (its integrator, synthesis, a fixer, a reviewer) waiting for its usage limit to reset */
@@ -7333,6 +7341,28 @@ export interface AccountChoiceWhy {
   project?: string;
   /** Accounts a project rule or reserve kept the work off; absent when none did */
   passedOver?: AccountChoicePass[];
+  /** The account the work is pinned to when the project's rule does not allow it: the pin was ignored (B16) */
+  pinIgnored?: string;
+}
+
+/**
+ * What is left to a piece of work when its project's rule found no allowed account with room (§7.2
+ * of docs/plans/account-configuration-and-project-rules.md): wait for the earliest reset among the
+ * allowed accounts, or, for a person's chat only, one turn on an account the rule leaves out.
+ */
+export type NoRoomChoice = 'wait' | 'once';
+
+/**
+ * A wait or a notice caused by a project rule rather than by every account being out: the rule left
+ * the work off accounts that had room. Carried as data so a page can name the project by its name and
+ * say it in the reader's language; `ProviderMove.reason` keeps the same in English for logs.
+ */
+export interface NoRoomRule {
+  /** The project whose rule it is; null for the rule of chats of no project (`looseChats`) */
+  project: string | null;
+  /** ISO time the first allowed account is back; null when nothing said */
+  resetsAt: string | null;
+  choices: NoRoomChoice[];
 }
 
 /**
@@ -9101,6 +9131,8 @@ export interface ProviderMove {
   /** ISO time the wait ends; null when unknown or not a wait */
   resetsAt: string | null;
   reason: string | null;
+  /** Set when the project's rule, not the lack of room on every account, is why the work waits */
+  rule?: NoRoomRule | null;
   updatedAt: string;
   /**
    * ISO time an open wait looks again: its reset, the next `get_usage` probe of a reset nobody gave,

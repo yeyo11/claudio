@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-15T18:00:00Z
+updated_at: 2026-11-15T23:30:00Z
 tags:
     - design-system
     - web
@@ -124,8 +124,8 @@ on white.
 |---|---|---|---|
 | `--live` | `#00e5ff` | `#0b6680` | an agent is working **now**. Never an action colour. The brand cyan |
 | `--ok` | `#4ade9a` | `#166534` | done, connected, healthy |
-| `--warn` | `#f0b95c` | `#854d0e` | near a limit, needs authorisation, stopped |
-| `--bad` | `#f87b7f` | `#b91c1c` | failed, interrupted, exhausted, destructive |
+| `--warn` | `#f0b95c` | `#854d0e` | near a limit, needs authorisation, stopped; a turn a restart cut (*interrupted*), which waits for a person to resume it |
+| `--bad` | `#f87b7f` | `#b91c1c` | failed, exhausted, destructive |
 | `--idle` | `#a78bfa` | `#6d28d9` | waiting for the user |
 | `--info` | `var(--accent)` | `var(--accent)` | neutral notices. An alias: beside a blue accent, a second blue only adds noise |
 
@@ -828,8 +828,32 @@ The owner's T9 decisions of [plans/account-configuration-and-project-rules.md](p
   account has its own configuration. A rule that also governs other projects says so above the rows;
   **Remove the rule** sits in the card's head. Controls that are not whole blocks keep to 360 px. On a
   phone, buttons and switch rows are 44 px tall.
+- **Plugins of a shared account** that are not the default's: one line under the configuration
+  state (`.account-config-plugins`), a `TriangleAlert` and the lead "Plugins differ from the
+  default:" in `--warn`, then each `plugin@marketplace` id in mono with "is missing" or "is at another
+  version" in `--fg-2`. Warn, never bad: Claudio is bringing them in line. Nothing for an own
+  account, or when both lists are empty.
+- **The Add-account dialog** asks, only while a rule lists its accounts, with a bare `Switch` (never
+  inside a `Field`, whose label would make a tap on the hint flip it) "Allow it on the projects with
+  a rule", off by default, and one muted line under it saying what the current side does
+  (`.add-account-rules`).
+- The plugins line ends by saying what happens next: "Claudio brings them in line by itself."
 - **The chat transcript**: a person's switch to an account of another configuration group reads
-  "Switched to work, which has its own configuration" (or "…, which uses the shared configuration").
+  "Switched to work, which has its own configuration" (or "…, which uses the shared configuration");
+  the rotation's own move at a limit reads "At the usage limit, moved to work", with the same
+  clause. A rule that left no account with room is a `.notice.is-no-room` line, the hourglass and the
+  word "Usage limit" in `--warn`: "No account allowed on Shipcast has room until 17:00. Wait for the
+  reset, or use another account once." The project is named, never its id.
+- **Why this account**: the composer's Account entry carries the choice's basis as its second line
+  ("The project's preferred account"), and the chat's own row in the account list the same, with a
+  pin the rule ignores named ("The chat is pinned to work, which the project's rule does not allow:
+  the pin is ignored").
+- **A wait the rule caused**: the `WaitLine`'s reason names the project ("No account allowed on
+  Shipcast has room. It goes on by itself when one of them resets.").
+- **A chat a restart cut** is not "Stuck": its header's health badge reads **Interrupted** in `warn`
+  (`Zap`), the same word, tone and icon as the side panel's outcome badge, beside the warn Resume
+  notice; a failed last execution reads **Failed** in `bad` (`TriangleAlert`), as its outcome does.
+  Interrupted moved from `bad` to `warn` in the status table on the owner's word (2026-11-15).
 
 ### Queued messages over the composer
 

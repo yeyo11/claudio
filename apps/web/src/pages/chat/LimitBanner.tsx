@@ -134,7 +134,13 @@ export function LimitBanner({ chat, state }: { chat: Chat; state: LimitState }) 
   const title = isKnownLimitWindow(state.window) ? t('limit.titleWindow', { name, window: windowOf(state.window) }) : t('limit.title', { name });
 
   if (phase === 'waiting') {
-    const shown = { provider: wait?.fromProvider ?? chat.provider, resetsAt: state.resetsAt, nextLookAt: wait?.nextLookAt ?? null, state: wait?.state === 'resuming' ? ('resuming' as const) : ('waiting' as const) };
+    const shown = {
+      provider: wait?.fromProvider ?? chat.provider,
+      resetsAt: state.resetsAt,
+      nextLookAt: wait?.nextLookAt ?? null,
+      state: wait?.state === 'resuming' ? ('resuming' as const) : ('waiting' as const),
+      ...(wait?.rule ? { rule: wait.rule } : {}),
+    };
     return (
       <WaitLine
         banner

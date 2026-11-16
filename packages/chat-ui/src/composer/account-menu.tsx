@@ -16,9 +16,21 @@ export function useLooseT(): T {
   return (key, options) => String(t(key as 'composerMenu.title', options ?? {}));
 }
 
-/** Why an account cannot be chosen, in words; undefined when it can, or when it is the chat's own. */
+/** Why the chat is on its current account, in words: the choice's basis, then a pin the project's rule ignores */
+export function whyWords(row: AccountRow, t: T): string | undefined {
+  if (!row.why) return undefined;
+  const basis = t(`composerMenu.account.why.${row.why.basis}`);
+  return row.pinIgnored ? `${basis}. ${t('composerMenu.account.why.pinIgnored', { name: row.pinIgnored })}` : basis;
+}
+
+/**
+ * Why an account cannot be chosen, in words; on the chat's own row, why it is on it when the server
+ * said; undefined when it can be chosen.
+ */
 export function accountReason(row: AccountRow, model: string | null, t: T): string | undefined {
   switch (row.state) {
+    case 'current':
+      return whyWords(row, t);
     case 'disabled':
       return t('composerMenu.account.disabled');
     case 'sign-in-expired':
@@ -62,8 +74,9 @@ export function accountOption(row: AccountRow, model: string | null, t: T): Menu
     text: accountLabel(row.account),
     label: <AccountLine row={row} />,
     disabled: !canChoose(row) && row.state !== 'current',
-    // A row a rule leaves out can still be pressed, so its reason is the item's own line, not a disabled one's
-    ...(onlyOnce(row) ? { meta: reason } : { disabledReason: reason }),
+    // A row a rule leaves out can still be pressed, so its reason is the item's own line, not a
+    // disabled one's; the chat's own row says why it is on it the same way
+    ...(onlyOnce(row) || row.state === 'current' ? { meta: reason } : { disabledReason: reason }),
   };
 }
 
@@ -141,7 +154,8 @@ export function accountItem({
     icon: UserRound,
     label,
     text: title,
-    meta: pending ? t('composerMenu.account.pendingTo', { name: accountLabel(pending.account) }) : undefined,
+    // What the item is now: the switch that waits, else why the chat is on its account
+    meta: pending ? t('composerMenu.account.pendingTo', { name: accountLabel(pending.account) }) : current ? whyWords(current, t) : undefined,
     onOpenChange,
   };
   if (rows.length > SUBMENU_MAX) return { ...base, onSelect: onPicker, detail: picker };

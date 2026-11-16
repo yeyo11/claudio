@@ -148,6 +148,9 @@ test('a working chat that has said nothing for too long is silent, unless a comm
 test('the facts of the chat itself are signals too, worst first', () => {
   assert.equal(chatHealth(facts({ lastEnded: { outcome: 'failed', error: 'rate limited' } })).reason, 'The last execution failed: rate limited');
   assert.equal(chatHealth(facts({ lastEnded: { outcome: 'interrupted', error: null } })).reason, 'The last execution was cut short: its process was lost.');
+  // A turn a restart cut waits for a person to resume it: stopped, which is warn, not a failure
+  assert.equal(chatHealth(facts({ lastEnded: { outcome: 'interrupted', error: null } })).level, 'warn');
+  assert.equal(chatHealth(facts({ lastEnded: { outcome: 'failed', error: null } })).level, 'bad');
   // Someone stopping it, or it finishing, is not a problem
   for (const outcome of ['stopped', 'completed'] as const) assert.equal(chatHealth(facts({ lastEnded: { outcome, error: null } })).level, 'ok', outcome);
 

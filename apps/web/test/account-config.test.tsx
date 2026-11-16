@@ -1,13 +1,17 @@
 /** @jsxRuntime automatic */
 import assert from 'node:assert/strict';
 import test from 'node:test';
-import type { Account, AccountConfig, AccountConfigItem, AccountConfigPlan, RotationPolicy } from '@claudio/shared';
+import type { Account, AccountConfig, AccountConfigItem, AccountConfigPlan, NoRoomChoice, RotationPolicy } from '@claudio/shared';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { accountRow, canChoose, onlyOnce, ruleFor } from '@claudio/chat-ui/lib/account-choice';
 import { accountSwitchText, configCrossing, readNotices } from '@claudio/chat-ui/lib/chat-notice';
 import i18n, { setLanguage } from '../src/i18n';
 import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
+import { api } from '../src/api';
+import { ruleWords } from '../src/components/WaitLine';
 import { AccountCard } from '../src/pages/accounts/AccountCard';
+import { pluginDrift } from '../src/pages/accounts/AccountConfigLine';
+import { joinRules, rulesWithList } from '../src/pages/accounts/AddAccountDialog';
 import { ConfigPlanBody, planGroups } from '../src/pages/accounts/AccountConfigDialog';
 import { requestOf, withAccount } from '../src/pages/accounts/ProjectRuleCard';
 import { reservesByAccount, ruleOf } from '../src/lib/accounts';
@@ -294,4 +298,57 @@ test('an account the project rule leaves out is offered for one turn only, and n
   // Without a rule the same account is simply allowed; an unusable one keeps its own reason
   assert.equal(accountRow(account({ id: 'acc-2' }), chat, undefined, null).state, 'ok');
   assert.equal(accountRow(account({ id: 'acc-2', enabled: false }), chat, undefined, rule).state, 'disabled');
+});
+
+// ---------- plugins of a shared account (T2's report) ----------
+
+test("a shared account whose plugins are not the default's says so in one warn line, the ids in mono", async () => {
+  const html = await card(account({ config: config({ plugins: { missing: ['code-review@official'], differing: ['sluice@sluice'] } }) }));
+  const text = words(html);
+  assert.match(text, /Plugins differ from the default: code-review@official is missing, sluice@sluice is at another version\. Claudio brings them in line by itself\./);
+  assert.match(html, /<span class="mono">code-review@official<\/span>/);
+  assert.match(html, /account-config-plugins-word/);
+  assert.match(html, /account-config-plugins-icon/, 'a status colour always comes with an icon and a word');
+  const es = words(await card(account({ config: config({ plugins: { missing: ['code-review@official'], differing: [] } }) }), 'es'));
+  assert.match(es, /code-review@official no está instalado/);
+});
+
+test('no plugins line for an independent account, which is meant to differ, nor when both lists are empty', async () => {
+  assert.doesNotMatch(await card(account({ config: config({ mode: 'independent', plugins: { missing: ['code-review@official'], differing: [] } }) })), /account-config-plugins/);
+  assert.doesNotMatch(await card(account()), /account-config-plugins/);
+  assert.deepEqual(pluginDrift(config({ plugins: { missing: ['a@m'], differing: ['b@m'] } })), [
+    { id: 'a@m', missing: true },
+    { id: 'b@m', missing: false },
+  ]);
+});
+
+// ---------- D7: a new account and the existing rules ----------
+
+test('a new account is asked about the rules that list their accounts only, and joining writes each rule back whole', async () => {
+  const listed: RotationPolicy = { id: 'r1', projects: ['p1'], order: ['acc-1'], preferred: 'acc-1', reserve: { percent: 10 }, strictConfig: true };
+  const open: RotationPolicy = { id: 'r2', projects: ['p2'] };
+  assert.deepEqual(rulesWithList([listed, open]), [listed], 'a rule with no list already allows every account');
+  assert.deepEqual(rulesWithList(undefined), []);
+  const sent: Array<[string, unknown]> = [];
+  const original = api.updateAccountPolicy;
+  api.updateAccountPolicy = async (id, body) => {
+    sent.push([id, body]);
+    return { id, ...body } as RotationPolicy;
+  };
+  try {
+    await joinRules([listed, open], 'acc-new');
+  } finally {
+    api.updateAccountPolicy = original;
+  }
+  assert.deepEqual(sent, [['r1', { projects: ['p1'], order: ['acc-1', 'acc-new'], preferred: 'acc-1', reserve: { percent: 10 }, strictConfig: true }]]);
+});
+
+// ---------- the rule's no-room words on a wait ----------
+
+test("a wait the project's rule caused names the project by its name and what is left to a person", async () => {
+  const t = (key: string, options?: Record<string, unknown>) => String(i18n.t(`components:${key}` as 'components:limitWait.title', options ?? {}));
+  const rule = { project: 'p-1', resetsAt: null, choices: ['wait', 'once'] as NoRoomChoice[] };
+  assert.equal(ruleWords(rule, 'Shipcast', t), 'No account allowed on Shipcast has room. It goes on by itself when one of them resets; stop waiting to use another account once.');
+  assert.equal(ruleWords({ ...rule, choices: ['wait'] }, 'Shipcast', t), 'No account allowed on Shipcast has room. It goes on by itself when one of them resets.');
+  assert.match(ruleWords({ ...rule, project: null }, null, t), /^No account the rule for chats of no project allows has room\./);
 });

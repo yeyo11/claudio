@@ -188,7 +188,15 @@
     "kinds": {
       "login": "Claude account",
       "api-key": "API key"
-    }
+    },
+    "rules": {
+      "join_one": "Allow it on the projects with a rule",
+      "join_other": "Allow it on the projects of the {{count}} rules",
+      "on": "It joins the list of accounts allowed there.",
+      "off_one": "The rule stays as it is: it does not work there.",
+      "off_other": "The rules stay as they are: it does not work there."
+    },
+    "joinFailed": "The account was added, but it could not join every project rule"
   },
   "signIn": {
     "title": "Sign in to the account",
@@ -403,6 +411,12 @@
       "repairFailed": "Could not repair the configuration of {{name}}",
       "usedShared": "{{name}} now uses the shared {{item}}",
       "useSharedFailed": "Could not use the shared {{item}}"
+    },
+    "plugins": {
+      "lead": "Plugins differ from the default:",
+      "missing": "is missing",
+      "differing": "is at another version",
+      "after": "Claudio brings them in line by itself."
     }
   },
   "configDialog": {

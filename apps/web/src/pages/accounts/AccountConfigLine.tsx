@@ -1,5 +1,6 @@
 import type { AccountConfig, AccountConfigItem } from '@claudio/shared';
-import { Wrench } from 'lucide-react';
+import { Fragment } from 'react';
+import { TriangleAlert, Wrench } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { Tag } from '@claudio/ui/components/ui';
@@ -10,6 +11,15 @@ const TONE: Record<AccountConfig['state'], 'ok' | 'warn' | 'bad'> = { ok: 'ok', 
 /** The items a person has to act on; everything else (linked, own, absent, not in the default) is not said */
 export function configProblems(config: AccountConfig): AccountConfigItem[] {
   return config.items.filter((item) => item.state === 'conflict' || item.state === 'missing');
+}
+
+/**
+ * The plugins of a shared account that are not the default's, missing first: nothing for an
+ * independent account, which is meant to differ, or when both lists are empty (the common case).
+ */
+export function pluginDrift(config: AccountConfig): { id: string; missing: boolean }[] {
+  if (config.mode !== 'shared' || !config.plugins) return [];
+  return [...config.plugins.missing.map((id) => ({ id, missing: true })), ...config.plugins.differing.map((id) => ({ id, missing: false }))];
 }
 
 /** What the account holds where the shared item should be, in words: a conflict is read, never diffed */
@@ -55,6 +65,7 @@ export function AccountConfigLine({
   const missing = problems.filter((item) => item.state === 'missing');
   // A half-way switch is finished by the same Repair as a missing link: applying the mode again
   const repairable = config.switching !== null || missing.length > 0;
+  const plugins = pluginDrift(config);
 
   return (
     <div className="account-config" data-config-state={config.state}>
@@ -96,6 +107,23 @@ export function AccountConfigLine({
             </li>
           )}
         </ul>
+      )}
+      {/* Warn, never bad: Claudio brings them to the default's by itself, so a line here is a pass that waits or failed */}
+      {plugins.length > 0 && (
+        <p className="account-config-plugins small">
+          <TriangleAlert {...ICON_SM} className="account-config-plugins-icon" aria-hidden />
+          <span>
+            <span className="account-config-plugins-word">{t('config.plugins.lead')}</span>{' '}
+            {plugins.map((plugin, i) => (
+              <Fragment key={plugin.id}>
+                {i > 0 && ', '}
+                <span className="mono">{plugin.id}</span> {t(plugin.missing ? 'config.plugins.missing' : 'config.plugins.differing')}
+              </Fragment>
+            ))}
+            {'. '}
+            {t('config.plugins.after')}
+          </span>
+        </p>
       )}
     </div>
   );

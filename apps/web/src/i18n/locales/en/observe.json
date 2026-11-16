@@ -50,7 +50,9 @@
       "ok": "OK",
       "slow": "Slow",
       "stuck": "Stuck",
-      "looping": "Looping"
+      "looping": "Looping",
+      "interrupted": "Interrupted",
+      "failed": "Failed"
     },
     "level": {
       "warn": "Warning",

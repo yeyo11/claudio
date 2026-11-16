@@ -289,7 +289,9 @@ export function chatHealth(facts: HealthFacts, nowMs = Date.now()): ChatHealth {
   if (facts.live) signals.push(...(facts.standing ?? []));
 
   const ended = facts.lastEnded;
-  if (ended?.outcome === 'interrupted') signals.push({ kind: 'last-execution', level: 'bad', ...said('health.lastExecution.interrupted', {}) });
+  // Warn, not bad: a turn a restart cut is stopped and waits for a person to resume it, which is
+  // the design system's warn; only a failure is bad
+  if (ended?.outcome === 'interrupted') signals.push({ kind: 'last-execution', level: 'warn', ...said('health.lastExecution.interrupted', {}) });
   else if (ended?.outcome === 'failed') {
     signals.push({
       kind: 'last-execution',

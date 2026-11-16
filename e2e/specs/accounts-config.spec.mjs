@@ -3,7 +3,8 @@
 // an account card reads its configuration's state, a conflict is settled with "Use shared" (the
 // account's own copy kept aside), the mode switch says what it copies before it does, and a
 // project's settings set its account rule (allowed accounts, preferred account, reserve), which
-// the Accounts page then names on the reserved account's card.
+// the Accounts page then names on the reserved account's card, and a new account added with
+// "Allow it on the projects with a rule" joins the rule (D7).
 //
 // The spec writes only into the sandbox (`dirs.configDir`, `dirs.dataDir`), and removes the
 // accounts, the project and the rule it made.
@@ -116,6 +117,29 @@ export default async ({ page, api, check, dirs }) => {
 
     await page.goto('/accounts', 1500);
     await page.waitFor(`const t=(()=>{${cardText('e2e-config-a')}})();return t.includes('Keeps headroom for e2e-config-rule while it has work')`, { label: 'the reserved account names the project on its card' });
+
+    // ---------- D7: a new account is asked whether it joins the rules ----------
+    await page.click('.accounts-page button', 'Add an account', 800);
+    await page.waitFor(`return [...document.querySelectorAll('.dialog')].some((d) => d.innerText.includes('Allow it on the projects with a rule') && d.innerText.includes('does not work there'))`, {
+      label: 'the Add-account dialog asks about the project rules',
+    });
+    await page.click('.dialog [role=radio]', 'API key', 300);
+    await page.fill('.dialog input[placeholder="work"]', 'e2e-config-c');
+    await page.fill('.dialog input[type=password]', 'fake-room-config-c');
+    await page.eval(`[...document.querySelectorAll('.dialog label')].find((l) => l.textContent.includes('Allow it on the projects with a rule'))?.querySelector('button')?.click(); return true;`);
+    await page.click('.dialog .btn-primary', 'Add account', 800);
+    let c = null;
+    for (let i = 0; i < 20 && !c; i++) {
+      c = (await api.get('/accounts')).body.find((x) => x.alias === 'e2e-config-c') ?? null;
+      if (!c) await sleep(250);
+    }
+    check(c !== null, 'the account is added from the dialog');
+    if (c) added.push(c.id);
+    for (let i = 0; i < 20 && !rule?.order?.includes(c?.id); i++) {
+      await sleep(250);
+      rule = await ruleOf();
+    }
+    check(rule?.order?.includes(c?.id) && !rule.order.includes(b.body.id) && rule.preferred === a.body.id && rule.reserve?.percent === 10, `the new account joins the rule, which keeps the rest (${JSON.stringify(rule)})`);
   } finally {
     if (projectId) {
       const rule = (await api.get('/accounts/policies').catch(() => ({ body: [] }))).body?.find?.((p) => p.projects.includes(projectId));

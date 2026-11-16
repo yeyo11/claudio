@@ -3150,6 +3150,10 @@ button.agent-msg-name { min-height: 24px; color: var(--accent); }
 .account-config-item-name { font-size: var(--fs-small); color: var(--fg); }
 .account-config-item-holds { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .account-config-use { grid-column: 2; grid-row: 1 / span 2; }
+.account-config-plugins { display: flex; align-items: flex-start; gap: 6px; margin: 0; min-width: 0; color: var(--fg-2); overflow-wrap: anywhere; }
+.account-config-plugins-icon { flex: none; margin-top: 2px; color: var(--warn); }
+.account-config-plugins-word { color: var(--warn); }
+.account-config-plugins .mono { display: inline-block; max-width: 100%; }
 @container (max-width: 340px) {
   .account-config-item.is-conflict { grid-template-columns: minmax(0, 1fr); }
   .account-config-use { grid-column: 1; grid-row: auto; justify-self: start; }
@@ -3161,3 +3165,9 @@ button.agent-msg-name { min-height: 24px; color: var(--accent); }
 .project-rule-none { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; }
 .project-rule-accounts, .project-rule-reserve { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; min-width: 0; }
 .project-rule-points { display: inline-flex; align-items: center; gap: 8px; }
+.add-account-rules { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.add-account-rules p { margin: 0; }
+.add-account-rules-what { display: grid; }
+.add-account-rules-what > span { grid-area: 1 / 1; min-width: 0; }
+.add-account-rules-what[data-on='true'] .add-account-rules-off,
+.add-account-rules-what[data-on='false'] .add-account-rules-on { visibility: hidden; }

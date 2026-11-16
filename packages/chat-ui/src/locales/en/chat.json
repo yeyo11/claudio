@@ -124,7 +124,23 @@
       "failed": "Couldn’t switch the account",
       "search": "Search accounts",
       "none": "No account matches.",
-      "onceOnly": "Not allowed by the project's rule: for one turn only"
+      "onceOnly": "Not allowed by the project's rule: for one turn only",
+      "why": {
+        "label": "Why this account",
+        "pin": "The chat is pinned to it",
+        "current": "The chat was already on it",
+        "preferred": "Your preferred account",
+        "project-preferred": "The project's preferred account",
+        "order": "First in the order with room",
+        "least-used": "The least used with room",
+        "only-one": "The only one with room",
+        "same-config": "Shares the configuration of the account the chat was on",
+        "over-threshold": "None was under its threshold, so it runs rather than waits",
+        "reserve-released": "Uses the headroom another project keeps, because every other account is out",
+        "credits": "Last resort: its usage credits",
+        "none": "No account could run it",
+        "pinIgnored": "The chat is pinned to {{name}}, which the project's rule does not allow: the pin is ignored"
+      }
     },
     "back": "Back to the menu",
     "noCommands": "This chat hasn’t reported any commands yet.",
@@ -486,7 +502,17 @@
       "guard": "Guard blocked",
       "guardMissing": "Guard did not run for this call",
       "accountOwnConfig": "{{name}}, which has its own configuration",
-      "accountSharedConfig": "{{name}}, which uses the shared configuration"
+      "accountSharedConfig": "{{name}}, which uses the shared configuration",
+      "accountRotated": "At the usage limit, moved to",
+      "no-room": "Usage limit",
+      "noRoom": {
+        "project": "No account allowed on {{project}} has room",
+        "thisProject": "No account the rule of this chat's project allows has room",
+        "loose": "No account the rule for chats of no project allows has room",
+        "until": " until {{time}}",
+        "waitOrOnce": "Wait for the reset, or use another account once.",
+        "wait": "The work waits for the reset."
+      }
     },
     "teammate": {
       "list": "every teammate's shares",

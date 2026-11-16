@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient, type QueryKey } from '@tanstack/react-query';
-import type { LimitWait } from '@claudio/shared';
+import type { LimitWait, NoRoomRule } from '@claudio/shared';
 import { ArrowRight, Clock } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -7,12 +7,29 @@ import { Tooltip } from '@claudio/ui/components/controls/Tooltip';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { useToast } from '@claudio/ui/components/Toast';
 import { timeUntil } from '@claudio/ui/lib/format';
-import { api } from '../api';
+import { api, useProjects } from '../api';
 import { useProviderLabel } from '../lib/provider-status';
 import { resetWhen } from '../lib/reset-when';
 
 /** What a wait line needs of a wait: the server's `LimitWait`, or a move row read as one. */
-export type WaitView = Pick<LimitWait, 'provider' | 'resetsAt'> & Partial<Pick<LimitWait, 'nextLookAt' | 'state'>>;
+export type WaitView = Pick<LimitWait, 'provider' | 'resetsAt'> & Partial<Pick<LimitWait, 'nextLookAt' | 'state' | 'rule'>>;
+
+/**
+ * Why a wait the project's rule caused waits, in words: "no account allowed on Shipcast has room",
+ * the project by its name (by its id only while the list is not read), and what a person may do.
+ */
+export function ruleWords(rule: NoRoomRule, projectName: string | null, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const whose = rule.project === null ? t('limitWait.rule.loose') : t('limitWait.rule.project', { project: projectName ?? rule.project });
+  return `${whose}. ${t(rule.choices.includes('once') ? 'limitWait.rule.waitOrOnce' : 'limitWait.rule.wait')}`;
+}
+
+function useRuleWords(rule: NoRoomRule | null | undefined): string | null {
+  const { t } = useTranslation('components');
+  const projects = useProjects(false);
+  if (!rule) return null;
+  const name = rule.project === null ? null : (projects.data?.find((p) => p.id === rule.project)?.name ?? null);
+  return ruleWords(rule, name, (key, options) => String(t(key as 'limitWait.title', options ?? {})));
+}
 
 /**
  * When the work goes on, in the words every wait uses: the reset when it is known, "going on now"
@@ -72,6 +89,8 @@ export function WaitLine({
   const { t } = useTranslation('components');
   const label = useProviderLabel();
   const name = label(wait.provider);
+  // A rule that left no account with room is the reason, and says more than the caller's general one
+  const rule = useRuleWords(wait.rule);
   const at = action ?? (actions ? <span className="wait-line-go">{actions}</span> : null);
   return (
     <div className={banner ? 'wait-line is-banner' : 'wait-line'}>
@@ -82,7 +101,7 @@ export function WaitLine({
         {' · '}
         <WaitWhen wait={wait} />
         {account && ` · ${t('limitWait.account', { account })}`}
-        {why && <span className="why">{why}</span>}
+        {(rule ?? why) && <span className="why">{rule ?? why}</span>}
         {children}
       </span>
       {at}

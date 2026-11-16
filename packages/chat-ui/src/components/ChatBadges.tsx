@@ -33,7 +33,8 @@ export function StateBadge({ state }: { state: ChatState }) {
   );
 }
 
-const OUTCOME_TONE: Record<ExecutionOutcome, string> = { completed: 'ok', failed: 'bad', stopped: 'warn', interrupted: 'bad' };
+// Interrupted is warn: a turn a restart cut is stopped and waits for a person to resume it, not a failure
+const OUTCOME_TONE: Record<ExecutionOutcome, string> = { completed: 'ok', failed: 'bad', stopped: 'warn', interrupted: 'warn' };
 const OUTCOME_ICON: Record<ExecutionOutcome, LucideIcon> = { completed: CircleCheck, failed: TriangleAlert, stopped: OctagonX, interrupted: Zap };
 
 /** How an execution ended; `null` is the one still running. */

@@ -118,8 +118,8 @@ A change that breaks one of these rules is not done:
   `prefers-reduced-motion` and in a hidden tab. `motion.spec.mjs` stays green.
 - **Status colours mean one thing each.**
   - ok: done or connected.
-  - warn: near a limit, needs authorisation, or stopped.
-  - bad: failed, interrupted, exhausted or destructive.
+  - warn: near a limit, needs authorisation, stopped, or interrupted (a turn a restart cut, waiting to be resumed).
+  - bad: failed, exhausted or destructive.
   - idle: waiting for the user.
 
   Always pair a status colour with a word or an icon. Usage bars are neutral below 60 %, warn from

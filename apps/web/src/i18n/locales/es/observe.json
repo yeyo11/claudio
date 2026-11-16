@@ -50,7 +50,9 @@
       "ok": "Bien",
       "slow": "Lento",
       "stuck": "Atascado",
-      "looping": "En bucle"
+      "looping": "En bucle",
+      "interrupted": "Interrumpido",
+      "failed": "Fallido"
     },
     "level": {
       "warn": "Advertencia",

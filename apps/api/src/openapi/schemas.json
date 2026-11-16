@@ -1573,6 +1573,10 @@
         ],
         "description": "The account a person chose while a turn was running: it takes over when the turn ends; null when none waits"
       },
+      "accountWhy": {
+        "$ref": "#/components/schemas/AccountChoiceWhy",
+        "description": "Why the chat runs on `account`: the rotation's explanation of its last choice, with the pin a project rule ignored in `passedOver`. Kept in the server's memory only; absent after a restart, before the chat's first choice, and when a person put the chat on its account."
+      },
       "state": {
         "$ref": "#/components/schemas/ChatState"
       },
@@ -1837,6 +1841,79 @@
       "at"
     ],
     "description": "Where a fork came from."
+  },
+  "AccountChoiceWhy": {
+    "type": "object",
+    "properties": {
+      "basis": {
+        "$ref": "#/components/schemas/AccountChoiceBasis"
+      },
+      "project": {
+        "type": "string",
+        "description": "The project whose rule (`project-preferred`) or reserve (`reserve-released`) decided it"
+      },
+      "passedOver": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/AccountChoicePass"
+        },
+        "description": "Accounts a project rule or reserve kept the work off; absent when none did"
+      },
+      "pinIgnored": {
+        "type": "string",
+        "description": "The account the work is pinned to when the project's rule does not allow it: the pin was ignored (B16)"
+      }
+    },
+    "required": [
+      "basis"
+    ],
+    "description": "The explanation every account choice carries (`Choice.why`)."
+  },
+  "AccountChoiceBasis": {
+    "type": "string",
+    "enum": [
+      "pin",
+      "current",
+      "preferred",
+      "project-preferred",
+      "order",
+      "least-used",
+      "only-one",
+      "same-config",
+      "over-threshold",
+      "reserve-released",
+      "credits",
+      "none"
+    ],
+    "description": "On what grounds the account choice took its account, so a person never meets an arbitrary one.\n\n- `pin`: the chat is pinned to it. `current`: the work stays where it is, under the threshold.\n- `preferred`: the person's preferred account; `project-preferred`: the preferred account of the   project's rule, which replaces it there.\n- `order`, `least-used`: the strategy among the accounts with room; `only-one`: it was the only one   with room; `same-config`: the strategy would have taken an account of another configuration   group, and this one shares the configuration of the account the work is on.\n- `over-threshold`: no account was under the threshold, and running beats waiting.\n- `reserve-released`: the headroom another project reserves on it is used, because every other   account is out.\n- `credits`: no account has plan quota left, and its credits setting allows it as a last resort.\n- `none`: no account can take the work now."
+  },
+  "AccountChoicePass": {
+    "type": "object",
+    "properties": {
+      "account": {
+        "type": "string"
+      },
+      "because": {
+        "$ref": "#/components/schemas/AccountChoicePassReason"
+      },
+      "project": {
+        "type": "string",
+        "description": "The project whose rule or reserve kept the work off it, when known"
+      }
+    },
+    "required": [
+      "account",
+      "because"
+    ]
+  },
+  "AccountChoicePassReason": {
+    "type": "string",
+    "enum": [
+      "not-allowed",
+      "reserved",
+      "other-config"
+    ],
+    "description": "Why an account a rule touched was not chosen. `not-allowed`: the project's rule does not list it; `reserved`: another project with work in progress reserves headroom on it; `other-config`: the rule rotates only within the configuration group of the account the work is on."
   },
   "ChatState": {
     "type": "string",
@@ -4965,6 +5042,10 @@
           "resuming"
         ],
         "description": "`resuming` while the turn is being sent again; `waiting` otherwise. Absent on a wait an older Claudio served"
+      },
+      "rule": {
+        "$ref": "#/components/schemas/NoRoomRule",
+        "description": "The project's rule, when it is why no account had room; absent otherwise"
       }
     },
     "required": [
@@ -4973,6 +5054,45 @@
       "moveId"
     ],
     "description": "Work that stopped to wait for a provider's limit to reset."
+  },
+  "NoRoomRule": {
+    "type": "object",
+    "properties": {
+      "project": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The project whose rule it is; null for the rule of chats of no project (`looseChats`)"
+      },
+      "resetsAt": {
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "ISO time the first allowed account is back; null when nothing said"
+      },
+      "choices": {
+        "type": "array",
+        "items": {
+          "$ref": "#/components/schemas/NoRoomChoice"
+        }
+      }
+    },
+    "required": [
+      "project",
+      "resetsAt",
+      "choices"
+    ],
+    "description": "A wait or a notice caused by a project rule rather than by every account being out: the rule left the work off accounts that had room. Carried as data so a page can name the project by its name and say it in the reader's language; `ProviderMove.reason` keeps the same in English for logs."
+  },
+  "NoRoomChoice": {
+    "type": "string",
+    "enum": [
+      "wait",
+      "once"
+    ],
+    "description": "What is left to a piece of work when its project's rule found no allowed account with room (§7.2 of docs/plans/account-configuration-and-project-rules.md): wait for the earliest reset among the allowed accounts, or, for a person's chat only, one turn on an account the rule leaves out."
   },
   "Health": {
     "$ref": "#/components/schemas/ChatHealth",
@@ -5543,6 +5663,10 @@
           "resuming"
         ],
         "description": "`resuming` while the turn is being sent again; `waiting` otherwise. Absent on a wait an older Claudio served"
+      },
+      "rule": {
+        "$ref": "#/components/schemas/NoRoomRule",
+        "description": "The project's rule, when it is why no account had room; absent otherwise"
       },
       "role": {
         "$ref": "#/components/schemas/OrchestrationChatRole"
@@ -15875,6 +15999,10 @@
         ],
         "description": "The account a person chose while a turn was running: it takes over when the turn ends; null when none waits"
       },
+      "accountWhy": {
+        "$ref": "#/components/schemas/AccountChoiceWhy",
+        "description": "Why the chat runs on `account`: the rotation's explanation of its last choice, with the pin a project rule ignored in `passedOver`. Kept in the server's memory only; absent after a restart, before the chat's first choice, and when a person put the chat on its account."
+      },
       "state": {
         "$ref": "#/components/schemas/ChatState"
       },
@@ -17576,6 +17704,10 @@
           "null"
         ],
         "description": "The account a person chose while a turn was running: it takes over when the turn ends; null when none waits"
+      },
+      "accountWhy": {
+        "$ref": "#/components/schemas/AccountChoiceWhy",
+        "description": "Why the chat runs on `account`: the rotation's explanation of its last choice, with the pin a project rule ignored in `passedOver`. Kept in the server's memory only; absent after a restart, before the chat's first choice, and when a person put the chat on its account."
       },
       "state": {
         "$ref": "#/components/schemas/ChatState"
@@ -31212,6 +31344,17 @@
           "string",
           "null"
         ]
+      },
+      "rule": {
+        "anyOf": [
+          {
+            "$ref": "#/components/schemas/NoRoomRule"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "description": "Set when the project's rule, not the lack of room on every account, is why the work waits"
       },
       "updatedAt": {
         "type": "string"

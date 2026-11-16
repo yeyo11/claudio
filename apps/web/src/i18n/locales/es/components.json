@@ -292,7 +292,13 @@
     "resuming": "continuando ahora",
     "lookAgain": "próxima comprobación:",
     "account": "cuenta {{account}}",
-    "badge": "esperando"
+    "badge": "esperando",
+    "rule": {
+      "project": "Ninguna cuenta permitida en {{project}} tiene margen",
+      "loose": "Ninguna cuenta que permita la regla de los chats sin proyecto tiene margen",
+      "wait": "El trabajo sigue cuando una de ellas se restablezca.",
+      "waitOrOnce": "El trabajo sigue cuando una de ellas se restablezca; deja de esperar para usar otra cuenta una vez."
+    }
   },
   "notificationText": {
     "waitingPermission": "{{name}} necesita tu aprobación para usar {{tool}}",

@@ -1,5 +1,5 @@
 import type { ChatChildren, ContentBlock, EditStep, SentToAgent, TranscriptEntry } from '@claudio/shared';
-import { ArrowRight, ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Coins, Copy, Info, PanelRightOpen, ShieldAlert, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
+import { ArrowRight, ArrowRightLeft, Brain, CircleAlert, CircleX, CircleStop, Check, Coins, Copy, Hourglass, Info, PanelRightOpen, ShieldAlert, SquareCheck, Terminal, User, Zap, type LucideIcon } from 'lucide-react';
 import { lazy, memo, Suspense, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { TFunction } from 'i18next';
 import { useTranslation } from 'react-i18next';
@@ -16,7 +16,7 @@ import { editChips } from '../lib/edit-chips';
 import { holdsGuardBlock, readGuardResult, readNotices, type Notice, type NoticeKind } from '../lib/chat-notice';
 import { justStreamed, streamedHeight } from '../lib/chat-stream';
 import { callCount, callHint, isDelegation, rowOf, stepDuration, stepTools, transcriptRows, type StepCall, type StepPart, type TranscriptRow } from '../lib/chat-steps';
-import { formatDuration, formatClock, formatDateTime, truncate } from '@claudio/ui/lib/format';
+import { formatDuration, formatClock, formatDateTime, formatHour, truncate } from '@claudio/ui/lib/format';
 import { NARROW, useMediaQuery } from '@claudio/ui/lib/media';
 import { CompactionDivider, type CompactionActions } from './CompactionDivider';
 import { BranchCard } from './LiveBranches';
@@ -118,7 +118,32 @@ function RowTime({ at }: { at: string | null }) {
   );
 }
 
-const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info, command: Terminal, output: Terminal, interrupt: CircleStop, 'compaction-failed': CircleX, account: ArrowRightLeft, credits: Coins, 'credits-stopped': CircleStop, guard: ShieldAlert };
+const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = {
+  task: Zap,
+  reminder: Info,
+  command: Terminal,
+  output: Terminal,
+  interrupt: CircleStop,
+  'compaction-failed': CircleX,
+  account: ArrowRightLeft,
+  credits: Coins,
+  'credits-stopped': CircleStop,
+  guard: ShieldAlert,
+  'no-room': Hourglass,
+};
+
+type NoticeT = (key: string, options?: Record<string, unknown>) => string;
+
+/** The words of a notice's line: what Claudio said, in the reader's language where Claudio said it as data */
+function noticeDetail(notice: Notice, t: NoticeT): string {
+  if (notice.kind === 'no-room') {
+    const whose = notice.loose ? t('transcript.notice.noRoom.loose') : notice.detail ? t('transcript.notice.noRoom.project', { project: notice.detail }) : t('transcript.notice.noRoom.thisProject');
+    const until = notice.until ? t('transcript.notice.noRoom.until', { time: formatHour(notice.until) }) : '';
+    return `${whose}${until}. ${t(notice.once ? 'transcript.notice.noRoom.waitOrOnce' : 'transcript.notice.noRoom.wait')}`;
+  }
+  if (notice.config) return t(notice.config === 'own' ? 'transcript.notice.accountOwnConfig' : 'transcript.notice.accountSharedConfig', { name: notice.detail });
+  return notice.detail;
+}
 
 /**
  * Something the system said, not the person: a quiet strip — small and faint, in the
@@ -126,17 +151,19 @@ const NOTICE_ICONS: Record<NoticeKind, LucideIcon> = { task: Zap, reminder: Info
  */
 function NoticeRow({ notice }: { notice: Notice }) {
   const { t } = useTranslation('chat');
+  const loose: NoticeT = (key, options) => String(t(key as 'transcript.notice.account', options ?? {}));
   const Icon = NOTICE_ICONS[notice.kind];
+  const detail = noticeDetail(notice, loose);
   const failed = notice.kind === 'compaction-failed' || notice.missing === true || (Boolean(notice.status) && notice.status !== 'completed');
   const line = (
     <>
       <Icon {...ICON_SM} className="notice-icon" />
-      <span className="notice-label">{t(notice.missing ? 'transcript.notice.guardMissing' : `transcript.notice.${notice.kind}`)}</span>
+      <span className="notice-label">{t(notice.missing ? 'transcript.notice.guardMissing' : notice.rotated ? 'transcript.notice.accountRotated' : `transcript.notice.${notice.kind}`)}</span>
       {notice.rule && <span className="notice-rule">{notice.rule}</span>}
       {notice.status && <span className={`notice-status ${failed ? 'is-bad' : 'is-ok'}`}>{notice.status}</span>}
       {/* Two lines at most: what the system says is worth a glance, not a screen of the conversation */}
-      <span className="notice-detail" title={notice.detail}>
-        {notice.config ? t(notice.config === 'own' ? 'transcript.notice.accountOwnConfig' : 'transcript.notice.accountSharedConfig', { name: notice.detail }) : notice.detail}
+      <span className="notice-detail" title={detail}>
+        {detail}
       </span>
     </>
   );

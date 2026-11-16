@@ -10,7 +10,7 @@ import { Db } from '../src/db.ts';
 import { EventBus, type ClaudioEventInput } from '../src/events.ts';
 import { ClaudeCodeDriver } from '../src/providers/claude-code/driver.ts';
 import { defaultProvidersSettings, defaultRotationSettings } from '../src/providers/settings.ts';
-import { ProviderRotation } from '../src/rotation.ts';
+import { openWaitOf, ProviderRotation } from '../src/rotation.ts';
 import { tempConfig } from './helpers.ts';
 
 // Project rules at work (T7 of docs/plans/account-configuration-and-project-rules.md): the reserves
@@ -259,7 +259,7 @@ test('a person may use an account outside the rule once: one turn runs there, th
   }
 });
 
-test("automated work whose rule's accounts are all out waits, and the wait names the rule", async () => {
+test("automated work whose rule's accounts are all out waits, and the wait names the rule, as data a page can say in its words", async () => {
   const r = await rig({ work });
   try {
     process.env.FAKE_CLAUDE_LIMITED_DIRS = r.dirs[r.ids.a] ?? '';
@@ -272,6 +272,14 @@ test("automated work whose rule's accounts are all out waits, and the wait names
     assert.deepEqual(r.spawns().map((s) => s.dir), [r.dirs[r.ids.a]], 'no account outside the rule was tried');
     const wait = r.db.rotationEvents().find((e) => e.event === 'wait');
     assert.match(String(wait?.data?.rule ?? ''), /no account allowed on project p1/);
+    assert.equal(wait?.data?.project, 'p1');
+    // The project by its id, the reset and what is left: an automated run only waits
+    assert.equal(move?.rule?.project, 'p1');
+    assert.deepEqual(move?.rule?.choices, ['wait']);
+    assert.equal(move?.rule?.resetsAt, move?.resetsAt);
+    // The row keeps it, and the wait the work shows carries it
+    assert.deepEqual(r.db.providerMove(move?.id ?? '')?.rule, move?.rule);
+    assert.deepEqual(openWaitOf(r.db, chat.id)?.rule, move?.rule);
   } finally {
     r.close();
   }
@@ -290,6 +298,11 @@ test("a person's chat at its limit under a rule is told the rule and what is lef
     await Promise.all(decided.mock.calls.map((call) => call.result));
     const told = r.chats.events(chat.id).find((e) => e.kind === 'notice' && /no account allowed on project p1 has room/.test(e.text ?? ''));
     assert.match(told?.text ?? '', /use another account once/);
+    // The page says it from the data: the project, by id, and the two ways a person has
+    assert.equal(told?.kind === 'notice' ? told.data?.reason : null, 'no-room');
+    const rule = (told?.kind === 'notice' ? told.data?.rule : null) as { project: string | null; choices: string[] } | null;
+    assert.equal(rule?.project, 'p1');
+    assert.deepEqual(rule?.choices, ['wait', 'once']);
     assert.equal(r.db.providerMoves({ chatId: chat.id }).length, 0, 'it still waits for the person');
   } finally {
     r.close();
@@ -304,6 +317,44 @@ test('a schedule is told to skip only when the rule left no allowed account with
     await reading(r, r.ids.a, 1);
     assert.match(r.chats.noRoomUnderRule(r.p1) ?? '', /^no account allowed on project p1 has room until /);
     assert.equal(r.chats.noRoomUnderRule(r.p2), null, 'a project with no rule is not held');
+  } finally {
+    r.close();
+  }
+});
+
+test("a chat serves why it runs on its account, with a pin the project's rule ignores named apart", async () => {
+  const r = await rig();
+  try {
+    // Pinned to beta before any rule existed: the pin stays on the chat, and a later rule forbids it
+    const chat = r.chats.start({ prompt: 'hello', name: 'pinned', keepAlive: false, cwd: r.p1, account: r.ids.b });
+    await r.chats.waitForResult(chat.id);
+    await waitFor(() => !r.chats.get(chat.id)?.pid);
+    assert.equal(r.chats.get(chat.id)?.accountWhy?.basis, 'pin');
+    await r.store.createPolicy({ projects: ['p1'], order: [r.ids.a] });
+    r.chats.sendMessage(chat.id, 'again');
+    await waitFor(() => r.spawns().length === 2);
+    const why = r.chats.get(chat.id)?.accountWhy;
+    assert.equal(r.chats.accountOf(chat.id), r.ids.a);
+    assert.equal(why?.pinIgnored, r.ids.b, 'the pin the rule ignores is named');
+    assert.ok(why?.passedOver?.some((p) => p.account === r.ids.b && p.because === 'not-allowed'));
+  } finally {
+    r.close();
+  }
+});
+
+test("the rotation's own move at a limit says from which account to which, so the page can tell a crossing of configurations", async () => {
+  const r = await rig({ work });
+  try {
+    process.env.FAKE_CLAUDE_LIMITED_DIRS = r.dirs[r.ids.a] ?? '';
+    // The rule only fixes the order, alpha then beta, so the move is from one to the other
+    await r.store.createPolicy({ projects: ['p1'], order: [r.ids.a, r.ids.b] });
+    const chat = r.chats.start({ prompt: 'hello', name: 'task', keepAlive: false, cwd: r.p1 });
+    await waitFor(() => r.spawns().length >= 2, 30_000, () => r.spawns());
+    const moved = r.chats.events(chat.id).find((e) => e.kind === 'notice' && e.data?.reason === 'rotation');
+    assert.ok(moved && moved.kind === 'notice', 'the move is told with its data');
+    assert.deepEqual([moved.data?.from, moved.data?.account, moved.data?.cause], [r.ids.a, r.ids.b, 'limit']);
+    await waitFor(() => r.chats.accountOf(chat.id) === r.ids.b);
+    assert.ok(r.chats.get(chat.id)?.accountWhy, 'the account it moved to carries the choice that took it');
   } finally {
     r.close();
   }
