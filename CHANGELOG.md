@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.19.0](https://github.com/yeyo11/claudio/compare/v0.18.0...v0.19.0) (2026-11-16)
+
+
+### Features
+
+* **core:** a parked chat's token and port survive a restart, and its configs are spared ([#158](https://github.com/yeyo11/claudio/issues/158)) ([0ee5bdc](https://github.com/yeyo11/claudio/commit/0ee5bdcff5cde8cbd6242f57ad743883076ca6c9))
+* **core:** parked CLI processes behind a switch: a chat's CLI can outlive its server ([#156](https://github.com/yeyo11/claudio/issues/156)) ([979c91d](https://github.com/yeyo11/claudio/commit/979c91dc1040bafd17484786a1e89c9433a76264))
+* **core:** parked CLIs are let go at shutdown and adopted at start-up, with no double charge and pending prompts asked again ([#157](https://github.com/yeyo11/claudio/issues/157)) ([891a823](https://github.com/yeyo11/claudio/commit/891a823a3c61a3c429aff1feccbc291d4111b104))
+* **desktop:** a daemon keeps the server and its work alive when the window closes, asks before quitting with live work, and restarts a crashed server ([#161](https://github.com/yeyo11/claudio/issues/161)) ([9494b75](https://github.com/yeyo11/claudio/commit/9494b75155ab646d5e0e678d39ec32c4fd4d0920))
+* **updates:** a payload update no longer refuses over live chats when their work is carried through the restart ([#162](https://github.com/yeyo11/claudio/issues/162)) ([cfdd7cb](https://github.com/yeyo11/claudio/commit/cfdd7cbe7ffa198c88c7615b29220ae3ae00eaa7))
+
+
+### Documentation
+
+* what survives a restart, a quit or an update, mode by mode, and the survive-restarts plan closed ([#163](https://github.com/yeyo11/claudio/issues/163)) ([c0e9aa7](https://github.com/yeyo11/claudio/commit/c0e9aa79bd6bd1929a6805f48a5dc75a3a8bf31e))
+
+
+### Build and packaging
+
+* **deps-dev:** bump the dev-dependencies group across 1 directory with 3 updates ([#119](https://github.com/yeyo11/claudio/issues/119)) ([3156f58](https://github.com/yeyo11/claudio/commit/3156f586849e35a6dce0c5335daa59319a8f8bd1))
+* **deps:** bump the production-dependencies group across 1 directory with 9 updates ([#155](https://github.com/yeyo11/claudio/issues/155)) ([6848591](https://github.com/yeyo11/claudio/commit/684859123d535fa26b507e87102b1d5d399f6b2a))
+
 ## [0.18.0](https://github.com/yeyo11/claudio/compare/v0.17.0...v0.18.0) (2026-11-16)
 
 
