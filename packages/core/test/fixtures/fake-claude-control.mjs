@@ -87,6 +87,8 @@ const reported = (m) => (m === 'manual' ? 'default' : m);
 let mode = flag('--permission-mode') ?? 'manual';
 /** The permission request this turn is blocked on */
 let pending = null;
+/** The whole `can_use_tool` request it went out as: a re-sent `initialize` lists it again */
+let pendingRequest = null;
 
 // What one turn uses; the real CLI reports the window of every model that answered, variant suffix included
 const turnModel = 'claude-opus-5[1m]';
@@ -226,7 +228,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     if (!args.includes('--permission-prompt-tool')) return result('denied: nobody to ask');
     pending = randomUUID();
     const tool = ask[1];
-    out({
+    pendingRequest = {
       type: 'control_request',
       request_id: pending,
       request: {
@@ -238,7 +240,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         permission_suggestions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
         ...(tool === 'AskUserQuestion' ? { requires_user_interaction: true } : {}),
       },
-    });
+    };
+    out(pendingRequest);
     return;
   }
 
@@ -246,6 +249,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     const response = msg.response ?? {};
     if (response.request_id !== pending) return;
     pending = null;
+    pendingRequest = null;
     return result(`decision=${JSON.stringify(response.response)}`);
   }
 
@@ -267,8 +271,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     } else if (request.subtype === 'set_model') {
       respond(msg.request_id, undefined);
     } else if (request.subtype === 'initialize') {
-      // The account's model list, read with no turn: the only list the pickers offer
-      respond(msg.request_id, { commands: [], models: [{ value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet', description: 'Sonnet 5' }], account: { apiProvider: 'firstParty' } });
+      // The account's model list, read with no turn: the only list the pickers offer. Beside the inner
+      // answer, as CLI 2.1.322 puts it (spike S2), the permission requests still unanswered; an older
+      // CLI's answer has no such list, which $FAKE_CLAUDE_PENDING_LIST=off stands for
+      const answer = { commands: [], models: [{ value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet', description: 'Sonnet 5' }], account: { apiProvider: 'firstParty' } };
+      const listed = process.env.FAKE_CLAUDE_PENDING_LIST === 'off' ? {} : { pending_permission_requests: pending && pendingRequest?.request_id === pending ? [pendingRequest] : [] };
+      out({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response: answer, ...listed } });
     } else if (request.subtype === 'get_context_usage') {
       // Recorded answers; `full` is what the CLI gives when no detail is asked for, and it refuses any other word
       if (request.detail === undefined || request.detail === 'full') respond(msg.request_id, fixture('recordings/claude/context-usage-full.json'));

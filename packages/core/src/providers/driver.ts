@@ -74,7 +74,7 @@ export interface ProviderDriver {
    */
   readonly parkable?: boolean;
   /** Speaks the protocol to one process; events come out already neutral */
-  attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession;
+  attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard, adoption?: SessionAdoption): DriverSession;
   /** Per chat, across its processes: background tasks, subagents, workflows */
   createBranches(): BranchTracker;
   /** OS processes holding a session, for "it is still running elsewhere" and restore's leftovers */
@@ -229,6 +229,24 @@ export interface InterruptReceipt {
   stillQueued: string[] | null;
 }
 
+/**
+ * A session attached to a process another server started and left running (layer 2 of
+ * docs/plans/survive-restarts.md): what it reads first is a replay of output a server before this one
+ * may have read already.
+ */
+export interface SessionAdoption {
+  /** The agent's requests some server already answered: never asked of a person again, nor answered twice */
+  answered: ReadonlySet<string>;
+}
+
+/** Where an adopted session's open permission prompts came from. */
+export interface ReattachReport {
+  /** `list`: the agent's own list of what it still waits on; `replay`: the replayed output, when the list was empty or missing */
+  source: 'list' | 'replay';
+  /** The requests asked of the host again */
+  asked: string[];
+}
+
 export interface DriverSession {
   /** Sends a turn; returns the text the agent received as the user's, for the transcript */
   send(turn: UserTurn): string;
@@ -273,6 +291,12 @@ export interface DriverSession {
   holdsTurns?(): boolean;
   /** Rejects pending control requests */
   dispose(reason: string): void;
+  /**
+   * An adopted session's replay is over: re-synchronises with the running agent as its vendor documents
+   * after a transport gap, and asks the host again what the agent still waits on. Present on a session
+   * attached with a `SessionAdoption`.
+   */
+  reattach?(): Promise<ReattachReport>;
 }
 
 /** Per chat, across its processes: what the agent delegated. */

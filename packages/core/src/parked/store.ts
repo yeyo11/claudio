@@ -144,6 +144,26 @@ export class CliProcessStore {
     );
   }
 
+  /**
+   * Takes a process over from the owner it was read with (null: released), as one statement: of two
+   * servers that read the same owner and both try, SQLite lets exactly one change the row (spike S1).
+   * True for the one that did.
+   */
+  take(id: string, from: ProcessIdentity | null, to: ProcessIdentity, leaseUntil: string): boolean {
+    return this.changed(
+      this.sql
+        .prepare('UPDATE cli_processes SET owner_pid = ?, owner_started = ?, lease_until = ? WHERE id = ? AND owner_pid IS ? AND owner_started IS ?')
+        .run(to.pid, to.started, leaseUntil, id, from?.pid ?? null, from?.started ?? null),
+    );
+  }
+
+  /** A server that detaches lets go of a process: the next one takes it from nobody. */
+  release(id: string, owner: ProcessIdentity): boolean {
+    return this.changed(
+      this.sql.prepare('UPDATE cli_processes SET owner_pid = NULL, owner_started = NULL WHERE id = ? AND owner_pid = ? AND owner_started = ?').run(id, owner.pid, owner.started),
+    );
+  }
+
   delete(id: string): void {
     this.sql.prepare('DELETE FROM cli_processes WHERE id = ?').run(id);
   }
