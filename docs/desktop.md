@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-11-17T09:00:00Z
+updated_at: 2026-11-17T10:00:00Z
 tags:
     - desktop
     - electron
@@ -240,7 +240,14 @@ the daemon, and is from then on its client:
   so and offers to try again; the daemon does not loop.
 
 **Closing the window** leaves the daemon, the server and the tray running. **Open Claudio** in the
-tray, or starting the app again, opens a window on the same server.
+tray, or starting the app again, opens a window on the same server. A closed window comes back in a
+new desktop process, not in the one that keeps the tray: that process quits, a new one starts, takes
+the tray, attaches to the running daemon and opens the page the tray asked for (passed as
+`--claudio-open=<path>`). The work, the server and the daemon are untouched; the tray icon blinks
+once. In 0.19.0 the window was created again inside the old process, and on GNOME Wayland it came
+up as a grid of garbage tiles ([reports/desktop-reopen-garbled.md](reports/desktop-reopen-garbled.md)).
+A quit asked while the window is closed (the tray's **Quit Claudio**) asks in the native dialog, since
+opening the window for it would mean a new process.
 
 **Quitting** (the tray's **Quit Claudio**, the menu, `Ctrl+Q`) with nothing live stops the server and
 the daemon, as before. With chats working or waiting for an answer, orchestrations running or
@@ -633,4 +640,4 @@ release.
 
 ## Related
 
-[[plans/splash-eat-the-code.md]] · [[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/unified-updates.md]] · [[decisions/shell-payload-updates.md]] · [[decisions/apt-repository.md]] · [[updates.md]] · [[plans/remote-updates.md]] · [[tunnel.md]]
+[[plans/splash-eat-the-code.md]] · [[guards.md]] · [[deploy.md]] · [[status.md]] · [[decisions/requests-without-credential.md]] · [[plans/ui-redesign.md]] · [[plans/app-updates.md]] · [[plans/unified-updates.md]] · [[decisions/shell-payload-updates.md]] · [[decisions/apt-repository.md]] · [[updates.md]] · [[plans/remote-updates.md]] · [[tunnel.md]] · [[reports/desktop-reopen-garbled.md]]
