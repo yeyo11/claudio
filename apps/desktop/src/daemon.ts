@@ -13,7 +13,7 @@ import { randomBytes } from 'node:crypto';
 import { chmodSync, mkdirSync, rmSync } from 'node:fs';
 import { createConnection, createServer, type Server, type Socket } from 'node:net';
 import { join } from 'node:path';
-import { DATA_DIR_LOCKED_EXIT_CODE } from '@claudio/core/launcher/protocol';
+import { ADOPTED_PORT_TAKEN_EXIT_CODE, DATA_DIR_LOCKED_EXIT_CODE } from '@claudio/core/launcher/protocol';
 import {
   DAEMON_PROTOCOL,
   DAEMON_SOCKET,
@@ -53,6 +53,12 @@ export function crashDelay(earlier: readonly number[], now: number): number | nu
   const recent = earlier.filter((at) => now - at < CRASH_WINDOW_MS).length;
   if (recent >= CRASH_LIMIT) return null;
   return Math.min(1000 * 2 ** recent, CRASH_DELAY_MAX_MS);
+}
+
+/** What the window's error page says when the port the running chats hold is taken */
+export function portTakenDetail(log: string | null): string {
+  const line = log?.split('\n').find((l) => l.includes('is taken'))?.trim();
+  return line ?? 'The port the running chats reach Claudio on is taken by another program. Free it, then try again.';
 }
 
 /** The idle clock: when nothing has been live since, or null while something is */
@@ -301,9 +307,17 @@ export class Daemon {
 
   /** A server that went on its own: started again after a pause, unless it never listened or keeps dying */
   private async afterExit(end: Extract<PayloadEnd, { why: 'exited' }>): Promise<void> {
+    if (end.code === ADOPTED_PORT_TAKEN_EXIT_CODE) {
+      // The CLIs that outlived the last server reach the API only on their port: another one would
+      // strand them, and the same one is still taken a second later
+      this.o.log('the port the running chats hold is taken; waiting for a window to ask again');
+      this.setPhase('failed', portTakenDetail(end.detail));
+      await this.pause(null);
+      return;
+    }
     if (!end.ready || end.code === DATA_DIR_LOCKED_EXIT_CODE) {
-      // A port taken from the CLIs that hold it, another server on the data dir, a broken payload:
-      // starting it again changes nothing, so a window shows why and offers to try
+      // Another server on the data dir, a broken payload: starting it again changes nothing, so a
+      // window shows why and offers to try
       this.setPhase('failed', end.detail);
       await this.pause(null);
       return;

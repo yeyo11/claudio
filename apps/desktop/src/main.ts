@@ -1016,7 +1016,9 @@ function createWindow(): void {
 /** The live work right now, or null when no daemon serves this window (then nothing is there to keep or stop) */
 async function quitWork(): Promise<LiveWork | null> {
   if (!daemon?.open || !serverOrigin) return null;
-  return liveWork();
+  // Read now: the tray's snapshot may predate a chat started a moment ago, and stopping it unasked loses work
+  const fresh = await monitor?.snapshot();
+  return liveWorkOf(fresh ?? live, await openTerminals());
 }
 
 /** Waits until the window shows the server's page and the page says it can ask, for at most `ms` */

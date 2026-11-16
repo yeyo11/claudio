@@ -189,5 +189,24 @@
     "primary": "main window",
     "secondary": "second window",
     "other": "usage limit"
+  },
+  "quit": {
+    "title": "Keep working after you quit?",
+    "body": "{{live}}. Claudio can keep it all running in the background, or stop it now.",
+    "keep": "Keep working in the background",
+    "stop": "Stop all work and quit",
+    "cancel": "Cancel",
+    "noticeTitle": "Claudio keeps working",
+    "noticeBody": "The work goes on in the background. Open Claudio to see it.",
+    "live": {
+      "working_one": "{{count}} chat is working",
+      "working_other": "{{count}} chats are working",
+      "waiting_one": "{{count}} chat is waiting for an answer",
+      "waiting_other": "{{count}} chats are waiting for an answer",
+      "running_one": "{{count}} orchestration is running",
+      "running_other": "{{count}} orchestrations are running",
+      "terminals_one": "{{count}} terminal is open",
+      "terminals_other": "{{count}} terminals are open"
+    }
   }
 }

@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { join, sep } from 'node:path';
 import { processEntry } from '../processes.ts';
 import {
+  ADOPTED_PORT_TAKEN_EXIT_CODE,
   DATA_DIR_LOCKED_EXIT_CODE,
   RELAUNCH_EXIT_CODE,
   RESTART_EXIT_CODE,
@@ -279,8 +280,8 @@ export async function run(o: RunOptions): Promise<number> {
     const running = o.start(boot);
     const exit: Exit = boot.trial ? await trial(o, running, boot) : { code: await running.exited, healthy: true };
     if (o.stopping()) return exit.code;
-    // Another server holds the data directory: the payload is not at fault, and starting it again changes nothing
-    if (exit.code === DATA_DIR_LOCKED_EXIT_CODE) return exit.code;
+    // Another server holds the data directory, or the port parked CLIs hold is taken: the payload is not at fault, and starting it again changes nothing
+    if (exit.code === DATA_DIR_LOCKED_EXIT_CODE || exit.code === ADOPTED_PORT_TAKEN_EXIT_CODE) return exit.code;
     // The person asked for the whole app to start again (D4): the host relaunches, and the relaunched
     // app boots the trial again. One that had not proved itself yet still spends an attempt: a
     // bundle that exits 76 before it is healthy would otherwise relaunch the app forever and never

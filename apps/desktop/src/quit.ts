@@ -47,7 +47,7 @@ export function parseQuitAnswer(raw: unknown): { answer: QuitAnswer; notice: Qui
 export function nativeQuitDialog(work: LiveWork): { message: string; detail: string; buttons: string[]; answers: QuitAnswer[]; defaultId: number; cancelId: number } {
   return {
     message: 'Keep Claudio working after you quit?',
-    detail: `${workWords(work) ?? 'Work is running'}. It can go on in the background until it is done, or stop now.`,
+    detail: `${workWords(work) ?? 'Work is running'}. Claudio can keep it all running in the background, or stop it now.`,
     buttons: ['Keep working in the background', 'Stop all work and quit', 'Cancel'],
     answers: ['keep', 'stop', 'cancel'],
     defaultId: 0,

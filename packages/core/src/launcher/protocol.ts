@@ -25,6 +25,13 @@ export const RELAUNCH_EXIT_CODE = 76;
 export const DATA_DIR_LOCKED_EXIT_CODE = 73;
 
 /**
+ * The server exits with it when the port that CLI processes outliving the last server hold is taken
+ * (`AdoptedPortTakenError`, EX_UNAVAILABLE). Like a locked data directory it says nothing about the
+ * payload, so a trial is not failed by it, and starting the server again at once changes nothing.
+ */
+export const ADOPTED_PORT_TAKEN_EXIT_CODE = 69;
+
+/**
  * libuv's thread pool for the server, unless its environment names one: every file read, DNS lookup
  * and hash of the server queues on it, and the default of four held a listing of the machine's
  * transcripts behind itself and every request behind that (docs/plans/regression-fixes-2026-10-29.md,

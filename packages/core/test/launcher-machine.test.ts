@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, test } from 'node:test';
 import { KILL_AFTER_MS, NODE_FILES, run, type Boot, type Running, type RunOptions } from '../src/launcher/machine.ts';
-import { DATA_DIR_LOCKED_EXIT_CODE, EMPTY_STATE, RELAUNCH_EXIT_CODE, checkOverlay, keyId, loadKeys, parseManifest, readState, writeState, type LauncherState, type PayloadBase } from '../src/launcher/protocol.ts';
+import { ADOPTED_PORT_TAKEN_EXIT_CODE, DATA_DIR_LOCKED_EXIT_CODE, EMPTY_STATE, RELAUNCH_EXIT_CODE, checkOverlay, keyId, loadKeys, parseManifest, readState, writeState, type LauncherState, type PayloadBase } from '../src/launcher/protocol.ts';
 import { signedManifest, signingKey, writeOverlay, writeTree, type SigningKey } from './bundle-helpers.ts';
 
 // The launcher's machine as the desktop shell drives it (docs/plans/unified-updates.md, D1): no
@@ -147,6 +147,16 @@ test('a trial that exits because another server holds the data directory is not 
   const after = stateOf(d);
   assert.deepEqual(after.bad, [], 'the payload is not at fault');
   assert.equal(after.trial, '0.7.0', 'it is tried again on the next launch');
+});
+
+test('a trial that exits because the port parked CLIs hold is taken is not failed, and is not started again', async () => {
+  const d = desk();
+  overlay(d, '0.7.0');
+  setState(d, { trial: '0.7.0' });
+  const result = await drive(d, { boots: [{ code: ADOPTED_PORT_TAKEN_EXIT_CODE, exitsAtOnce: true }] });
+  assert.equal(result.code, ADOPTED_PORT_TAKEN_EXIT_CODE);
+  assert.equal(result.booted.length, 1);
+  assert.deepEqual(stateOf(d).bad, [], 'the payload is not at fault');
 });
 
 // docs/plans/remote-updates.md, finding 3 and D5: apt installs the version the overlay in use was

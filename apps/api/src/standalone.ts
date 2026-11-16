@@ -2,8 +2,8 @@
 // First, before anything can use libuv's thread pool
 import './threadpool.ts';
 import { DataDirLockedError, resolveUserPath } from '@claudio/core';
-import { DATA_DIR_LOCKED_EXIT_CODE } from '@claudio/core/launcher/protocol';
-import { startServer } from './server.ts';
+import { ADOPTED_PORT_TAKEN_EXIT_CODE, DATA_DIR_LOCKED_EXIT_CODE } from '@claudio/core/launcher/protocol';
+import { AdoptedPortTakenError, startServer } from './server.ts';
 
 // The desktop app starts this bundle on Electron's binary with ELECTRON_RUN_AS_NODE=1. Electron reads
 // it once, at launch, so it is done with here; left in, every chat, command and Electron app the
@@ -20,6 +20,10 @@ const server = await startServer({
   webDist: process.env.CLAUDIO_WEB_DIST,
 }).catch((err: unknown) => {
   // The launcher (the container's, the desktop's) reads the code: not the payload's fault, nothing to restart
+  if (err instanceof AdoptedPortTakenError) {
+    console.error(err.message);
+    process.exit(ADOPTED_PORT_TAKEN_EXIT_CODE);
+  }
   if (!(err instanceof DataDirLockedError)) throw err;
   console.error(err.message);
   process.exit(DATA_DIR_LOCKED_EXIT_CODE);

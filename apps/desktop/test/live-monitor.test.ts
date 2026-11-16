@@ -200,3 +200,20 @@ test('Retry-After is read as seconds or as a date', () => {
   assert.equal(retryAfterMs('soon'), undefined);
   assert.equal(retryAfterMs(null), undefined);
 });
+
+test('the quit reads what is live at once, past the throttle, and says nothing when the server does not answer', async () => {
+  const server = await fakeServer();
+  const monitor = new LiveMonitor({ origin: server.origin, onSnapshot: () => undefined, refreshGapMs: 60_000 });
+  try {
+    monitor.start();
+    await until(() => server.requests.some((r) => r.startsWith('/api/overview')), 'the first read');
+    // A chat started a moment after the last read: the throttled snapshot would still say nothing is live
+    server.state.counts = { chatsWorking: 1, chatsWaiting: 0, orchestrationsRunning: 0 };
+    server.state.chats = [{ id: 'c1', title: 'Just started', state: 'working', updatedAt: '2026-11-16T10:00:00Z' }];
+    assert.equal((await monitor.snapshot())?.working, 1);
+  } finally {
+    monitor.stop();
+    await server.close();
+  }
+  assert.equal(await monitor.snapshot(), null, 'a stopped monitor reads nothing');
+});
