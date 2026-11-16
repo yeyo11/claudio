@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { PERMISSION_MODES, type ContextDetail, type LiveMcpServer, type ModelOption, type PermissionDecision, type PermissionMode, type PolicyTranslation, type ToolPolicy } from '@claudio/shared';
 import { drivesSession, streamJsonProcesses } from '../../processes.ts';
 import { composeContent } from '../../uploads.ts';
@@ -14,6 +15,8 @@ import type {
   LaunchPlan,
   McpSetServersResult,
   ProviderDriver,
+  ReattachReport,
+  SessionAdoption,
   SessionInit,
   SessionIO,
   SessionLaunch,
@@ -41,18 +44,88 @@ function sessionOf(argv: readonly string[]): string | null {
   return flag('--resume') ?? flag('--session-id') ?? null;
 }
 
+/**
+ * The permission requests an `initialize` answer says the CLI still waits on (`pending_permission_requests`,
+ * beside the inner `response`: spike S2). Each entry is read as the control request it was, or as its
+ * request alone with the id beside it, since only one shape was ever seen and neither is typed in prose.
+ */
+export function pendingPermissionRequests(whole: Record<string, unknown>): Array<{ id: string; request: Record<string, unknown> }> | null {
+  const listed = whole.pending_permission_requests;
+  if (!Array.isArray(listed)) return null;
+  return listed.flatMap((entry: unknown) => {
+    if (!entry || typeof entry !== 'object') return [];
+    const raw = entry as Record<string, unknown>;
+    const id = raw.request_id;
+    const request = raw.request && typeof raw.request === 'object' ? (raw.request as Record<string, unknown>) : raw;
+    return typeof id === 'string' && request.subtype === 'can_use_tool' ? [{ id, request }] : [];
+  });
+}
+
 class ClaudeCodeSession implements DriverSession {
   private readonly control: ControlChannel;
   private readonly stream: ClaudeStream;
+  /** Adopted, and its replay not over: the prompts it reads wait for the CLI's own list (`reattach`) */
+  private replaying: boolean;
+  /** The prompts the replay found unanswered and not withdrawn, by request id */
+  private readonly replayed = new Map<string, Extract<DriverEvent, { kind: 'permission-request' }>>();
+  /** The prompts handed to the host by this session: a request in the replay and in the list is asked once */
+  private readonly asked = new Set<string>();
 
   constructor(
     private readonly io: SessionIO,
-    sink: (event: DriverEvent) => void,
+    private readonly sink: (event: DriverEvent) => void,
     branches: BranchTracker,
     guard?: AttachedGuard,
+    adoption?: SessionAdoption,
   ) {
-    this.control = new ControlChannel(io);
-    this.stream = new ClaudeStream(sink, branches, this.control, guard);
+    this.replaying = adoption !== undefined;
+    this.control = adoption ? new ControlChannel(io, `claudio-${randomUUID().slice(0, 8)}`, adoption.answered) : new ControlChannel(io);
+    const held = (event: DriverEvent): void => {
+      if (event.kind === 'permission-withdrawn') this.replayed.delete(event.id);
+      if (event.kind === 'permission-request') {
+        if (this.control.hasAnswered(event.question.id) || this.asked.has(event.question.id)) return;
+        if (this.replaying) {
+          this.replayed.set(event.question.id, event);
+          return;
+        }
+        this.asked.add(event.question.id);
+      }
+      sink(event);
+    };
+    this.stream = new ClaudeStream(adoption ? held : sink, branches, this.control, guard);
+  }
+
+  /**
+   * The vendor's re-attach after a transport gap (the Agent SDK's `reinitialize()`): `initialize` again,
+   * whose answer lists the permission requests the process has issued and not resolved. Those are asked
+   * again; when the list is empty or missing, the unanswered ones of the replay are (spikes S1, S3).
+   */
+  async reattach(): Promise<ReattachReport> {
+    this.replaying = false;
+    let listed: Array<{ id: string; request: Record<string, unknown> }> | null = null;
+    try {
+      listed = pendingPermissionRequests(await this.control.request({ subtype: 'initialize' }, { whole: true }));
+    } catch {
+      // An older CLI, or one that did not answer in time: the replay is all there is
+    }
+    const asked: string[] = [];
+    if (listed && listed.length > 0) {
+      for (const { id, request } of listed) {
+        if (this.control.hasAnswered(id) || this.asked.has(id)) continue;
+        asked.push(id);
+        this.stream.request(id, request);
+      }
+      this.replayed.clear();
+      return { source: 'list', asked };
+    }
+    for (const [id, event] of this.replayed) {
+      if (this.control.hasAnswered(id) || this.asked.has(id)) continue;
+      asked.push(id);
+      this.asked.add(id);
+      this.sink(event);
+    }
+    this.replayed.clear();
+    return { source: 'replay', asked };
   }
 
   send(turn: UserTurn): string {
@@ -146,6 +219,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
   readonly sessionIds = 'imposed';
   /** `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` (`resumeEnv`) */
   readonly continuesCutTurns = true;
+  /** stream-json over any byte stream, and `initialize` re-sent "after a transport gap" (Agent SDK, `reinitialize()`) */
+  readonly parkable = true;
   /** Claude's JSONL transcripts, once Core has handed over the store it reads them with */
   transcripts: TranscriptStore | null = null;
 
@@ -184,8 +259,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
     return { bin: typeof this.claudeBin === 'function' ? this.claudeBin() : this.claudeBin, args: buildArgs(launched), env: resumeEnv(launched, childEnv('claude-code', process.env, spec.account)), unsetEnv: [] };
   }
 
-  attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession {
-    return new ClaudeCodeSession(io, sink, branches, guard);
+  attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard, adoption?: SessionAdoption): DriverSession {
+    return new ClaudeCodeSession(io, sink, branches, guard, adoption);
   }
 
   createBranches(): BranchTracker {

@@ -62,6 +62,18 @@ export function lanForwarders(app: FastifyInstance): { request: LanRequestHandle
   };
 }
 
+/**
+ * The port running CLIs hold in `CLAUDIO_API_URL` is taken by something else. It stays an
+ * `EADDRINUSE` for the entrypoints that already tell a person what holds a port.
+ */
+export class AdoptedPortTakenError extends Error {
+  readonly code = 'EADDRINUSE';
+  constructor(port: number, cause: Error) {
+    super(`port ${String(port)} is taken, and CLI processes that outlived the last server can reach the API only there: free it, or stop those chats`, { cause });
+    this.name = 'AdoptedPortTakenError';
+  }
+}
+
 /** Creates the core, builds the app and listens. Shared by the CLI entrypoint and the desktop bundle. */
 export async function startServer(opts: StartServerOptions = {}): Promise<RunningServer> {
   const host = opts.host ?? '127.0.0.1';
@@ -128,7 +140,15 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
   else app.log.info(`Claude Code ${system.cli.version} ready (auth: ${system.auth.tokenSource}, plan: ${system.auth.subscriptionType ?? 'n/a'})`);
 
   try {
-    await listenOn(app, opts.port ?? 8797, host, opts.portFallback ?? true);
+    // CLIs that outlived the last server carry its address in their environment: this one answers
+    // there or does not start, since no other port reaches them (docs/plans/survive-restarts.md, t5)
+    const held = core.runtime.parked.apiPort();
+    const wanted = opts.port ?? 8797;
+    if (held !== null && held !== wanted) app.log.warn(`CLI processes from before the restart reach the API on port ${String(held)}; listening there instead of on ${String(wanted)}`);
+    await listenOn(app, held ?? wanted, host, held === null ? (opts.portFallback ?? true) : false).catch((err: NodeJS.ErrnoException) => {
+      if (held !== null && err.code === 'EADDRINUSE') throw new AdoptedPortTakenError(held, err);
+      throw err;
+    });
   } catch (err) {
     const ended = core.shutdown();
     await app.close();

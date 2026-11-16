@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-10-18T12:00:00Z
+updated_at: 2026-11-16T18:00:00Z
 tags:
     - chats
     - orchestration
@@ -110,6 +110,32 @@ trim retires keeps it, and the environments table is bounded on its own. Every w
 process holds it; fixed SQL on the hot paths is prepared once per connection; and
 `usage_history.account` is `TEXT`, since its old `INTEGER` affinity turned an id like `0042` into 42.
 
+## Parked processes and their scopes
+
+With `CLAUDIO_PARKED_PROCESSES` on, each chat's CLI starts detached (layer 2 of
+[plans/survive-restarts.md](plans/survive-restarts.md), `packages/core/src/parked/`), and where a
+systemd user manager answers (`systemctl --user is-system-running` says `running` or `degraded`), in
+a transient scope of its own: `systemd-run --user --scope --collect --unit=claudio-cli-<id>.scope
+-p TimeoutStopSec=10`. The scope takes the CLI and everything it starts out of the server's cgroup,
+so a restart of the server, or of a unit it runs in, leaves them running (spike S4), and stopping the
+scope ends the whole tree, double forks included. It sets **no limits**: it is the host-scope
+provider of [plans/process-isolation.md](plans/process-isolation.md) §5 at its D1, with nothing in it
+yet. Where no user manager runs (the container), the wrapper is a `setsid` session of its own, and
+stopping it walks the process tree as before.
+
+- **Cost.** The wrapper is one `sh` (about 2 MB, measurement M3 of the plan) and its watchdog, a
+  subshell that wakes every 10 s; no runner process.
+- **Disk.** The CLI's stdout goes to `<data>/procs/<id>/out.jsonl`. At each turn's end the server
+  frees the bytes it has read with `fallocate --punch-hole`, in whole 4 KiB blocks, so the file holds
+  about one turn on disk. Where the filesystem cannot punch holes, nothing is freed until the process
+  ends and its directory is removed.
+- **What is counted.** A chat's `pid` is the wrapper's, so the resource report of a chat includes the
+  wrapper, its CLI and everything under it.
+- **A restart keeps the slot.** A shutdown lets parked CLIs run on (t4); the next start adopts them,
+  and an adopted chat is alive, so it counts against `maxConcurrentRuns` and the memory admission
+  like any running chat from the moment the start resolves. Starting may find more adopted chats than
+  the limit allows (a limit lowered across the restart): none is stopped for it, new starts wait.
+
 ## The limits, and where they come from
 
 | Variable | Default | What it sets |
@@ -120,6 +146,9 @@ process holds it; fixed SQL on the hot paths is prepared once per connection; an
 | `CLAUDIO_MAX_CONCURRENT_RUNS` | 8 | Count of chats (unchanged) |
 | `CLAUDIO_MACHINE_SAMPLE_SECONDS` | 60 | Seconds between stored readings of the machine; 0 turns the history off |
 | `CLAUDIO_MACHINE_RETENTION_DAYS` | 7 | Days a stored reading is kept |
+| `CLAUDIO_PARKED_PROCESSES` | off | Parked CLI processes, each in a scope of its own (above) |
+| `CLAUDIO_HANDOVER_SECONDS` | 300 | How long a parked CLI's open turn goes on with no server |
+| `CLAUDIO_PARKED_SCOPES` | on | `off` keeps parked CLIs under `setsid` even where a user manager runs |
 
 The admission values and the sampler's two are read when the server starts; a restart applies a change. The defaults
 are a starting point, not a measurement: they are to be set from the benchmark phases, not taken as
@@ -159,6 +188,8 @@ the right numbers for a given server.
 
 ## Related
 
+- [[plans/survive-restarts]]
+- [[decisions/parked-cli-processes]]
 - [[orchestrations]]
 - [[orchestration-timings]]
 - [[chat-environment]]

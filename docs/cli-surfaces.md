@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-15T21:00:00Z
+updated_at: 2026-11-16T12:00:00Z
 tags:
     - cli
     - one-rule
@@ -22,6 +22,7 @@ The wrapper drives Claude Code through its CLI, the interface Anthropic ships fo
 | Detect installation | `claude --version` |
 | Auth status | `claude auth status --json` |
 | Run / continue a conversation | `claude -p --input-format stream-json --output-format stream-json` (one long-lived process per run, multi-turn over stdin; `--resume` when the process is gone) |
+| Keep a CLI running while the server restarts (off unless `CLAUDIO_PARKED_PROCESSES`) | The same `-p --input-format stream-json` process, with its stdin a FIFO and its stdout an append-only file instead of pipes ([plans/survive-restarts.md](plans/survive-restarts.md), layer 2): the protocol does not care what carries its bytes, and the Agent SDK's `spawnClaudeCodeProcess` exists to run the CLI "in VMs, containers, or remote environments". When nobody has held the process's lease for the hand-over window and a turn is open, the wrapper sends **SIGINT**, which the [headless](https://code.claude.com/docs/en/headless#stop-a-run-with-sigterm) page documents as the way "to end the turn instead" of SIGTERM; never to an idle process, which SIGINT ends (spike S2). Re-attaching after a restart (`initialize` re-sent "after a transport gap") is t4's and is not done yet |
 | Continue a turn a restart cut | `--resume <id>` with `CLAUDE_CODE_RESUME_INTERRUPTED_TURN=1`, `CLAUDE_CODE_RESUME_INTERRUPTED_TURN_MAX_AGE_MS` (an hour plus five minutes) and `CLAUDE_CODE_RESUME_PROMPT` (Claudio's `RESTART_CONTINUE_TEXT`), and nothing written to stdin: the CLI continues the turn the previous process did not finish, or starts idle when the transcript's last message is older than the bound. Documented in [env-vars](https://code.claude.com/docs/en/env-vars) ("Used in SDK mode so the model continues without requiring the SDK to re-send the prompt"; the bound needs CLI 2.1.211 or later), read 2026-11-15 against CLI 2.1.322. Set only for that process (`resumeEnv` in `providers/claude-code/args.ts`), and stripped from every other one so an inherited value never replays a turn beside a new prompt ([plans/survive-restarts.md](plans/survive-restarts.md), layer 3) |
 | Background tasks & subagents | `system/task_*` events and `Task` tool calls in the stream |
 | Live CLI sessions | on Linux, the record each CLI process writes for itself (`$CLAUDE_CONFIG_DIR/sessions/<pid>.json`), kept while `/proc/<pid>/stat` shows the start time it recorded (`procStart`) in the same pid namespace (`pidDomain`): what `claude agents --json` itself reads; elsewhere, or with a CLI that writes no such records, `claude agents --json` ([transcript-listing.md](transcript-listing.md)) |

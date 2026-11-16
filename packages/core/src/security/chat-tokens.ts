@@ -23,17 +23,33 @@ interface Minted {
 
 const sha256 = (value: string): Buffer => createHash('sha256').update(value, 'utf8').digest();
 
+/** The hash a parked process's row keeps for its chat token (hex): all that ever reaches the disk of it. */
+export const chatTokenHash = (token: string): string => sha256(token).toString('hex');
+
+/**
+ * Where a token this store does not hold in memory may still be honoured: the rows of parked CLI
+ * processes (layer 2 of docs/plans/survive-restarts.md, D5). Given only the hash, it answers with
+ * the chat while the process the hash was stored for is alive, bound to its pid and start time, and
+ * held by this server; the row, and with it the hash, goes when the process does.
+ */
+export interface StoredChatTokens {
+  chatForTokenHash(hash: string): string | null;
+}
+
 /**
  * The credentials Claudio hands the CLI processes it spawns (`CLAUDIO_API_TOKEN`), so a chat can
  * call the wrapper that started it when the API is guarded.
  *
  * In memory only, and only as hashes: nothing here reaches `auth.json`, SQLite or a log, so a
  * restart of the wrapper revokes every chat token by construction, and a heap dump holds nothing
- * that can be replayed. Keyed by the hash, so lookup is one map read; the comparison after it is
+ * that can be replayed. The one exception is a parked process (`stored`): its hash, never the
+ * token, is in its row for as long as the process lives, so its chat keeps its API across a restart. Keyed by the hash, so lookup is one map read; the comparison after it is
  * `timingSafeEqual` anyway, like the owner's token.
  */
 export class ChatTokenStore {
   private readonly tokens = new Map<string, Minted>();
+  /** Set where processes outlive the server: what a restart left in the process rows */
+  stored: StoredChatTokens | null = null;
 
   /** The clock is a parameter so a test can age a token past its maximum without waiting a day. */
   constructor(private readonly now: () => number = Date.now) {}
@@ -59,7 +75,9 @@ export class ChatTokenStore {
     const digest = sha256(presented);
     const key = digest.toString('hex');
     const minted = this.tokens.get(key);
-    if (!minted || !timingSafeEqual(minted.hash, digest)) return null;
+    // Not minted by this server: the token of a parked process an earlier server started and this one adopted
+    if (!minted) return this.stored?.chatForTokenHash(key) ?? null;
+    if (!timingSafeEqual(minted.hash, digest)) return null;
     if (this.now() - minted.mintedAt >= CHAT_TOKEN_MAX_AGE_MS) {
       this.tokens.delete(key);
       return null;
@@ -69,7 +87,9 @@ export class ChatTokenStore {
 
   /** Whether a word is a token this store minted, expired or not: for masking, never for access. */
   holds(word: string): boolean {
-    return word.startsWith(CHAT_TOKEN_PREFIX) && this.tokens.has(sha256(word).toString('hex'));
+    if (!word.startsWith(CHAT_TOKEN_PREFIX)) return false;
+    const key = sha256(word).toString('hex');
+    return this.tokens.has(key) || this.stored?.chatForTokenHash(key) != null;
   }
 
   revoke(token: string): void {

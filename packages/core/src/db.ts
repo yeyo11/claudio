@@ -1742,6 +1742,44 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // its project, reset and choices as JSON, so a page names the project and says it in its language
   // instead of showing the English `reason`. Null on every other wait, and on the rows before it
   `ALTER TABLE provider_moves ADD COLUMN rule TEXT;`,
+
+  // CLI processes started detached, so that they can outlive the server that started them (layer 2
+  // of docs/plans/survive-restarts.md, t3): one row per process, while it runs. Rows, not a JSON file,
+  // because the server that started a process and the one that adopts it after a restart both touch
+  // it, and a takeover is a guarded update on the owner. Pids go with their start time (clock ticks
+  // after boot, /proc/<pid>/stat field 22): a pid alone may have been reused by the time anyone reads
+  // it. `committed_offset` is the byte of `out.jsonl` the fold has read to at its last turn boundary,
+  // and everything before it may already be a hole. `token_hash`, `payload_dir` and `cli_version` are
+  // what a restart must keep for the process (t5); null until something records them.
+  `CREATE TABLE cli_processes (
+     id               TEXT PRIMARY KEY,
+     chat_id          TEXT NOT NULL,
+     layout           INTEGER NOT NULL,
+     dir              TEXT NOT NULL,
+     scope            TEXT,
+     wrapper_pid      INTEGER NOT NULL,
+     wrapper_started  INTEGER NOT NULL,
+     cli_pid          INTEGER,
+     cli_started      INTEGER,
+     owner_pid        INTEGER,
+     owner_started    INTEGER,
+     lease_until      TEXT NOT NULL,
+     committed_offset INTEGER NOT NULL DEFAULT 0,
+     stdin_seq        INTEGER NOT NULL DEFAULT 0,
+     turn_offset      INTEGER,
+     token_hash       TEXT,
+     payload_dir      TEXT,
+     cli_version      TEXT,
+     started_at       TEXT NOT NULL
+   );
+   CREATE INDEX cli_processes_chat ON cli_processes (chat_id);`,
+
+  // Where a spend row's result was read, for a chat on a parked process: `<process>:<byte offset>` of
+  // its line in `out.jsonl`. A server that adopts the process replays its output from the committed
+  // offset, which can hold a result the server before it already recorded; the second row is refused
+  // (t4 of docs/plans/survive-restarts.md, R1). Null on every other row, which the index leaves alone.
+  `ALTER TABLE spend_ledger ADD COLUMN source TEXT;
+   CREATE UNIQUE INDEX spend_ledger_source ON spend_ledger (source) WHERE source IS NOT NULL;`,
 ];
 
 /**
@@ -2070,6 +2108,8 @@ export interface SpendRow {
   orchestrationId: string | null;
   /** The turn ran on the account's usage credits, its plan being spent */
   credits?: boolean;
+  /** Where its result was read (a parked process and the line's offset): a row from the same place is written once */
+  source?: string | null;
 }
 
 /** How long a claimed compaction is held before another process may take it for lost */
@@ -2536,7 +2576,7 @@ export class Db {
    * caller still runs: an old chat resumed today is the oldest by creation, and the trim must not
    * take the rows of a conversation that is going on. Returns the ids it trimmed.
    */
-  saveChats(chats: StoredChat[], keep: number | null, protect: ReadonlySet<string> = new Set()): string[] {
+  saveChats(chats: StoredChat[], keep: number | null, protect: ReadonlySet<string> = new Set(), alongside?: () => void): string[] {
     const upsertChat = prepared(
       this.db,
       `INSERT INTO chats (id, created_at, provider, json) VALUES (?, ?, ?, ?)
@@ -2553,6 +2593,8 @@ export class Db {
         upsertChat.run(record.id, record.createdAt, provider, JSON.stringify({ ...record, provider }));
         for (const execution of executions) upsertExecution.run(execution.id, record.id, execution.startedAt, JSON.stringify(execution));
       }
+      // Written with the chats or not at all: a parked process's committed offset beside the totals it was read up to
+      alongside?.();
       if (keep === null) return [];
       const past = prepared(this.db, 'SELECT id FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').all(keep) as Array<{ id: string }>;
       const trimmed = past.map((r) => r.id).filter((id) => !protect.has(id));
@@ -3066,12 +3108,14 @@ export class Db {
 
   // ---------- daily spend ledger ----------
 
-  addSpend(row: SpendRow): void {
-    prepared(
+  /** False when a row from the same `source` is there already: a replayed result. */
+  addSpend(row: SpendRow): boolean {
+    const result = prepared(
       this.db,
-      `INSERT INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id, credits)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId, row.credits ? 1 : 0);
+      `INSERT OR IGNORE INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id, credits, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId, row.credits ? 1 : 0, row.source ?? null);
+    return Number(result.changes) > 0;
   }
 
   /** What the ledger holds in `[from, to)`, by purpose and account kind, how much of it ran on credits, and how many results carried no cost. */

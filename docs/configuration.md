@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-08T18:00:00Z
+updated_at: 2026-11-16T18:00:00Z
 tags:
     - configuration
     - environment
@@ -66,6 +66,9 @@ README's.
 | `CLAUDIO_GUARD_ENTRY` | the `guard.mjs` beside the API bundle | The bundle of Claudio's guard, the program the CLI runs on each tool call. It must not be group- or world-writable or sit under a project; from source it runs `packages/core/src/guards/main.ts`. See [docs/guards.md](guards.md) |
 | `CLAUDIO_CHAT_BUDGET_USD` | `1` | The budget of a confined API chat that names none (`maxBudgetUsd`, `X-Claudio-Max-Budget-Usd`), in USD, above 0 and up to the spend cap's maximum; another value stops the start |
 | `CLAUDIO_CHAT_RETENTION_DAYS` | `30` | Headless only: a chat idle this many days is deleted with its rows and the CLI's session files, by a sweep at start and every hour. A whole number from 1 to 3650 |
+| `CLAUDIO_PARKED_PROCESSES` | off | `on`/`1`/`true`/`yes` starts each chat's CLI detached, in a systemd user scope where a user manager runs and under `setsid` otherwise, with its stdin a FIFO and its output in files under `<data>/procs/`, so that it can outlive the server ([plans/survive-restarts.md](plans/survive-restarts.md), layer 2). A shutdown then lets them run on and the next start adopts them (t4); a start with it off stops what a previous server left and layer 3 continues its turn. Off by default until the desktop daemon (t6) keeps the control plane alive when the window closes |
+| `CLAUDIO_HANDOVER_SECONDS` | `300` | With parked processes: how long a parked CLI may go on with an open turn while no server holds it; past that its turn is ended with SIGINT. A whole number from 30 to 86400, or the server stops at startup |
+| `CLAUDIO_PARKED_SCOPES` | on | `off` keeps parked CLIs out of systemd scopes (plain `setsid`), even where a user manager runs |
 | `LOG_LEVEL` | `info` | Fastify/pino log level (`trace` … `fatal`, or `silent`) |
 
 Claudio sets two variables for every chat it starts, so an agent that calls the REST API reaches the

@@ -377,6 +377,11 @@ export class ClaudeStream {
     };
   }
 
+  /** A request the CLI made that reaches the host another way than its stdout: the `initialize` answer's pending list. */
+  request(requestId: string, request: Record<string, unknown>): void {
+    this.controlRequest(requestId, request);
+  }
+
   /** The CLI asks the host something: a tool permission, a question, a plan to approve. */
   private controlRequest(requestId: string, request: Record<string, unknown>): void {
     if (request.subtype !== 'can_use_tool') {

@@ -29,6 +29,9 @@
 //                  process up once the workflow ended, as a lead looping over its journal did (R15), and one
 //                  that says QUIET-END also never reports the end on the stream
 //   (anything)     ends the turn at once
+//
+// SIGINT ends an open turn with `error_during_execution` and keeps the process, and ends an idle
+// process with exit code 0, as the CLI does
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -59,7 +62,19 @@ if (args[0] === 'auth') {
   process.exit(0);
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
+/** A turn started and its result not written yet: what SIGINT ends, where it ends the process otherwise */
+let turnOpen = false;
+const out = (msg) => {
+  if (msg.type === 'result') turnOpen = false;
+  process.stdout.write(`${JSON.stringify(msg)}\n`);
+};
+// As the CLI documents for SIGINT ("To end the turn instead, send SIGINT"), and as spike S2 of
+// docs/decisions/parked-cli-processes.md saw it end an idle `-p` process with exit code 0
+process.on('SIGINT', () => {
+  if (!turnOpen) process.exit(0);
+  pending = null;
+  out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, ...figures() });
+});
 // Like the CLI (2.1.278), `--session-id` names the session, a fork's copy included; a fork given no
 // id makes up its own, and a plain resume keeps the one it resumes
 const sessionId = flag('--session-id') ?? (args.includes('--fork-session') ? randomUUID() : (flag('--resume') ?? randomUUID()));
@@ -72,6 +87,8 @@ const reported = (m) => (m === 'manual' ? 'default' : m);
 let mode = flag('--permission-mode') ?? 'manual';
 /** The permission request this turn is blocked on */
 let pending = null;
+/** The whole `can_use_tool` request it went out as: a re-sent `initialize` lists it again */
+let pendingRequest = null;
 
 // What one turn uses; the real CLI reports the window of every model that answered, variant suffix included
 const turnModel = 'claude-opus-5[1m]';
@@ -113,6 +130,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   const msg = JSON.parse(line);
 
   if (msg.type === 'user') {
+    turnOpen = true;
     const content = msg.message?.content;
     const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
     const compact = /^\/compact(?:\s+([\s\S]*))?$/.exec(prompt.trim());
@@ -210,7 +228,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     if (!args.includes('--permission-prompt-tool')) return result('denied: nobody to ask');
     pending = randomUUID();
     const tool = ask[1];
-    out({
+    pendingRequest = {
       type: 'control_request',
       request_id: pending,
       request: {
@@ -222,7 +240,8 @@ createInterface({ input: process.stdin }).on('line', (line) => {
         permission_suggestions: [{ type: 'setMode', mode: 'acceptEdits', destination: 'session' }],
         ...(tool === 'AskUserQuestion' ? { requires_user_interaction: true } : {}),
       },
-    });
+    };
+    out(pendingRequest);
     return;
   }
 
@@ -230,6 +249,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     const response = msg.response ?? {};
     if (response.request_id !== pending) return;
     pending = null;
+    pendingRequest = null;
     return result(`decision=${JSON.stringify(response.response)}`);
   }
 
@@ -251,8 +271,12 @@ createInterface({ input: process.stdin }).on('line', (line) => {
     } else if (request.subtype === 'set_model') {
       respond(msg.request_id, undefined);
     } else if (request.subtype === 'initialize') {
-      // The account's model list, read with no turn: the only list the pickers offer
-      respond(msg.request_id, { commands: [], models: [{ value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet', description: 'Sonnet 5' }], account: { apiProvider: 'firstParty' } });
+      // The account's model list, read with no turn: the only list the pickers offer. Beside the inner
+      // answer, as CLI 2.1.322 puts it (spike S2), the permission requests still unanswered; an older
+      // CLI's answer has no such list, which $FAKE_CLAUDE_PENDING_LIST=off stands for
+      const answer = { commands: [], models: [{ value: 'sonnet', resolvedModel: 'claude-sonnet-5', displayName: 'Sonnet', description: 'Sonnet 5' }], account: { apiProvider: 'firstParty' } };
+      const listed = process.env.FAKE_CLAUDE_PENDING_LIST === 'off' ? {} : { pending_permission_requests: pending && pendingRequest?.request_id === pending ? [pendingRequest] : [] };
+      out({ type: 'control_response', response: { subtype: 'success', request_id: msg.request_id, response: answer, ...listed } });
     } else if (request.subtype === 'get_context_usage') {
       // Recorded answers; `full` is what the CLI gives when no detail is asked for, and it refuses any other word
       if (request.detail === undefined || request.detail === 'full') respond(msg.request_id, fixture('recordings/claude/context-usage-full.json'));

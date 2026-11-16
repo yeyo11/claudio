@@ -21,6 +21,14 @@ const AUTH_ENV_KEYS = [
   'CLAUDIO_DESKTOP_TOKEN',
 ] as const;
 
+/** How parked CLI processes run, when they are on. */
+export interface ParkedConfig {
+  /** How long a parked CLI may work on an open turn with no server holding its lease (D6), from `CLAUDIO_HANDOVER_SECONDS` */
+  handoverSeconds: number;
+  /** Whether each CLI gets its own systemd user scope where a user manager runs (D9); `CLAUDIO_PARKED_SCOPES=off` keeps them to `setsid` */
+  scopes: boolean;
+}
+
 export type AuthEnv = Partial<Record<(typeof AUTH_ENV_KEYS)[number], string>>;
 
 export interface CoreConfig {
@@ -118,6 +126,12 @@ export interface CoreConfig {
    * needs to know which of them the deploy decided and the UI may therefore not change.
    */
   settingsFromEnv: ReadonlySet<keyof AppSettingValues>;
+  /**
+   * CLI processes started detached, able to outlive the server (layer 2 of
+   * docs/plans/survive-restarts.md), from `CLAUDIO_PARKED_PROCESSES`; absent, which is the default,
+   * every chat's CLI hangs from the server's pipes as before. See `parked/registry.ts`.
+   */
+  parked?: ParkedConfig;
 }
 
 /**
@@ -195,6 +209,24 @@ function parseLanBind(value: string | undefined): string[] | null {
   // Every interface, which is leaving it unset; listed, it would join the allowlist as a name
   if (addresses.includes('0.0.0.0')) throw new Error("CLAUDIO_LAN_BIND: '0.0.0.0' is every interface: leave CLAUDIO_LAN_BIND unset instead");
   return [...new Set(addresses)];
+}
+
+/** D6: five minutes with no server, then the open turn is ended */
+const DEFAULT_HANDOVER_SECONDS = 300;
+
+/**
+ * Parked processes are off unless asked for: the restart that adopts them (t4) does not exist yet,
+ * so a release behaves as before. A hand-over shorter than half a minute would end turns over a
+ * slow restart, and one longer than a day is unbounded paid work by another name: both stop the start.
+ */
+function parkedFromEnv(env: NodeJS.ProcessEnv): ParkedConfig | undefined {
+  if (!parseYes(env.CLAUDIO_PARKED_PROCESSES)) return undefined;
+  const raw = env.CLAUDIO_HANDOVER_SECONDS;
+  const handoverSeconds = isSet(raw) ? Number(raw.trim()) : DEFAULT_HANDOVER_SECONDS;
+  if (!Number.isInteger(handoverSeconds) || handoverSeconds < 30 || handoverSeconds > 86_400) {
+    throw new Error(`CLAUDIO_HANDOVER_SECONDS must be a whole number of seconds from 30 to 86400, not '${String(raw)}'`);
+  }
+  return { handoverSeconds, scopes: !['off', '0', 'false', 'no'].includes((env.CLAUDIO_PARKED_SCOPES ?? '').trim().toLowerCase()) };
 }
 
 /** A flag the image's entrypoint sets: only an explicit yes counts */
@@ -425,6 +457,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
   }
   ensureProviderHomes(env, dataDir);
+  const parked = parkedFromEnv(env);
   return {
     profile: profileFromEnv(env.CLAUDIO_PROFILE),
     chatBudgetUsd: chatBudgetFromEnv(env.CLAUDIO_CHAT_BUDGET_USD),
@@ -455,5 +488,6 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): CoreConfig {
     authEnv: Object.fromEntries(AUTH_ENV_KEYS.flatMap((key) => (env[key] === undefined ? [] : [[key, env[key]]]))) as AuthEnv,
     ...(isSet(env.CLAUDIO_SECRET_KEY) ? { secretKey: env.CLAUDIO_SECRET_KEY.trim() } : {}),
     ...(isSet(env.CLAUDIO_DISTRIBUTION) ? { distribution: env.CLAUDIO_DISTRIBUTION.trim().toLowerCase() } : {}),
+    ...(parked ? { parked } : {}),
   };
 }

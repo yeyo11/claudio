@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-15T21:00:00Z
+updated_at: 2026-11-16T18:00:00Z
 tags:
     - security
     - secrets
@@ -190,6 +190,66 @@ a trial that ends with it is neither failed nor restarted.
   under a previous holder's lock is reconciled; one from before the lock existed is left alone while
   something answers at its target. And a server only ever takes away the rule it added itself
   ([tunnel.md](tunnel.md#only-what-claudio-added)).
+
+## Parked CLI processes
+
+With `CLAUDIO_PARKED_PROCESSES` on (off by default), a chat's CLI is no child of the server on pipes
+but a detached process whose input and output are files (layer 2 of
+[plans/survive-restarts.md](plans/survive-restarts.md), `packages/core/src/parked/`). What that adds:
+
+- **Conversation content on disk.** `<data>/procs/<id>/out.jsonl` and `err.log` hold what the CLI
+  wrote, the turn's text and tool output included, until the turn ends (the bytes read are then
+  punched out) and the whole directory when the process ends. `run.sh` holds the CLI's command line
+  (paths and flags, no credential: the chat token and the account's credential go in the
+  environment, which is never written). `in.jsonl` records what the server wrote by kind and id only,
+  never the text. `procs/` is `0700` and every file in it `0600`, created that way before the CLI
+  starts, and the wrapper runs with `umask 077`.
+- **A writable FIFO per chat (risk R3 of the plan).** `in.fifo` is the CLI's stdin. Anything running
+  as the same user that can reach the data directory could write a message or a control response
+  into another chat's CLI. That is no wider than what the same user can already do to that CLI's
+  files and process, and it is close to the vendor's own inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`).
+  A confined chat (headless, workspaces) never sees the data directory. A guarded chat's agent is
+  refused writes anywhere in the data directory, `procs/` included, by the guard's
+  `integrity.own-state` rule, as for the rest of Claudio's state.
+- **A chat token crosses a restart as a hash (D5).** The token of a parked CLI is in its environment,
+  as for any chat, and in nothing of Claudio's: its row in `cli_processes` keeps `token_hash`, the
+  SHA-256 of it as hex, and never the token. The hash is a one-way image of 32 random bytes, so a
+  copy of `wrapper.db` (a backup, a support bundle) holds nothing that can be replayed and nothing
+  that can be guessed from. A server that did not mint the token accepts it only while all of these
+  hold, each checked at the request: the row exists; its owner is this server, by pid and start time
+  (a process nobody holds, or a gone server's, answers nobody); the CLI the row names runs, by pid
+  **and start time** (a pid the kernel reused is another process); and the row is less than
+  `CHAT_TOKEN_MAX_AGE_MS` (24 h) old, the cap every chat token has. The row, and so the hash, goes when
+  the process ends or is reaped, and a chat's next process gets a new token. Chats not parked are
+  unchanged: their tokens stay in memory and a restart revokes them.
+  The threat model is the one of a chat token already ([Chat tokens](#chat-tokens)): what the hash
+  adds is a row a local attacker could read, which gives them no credential; one who can read the
+  CLI's environment (`/proc/<pid>/environ`, same user) had the token already. A hash can be tested
+  against a guess offline, which 256 random bits make pointless.
+- **The address crosses a restart too.** `<data>/procs/<id>/api-url` (`0600`, no credential) holds the
+  `CLAUDIO_API_URL` the CLI was given. A server that starts beside running CLIs listens on that port
+  and does not fall back to another when it is taken: it refuses to start (`AdoptedPortTakenError`,
+  `EADDRINUSE`), since no other port reaches the CLI. Someone else's listener on that port could
+  answer a CLI that sends its token there, which is why the server never moves instead, and why the
+  port is on loopback only.
+- **What an update must not delete.** Each row records the payload directory its MCP server runs from
+  (`payload_dir`) and the CLI version; the launcher keeps an overlay `<data>/app/<version>` while a
+  running CLI's row names it, and keeps every overlay if it cannot read the rows. The files a chat's
+  start wrote (`<data>/mcp/extra-*`, `overlay-*`) are kept at start-up while its CLI runs.
+- **One holder at a time.** A server takes a parked process over only after checking the wrapper's
+  and the CLI's pid and start time, and with one guarded `UPDATE` on the owner it read, so two
+  servers on one data dir never both write one FIFO (risk R4). A server that shuts down releases its
+  rows and from then on writes nothing to the FIFO, answers none of the CLI's prompts (the shutdown's
+  "the wrapper is shutting down" denial does not reach a parked CLI) and sends it no signal.
+- **Prompts are not answered twice nor lost.** The adopter re-sends `initialize` and asks a person
+  again what the CLI lists in `pending_permission_requests`, or the unanswered requests of the
+  replayed output when that list is empty; a request whose answer `in.jsonl` records is never asked
+  again. Each re-asked prompt gets the broker's full timeout again.
+- **Paid work with nobody watching is bounded.** A CLI whose lease no server renews for
+  `CLAUDIO_HANDOVER_SECONDS` (five minutes) has its open turn ended with SIGINT by its own wrapper.
+- **Signals go only to what Claudio started.** The registry signals a process only after checking
+  its pid and start time against its row, and stops a scope only by the unit name its row records:
+  never by a pattern that could match another Claudio's scopes on the same machine.
 
 ## What the vendors' CLIs keep in plain text
 

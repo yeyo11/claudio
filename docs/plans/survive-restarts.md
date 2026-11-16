@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-15T20:00:00Z
+updated_at: 2026-11-16T18:00:00Z
 tags:
     - plan
     - study
@@ -14,7 +14,9 @@ tags:
 # Study: work that keeps running when Claudio closes, restarts or updates
 
 **Status: in progress. The owner approved approach D on 2026-11-15 ([decisions](#the-owners-decisions-2026-11-15));
-the spikes (t2) are done and layer 3 (t1) is built ([t1's outcome](#outcome-of-t1-layer-3-2026-11-15)).**
+the spikes (t2) are done, layer 3 (t1) is built ([t1's outcome](#outcome-of-t1-layer-3-2026-11-15)), and
+layer 2 starts and runs parked processes behind a switch ([t3's outcome](#outcome-of-t3-parked-processes-start-and-run-2026-11-16)),
+and a restart adopts them ([t4's outcome](#outcome-of-t4-adoption-2026-11-16)).**
 
 ## The problem, in the owner's words
 
@@ -643,6 +645,164 @@ What a start does with the work the server before it left cut, by who the work w
   the chain bound, a CLI that declines, a cut workflow resumed from its cache). The browser spec that
   restarts the server mid-turn is left to t8, which needs the slow fake turn layer 2 also needs.
 - **Not built here:** layers 2 and 1 (t2–t9).
+
+## Outcome of t3 (parked processes, start and run, 2026-11-16)
+
+Built in `packages/core/src/parked/`, **off by default** (`CLAUDIO_PARKED_PROCESSES`; the plan left the
+default open, and with no adoption a release must behave as before). With it off, nothing changes: no
+directory, no row, the CLI on pipes.
+
+| Piece | As built |
+|---|---|
+| Row | `cli_processes` (migration in `db.ts`, `parked/store.ts`): chat, layout, directory, scope, wrapper and CLI each as pid + start time, owner (the server's pid + start time), `lease_until`, `committed_offset`, `stdin_seq`, `turn_offset`, and empty `token_hash`, `payload_dir`, `cli_version` for t5. Every write but the insert is guarded by the owner |
+| Files | `<data>/procs/<id>/` (`0700`, files `0600`, `umask 077`): `version` (layout 1), `run.sh`, `in.fifo`, `in.jsonl` (kind and id of each line written, never the text), `out.jsonl`, `err.log`, `wrapper.log`, `pid`, `exit.code`, `lease` (expiry, epoch seconds), `turn` (offset where the open turn's output starts), `watchdog` (when it fired) |
+| Wrapper | `parked/wrapper.ts`, one `sh` script per process with the command in it, so the process table shows `sh …/run.sh` and nothing matching CLIs by argv takes it for a second CLI on the session. fd 4 holds the FIFO read-write, the CLI runs in the background with `<&3` (a read-only fd) as S1 found it must, its pid goes to `pid`, its `wait` status to `exit.code` |
+| Scope | `systemd-run --user --scope --quiet --collect --unit=claudio-cli-<id>.scope -p TimeoutStopSec=10` where `systemctl --user is-system-running` answers `running` or `degraded` (D9); `systemd-run` execs in place, so the spawned pid is the wrapper's. Otherwise Node's `detached` (`setsid`). `CLAUDIO_PARKED_SCOPES=off` forces the latter. Reaping runs `reset-failed` on the unit its row names, never a pattern |
+| I/O | `ChatProcess` (`chat-process.ts`) is what `ChatManager` drives; a pipe child fits it unchanged, `ParkedProcess` implements it. The server opens the FIFO `O_RDWR \| O_NONBLOCK` before the wrapper exists (never blocks, never `ENXIO`) and writes through a `net.Socket`, so libuv absorbs a full pipe. `FileTail` follows `out.jsonl` and `err.log` from the committed offset with inotify and a 1 s poll; `close` comes only after the CLI is gone and both are read to the end |
+| Turn boundaries | `LiveChat.onTurn` fires when the lead's turn opens or ends. Open: `turn` file and `turn_offset`. End: `committed_offset` = the end of the line the fold just read, then `fallocate --punch-hole` below it in whole 4 KiB blocks (S6) |
+| Lease and watchdog | The server rewrites every `lease` file and row with now + `CLAUDIO_HANDOVER_SECONDS` (300, D6) every minute (or a fifth of the window). The wrapper's watchdog subshell, every 10 s: lease expired, `turn` present, and no `"type":"result"` in `out.jsonl` after the turn's offset → SIGINT to the CLI, once. An idle CLI is never signalled (S2). It naps in a background `sleep` it ends when the wrapper stops it: a `sleep` left behind held the scope open for up to a tick after the CLI ended |
+| Ending | `end()` closes the server's writer and sends the wrapper SIGUSR1, whose trap closes fd 4: the CLI reads EOF, so the idle timeout and one-shot runs behave as on pipes. `kill` signals the CLI by pid (checked against its parent), SIGKILL the whole tree and the scope. On close, the row, directory and failed scope go |
+| Start-up | `restore` leaves the CLIs of rows whose owner is gone out of the strays (synchronously, as `server.ts` reads them at once), then `reap()` stops them (scope stop, or SIGTERM then SIGKILL to the checked tree) before it resolves, so layer 3 continues their cut turns as after #150. Directories with no row whose process is gone are removed |
+
+**Where the plan or the spikes were wrong or incomplete.**
+
+- **"The CLI itself is always a writer of its stdin" (M3, D4) is not what was built.** With
+  `exec 0<>in.fifo` the CLI can never read EOF, and Claudio relies on EOF: the idle timeout and
+  `keepAlive: false` end a process by closing its input, and the CLI documents waiting for
+  background work "after stdin has closed". The CLI gets a read-only descriptor and the wrapper holds
+  the writer, released on SIGUSR1. The cost: a wrapper killed on its own (only a scope stop or a
+  SIGKILL does that) lets the CLI read EOF once no server writes either.
+- **"Every write also goes to `in.jsonl`" would put every prompt on disk a second time**, base64
+  attachments included. `in.jsonl` keeps the sequence number, the kind and the id (message `uuid` or
+  control `request_id`), which is what the plan wanted it for.
+- **A watchdog in `sh` cannot read "the tail shows a turn with no result"** without a JSON parser, and
+  a server that died mid-turn never removes its marker. It reads the `turn` offset the server wrote
+  and greps what follows for a result line, so a turn that ended while no server was there is left
+  alone (tested). The lease is an expiry in the file, not the file's age, so the server's clock sets it.
+- **The rotation fallback of S6 is not safe.** Truncating a file the CLI appends to races its next
+  write; where holes cannot be punched the bytes stay until the process ends.
+- **S1's "offset committed with the spend row in one transaction"** is not done: in t3 nothing replays,
+  so the commit follows the fold's turn end. t4 must bind them before it replays.
+- **`--collect` makes a scope that died of a signal unload by itself**; `reset-failed` is still sent
+  on reaping, as S4 asked, for a unit that outlived its server.
+
+**What t4 needs, and finds ready.** Rows with pid + start time for the wrapper and the CLI; the
+owner to take over with a guarded `UPDATE`; `committed_offset` (a line end, everything before it
+possibly a hole) to replay from with `FileTail`; `turn_offset` to know a turn was open; `in.jsonl` for
+the control responses already sent; `ParkedProcess` built from a row (its constructor takes `from`, but
+an adopted wrapper is no child of the new server: its exit must come from polling the pid and
+`exit.code` instead of `child.on('exit')`); `stopAll` and start-up switched from stop and reap to
+detach and adopt; and the e2e of t8. t5: the token hash, payload dir and CLI version columns exist and
+are empty.
+
+**Tests.** `packages/core/test/parked.test.ts` (18, over the control fake CLI, which now ends an open
+turn on SIGINT and an idle process with exit 0 as the CLI does): FIFO and file descriptors, own session,
+the wrapper's clean argv, two turns on one process; file modes; EOF on `end()`; a signal reported as
+on pipes; `in.jsonl` without text; commit and holes over 40 turns; the watchdog against an expired
+lease, an idle CLI and a held lease, and against a turn that ended without a server; lease renewal on
+an injected clock; the owner guard; reaping a gone server's process and an orphan directory, and
+leaving a live owner's alone; the scope (cgroup, collected after the end; skipped without a user
+manager); the switch's parsing; a chat on a parked process end to end; a chat on pipes with the switch
+off; and a start that reaps a parked CLI cut mid-turn and hands its turn to layer 3 as continuable.
+
+**Measured here** (Linux, dash, systemd 259 user manager, tmpfs `/tmp`): `systemd-run --scope` keeps
+the pid (the wrapper's argv replaces `systemd-run`'s) and the unit is gone after the process ends; a
+100 KB line through the non-blocking FIFO socket arrives whole; SIGUSR1 to the wrapper, then closing
+the server's writer, delivers EOF and the CLI's own exit code (7) to `exit.code`. Nothing touched the
+owner's running app.
+
+## Outcome of t4 (adoption, 2026-11-16)
+
+Built behind the same switch, which stays **off by default**: with the window's close still quitting
+the server, a parked CLI would run on with nobody enforcing budgets until the lease ends it, so the
+default changes with t6 (layer 1) and the owner's word, not here. With it off a start reaps and
+layer 3 continues, as after t3.
+
+| Piece | As built |
+|---|---|
+| Shutdown | `ChatManager.detachParked()`, called by `Core.shutdownOnce` before the permission broker denies what waits, and first thing in `stopAll`: every parked process stops being read and written (`ParkedProcess.detach`: tails stopped, the server's FIFO writer closed without SIGUSR1, so the CLI's input stays open), sends no signal, its pending turn end is committed, its row released (`owner` NULL), and its chat written with the execution open. Chats on pipes stop as before |
+| Adoption | `restore` → `adoptLeftBehind`: for each row whose owner is gone and whose chat the restore kept with that execution open, `ParkedProcesses.adopt(row)` checks layout, wrapper and CLI by pid and start time and that no `exit.code` exists, then `CliProcessStore.take` (`UPDATE … WHERE owner_pid IS ? AND owner_started IS ?`, the owner it read). The chat's execution is open again, its written messages are not "lost", and `wire()` (split out of `spawnProcess`) attaches the driver with a `SessionAdoption`. The process's end is found by polling the wrapper (500 ms), which is no child of the new server, then `exit.code` as before |
+| Replay | From `committed_offset`, through the fold, before `restore` resolves (`ParkedProcess.caughtUp`), so the orchestrator's and the flow's recovery see a turn that ended in the gap as ended. A turn the row or the execution marks open reads `busy` at once |
+| Re-attach | After the replay, not waited for: `DriverSession.reattach()` sends `initialize` under a fresh request-id prefix (the old server's ids may still be answered) and reads `response.pending_permission_requests`. Listed requests are asked again; with an empty or missing list, the replay's `can_use_tool` requests with no answer and no cancel are. `in.jsonl`'s `control_response` ids seed the control channel, which never answers or refuses one id twice |
+| Spend | A result read from a parked process records `source = <process>:<offset>` in `spend_ledger` (new column, unique where set; `INSERT OR IGNORE`). A turn end's committed offset is written inside the transaction that saves the chat (`Db.saveChats(…, alongside)`), so the offset and the session totals the next cost is measured from never disagree; holes are punched after that commit |
+| Orchestrator | `recover()` puts an interrupted task whose chat was adopted back to `running` in a new stamp of the same attempt and settles it on `waitForResult`; a workflow whose lead was adopted is `running` again and followed (`followAdoptedWorkflow`) instead of resumed from its cache |
+| Flow, rotation, admission | Unchanged code: `flow.recover` already skips a run whose chat is busy and `chatResult` ends it on the result; the rotation's `recover` takes the wait rows of chats in memory, adopted included; admission counts live chats, adopted included |
+| Fallback | A row that cannot be adopted (another layout, wrapper or CLI gone, taken by another server, files unusable) is left to `reap`, and its chat's cut turn to layer 3 (#150). `ChatManager.adopted(id)` says which chats were taken over |
+
+**Where the plan was incomplete.**
+
+- **A plain commit after the result is not enough (R1).** The fold records the spend row, then the
+  turn's end, then the chat row; t3 committed the offset at the turn's end, before the chat row. A
+  death between the two left a baseline behind the offset, and the next turn would have been billed
+  for this one. The commit now rides the chat's own transaction, and the spend row is keyed by where
+  it was read, which also covers a death between the ledger row and that transaction. A turn's
+  `turns` count can still be added twice in that last window; its cost cannot.
+- **The fake CLI** now lists its pending request in its `initialize` answer, beside the inner
+  response as S2 saw (`FAKE_CLAUDE_PENDING_LIST=off` stands for an older CLI).
+- **The guard's watcher is not re-attached.** An adopted chat has no guard plan in memory, so the
+  guard markers are not followed after a restart; the guard's hooks still run in the CLI (S3).
+
+**What t5 and t6 need.** t5: the adopted CLI still carries the old server's `CLAUDIO_API_TOKEN`,
+which the new server refuses, so its Claudio MCP calls fail until the token hash is in the row
+(`token_hash` stays empty here); `payload_dir` and `cli_version` are untouched; the port must stay
+the same for `CLAUDIO_API_URL`; `removeChatExtrasConfigs` already spares adopted chats, which are
+alive when it runs. t6: the switch's default, the "stop all work" choice on quit (D1; `stopAll`
+detaches whenever parking is on), and the browser spec of t8.
+
+**Tests.** `packages/core/test/adopt.test.ts` (12): a shutdown mid-turn and an adoption that finishes
+the turn on the same pid with one CLI start and one spend row; a turn that ended in the gap read from
+the replay; a replayed result after a death between the ledger and the chat row counted once; a
+pending prompt from the CLI's list, answered after the restart; a prompt rebuilt from the replay when
+the list is missing, and an answered one never asked again; the fallback to layer 3; parking off still
+stops; two server processes racing for one row (one adopts); the guarded take and release; the
+list's shape; a graph task that goes on in the same attempt with one worker start; a detached process
+neither written nor signalled. `parked.test.ts`'s reap-at-start test runs with parking switched off.
+The browser spec that restarts the sandbox server mid-turn is left to t8.
+
+## Outcome of t5 (what a running CLI holds from its server, 2026-11-16)
+
+Still behind `CLAUDIO_PARKED_PROCESSES` (off). With it off nothing is written or read: the token store
+has no stored source to ask, no row exists, the port is the one asked for.
+
+| Piece | As built |
+|---|---|
+| Token hash | At `ParkedProcesses.start` the row gets `token_hash` = SHA-256 hex of the `CLAUDIO_API_TOKEN` in the process's environment (`chatTokenHash`), nothing else of it. `ChatTokenStore.stored` (a `StoredChatTokens`) is asked when a token is not in memory, in `verify` and in `holds` (masking). `ParkedProcesses.chatForTokenHash` answers only when the row's owner is this server (pid + start time), the CLI of the row runs (pid + start time; its wrapper until the CLI's pid is written) and the row is under `CHAT_TOKEN_MAX_AGE_MS`. The row going (`ended`, `reap`) revokes it. Tokens minted in memory are unchanged, so a non-parked chat behaves as before |
+| Port | `ParkedProcesses.apiPort()` reads `<dir>/api-url` (new file, the `CLAUDIO_API_URL` the CLI was given) of every running row: the port most CLIs hold, the newest on a tie. `startServer` listens there, whatever port it was asked for (a warning when it differs), with no fallback, and throws `AdoptedPortTakenError` (`code: EADDRINUSE`, so `index.ts` still names the problem) when it is taken. No setting. The desktop already restarts on the port it remembers, so a normal restart asks for the same one; the headless image and `pnpm dev` ask for a fixed one. No launcher changed |
+| Payload dirs | `payload_dir` = the directory of `CLAUDIO_MCP_ENTRY` at the start. `collectOverlays` (`launcher/machine.ts`) keeps an overlay `<data>/app/<version>` that a running row's `payload_dir` is under, reading the rows read-only through `MachineFiles.pinned` (`pinnedPayloads`: `node:sqlite` through `createRequire`, a row counts while its CLI runs by pid + start time; unreadable keeps every overlay). `.staging-*` still goes |
+| Chat configs | `restore` ends with `removeChatExtrasConfigs(…, chat => !parked.chatsInUse().has(chat) && !alive)`: the `extra-*` and `overlay-*` files of a chat whose parked CLI runs stay. They go with the chat or the process as before |
+| CLI version | `cli_version` = what the core last read from the CLI (`Core.cliVersionSeen`), or null |
+
+**Where t4 and t6 touch this.**
+
+- `chats.ts`: two lines in `restore`: `const held = this.parked.chatsInUse()` beside `leftBehind()`
+  (before the first await, since a shut-down core must not query) and the last
+  `removeChatExtrasConfigs` call reading it. It holds the chats whose CLI runs under another live
+  owner; the chats t4 adopts are spared by the `alive` test and `adoptedChats` in the same call (tested
+  in `parked-holds.test.ts`). `index.ts`: two lines after `this.runtime.chatTokens = …`
+  (`chatTokens.stored = runtime.parked`, `parked.cliVersion`). `parked/registry.ts`: `start` (derived
+  fields in the `insert`, the `api-url` write) and four new methods; `parked/store.ts`: three row fields
+  and `byTokenHash`; `parked/wrapper.ts`: the `apiUrl` file name. `db.ts`: nothing (the columns were t3's).
+- **With t4 merged**, adoption's guarded `take` makes this server the row's owner, and the token is
+  accepted only for a row this server owns: before adoption a chat's old token answers `401`, after it
+  the same token works, and `ended()` deleting the row revokes it (tested end to end over an adopted
+  chat). Nothing else is called at adoption. A detach (`release`) makes the token unusable until
+  the next server takes the row, which is the intended gap.
+- **t6 must keep the port** the CLIs hold: the daemon's server is started with the `PORT` the shell
+  remembers, and the crash path restarts it the same way. `AdoptedPortTakenError` is an exit with
+  `EADDRINUSE`; the supervisor should show it as "the port is taken", not retry in a loop. The
+  launcher already collects overlays through `collectOverlays`, so t6's units get the retention.
+- Not done: attachments (`uploads/`) have no start-up sweep to spare; a parked CLI's per-run temp dirs
+  (`CHAT_TMP`) were not looked at; the old overlay of a CLI is kept only while its row lives, as in the
+  plan.
+
+**Tests.** `packages/core/test/parked-holds.test.ts` (the hash only in the row and in no file, the token
+accepted by a fresh store over the rows, refused after the process ends, for a different pid or start
+time, for a row nobody holds or another server holds, after a day; a token minted in memory unaffected;
+the address, payload and version recorded; the port choice; a chat's configs spared by `restore`; the
+overlay retention, with nothing pinned and with unreadable pins; the pins read from rows) and
+`apps/api/test/adopted-port.test.ts` (a started server listens on the port a running CLI holds, does
+not fall back when it is taken, and falls back as before with none). Documents:
+[security-model.md](../security-model.md#parked-cli-processes), [chat-environment.md](../chat-environment.md).
 
 ## The owner's decisions (2026-11-15)
 

@@ -850,6 +850,9 @@ export class Core {
     if (this.profile === 'headless') this.runtime.subagentBridge = false;
     // One store, so the token a chat's process is handed is the one the guard accepts
     this.runtime.chatTokens = this.security.chatTokens;
+    // A parked CLI's token outlives a restart as a hash in its row (D5); its row also names the CLI's version
+    this.security.chatTokens.stored = this.runtime.parked;
+    this.runtime.parked.cliVersion = () => this.cliVersionSeen;
     this.runtime.defaults = this.appSettings;
     this.runtime.permissions = this.permissions;
     this.runtime.assistantLaunch = (marker) => this.assistantChatLaunch(marker);
@@ -4178,6 +4181,9 @@ export class Core {
     this.schedules.close();
     this.sessionsWatcher.close();
     this.changeWatcher.close();
+    // Before the prompts are denied: a parked process keeps running for the next server, which asks
+    // them again, so nothing of the shutdown may answer it or stop it (layer 2, t4)
+    this.runtime.detachParked();
     this.permissions.close();
     this.push.close();
     if (this.accountsTimer) clearInterval(this.accountsTimer);
