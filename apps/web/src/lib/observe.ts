@@ -44,19 +44,19 @@ export function lastEventAt(entries: readonly TranscriptEntry[]): string | null 
 
 // ---------- health ----------
 
-export type HealthWord = 'ok' | 'slow' | 'stuck' | 'looping' | 'stopped' | 'failed';
+export type HealthWord = 'ok' | 'slow' | 'stuck' | 'looping' | 'interrupted' | 'failed';
 
 /**
  * The word for a verdict. Core reports a level (`ok`, `warn`, `bad`); the person is told what it
  * means: a warning is a chat that is slow, a problem is one that is stuck, and a stuck one that
  * repeats itself is looping, which asks for a different intervention (a hint, not more waiting).
  * A verdict about how the last execution ended is about a chat that is not running: one a restart
- * cut is stopped (warn, it waits for a person to resume it) and one that failed failed; neither is
- * slow or stuck, which are said of work in progress.
+ * cut is interrupted, in warn as the side panel's outcome says it (it waits for a person to resume
+ * it), and one that failed failed; neither is slow or stuck, which are said of work in progress.
  */
 export function healthWord(health: Pick<Health, 'level' | 'signals'>): HealthWord {
   if (health.level === 'ok') return 'ok';
-  if (health.signals[0]?.kind === 'last-execution') return health.level === 'warn' ? 'stopped' : 'failed';
+  if (health.signals[0]?.kind === 'last-execution') return health.level === 'warn' ? 'interrupted' : 'failed';
   if (health.level === 'warn') return 'slow';
   return health.signals.some((s) => s.kind === 'loop' || s.kind === 'repeat-stall') ? 'looping' : 'stuck';
 }

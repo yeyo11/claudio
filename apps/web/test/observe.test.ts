@@ -56,11 +56,11 @@ test('a health verdict is named: ok, slow, stuck, or looping when it repeats its
   assert.equal(healthWord(health('warn', ['loop'])), 'slow');
 });
 
-test('a chat a restart cut reads as stopped (warn), and one whose last execution failed as failed, never as stuck', () => {
-  assert.equal(healthWord(health('warn', ['last-execution'])), 'stopped');
+test('a chat a restart cut reads as interrupted (warn), and one whose last execution failed as failed, never as stuck', () => {
+  assert.equal(healthWord(health('warn', ['last-execution'])), 'interrupted');
   assert.equal(healthWord(health('bad', ['last-execution'])), 'failed');
   // A context near full beside it is still about how the last execution ended, the worst signal first
-  assert.equal(healthWord(health('warn', ['last-execution', 'context'])), 'stopped');
+  assert.equal(healthWord(health('warn', ['last-execution', 'context'])), 'interrupted');
 });
 
 test('only a command that is still running can be cancelled', () => {

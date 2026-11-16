@@ -841,9 +841,9 @@ retried, and one that could not run (no binary, a timeout, a server that never s
       so the transcript draws it as "At the usage limit, moved to X", with "which has its own
       configuration" (or "uses the shared configuration") when it crossed configurations, as a
       person's switch does.
-    - **A chat a restart cut** reads **Stopped** (warn) in the chat header, not Stuck: a last
+    - **A chat a restart cut** reads **Interrupted** (warn) in the chat header, not Stuck: a last
       execution that was `interrupted` is a `warn` health signal (it waits for a person to resume
-      it), and a failed one reads **Failed** (bad).
+      it), and the side panel's outcome badge is warn too; a failed one reads **Failed** (bad).
   - **States.** An account in `overage` reads **Using credits** in warn on its card (never the bad of
     a stop), with the month's amount and what Claudio may do with them ("Claudio never spends
     them"); the status bar's connection item says "<account> · Using credits" in warn, the account

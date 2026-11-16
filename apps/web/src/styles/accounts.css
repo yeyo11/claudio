@@ -667,3 +667,17 @@
 .add-account-rules p {
   margin: 0;
 }
+
+.add-account-rules-what {
+  display: grid;
+}
+
+.add-account-rules-what > span {
+  grid-area: 1 / 1;
+  min-width: 0;
+}
+
+.add-account-rules-what[data-on='true'] .add-account-rules-off,
+.add-account-rules-what[data-on='false'] .add-account-rules-on {
+  visibility: hidden;
+}

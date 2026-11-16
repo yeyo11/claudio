@@ -3167,3 +3167,7 @@ button.agent-msg-name { min-height: 24px; color: var(--accent); }
 .project-rule-points { display: inline-flex; align-items: center; gap: 8px; }
 .add-account-rules { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .add-account-rules p { margin: 0; }
+.add-account-rules-what { display: grid; }
+.add-account-rules-what > span { grid-area: 1 / 1; min-width: 0; }
+.add-account-rules-what[data-on='true'] .add-account-rules-off,
+.add-account-rules-what[data-on='false'] .add-account-rules-on { visibility: hidden; }

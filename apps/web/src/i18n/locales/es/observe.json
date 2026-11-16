@@ -51,7 +51,7 @@
       "slow": "Lento",
       "stuck": "Atascado",
       "looping": "En bucle",
-      "stopped": "Detenido",
+      "interrupted": "Interrumpido",
       "failed": "Fallido"
     },
     "level": {

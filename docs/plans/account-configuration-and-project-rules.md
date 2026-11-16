@@ -1022,7 +1022,10 @@ restart-cut badge, and the documents.
 - **The restart-cut badge.** The header's health badge read the red "Stuck" for a chat a restart cut,
   beside #150's warn Resume notice: `chatHealth` made an `interrupted` last execution a `bad` signal,
   and the web named every `bad` "Stuck". It is now `warn`, and `healthWord` names a verdict about the
-  last execution **Stopped** (warn, `CircleStop`) or **Failed** (bad, `CircleX`).
+  last execution **Interrupted** (warn, `Zap`) or **Failed** (bad, `TriangleAlert`), the words, tones
+  and icons of the side panel's outcome badge, whose `interrupted` is now warn too. The design
+  system's status table moves *interrupted* from bad to warn; CLAUDE.md's list still says bad and
+  is the owner's to edit.
 - **Documents.** [accounts.md](../accounts.md#in-short-an-accounts-configuration-and-a-projects-rules)
   gains the person's guide to both halves; design-system.md and `claudio-ds.css` the new variants.
 

@@ -170,7 +170,11 @@ export function AddAccountDialog({ onClose, onAdded }: { onClose: () => void; on
               <Switch checked={join} onChange={setJoin}>
                 {t('dialog.rules.join', { count: ruled.length })}
               </Switch>
-              <p className="muted small">{t(join ? 'dialog.rules.on' : 'dialog.rules.off', { count: ruled.length })}</p>
+              {/* Both sentences hold one cell, the other one hidden: the dialog keeps its height when the switch flips */}
+              <p className="muted small add-account-rules-what" data-on={join}>
+                <span className="add-account-rules-on">{t('dialog.rules.on')}</span>
+                <span className="add-account-rules-off">{t('dialog.rules.off', { count: ruled.length })}</span>
+              </p>
             </div>
           )}
           <ErrorBox error={start.error} title={t('dialog.startFailed')} />

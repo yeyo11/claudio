@@ -124,8 +124,8 @@ on white.
 |---|---|---|---|
 | `--live` | `#00e5ff` | `#0b6680` | an agent is working **now**. Never an action colour. The brand cyan |
 | `--ok` | `#4ade9a` | `#166534` | done, connected, healthy |
-| `--warn` | `#f0b95c` | `#854d0e` | near a limit, needs authorisation, stopped |
-| `--bad` | `#f87b7f` | `#b91c1c` | failed, interrupted, exhausted, destructive |
+| `--warn` | `#f0b95c` | `#854d0e` | near a limit, needs authorisation, stopped; a turn a restart cut (*interrupted*), which waits for a person to resume it |
+| `--bad` | `#f87b7f` | `#b91c1c` | failed, exhausted, destructive |
 | `--idle` | `#a78bfa` | `#6d28d9` | waiting for the user |
 | `--info` | `var(--accent)` | `var(--accent)` | neutral notices. An alias: beside a blue accent, a second blue only adds noise |
 
@@ -850,8 +850,10 @@ The owner's T9 decisions of [plans/account-configuration-and-project-rules.md](p
   the pin is ignored").
 - **A wait the rule caused**: the `WaitLine`'s reason names the project ("No account allowed on
   Shipcast has room. It goes on by itself when one of them resets.").
-- **A chat a restart cut** is not "Stuck": its header's health badge reads **Stopped** in `warn`
-  (`CircleStop`), beside the warn Resume notice; a failed last execution reads **Failed** in `bad`.
+- **A chat a restart cut** is not "Stuck": its header's health badge reads **Interrupted** in `warn`
+  (`Zap`), the same word, tone and icon as the side panel's outcome badge, beside the warn Resume
+  notice; a failed last execution reads **Failed** in `bad` (`TriangleAlert`), as its outcome does.
+  Interrupted moved from `bad` to `warn` in the status table on the owner's word (2026-11-15).
 
 ### Queued messages over the composer
 
