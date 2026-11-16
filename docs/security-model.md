@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-16T12:00:00Z
+updated_at: 2026-11-16T18:00:00Z
 tags:
     - security
     - secrets
@@ -212,8 +212,18 @@ but a detached process whose input and output are files (layer 2 of
   refused writes anywhere in the data directory, `procs/` included, by the guard's
   `integrity.own-state` rule, as for the rest of Claudio's state.
 - **No credential crosses a restart yet.** The chat token stays in memory (t5 moves its hash to the
-  process's row, decision D5); and since nothing adopts a parked process yet (t4), a start stops what
-  a previous server left, its token gone with that server.
+  process's row, decision D5). A start adopts a parked process a previous server left running (t4),
+  but the token in that CLI's environment was the old server's and is not known to the new one: its
+  calls to Claudio's API (the `claudio` MCP server, the orchestration tools) are refused until t5.
+- **One holder at a time.** A server takes a parked process over only after checking the wrapper's
+  and the CLI's pid and start time, and with one guarded `UPDATE` on the owner it read, so two
+  servers on one data dir never both write one FIFO (risk R4). A server that shuts down releases its
+  rows and from then on writes nothing to the FIFO, answers none of the CLI's prompts (the shutdown's
+  "the wrapper is shutting down" denial does not reach a parked CLI) and sends it no signal.
+- **Prompts are not answered twice nor lost.** The adopter re-sends `initialize` and asks a person
+  again what the CLI lists in `pending_permission_requests`, or the unanswered requests of the
+  replayed output when that list is empty; a request whose answer `in.jsonl` records is never asked
+  again. Each re-asked prompt gets the broker's full timeout again.
 - **Paid work with nobody watching is bounded.** A CLI whose lease no server renews for
   `CLAUDIO_HANDOVER_SECONDS` (five minutes) has its open turn ended with SIGINT by its own wrapper.
 - **Signals go only to what Claudio started.** The registry signals a process only after checking
