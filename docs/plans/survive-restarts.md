@@ -806,6 +806,33 @@ overlay retention, with nothing pinned and with unreadable pins; the pins read f
 not fall back when it is taken, and falls back as before with none). Documents:
 [security-model.md](../security-model.md#parked-cli-processes), [chat-environment.md](../chat-environment.md).
 
+## Outcome of t8 (the browser specs, 2026-11-16)
+
+Two specs, each on a wrapper of its own (a harness peer: its data directory, port and fake CLI, restarted
+by the spec itself, so no other spec in the shard loses its server). Shared helpers in
+`e2e/specs/restart-shared.mjs`. Neither needed a change to the fake CLI: its `hold:` and `ask:` steps,
+its `pending_permission_requests` answer (t4) and `CLAUDIO_FAKE_CLI_TURN_COST_USD` were enough.
+
+| Spec | What it proves |
+|---|---|
+| `restart-parked.spec.mjs` (layer 2, `CLAUDIO_PARKED_PROCESSES=on`, scopes off) | A turn held mid-way survives `peer.restart()` (SIGTERM, then a fresh server on the same data directory and port): the fake logs one start and the turn's result under the **same pid**, the page reads the turn back and shows it finishing, no second CLI and no resume. The chat's token, minted by the old server, is still known to the new one: a command the turn runs from inside the CLI posts to `/guards/check` with `$CLAUDIO_API_TOKEN` and gets `403` (a chat's token is refused there; an unknown token would have been read as the owner's). A permission prompt held across a second restart is asked again in the page, and allowing it reaches the CLI that asked (`answered` logged by the same pid) and finishes the turn. `spend_ledger` has one row per turn and the total is the two costs, not more |
+| `restart-continue.spec.mjs` (layer 3, parking off) | Two chats mid-turn, the server killed with SIGKILL (every process whose environment names the wrapper's data directory). While it is down the second chat's cut is aged to three hours in the database. The first chat is respawned with `--resume` on its own session and answers with nothing typed, with no notice; the second shows the warn "Claudio restarted while this chat was working" with Resume, has no process started for it, and Resume starts one on its session and clears the notice |
+
+**What the specs found.**
+
+- **Layer 3 does not apply to a graceful stop.** `Core.shutdown` calls `ChatManager.stopAll`, which
+  calls `stop()` on every chat, so a server that is sent SIGTERM (the harness's restart, a desktop
+  quit or update, a container stop) closes each execution as `stopped` with `turnOpen: false`.
+  Measured here: both chats' executions read `["stopped", false, null]` after `peer.stop()`, and the
+  next start continued neither and offered nothing. Layer 3 therefore covers a crash, an out-of-memory
+  kill or a power cut, which is why `restart-continue.spec.mjs` kills the server instead of stopping it.
+  With parking off, a turn cut by a graceful restart is a stopped turn, as before t1. Whether
+  `stopAll` should record shutdown as an interruption (so t1 covers the restarts a person causes) is
+  the owner's to decide; it is not changed here.
+
+**Not covered.** Permission prompts and the token are covered end to end only with parking on, as the
+fake CLI lists its pending request only then. A real CLI was not run.
+
 ## Outcome of t6 (the desktop daemon, 2026-11-16)
 
 Layer 1, built in `apps/desktop/src/daemon*.ts`, `quit.ts` and `main.ts`, and documented for people in
@@ -815,7 +842,7 @@ default** under it.
 | Piece | As built |
 |---|---|
 | Daemon | `daemon.ts`: listens on `<data>/daemon.sock` (0600, NDJSON, `daemon-protocol.ts`, protocol 1), writes `<data>/daemon.json` (0600: pid, start time, protocol, version, `followsShell`, unit, socket, URL, a fresh `CLAUDIO_DESKTOP_TOKEN`), and runs the payload machine (`PayloadHost`) the window used to run. It starts no server before a window says `hello` with its environment, login-shell `PATH` and keyring key; a daemon no window reaches ends after 10 min. A second daemon on the same data directory leaves the first be |
-| Launch (D2) | `daemon-launch.ts`: `systemd-run --user --unit=claudio-daemon-<sha256(dataDir)[:12]>.service --collect -p Restart=on-failure -p RestartSec=2 -p KillMode=mixed -p TimeoutStopSec=45` where `systemctl --user is-system-running` says `running`/`degraded`; a refusal is reset (`reset-failed`) and tried once more, then `setsid`. `.deb` and a checkout: `<binary> daemon.cjs` with `ELECTRON_RUN_AS_NODE` (an extraResource outside `app.asar`); AppImage: `$APPIMAGE --claudio-daemon` (**untested in a real AppImage**). Secrets never go on the command line |
+| Launch (D2) | `daemon-launch.ts`: `systemd-run --user --unit=claudio-daemon-<sha256(dataDir)[:12]>.service --collect -p Restart=on-failure -p RestartSec=2 -p KillMode=mixed -p TimeoutStopSec=45` where `systemctl --user is-system-running` says `running`/`degraded`; a refusal is reset (`reset-failed`) and tried once more, then `setsid`. `.deb` and a checkout: `<binary> daemon.cjs` with `ELECTRON_RUN_AS_NODE` (an extraResource outside `app.asar`); AppImage: a `sh` wrapper (`APPIMAGE_DAEMON_WRAPPER`) that holds a mount of its own with `$APPIMAGE --appimage-mount` and runs `<mount>/claudio <mount>/resources/daemon/daemon.cjs` as Node (see below). `StartLimitBurst=5` in 120 s; stdout and stderr appended to `logs/daemon.out.log`. Secrets never go on the command line |
 | Attach | A window reads `daemon.json`, checks pid + start time, connects; none or dead → start. `attachDecision`: another protocol, or an AppImage daemon of another version → replace (`stop detach`, so parked work is handed over); a daemon following the shell but on an older bundled payload → `restart-server`; else attach |
 | Close | The window goes, the tray and the daemon stay. Without a tray, closing is a quit |
 | Quit (D1) | `quitWork` reads what is live **at once** (`LiveMonitor.snapshot`, past the tray's throttle: the trial caught a quit right after a chat started reading the old snapshot and stopping it unasked). Nothing live → `stop stop-work`. Live → the page's `QuitQuestion` (`apps/web/src/components/QuitQuestion.tsx`, mounted at the app's root so the sign-in and first run ask too, not in terminal windows), en/es, **Keep working in the background** focused by default, **Stop all work and quit**, Cancel/Esc; the native English dialog only when the page cannot ask within 8 s. Keep → the window closes its connection and a system notice in the page's language says the work goes on |
@@ -856,8 +883,19 @@ is unattended only across a server restart, which the lease bounds (D6).
    unit, `daemon.json` and `procs/` were gone.
 4. A window killed with SIGKILL left the daemon and the running turn untouched.
 
-Not tried live: the AppImage (`--claudio-daemon` from a real mount), a logout, a crash loop of a real
-server, and a shell update. Electron took long to exit after **Keep** in the sandbox (over a minute;
+**The AppImage, found by CI's AppImage smoke after the first push.** The first build started the AppImage's
+daemon as `$APPIMAGE --claudio-daemon`, the Electron app with a flag. In a user unit it never came up:
+the window waited 20 s and showed "could not start its server", and nothing wrote `server-port.json`.
+Reproduced locally with an AppImage built as CI builds it: the unit restarted 76 times with no log. Two
+causes: the Electron app has no display in a unit, and running the AppImage again as Node does not work
+either, because electron-builder's `AppRun` puts `--no-sandbox` before the arguments wherever
+unprivileged user namespaces are restricted, which Node refuses ("bad option"). The daemon now runs
+through a wrapper that takes a bare mount from the AppImage runtime (`--appimage-mount`), runs the
+mount's binary as Node, forwards a stop to it and lets the mount go after it (tested with a stand-in
+AppImage in `daemon-launch.test.ts`, and live with the real AppImage, below). Restarts are bounded and the
+daemon's own output is kept, so the next such failure says why.
+
+Not tried live: a logout, a crash loop of a real server, and a shell update. Electron took long to exit after **Keep** in the sandbox (over a minute;
 the private D-Bus had a notification service that never answered), which a real session does not have.
 
 **Tests.** `apps/desktop/test/daemon.test.ts` (12, over the real socket with a fake payload host and
@@ -885,6 +923,18 @@ took `cli.pid + 1` as another process, which under load is the CLI's own child w
 - **t9:** `deploy.md` (the signals table: SIGTERM detaches under parking), `orchestrations.md`,
   `providers.md`, and this plan's final Outcome; `desktop.md` already has the daemon section.
 
+## The owner's decisions (2026-11-15)
+
+Taken in the chat that commissioned the study:
+
+- **Approach:** D, all three layers, built in the order of section 9 (C first, then the parked
+  processes B, then the desktop daemon A), each task its own pull request.
+- **D1:** quitting with live work asks, and keeps working by default.
+- **D5:** chat tokens survive a restart as hashes in the process row, bound to the pid, never in clear.
+- **S3:** authorised, one Haiku turn capped at 0.05 USD, in a scratch directory.
+- **D2, D3, D4, D6, D7, D8, D9, D10:** the recommended option of section 7 (not discussed one by one;
+  the owner accepted the plan as recommended).
+
 ## Outcome of t7 (updates over live work, 2026-11-16)
 
 A payload update or revert no longer refuses over live chats, subagents or orchestrations when they are
@@ -906,18 +956,6 @@ the desktop's own `installDecision` for AppImage shell updates. Documented in [u
 **Tests.** `packages/core/test/server-update.test.ts` (carried work not refusing, a terminal refusing with
 only its count, `whenIdle` waiting for terminals only, a revert let through, parked off refusing as before);
 `apps/web/test/server-update-view.test.tsx` (the card's sentence per mode, en and es).
-
-## The owner's decisions (2026-11-15)
-
-Taken in the chat that commissioned the study:
-
-- **Approach:** D, all three layers, built in the order of section 9 (C first, then the parked
-  processes B, then the desktop daemon A), each task its own pull request.
-- **D1:** quitting with live work asks, and keeps working by default.
-- **D5:** chat tokens survive a restart as hashes in the process row, bound to the pid, never in clear.
-- **S3:** authorised, one Haiku turn capped at 0.05 USD, in a scratch directory.
-- **D2, D3, D4, D6, D7, D8, D9, D10:** the recommended option of section 7 (not discussed one by one;
-  the owner accepted the plan as recommended).
 
 ## Related
 

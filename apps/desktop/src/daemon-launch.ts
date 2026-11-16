@@ -3,9 +3,11 @@
 // session (D3, with linger) and its own crashes (`Restart=on-failure`); under `setsid` elsewhere.
 // Free of Electron: the window hands in its facts, and the tests their fakes.
 import { spawn, spawnSync } from 'node:child_process';
+import { closeSync, openSync } from 'node:fs';
+import { join } from 'node:path';
 import { createConnection, type Socket } from 'node:net';
 import { compareVersions } from '@claudio/core/launcher/protocol';
-import { DAEMON_FLAG, lineReader, parseFromDaemon, type DaemonState, type FromDaemon, type ToDaemon } from './daemon-protocol.ts';
+import { APPIMAGE_DAEMON_WRAPPER, DAEMON_OUTPUT, lineReader, parseFromDaemon, type DaemonState, type FromDaemon, type ToDaemon } from './daemon-protocol.ts';
 
 export interface LaunchInput {
   /** `systemctl --user is-system-running` answered `running` or `degraded` */
@@ -29,6 +31,8 @@ export interface LaunchPlan {
   env: NodeJS.ProcessEnv;
   /** `setsid`: its own session, out of the window's process group, never waited for */
   detached: boolean;
+  /** The file its stdout and stderr are appended to: a daemon that dies before its log opens says why there */
+  output: string;
 }
 
 /**
@@ -37,13 +41,14 @@ export interface LaunchPlan {
  * written to the unit or to disk.
  */
 export function daemonLaunch(o: LaunchInput): LaunchPlan {
-  const runtime = o.appImage ? [o.appImage, DAEMON_FLAG] : [o.execPath, o.daemonEntry];
+  // Electron as Node in both cases; the AppImage's through a wrapper that holds a mount of its own
+  const runtime = o.appImage ? ['/bin/sh', '-c', APPIMAGE_DAEMON_WRAPPER, 'claudio-daemon', o.appImage] : [o.execPath, o.daemonEntry];
   const args = ['--data-dir', o.dataDir, '--logs', o.logsDir];
-  // Electron as Node; the AppImage's runtime starts the binary as the app, which routes on the flag
-  const asNode = o.appImage ? {} : { ELECTRON_RUN_AS_NODE: '1' };
+  const asNode = { ELECTRON_RUN_AS_NODE: '1' };
+  const output = join(o.logsDir, DAEMON_OUTPUT);
   if (!o.userManager) {
     const [command = o.execPath, ...rest] = runtime;
-    return { command, args: [...rest, ...args], env: { ...o.env, ...asNode }, detached: true };
+    return { command, args: [...rest, ...args], env: { ...o.env, ...asNode }, detached: true, output };
   }
   return {
     command: 'systemd-run',
@@ -56,9 +61,14 @@ export function daemonLaunch(o: LaunchInput): LaunchPlan {
       '--collect',
       '--property=Restart=on-failure',
       '--property=RestartSec=2',
+      // A daemon that dies at every start is given up on, not restarted every two seconds for ever
+      '--property=StartLimitIntervalSec=120',
+      '--property=StartLimitBurst=5',
       // SIGTERM to the daemon only: it closes its server itself, and parked CLIs live in scopes of their own
       '--property=KillMode=mixed',
       '--property=TimeoutStopSec=45',
+      `--property=StandardOutput=append:${output}`,
+      `--property=StandardError=append:${output}`,
       ...Object.entries(asNode).map(([k, v]) => `--setenv=${k}=${v}`),
       '--',
       ...runtime,
@@ -68,6 +78,7 @@ export function daemonLaunch(o: LaunchInput): LaunchPlan {
     ],
     env: o.env,
     detached: false,
+    output,
   };
 }
 
@@ -80,8 +91,8 @@ export function hasUserManager(): boolean {
 export interface Runner {
   /** Runs a command to its end; resolves to its exit code and what it wrote to stderr */
   run(command: string, args: string[], env: NodeJS.ProcessEnv): Promise<{ code: number; stderr: string }>;
-  /** Starts a command in its own session and lets it go */
-  detach(command: string, args: string[], env: NodeJS.ProcessEnv): void;
+  /** Starts a command in its own session and lets it go, its output appended to `output` */
+  detach(command: string, args: string[], env: NodeJS.ProcessEnv, output: string): void;
 }
 
 export const NODE_RUNNER: Runner = {
@@ -93,8 +104,15 @@ export const NODE_RUNNER: Runner = {
       child.once('error', (err) => resolve({ code: 127, stderr: err.message }));
       child.once('exit', (code) => resolve({ code: code ?? 1, stderr }));
     }),
-  detach: (command, args, env) => {
-    spawn(command, args, { env, detached: true, stdio: 'ignore' }).unref();
+  detach: (command, args, env, output) => {
+    let fd: number | null = null;
+    try {
+      fd = openSync(output, 'a', 0o600);
+    } catch {
+      // No logs folder yet: the daemon makes it, and says the rest in its own log
+    }
+    spawn(command, args, { env, detached: true, stdio: fd === null ? 'ignore' : ['ignore', fd, fd] }).unref();
+    if (fd !== null) closeSync(fd);
   },
 };
 
@@ -106,7 +124,7 @@ export const NODE_RUNNER: Runner = {
 export async function startDaemon(input: LaunchInput, runner: Runner, log: (line: string) => void): Promise<'unit' | 'setsid'> {
   const plan = daemonLaunch(input);
   if (plan.detached) {
-    runner.detach(plan.command, plan.args, plan.env);
+    runner.detach(plan.command, plan.args, plan.env, plan.output);
     return 'setsid';
   }
   let result = await runner.run(plan.command, plan.args, plan.env);
@@ -118,7 +136,7 @@ export async function startDaemon(input: LaunchInput, runner: Runner, log: (line
   if (result.code === 0) return 'unit';
   log(`systemd-run refused again (${result.stderr.trim() || `code ${String(result.code)}`}); starting the daemon under setsid`);
   const fallback = daemonLaunch({ ...input, userManager: false });
-  runner.detach(fallback.command, fallback.args, fallback.env);
+  runner.detach(fallback.command, fallback.args, fallback.env, fallback.output);
   return 'setsid';
 }
 

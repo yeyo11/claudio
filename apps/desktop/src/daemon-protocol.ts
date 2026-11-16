@@ -12,8 +12,39 @@ export const DAEMON_PROTOCOL = 1;
 /** In `<dataDir>`, mode 0600: how a window finds the daemon and the credential it reads the server with */
 export const DAEMON_RECORD = 'daemon.json';
 export const DAEMON_SOCKET = 'daemon.sock';
-/** The argument that turns the desktop binary into the daemon (the AppImage, whose files live in its own mount) */
-export const DAEMON_FLAG = '--claudio-daemon';
+/**
+ * How the AppImage's daemon starts: `sh -c APPIMAGE_DAEMON_WRAPPER claudio-daemon <AppImage> <args…>`.
+ *
+ * The daemon must run from a mount of its own, which lives as long as it does (S5 of
+ * docs/decisions/parked-cli-processes.md): the window's mount goes when the window does. And it must
+ * run the binary as Node, not as the Electron app, which in a user unit has no display. Starting the
+ * AppImage again does not do it: its AppRun puts a Chromium switch before the arguments, which Node
+ * refuses (the AppImage smoke in CI never saw the daemon come up). So the wrapper asks the AppImage
+ * runtime for a bare mount (`--appimage-mount`, which prints its path and holds it until killed), runs
+ * the mount's binary as Node on the daemon's entry, passes a stop on to it, and lets the mount go
+ * once the daemon has ended. `APPDIR` is set as the runtime sets it, so the daemon knows it cannot
+ * follow a newer shell.
+ */
+export const APPIMAGE_DAEMON_WRAPPER = [
+  'img=$1; shift',
+  'out=$(mktemp) || exit 1',
+  '"$img" --appimage-mount > "$out" & holder=$!',
+  'n=0; while [ ! -s "$out" ] && kill -0 "$holder" 2>/dev/null && [ "$n" -lt 300 ]; do sleep 0.1; n=$((n + 1)); done',
+  'mnt=$(head -n 1 "$out"); rm -f "$out"',
+  'if [ -z "$mnt" ] || [ ! -x "$mnt/claudio" ]; then echo "claudio daemon: the AppImage did not mount" >&2; kill "$holder" 2>/dev/null; exit 1; fi',
+  'APPDIR=$mnt ELECTRON_RUN_AS_NODE=1 "$mnt/claudio" "$mnt/resources/daemon/daemon.cjs" "$@" & daemon=$!',
+  `trap 'kill -TERM "$daemon" 2>/dev/null' TERM INT HUP`,
+  // `wait` returns early when a trapped signal arrives: wait again for the daemon's own end
+  'wait "$daemon"; code=$?',
+  'while kill -0 "$daemon" 2>/dev/null; do wait "$daemon"; code=$?; done',
+  // The runtime unmounts on its way out: waited for, so a stop of the unit never kills it half way and
+  // leaves a dead mount behind
+  'kill "$holder" 2>/dev/null; wait "$holder" 2>/dev/null',
+  'n=0; while [ -e "$mnt/claudio" ] && [ "$n" -lt 50 ]; do sleep 0.1; n=$((n + 1)); done',
+  'exit "${code:-1}"',
+].join('\n');
+/** Where the daemon's own stdout and stderr go, in the logs folder: what it says before its log opens */
+export const DAEMON_OUTPUT = 'daemon.out.log';
 /** Asked of the server over its IPC channel: close, and stop the parked work instead of letting it go */
 export const STOP_WORK_MESSAGE = { type: 'claudio:stop-work' } as const;
 export const STOP_WORK_ACK = 'claudio:stopping-work';
@@ -118,6 +149,31 @@ export interface LaunchFacts {
   aptManaged: boolean;
   /** `CLAUDIO_PAYLOAD=bundled`: the person's recovery for one launch */
   ignoreOverlays: boolean;
+}
+
+/**
+ * The window's facts as an AppImage daemon must use them: every path into the window's mount (its
+ * `APPDIR`: the bundled server and web, the guard, the keys, `shell.json`, and the search paths its
+ * `AppRun` set) points into the daemon's own mount of the same AppImage instead. The window's mount
+ * goes when the window does; a server started from it would lose its files with it. Anything else is
+ * left as it is.
+ */
+export function rebaseLaunch(launch: LaunchFacts, ownAppDir: string): LaunchFacts {
+  const windowAppDir = launch.env.APPDIR;
+  if (!windowAppDir || windowAppDir === ownAppDir) return launch;
+  const rebase = (value: string): string => value.split(windowAppDir).join(ownAppDir);
+  const env: Record<string, string> = {};
+  for (const [k, v] of Object.entries(launch.env)) env[k] = rebase(v);
+  return {
+    ...launch,
+    env,
+    PATH: rebase(launch.PATH),
+    bundledDir: rebase(launch.bundledDir),
+    bundledWeb: rebase(launch.bundledWeb),
+    guardEntry: rebase(launch.guardEntry),
+    keysDir: rebase(launch.keysDir),
+    shellJson: rebase(launch.shellJson),
+  };
 }
 
 export type DaemonPhase =

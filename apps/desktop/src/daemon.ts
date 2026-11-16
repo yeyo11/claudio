@@ -99,6 +99,8 @@ export interface DaemonOptions {
   log(line: string): void;
   /** Where the server writes, for the window's error page */
   serverLogPath?: string;
+  /** Adapts a window's facts to this daemon (`rebaseLaunch` for the AppImage's); as they are otherwise */
+  localize?: (launch: LaunchFacts) => LaunchFacts;
   /** Builds the payload machine's host; a test hands in a fake */
   newHost?: (options: PayloadHostOptions) => DaemonHost;
   now?: () => number;
@@ -226,7 +228,7 @@ export class Daemon {
         this.stopIdleWatch();
         if (message.protocol !== DAEMON_PROTOCOL) this.o.log(`a window of protocol ${String(message.protocol)} attached; this daemon speaks ${String(DAEMON_PROTOCOL)}`);
         if (!this.launch) {
-          this.launch = message.launch;
+          this.launch = this.o.localize ? this.o.localize(message.launch) : message.launch;
           this.o.log(`window ${message.version} handed over its facts; starting the server`);
           this.launched?.();
         }

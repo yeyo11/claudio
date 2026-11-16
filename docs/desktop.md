@@ -219,9 +219,13 @@ the daemon, and is from then on its client:
   `systemd-run` that refuses the unit twice falls back to `setsid` too.
 - The `.deb` and a checkout run it as `<binary> <resources>/daemon/daemon.cjs` with
   `ELECTRON_RUN_AS_NODE`, from files that apt replaces by rename, so the running daemon keeps its own
-  and its next server starts on what is installed. The AppImage runs it as
-  `Claudio.AppImage --claudio-daemon`, so the AppImage's mount stays up as long as the daemon runs
-  from it.
+  and its next server starts on what is installed. The AppImage's daemon is a small `sh` wrapper that
+  asks the AppImage for a mount of its own (`--appimage-mount`) and runs the binary in it as Node on
+  `resources/daemon/daemon.cjs`, so that mount stays up exactly as long as the daemon, whatever the
+  window does. It does not start the AppImage again as an app: its `AppRun` puts a Chromium switch
+  before the arguments, and a daemon in a user unit has no display.
+- What the daemon writes before its own log opens (a crash at start) goes to `daemon.out.log`. A unit
+  that dies at every start is restarted at most five times in two minutes.
 - It writes `<data>/daemon.json` (0600): its pid and start time, protocol and version, its unit, its
   socket `<data>/daemon.sock` (0600), the server's URL and the desktop credential. A window that finds
   a live daemon there (same pid and start time) attaches to it; none, or a dead one, and it starts a

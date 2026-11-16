@@ -1,17 +1,20 @@
 import assert from 'node:assert/strict';
-import { chmodSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { once } from 'node:events';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test, { after } from 'node:test';
 import { NODE_RUNNER, attachDecision, daemonLaunch, startDaemon, type LaunchInput, type Runner } from '../src/daemon-launch.ts';
 import {
-  DAEMON_FLAG,
+  APPIMAGE_DAEMON_WRAPPER,
   DAEMON_PROTOCOL,
   daemonUnitName,
   parseDaemonRecord,
   parseFromDaemon,
   parseToDaemon,
   readDaemonRecord,
+  rebaseLaunch,
   recordAlive,
   removeDaemonRecord,
   writeDaemonRecord,
@@ -62,6 +65,7 @@ test('with a user manager the daemon starts in a transient unit that restarts it
   assert.ok(args.includes('--user'));
   assert.ok(args.includes(`--unit=${INPUT.unit}`));
   assert.ok(args.includes('--property=Restart=on-failure'));
+  assert.ok(args.includes('--property=StartLimitBurst=5'), 'a daemon that cannot start is not restarted for ever');
   // SIGTERM to the daemon alone: parked CLIs sit in scopes of their own (#79569)
   assert.ok(args.includes('--property=KillMode=mixed'));
   assert.ok(args.includes('--setenv=ELECTRON_RUN_AS_NODE=1'));
@@ -79,14 +83,73 @@ test('without a user manager the daemon starts under setsid, in its own session'
   assert.equal(plan.env.ELECTRON_RUN_AS_NODE, '1');
 });
 
-test("the AppImage's daemon is the AppImage itself with the flag, so its mount lives as long as the daemon", () => {
+test("the AppImage's daemon runs from a mount of its own, through a wrapper, as Node", () => {
   const plan = daemonLaunch({ ...INPUT, appImage: '/home/someone/Claudio.AppImage' });
   const command = plan.args.slice(plan.args.indexOf('--') + 1);
-  assert.deepEqual(command.slice(0, 2), ['/home/someone/Claudio.AppImage', DAEMON_FLAG]);
-  assert.ok(!plan.args.some((a) => a.startsWith('--setenv=ELECTRON_RUN_AS_NODE')));
+  assert.deepEqual(command.slice(0, 5), ['/bin/sh', '-c', APPIMAGE_DAEMON_WRAPPER, 'claudio-daemon', '/home/someone/Claudio.AppImage']);
+  assert.deepEqual(command.slice(5, 7), ['--data-dir', INPUT.dataDir]);
   const fallback = daemonLaunch({ ...INPUT, userManager: false, appImage: '/home/someone/Claudio.AppImage' });
-  assert.equal(fallback.command, '/home/someone/Claudio.AppImage');
-  assert.equal(fallback.args[0], DAEMON_FLAG);
+  assert.equal(fallback.command, '/bin/sh');
+  assert.deepEqual(fallback.args.slice(2, 5), ['claudio-daemon', '/home/someone/Claudio.AppImage', '--data-dir']);
+});
+
+/** An AppImage stand-in: `--appimage-mount` prints a directory with a `claudio` and holds it until killed */
+function fakeAppImage(dir: string): { image: string; mount: string; log: string } {
+  const mount = join(dir, 'mnt');
+  const log = join(dir, 'log');
+  mkdirSync(join(mount, 'resources', 'daemon'), { recursive: true });
+  // The "binary" records how it was run, then lives until it is told to stop
+  writeFileSync(
+    join(mount, 'claudio'),
+    `#!/bin/sh\necho "run $ELECTRON_RUN_AS_NODE $APPDIR $*" >> ${JSON.stringify(log)}\ntrap 'echo "daemon got TERM" >> ${JSON.stringify(log)}; exit 0' TERM\nwhile :; do sleep 0.05; done\n`,
+  );
+  chmodSync(join(mount, 'claudio'), 0o755);
+  const image = join(dir, 'Claudio.AppImage');
+  writeFileSync(
+    image,
+    `#!/bin/sh\n[ "$1" = --appimage-mount ] || exit 9\necho ${JSON.stringify(mount)}\ntrap 'echo "mount let go" >> ${JSON.stringify(log)}; exit 0' TERM\nwhile :; do sleep 0.05; done\n`,
+  );
+  chmodSync(image, 0o755);
+  return { image, mount, log };
+}
+
+test('the wrapper runs the mount\'s binary as Node on the daemon entry, passes a stop on, and lets the mount go after', async () => {
+  const dir = scratch();
+  const fake = fakeAppImage(dir);
+  const plan = daemonLaunch({ ...INPUT, userManager: false, appImage: fake.image, dataDir: join(dir, 'data'), logsDir: join(dir, 'logs') });
+  const child = spawn(plan.command, plan.args, { env: { PATH: process.env.PATH ?? '' }, stdio: 'ignore' });
+  const deadline = Date.now() + 10_000;
+  while (!(existsSync(fake.log) && readFileSync(fake.log, 'utf8').includes('run '))) {
+    if (Date.now() > deadline) throw new Error('the daemon did not start');
+    await new Promise((resolve) => setTimeout(resolve, 20));
+  }
+  assert.match(readFileSync(fake.log, 'utf8'), new RegExp(`^run 1 ${fake.mount} ${fake.mount}/resources/daemon/daemon\\.cjs --data-dir ${join(dir, 'data')}`, 'm'));
+  child.kill('SIGTERM');
+  const [code] = (await once(child, 'exit')) as [number | null];
+  assert.equal(code, 0, "the daemon's own code");
+  const lines = readFileSync(fake.log, 'utf8').trim().split('\n');
+  assert.deepEqual(lines.slice(1), ['daemon got TERM', 'mount let go'], 'the daemon is stopped first, then the mount it runs from');
+});
+
+test('an AppImage that does not mount ends the wrapper with an error instead of hanging', async () => {
+  const dir = scratch();
+  const image = join(dir, 'broken.AppImage');
+  writeFileSync(image, '#!/bin/sh\nexit 3\n');
+  chmodSync(image, 0o755);
+  const plan = daemonLaunch({ ...INPUT, userManager: false, appImage: image, logsDir: join(dir, 'logs') });
+  const child = spawn(plan.command, plan.args, { stdio: ['ignore', 'ignore', 'pipe'] });
+  let stderr = '';
+  child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
+  const [code] = (await once(child, 'exit')) as [number | null];
+  assert.equal(code, 1);
+  assert.match(stderr, /did not mount/);
+});
+
+test("what the daemon says before its own log opens is kept, under a unit and under setsid", () => {
+  const output = '/home/someone/.config/Claudio/logs/daemon.out.log';
+  assert.equal(daemonLaunch(INPUT).output, output);
+  assert.ok(daemonLaunch(INPUT).args.includes(`--property=StandardError=append:${output}`));
+  assert.equal(daemonLaunch({ ...INPUT, userManager: false }).output, output);
 });
 
 test('each argument reaches systemd-run whole, the description with its spaces included', async () => {
@@ -192,4 +255,39 @@ test('messages are checked, not trusted, on both sides of the socket', () => {
   assert.equal(parseToDaemon('not json'), null);
   assert.deepEqual(parseFromDaemon('{"type":"relaunch-window"}'), { type: 'relaunch-window' });
   assert.equal(parseFromDaemon('{"type":"state","state":{"phase":"dancing"}}'), null);
+});
+
+test("an AppImage daemon moves the window's mount paths onto its own mount, and leaves the rest", () => {
+  const win = '/tmp/.mount_ClaudiWINDOW';
+  const own = '/tmp/.mount_ClaudiDAEMON';
+  const launch = {
+    env: { APPDIR: win, LD_LIBRARY_PATH: `${win}/usr/lib:/usr/lib`, HOME: '/home/someone' },
+    PATH: `${win}:/usr/bin`,
+    secretKey: 'k',
+    userData: '/home/someone/.config/Claudio',
+    dataDir: '/home/someone/.config/Claudio/data',
+    workspaceDir: '/home/someone/Claudio',
+    logsDir: '/home/someone/.config/Claudio/logs',
+    bundledDir: `${win}/resources/server`,
+    bundledWeb: `${win}/resources/web`,
+    guardEntry: `${win}/resources/server/guard.mjs`,
+    keysDir: `${win}/resources/keys`,
+    shellJson: `${win}/resources/shell.json`,
+    version: '0.19.0',
+    distribution: 'appimage',
+    aptManaged: false,
+    ignoreOverlays: false,
+  };
+  const moved = rebaseLaunch(launch, own);
+  assert.equal(moved.bundledDir, `${own}/resources/server`);
+  assert.equal(moved.bundledWeb, `${own}/resources/web`);
+  assert.equal(moved.guardEntry, `${own}/resources/server/guard.mjs`);
+  assert.equal(moved.keysDir, `${own}/resources/keys`);
+  assert.equal(moved.shellJson, `${own}/resources/shell.json`);
+  assert.equal(moved.env.APPDIR, own);
+  assert.equal(moved.env.LD_LIBRARY_PATH, `${own}/usr/lib:/usr/lib`);
+  assert.equal(moved.PATH, `${own}:/usr/bin`);
+  assert.equal(moved.dataDir, launch.dataDir, 'the data stays where it is');
+  const deb = { ...launch, env: { HOME: '/h' } };
+  assert.equal(rebaseLaunch(deb, own), deb, 'a window not in an AppImage is left as it is');
 });

@@ -3,6 +3,7 @@
 // process (`Claudio.AppImage --claudio-daemon`), which keeps the AppImage's mount alive for as long as
 // the daemon and its server run from it (S5 of docs/decisions/parked-cli-processes.md).
 import { Daemon } from './daemon.ts';
+import { rebaseLaunch, type LaunchFacts } from './daemon-protocol.ts';
 import { LiveMonitor, monitorHeaders } from './live-monitor.ts';
 import { LogFile } from './log.ts';
 import { readShellJson } from './payload.ts';
@@ -33,6 +34,8 @@ export async function daemonMain(argv: readonly string[], env: NodeJS.ProcessEnv
     version: DESKTOP_VERSION,
     followsShell,
     unit: argOf(argv, '--unit') ?? null,
+    // The AppImage's daemon runs from a mount of its own: the window's paths are moved onto it
+    ...(env.APPDIR ? { localize: (launch: LaunchFacts) => rebaseLaunch(launch, env.APPDIR ?? '') } : {}),
     serverLogPath: serverLog.path,
     spawnServer: (boot, serverEnvironment, launch) => {
       const proc = new ServerProcess({ entry: boot.entry, cwd: launch.userData, env: serverEnvironment }, serverLog);
