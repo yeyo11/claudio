@@ -18,6 +18,7 @@ import type {
   PermissionDecision,
   PermissionRequest,
   ResumeChatRequest,
+  RotationPolicy,
   OrchestrationTemplate,
   HintRequest,
   SchedulePreview,
@@ -73,8 +74,10 @@ export interface ChatClient {
   accounts(): Promise<Account[]>;
   /** The models one account offers */
   accountModels(id: string): Promise<ModelOption[]>;
-  /** Moves the chat to another account: at once when idle, when the turn ends when working; the current account cancels a pending move */
-  switchChatAccount(id: string, accountId: string): Promise<SwitchChatAccountResponse>;
+  /** Moves the chat to another account: at once when idle, when the turn ends when working; the current account cancels a pending move. `once`: an account the project's rule does not allow, for one turn */
+  switchChatAccount(id: string, accountId: string, once?: boolean): Promise<SwitchChatAccountResponse>;
+  /** The project rules, so the account list can offer the accounts a rule leaves out for one turn only; absent, every account reads as allowed and the server refuses */
+  accountPolicies?(): Promise<RotationPolicy[]>;
   /** The SSE URL of one chat's stream, with the token when the wrapper is guarded. */
   streamUrl(chatId: string, since: number): string;
   /** Where an upload's bytes are served (`/api/uploads/:id/content` today). */

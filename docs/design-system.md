@@ -790,6 +790,47 @@ observed is English text and stays in the API and the log. The list stays while 
 nothing below it moves. It only reports: a failure changes nothing about how accounts work, and the
 copy says so (`.canary-row`, `.canary-state`, `.canary-result`, `.canary-detail`, `.canary-check`).
 
+### An account's configuration, and a project's account rule
+
+The owner's T9 decisions of [plans/account-configuration-and-project-rules.md](plans/account-configuration-and-project-rules.md)
+(2026-11-15). Nothing here is live: no loop, no `--live`.
+
+- **On each account card** (not the default account, which is the source of the shared configuration
+  and has no mode), between the meters and the foot: `.account-config`, one line with the label
+  "Configuration", the mode in words (**Shared** or **Own**) and a state `Tag` with its word: **In
+  sync** (`ok`), **Needs repair** (`warn`), **Conflict** (`bad`). Only problems are listed under it
+  (`.account-config-items`): an item in conflict (`.account-config-item.is-conflict`, a 3 px `--bad`
+  rail) is its name in mono and two sentences, what this account holds ("This account: its own
+  folder") and what the shared one is ("Shared: the history every account uses"), with **Use shared**
+  beside them (under them in a card narrower than 340 px). Items waiting for their link, or a switch
+  left half-way, are one sentence and one **Repair** at the end of the line. No diff, no item list
+  when all is well.
+- **Use shared** asks first, with a confirmation that names, in mono inside the sentence, where the
+  account's own copy is kept (`.claudio-own/<time>`, from the item's plan route) and says nothing is
+  deleted.
+- **The mode switch** lives in the card's `⋯` (a `Sheet` on a phone): "Use its own configuration…" or
+  "Use the shared configuration…". Its dialog reads the plan route before anything changes: a
+  sentence for the mode, **Start from** (`Segmented`: "A copy of the shared one", chosen, or "Empty")
+  for a switch to own, then the plan by group (`.config-plan`: copied, linked, kept aside with the
+  place in mono, left as they are), names in mono, and "Chat history and agent memory stay shared in
+  both modes". History items are never listed unless the switch moves one aside.
+- **Where new accounts start** is a field of the accounts settings card (`.rotation-field-wide`, two
+  columns so its label stays on one line beside its Changed · Reset slot): `Segmented` Shared · Own,
+  with the consequence under it.
+- **A reserved account** says so under its meters (`.account-reserve`): "Keeps headroom for
+  claudio while it has work".
+- **A project's rule** is a `Card` titled "Accounts" in the project's settings, after Sharing, shown
+  only with two accounts or more. With no rule: one sentence and **Add a rule**. With one, `PrefRow`s
+  saved at each change: **Accounts allowed** (a `Switch` per account; the last one cannot be turned
+  off), **Preferred account** (`Select`, "None: your preferred account" first), **Reserve** (a
+  `Switch`, then a `NumberInput` 1–30 with the word "points"; the consequence is the threshold it
+  gives other projects, through `formatPercent`), and **Stay within one configuration** only while an
+  account has its own configuration. A rule that also governs other projects says so above the rows;
+  **Remove the rule** sits in the card's head. Controls that are not whole blocks keep to 360 px. On a
+  phone, buttons and switch rows are 44 px tall.
+- **The chat transcript**: a person's switch to an account of another configuration group reads
+  "Switched to work, which has its own configuration" (or "…, which uses the shared configuration").
+
 ### Queued messages over the composer
 
 A message sent while the agent works is a card over the composer (`.chat-queued`) from the moment

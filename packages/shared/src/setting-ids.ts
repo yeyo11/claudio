@@ -99,6 +99,7 @@ export const FIXED_SERVER_SETTING_IDS = [
   'accounts.hysteresis',
   'accounts.cooldown',
   'accounts.strategy',
+  'accounts.new-account-config',
   'collaborators.relay',
   'collaborators.assistant-reads',
 ] as const;

@@ -167,6 +167,7 @@ const ACCOUNT_KEYS = {
   'accounts.hysteresis': 'hysteresis',
   'accounts.cooldown': 'cooldownSeconds',
   'accounts.strategy': 'strategy',
+  'accounts.new-account-config': 'newAccountConfig',
 } as const satisfies Partial<Record<FixedServerSettingId, keyof AccountsSettings>>;
 
 const COLLABORATOR_KEYS = {

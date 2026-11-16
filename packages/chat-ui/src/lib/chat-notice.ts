@@ -1,4 +1,4 @@
-import type { RunEvent } from '@claudio/shared';
+import type { Account, RunEvent } from '@claudio/shared';
 
 /**
  * The messages nobody typed.
@@ -23,6 +23,8 @@ export interface Notice {
   /** For `guard`: the rule that fired, and the guard never having run for the call (`missing`) */
   rule?: string;
   missing?: boolean;
+  /** For `account`: the chat moved to an account of another configuration group, and which it now uses */
+  config?: 'own' | 'shared';
 }
 
 const TAG = (name: string) => new RegExp(`<${name}>([\\s\\S]*?)<\\/${name}>`, 'g');
@@ -41,8 +43,31 @@ function taskNotice(raw: string): Notice {
 /** The tag Claudio's own line for a person's account switch travels in; the CLI never writes it. */
 export const ACCOUNT_SWITCH_TAG = 'claudio-account-switch';
 
-/** The text of the transcript line "Switched to X": a notice of the page's own, not a message of the CLI. */
-export const accountSwitchText = (name: string): string => `<${ACCOUNT_SWITCH_TAG}>${name}</${ACCOUNT_SWITCH_TAG}>`;
+/**
+ * The text of the transcript line "Switched to X": a notice of the page's own, not a message of the
+ * CLI. `config` says the chat crossed into another configuration (docs/plans/account-configuration-and-project-rules.md
+ * §6.5): its next turns run with the new account's own configuration, or with the shared one.
+ */
+export const accountSwitchText = (name: string, config?: 'own' | 'shared'): string => `<${ACCOUNT_SWITCH_TAG}>${config ? `${config}-config:` : ''}${name}</${ACCOUNT_SWITCH_TAG}>`;
+
+/**
+ * An account's configuration group as the rotation reads it (`configGroupOf` in @claudio/accounts):
+ * every shared account and the default one are one group, each independent account its own. An
+ * account the list does not describe counts as shared.
+ */
+export const configGroup = (account: Pick<Account, 'id' | 'config'> | undefined): string => (account?.config?.mode === 'independent' ? account.id : 'shared');
+
+/** Whether moving from one account to another changes the configuration the chat runs with, and to which */
+export function configCrossing(from: Pick<Account, 'id' | 'config'> | undefined, to: Pick<Account, 'id' | 'config'> | undefined): 'own' | 'shared' | undefined {
+  if (!from || !to || configGroup(from) === configGroup(to)) return undefined;
+  return to.config?.mode === 'independent' ? 'own' : 'shared';
+}
+
+/** The account a person's switch left, when the event says so */
+export function switchedFrom(e: RunEvent): string | null {
+  const data = e.kind === 'notice' ? e.data : undefined;
+  return data?.reason === 'person' && typeof data.from === 'string' ? data.from : null;
+}
 
 /**
  * The account a person switched the chat to, when the event says so. The `data` of a notice is
@@ -81,7 +106,10 @@ export function readNotices(text: string): { prose: string; notices: Notice[] } 
       return '';
     });
   };
-  take(ACCOUNT_SWITCH_TAG, (raw) => ({ kind: 'account', detail: raw, body: '' }));
+  take(ACCOUNT_SWITCH_TAG, (raw) => {
+    const crossed = /^(own|shared)-config:/.exec(raw);
+    return crossed ? { kind: 'account', detail: raw.slice(crossed[0].length), body: '', config: crossed[1] === 'own' ? 'own' : 'shared' } : { kind: 'account', detail: raw, body: '' };
+  });
   take(CREDITS_TAG, (raw) => ({ kind: raw.startsWith('stopped:') ? 'credits-stopped' : 'credits', detail: raw.replace(/^(stopped|paid):/, ''), body: '' }));
   take('task-notification', (raw) => taskNotice(raw));
   take('system-reminder', (raw) => ({ kind: 'reminder', detail: firstLine(raw), body: rest(raw) }));

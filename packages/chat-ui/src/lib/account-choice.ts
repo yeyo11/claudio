@@ -1,10 +1,14 @@
-import type { Account, AccountLimit, ModelOption } from '@claudio/shared';
+import type { Account, AccountLimit, ModelOption, RotationPolicy } from '@claudio/shared';
 
 /** The CLI's own config dir: what a chat that names no account ran on. */
 const DEFAULT_ID = 'default';
 
-/** Why an account cannot be chosen for the chat, or `ok` when it can. `current` is the one in use. */
-export type AccountRowState = 'current' | 'ok' | 'disabled' | 'sign-in-expired' | 'signed-out' | 'exhausted' | 'model-unavailable';
+/**
+ * Why an account cannot be chosen for the chat, or `ok` when it can. `current` is the one in use.
+ * `not-allowed`: usable, but the rule of the chat's project does not list it; a person may still
+ * take it for one turn ("use another account once", D8 of the account-configuration plan).
+ */
+export type AccountRowState = 'current' | 'ok' | 'not-allowed' | 'disabled' | 'sign-in-expired' | 'signed-out' | 'exhausted' | 'model-unavailable';
 
 export interface AccountRow {
   account: Account;
@@ -31,7 +35,13 @@ export function offersModel(models: readonly ModelOption[], model: string): bool
  * undefined while that is not known: an account is then not refused for a model nobody checked, and
  * the server, which does check, has the last word.
  */
-export function accountRow(account: Account, chat: { account?: string | null; model: string | null }, models: readonly ModelOption[] | undefined): AccountRow {
+export function accountRow(
+  account: Account,
+  chat: { account?: string | null; model: string | null },
+  models: readonly ModelOption[] | undefined,
+  /** The rule of the chat's project, when one governs it */
+  rule?: Pick<RotationPolicy, 'order'> | null,
+): AccountRow {
   const limit = account.limits;
   const row = { account, pct: usagePct(limit), resetsAt: limit?.resetsAt ?? null };
   if (account.id === (chat.account ?? DEFAULT_ID)) return { ...row, state: 'current' };
@@ -41,8 +51,17 @@ export function accountRow(account: Account, chat: { account?: string | null; mo
   if (!account.signedIn) return { ...row, state: 'signed-out' };
   if (limit?.state === 'exhausted') return { ...row, state: 'exhausted' };
   if (chat.model && models && models.length > 0 && !offersModel(models, chat.model)) return { ...row, state: 'model-unavailable' };
+  // Only an account that could run the chat is offered once: the rule is the one thing in its way
+  if (rule?.order && !rule.order.includes(account.id)) return { ...row, state: 'not-allowed' };
   return { ...row, state: 'ok' };
 }
 
 /** A row the person can press. */
-export const canChoose = (row: AccountRow): boolean => row.state === 'ok';
+export const canChoose = (row: AccountRow): boolean => row.state === 'ok' || row.state === 'not-allowed';
+
+/** A row taken for one turn only, outside the project's rule. */
+export const onlyOnce = (row: AccountRow): boolean => row.state === 'not-allowed';
+
+/** The rule that governs a project: at most one policy lists it. */
+export const ruleFor = (policies: readonly RotationPolicy[] | undefined, projectId: string | null | undefined): RotationPolicy | null =>
+  (projectId ? policies?.find((policy) => policy.projects.includes(projectId)) : policies?.find((policy) => policy.looseChats)) ?? null;

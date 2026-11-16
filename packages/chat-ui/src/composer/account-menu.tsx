@@ -2,7 +2,7 @@ import { UserRound, Undo2 } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import type { MenuEntry, MenuItem } from '@claudio/ui/components/controls/Menu';
 import { formatClock, formatPercent } from '@claudio/ui/lib/format';
-import { accountLabel, canChoose, type AccountRow } from '../lib/account-choice';
+import { accountLabel, canChoose, onlyOnce, type AccountRow } from '../lib/account-choice';
 
 /** Up to this many accounts the menu opens them as a submenu; beyond it a searchable picker. */
 export const SUBMENU_MAX = 6;
@@ -29,6 +29,8 @@ export function accountReason(row: AccountRow, model: string | null, t: T): stri
       return row.resetsAt ? t('composerMenu.account.exhaustedUntil', { time: formatClock(row.resetsAt) }) : t('composerMenu.account.exhausted');
     case 'model-unavailable':
       return t('composerMenu.account.noModel', { model: model ?? '' });
+    case 'not-allowed':
+      return t('composerMenu.account.onceOnly');
     default:
       return undefined;
   }
@@ -60,7 +62,8 @@ export function accountOption(row: AccountRow, model: string | null, t: T): Menu
     text: accountLabel(row.account),
     label: <AccountLine row={row} />,
     disabled: !canChoose(row) && row.state !== 'current',
-    disabledReason: reason,
+    // A row a rule leaves out can still be pressed, so its reason is the item's own line, not a disabled one's
+    ...(onlyOnce(row) ? { meta: reason } : { disabledReason: reason }),
   };
 }
 

@@ -1,11 +1,12 @@
 import type { Account, AccountCreditsUse } from '@claudio/shared';
-import { CircleCheck, CirclePause, LogIn, Star, Trash2, TriangleAlert } from 'lucide-react';
+import { CircleCheck, CirclePause, FolderCog, LogIn, Star, Trash2, TriangleAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { MoreActions, type MenuItem } from '@claudio/ui/components/controls';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { usageTone } from '@claudio/ui/components/motion';
 import { Tag } from '@claudio/ui/components/ui';
 import { formatDateTime, formatPercent, timeAgo, toMs } from '@claudio/ui/lib/format';
+import { AccountConfigLine } from './AccountConfigLine';
 import { accountExhausted, accountName, canSignInAgain, creditsView, isDefaultAccount, onCredits, planOf, scopedRows, signInProblem, timeToReset, USAGE_MAX_AGE_MS, usagePct, windowRows, type ScopedRow, type WindowRow } from '../../lib/accounts';
 
 /** `in 2 d 10 h`, or `back in 19 min` for a window that is spent: sentence case, never a title. */
@@ -83,6 +84,10 @@ export function AccountCard({
   onRemove,
   onPrefer,
   onSignInAgain,
+  onSwitchConfig,
+  onRepairConfig,
+  onUseSharedItem,
+  reservedFor,
 }: {
   account: Account;
   /** What Claudio's work may do with the account's usage credits (its credits setting) */
@@ -97,6 +102,12 @@ export function AccountCard({
   /** Makes it the preferred account; absent where no preference can be set */
   onPrefer?: () => void;
   onSignInAgain: () => void;
+  /** Opens the mode switch to the other configuration; absent for the default account, which has no mode */
+  onSwitchConfig?: () => void;
+  onRepairConfig?: () => void;
+  onUseSharedItem?: (item: string) => void;
+  /** The projects whose rule keeps headroom on this account while they have work */
+  reservedFor?: string;
 }) {
   const { t } = useTranslation(['accountsConfig', 'common']);
   const resetText = useResetText();
@@ -115,7 +126,15 @@ export function AccountCard({
   const problem = signInProblem(account);
 
   // Hold out is the card's own button; the menu holds only what is not on the card
-  const menu: MenuItem[] = isDefaultAccount(account) ? [] : [{ id: 'remove', label: t('card.remove'), icon: Trash2, destructive: true, disabled: busy, onSelect: onRemove }];
+  const config = account.config;
+  const menu: MenuItem[] = isDefaultAccount(account)
+    ? []
+    : [
+        ...(config && onSwitchConfig
+          ? [{ id: 'config', label: t(config.mode === 'shared' ? 'config.switchToOwn' : 'config.switchToShared'), icon: FolderCog, disabled: busy, onSelect: onSwitchConfig }]
+          : []),
+        { id: 'remove', label: t('card.remove'), icon: Trash2, destructive: true, disabled: busy, onSelect: onRemove },
+      ];
   const canPrefer = onPrefer !== undefined && !preferred && account.enabled && account.signedIn;
   const classes = ['card', 'account-card', current ? 'grad-border glow-top is-active' : '', exhausted || problem ? 'is-exhausted' : ''].filter(Boolean).join(' ');
 
@@ -174,6 +193,7 @@ export function AccountCard({
           <p className="muted small">{account.kind === 'api-key' ? t('card.noLimitsApiKey') : account.limits?.cli?.available === false ? t('card.noLimitsToken') : t('card.noUsage')}</p>
         )}
         <CreditsLine account={account} use={creditsUse} />
+        {reservedFor && <p className="account-reserve small">{t('card.reservedFor', { projects: reservedFor })}</p>}
         {account.limits && readingStale(account.limits.observedAt) && (
           // The cache can be days old and a stream reading is as old as the run that sent it: an old one says how old
           <p className="muted small tnum" title={formatDateTime(account.limits.observedAt)}>
@@ -181,6 +201,10 @@ export function AccountCard({
           </p>
         )}
       </div>
+
+      {config && (
+        <AccountConfigLine config={config} name={name} busy={busy} onRepair={() => onRepairConfig?.()} onUseShared={(item) => onUseSharedItem?.(item)} />
+      )}
 
       <div className="account-foot">
         <span className="account-actions">

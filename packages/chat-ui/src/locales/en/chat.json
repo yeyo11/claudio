@@ -123,7 +123,8 @@
       "pendingTo": "Moves to {{name}} when this turn ends",
       "failed": "Couldn’t switch the account",
       "search": "Search accounts",
-      "none": "No account matches."
+      "none": "No account matches.",
+      "onceOnly": "Not allowed by the project's rule: for one turn only"
     },
     "back": "Back to the menu",
     "noCommands": "This chat hasn’t reported any commands yet.",
@@ -483,7 +484,9 @@
       "credits": "Paid from the credits of",
       "credits-stopped": "Stopped before spending the credits of",
       "guard": "Guard blocked",
-      "guardMissing": "Guard did not run for this call"
+      "guardMissing": "Guard did not run for this call",
+      "accountOwnConfig": "{{name}}, which has its own configuration",
+      "accountSharedConfig": "{{name}}, which uses the shared configuration"
     },
     "teammate": {
       "list": "every teammate's shares",

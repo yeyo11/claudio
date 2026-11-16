@@ -1,9 +1,9 @@
-import type { AccountsSettings } from '@claudio/shared';
+import type { AccountConfigMode, AccountConfigStart, AccountsSettings } from '@claudio/shared';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Plus, RefreshCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
-import { api, keys, useAccounts } from '../api';
+import { Trans, useTranslation } from 'react-i18next';
+import { api, keys, useAccounts, useProjects } from '../api';
 import { useConfirm } from '@claudio/ui/components/Dialog';
 import { ICON, ICON_SM } from '@claudio/ui/components/icons';
 import { Spinner } from '@claudio/ui/components/Spinner';
@@ -11,8 +11,9 @@ import { useToast } from '@claudio/ui/components/Toast';
 import { Card, Empty, ErrorBox, Skeleton, StatusBadge } from '@claudio/ui/components/ui';
 import { PageHeader } from '../components/PageHeader';
 import { formatDateTime, timeAgo, toMs } from '@claudio/ui/lib/format';
-import { accountName, accountUsable, sortAccounts, usageStale, useAccountView } from '../lib/accounts';
+import { accountName, accountUsable, reservesByAccount, sortAccounts, usageStale, useAccountView } from '../lib/accounts';
 import { AccountCard } from './accounts/AccountCard';
+import { AccountConfigDialog } from './accounts/AccountConfigDialog';
 import { CliCanaryLine } from './accounts/CliCanaryLine';
 import { AddAccountDialog } from './accounts/AddAccountDialog';
 import { SignInAgainDialog } from './accounts/SignInAgainDialog';
@@ -44,9 +45,12 @@ export function Accounts() {
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [signingIn, setSigningIn] = useState<string | null>(null);
+  const [configSwitch, setConfigSwitch] = useState<{ id: string; to: AccountConfigMode } | null>(null);
+  const projects = useProjects(false);
   // The dialog refocuses whenever its onClose changes, so it gets the same function every render
   const closeAdd = useCallback(() => setAdding(false), []);
   const closeSignIn = useCallback(() => setSigningIn(null), []);
+  const closeConfigSwitch = useCallback(() => setConfigSwitch(null), []);
   const refresh = useCallback(() => {
     void queryClient.invalidateQueries({ queryKey: keys.accounts });
     void queryClient.invalidateQueries({ queryKey: keys.overview });
@@ -135,6 +139,58 @@ export function Accounts() {
     return found ? accountName(found) : id;
   };
 
+  // What each account's card says about the headroom a project's rule keeps on it
+  const reserves = reservesByAccount(policies.data ?? [], (id) => projects.data?.find((p) => p.id === id)?.name ?? id, t('policies.looseChatsName'));
+
+  const switchConfig = (id: string, to: AccountConfigMode, start: AccountConfigStart | undefined) => {
+    const account = data.find((a) => a.id === id);
+    if (!account) return;
+    const name = accountName(account);
+    void act(t(to === 'independent' ? 'config.toast.nowOwn' : 'config.toast.nowShared', { name }), t('config.toast.switchFailed', { name }), async () => {
+      await api.setAccountConfig(id, to, start);
+      setConfigSwitch(null);
+    });
+  };
+  const repairConfig = (id: string) => {
+    const account = data.find((a) => a.id === id);
+    const config = account?.config;
+    if (!account || !config) return;
+    const name = accountName(account);
+    // Applying the mode the account is in links what waits; a switch left half-way is applied again to finish it
+    const mode = config.switching?.to ?? config.mode;
+    const start = mode === 'independent' ? config.switching?.start : undefined;
+    void act(t('config.toast.repaired', { name }), t('config.toast.repairFailed', { name }), () => api.setAccountConfig(id, mode, start));
+  };
+  const useSharedItem = (id: string, item: string) => {
+    const account = data.find((a) => a.id === id);
+    if (!account) return;
+    const name = accountName(account);
+    void (async () => {
+      // The question says where the account's own copy will be kept, from a plan that changes nothing
+      let aside: string | null = null;
+      try {
+        aside = (await api.accountConfigItemPlan(id, item)).aside;
+      } catch (err) {
+        toast.error(t('config.toast.useSharedFailed', { item }), err);
+        return;
+      }
+      const ok = await confirm({
+        title: t('config.useSharedTitle', { item, name }),
+        body: aside ? (
+          // One paragraph: the dialog's body lays its children out as blocks, and the path sits inside the sentence
+          <p className="config-aside-text">
+            <Trans t={t} i18nKey="config.useSharedBody" values={{ aside }} components={{ path: <span className="mono" /> }} />
+          </p>
+        ) : (
+          t('config.useSharedBodyNoAside')
+        ),
+        confirmLabel: t('config.useShared'),
+      });
+      if (ok) await act(t('config.toast.usedShared', { item, name }), t('config.toast.useSharedFailed', { item }), () => api.useSharedConfigItem(id, item));
+    })();
+  };
+  const switching = configSwitch ? data.find((a) => a.id === configSwitch.id) : undefined;
+
   const putSettings = (patch: Partial<AccountsSettings>) => api.putAccountsSettings(patch);
   const toggle = (id: string) => {
     const account = data.find((a) => a.id === id);
@@ -215,6 +271,16 @@ export function Accounts() {
       />
 
       {adding && <AddAccountDialog onClose={closeAdd} onAdded={refresh} />}
+      {configSwitch && switching && (
+        <AccountConfigDialog
+          accountId={switching.id}
+          name={accountName(switching)}
+          to={configSwitch.to}
+          busy={busy}
+          onConfirm={(start) => switchConfig(switching.id, configSwitch.to, start)}
+          onClose={closeConfigSwitch}
+        />
+      )}
       {signingAgain && <SignInAgainDialog key={signingAgain.id} account={signingAgain} onClose={closeSignIn} onDone={refresh} />}
 
       {accounts.length === 0 ? (
@@ -236,6 +302,14 @@ export function Accounts() {
               // With no preference, the account in use is already where new work starts: nothing to offer on it
               {...(account.id === current && preferred === null ? {} : { onPrefer: () => prefer(account.id) })}
               onSignInAgain={() => setSigningIn(account.id)}
+              {...(account.config
+                ? {
+                    onSwitchConfig: () => setConfigSwitch({ id: account.id, to: account.config?.mode === 'shared' ? 'independent' : 'shared' }),
+                    onRepairConfig: () => repairConfig(account.id),
+                    onUseSharedItem: (item: string) => useSharedItem(account.id, item),
+                  }
+                : {})}
+              {...(reserves.has(account.id) ? { reservedFor: reserves.get(account.id) } : {})}
             />
           ))}
         </ul>
@@ -276,6 +350,7 @@ export function Accounts() {
                 <span className="break">
                   {event.from && event.to ? `${nameOfId(event.from)} → ${nameOfId(event.to)}` : (reasonText(event.reason) ?? event.detail ?? '')}
                   {event.from && event.to && event.reason ? ` · ${reasonText(event.reason)}` : ''}
+                  {event.data?.once === true ? ` · ${t('log.once')}` : ''}
                 </span>
               </li>
             ))}

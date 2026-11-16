@@ -46,6 +46,7 @@ export const chatClient: ChatClient = {
   accounts: () => api.accounts(),
   accountModels: (id) => api.accountModels(id),
   switchChatAccount: api.switchChatAccount,
+  accountPolicies: () => api.accountPolicies(),
   streamUrl: (chatId, since) => withToken(`${activeBase()}/chats/${enc(chatId)}/stream?since=${since}`),
   contentUrl: (uploadId) => withToken(`${activeBase()}/uploads/${enc(uploadId)}/content`),
 };

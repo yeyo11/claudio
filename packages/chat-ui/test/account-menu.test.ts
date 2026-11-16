@@ -1,7 +1,7 @@
 import type { Account } from '@claudio/shared';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { accountEntries, accountItem, accountReason, filterRows, SUBMENU_MAX } from '../src/composer/account-menu.tsx';
+import { accountEntries, accountItem, accountOption, accountReason, filterRows, SUBMENU_MAX } from '../src/composer/account-menu.tsx';
 import { accountRow, type AccountRow } from '../src/lib/account-choice.ts';
 
 const t = (key: string, options?: Record<string, unknown>) => (options ? `${key} ${JSON.stringify(options)}` : key);
@@ -71,4 +71,13 @@ test('the picker filters by name, email or plan and shows everything while the f
   assert.deepEqual(filterRows(rows, 'TEAM').map((r) => r.account.id), ['work']);
   assert.deepEqual(filterRows(rows, 'home.test').map((r) => r.account.id), ['home']);
   assert.deepEqual(filterRows(rows, 'nothing'), []);
+});
+
+test('an account the project rule leaves out stays pressable, saying it is for one turn only', () => {
+  const row = accountRow(account('two'), chat, undefined, { order: ['one'] });
+  assert.equal(accountReason(row, null, t), 'composerMenu.account.onceOnly');
+  const item = accountOption(row, null, t);
+  assert.equal(item.disabled, false);
+  assert.equal(item.meta, 'composerMenu.account.onceOnly');
+  assert.equal(item.disabledReason, undefined);
 });
