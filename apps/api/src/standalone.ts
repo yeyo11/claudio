@@ -28,7 +28,15 @@ const server = await startServer({
 // The parent parses this single line to learn where the API is listening
 console.log(`CLAUDIO_READY ${JSON.stringify({ url: server.url, port: server.port })}`);
 
-const shutdown = () => void server.close().then(() => process.exit(0));
-for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, shutdown);
+const shutdown = (options?: { stopWork?: boolean }) => void server.close(options).then(() => process.exit(0));
+for (const signal of ['SIGINT', 'SIGTERM'] as const) process.on(signal, () => shutdown());
 // With an IPC channel, a dead parent must not leave the server orphaned
-process.on('disconnect', shutdown);
+process.on('disconnect', () => shutdown());
+// The desktop's supervisor asks for a close that stops parked work as well (STOP_WORK_MESSAGE in
+// apps/desktop/src/daemon-protocol.ts). The answer comes first, so it knows not to fall back to a
+// SIGTERM, which would only let that work go
+process.on('message', (message: unknown) => {
+  if (!message || typeof message !== 'object' || (message as { type?: unknown }).type !== 'claudio:stop-work') return;
+  process.send?.({ type: 'claudio:stopping-work' });
+  shutdown({ stopWork: true });
+});

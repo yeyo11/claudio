@@ -422,6 +422,11 @@ export class ChatManager extends EventEmitter {
   private readonly adoptedChats = new Set<string>();
   /** A shutdown began: a restore still under way stops touching the store */
   private shuttingDown = false;
+  /**
+   * The person quit and asked for all work to stop (D1 of docs/plans/survive-restarts.md), or quit
+   * with nothing live: the shutdown stops parked processes like any other instead of letting them go
+   */
+  private stopParkedAtShutdown = false;
   /** Settles once every adopted session asked its agent what it still waits on (`reattach`) */
   private reattaching: Promise<void> = Promise.resolve();
 
@@ -2180,7 +2185,7 @@ export class ChatManager extends EventEmitter {
    * the chats let go.
    */
   detachParked(): string[] {
-    if (!this.config.parked) return [];
+    if (!this.config.parked || this.stopParkedAtShutdown) return [];
     const left = new Set(this.parked.detach());
     const chats = [...this.chats.values()].filter((chat) => chat.proc instanceof ParkedProcess && left.has(chat.proc));
     for (const chat of chats) {
@@ -2190,6 +2195,14 @@ export class ChatManager extends EventEmitter {
     }
     this.persist(...chats);
     return chats.map((chat) => chat.id);
+  }
+
+  /**
+   * The next shutdown stops every chat, parked ones included, and leaves nothing for a next server to
+   * adopt. What the desktop's "Stop all work and quit" asks for; a no-op with parking off.
+   */
+  stopWorkAtShutdown(): void {
+    this.stopParkedAtShutdown = true;
   }
 
   /** Resolves with the first `result` after the call, or when the process exits. */

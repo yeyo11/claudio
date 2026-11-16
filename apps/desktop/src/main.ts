@@ -1,10 +1,14 @@
 import { spawn } from 'node:child_process';
+import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, rmSync, watch } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { app, BrowserWindow, dialog, ipcMain, Menu, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, safeStorage, shell, type IpcMainEvent, type IpcMainInvokeEvent, type WebContents } from 'electron';
 import { AppImageUpdater, DebUpdater } from 'electron-updater';
-import { RELAUNCH_EXIT_CODE, loadKeys } from '@claudio/core/launcher/protocol';
+import { loadKeys } from '@claudio/core/launcher/protocol';
+import { attachDecision, DaemonClient, hasUserManager, NODE_RUNNER, startDaemon } from './daemon-launch.ts';
+import { daemonMain } from './daemon-main.ts';
+import { DAEMON_FLAG, DAEMON_PROTOCOL, daemonUnitName, readDaemonRecord, recordAlive, type DaemonBoot, type DaemonState, type FromDaemon, type LaunchFacts } from './daemon-protocol.ts';
 import { RELEASE_DOWNLOADS, packageFileName, verifyDownload } from './desktop-manifest.ts';
 import { IPC, isAppPath } from './ipc.ts';
 import { EMPTY_SNAPSHOT, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction, type TrayRestart } from './live.ts';
@@ -12,24 +16,12 @@ import { LiveMonitor, monitorHeaders } from './live-monitor.ts';
 import { LogFile } from './log.ts';
 import { buildMenu } from './menu.ts';
 import { ACTION_SCHEME, errorUrl, splashUrl } from './pages.ts';
-import {
-  PayloadHost,
-  forgetOverlays,
-  parsePayloadAction,
-  parsePayloadFacts,
-  payloadAnswer,
-  payloadRequest,
-  readShellJson,
-  type PayloadAction,
-  type PayloadBoot,
-  type PayloadFacts,
-  type ServerHandle,
-} from './payload.ts';
+import { parsePayloadAction, parsePayloadFacts, payloadAnswer, payloadRequest, readShellJson, type PayloadAction, type PayloadFacts } from './payload.ts';
+import { NATIVE_NOTICE, nativeQuitDialog, parseQuitAnswer, quitAction, quitPlan, type QuitAnswer, type QuitNotice } from './quit.ts';
 import { SPLASH_HANDOFF_MAX_MS } from '@claudio/ui/splash';
-import { missingResources, resolveResources, type Resources } from './resources.ts';
+import { missingResources, resolveResources } from './resources.ts';
 import { secretKeyFor } from './secret-key.ts';
-import { rememberedPort, rememberPort } from './server-port.ts';
-import { newDesktopSecret, ServerProcess, serverEnv } from './server-process.ts';
+import { rememberPort } from './server-port.ts';
 import { resolveUserPath } from '@claudio/core/providers/path';
 import { DPKG_RECORD, appImagePaths, downloadTo, fuseUsable, installAppImage, sandboxRootless, switchState, type SwitchState } from './switch.ts';
 import { isTerminalWindowUrl, navigationFor } from './terminal-window.ts';
@@ -56,6 +48,16 @@ import {
 import { restoreWindowState } from './window-state.ts';
 import { errorMessage } from '@claudio/shared';
 
+/**
+ * The same binary is the daemon when started with the flag (the AppImage's, which must run from a
+ * mount of its own, docs/decisions/parked-cli-processes.md S5): it opens no window and takes no lock
+ */
+const daemonMode = process.argv.includes(DAEMON_FLAG);
+if (daemonMode) {
+  app.disableHardwareAcceleration();
+  void daemonMain(process.argv).then((code) => app.exit(code));
+}
+
 const isDev = !app.isPackaged || process.argv.includes('--dev');
 
 // Name before anything reads it: it decides the userData dir. (The X11 WM class the launcher matches on
@@ -77,8 +79,6 @@ const SETTINGS_UPDATES = '/settings/general#updates';
 // electron-builder writes resources/package-type into the .deb
 const packageFacts = { appImage: process.env.APPIMAGE, packageType: readPackageType(process.resourcesPath) };
 const distribution = distributionOf(packageFacts);
-/** Once per launch, so a server restarted from the error page still knows the tray */
-const desktopSecret = newDesktopSecret();
 /**
  * What this shell is, read once: the payload it bundles has its version, and an overlay is judged
  * against it. A `shell.json` of another version already at start would be a broken package; the
@@ -90,10 +90,20 @@ const shellAtStart = ((): { version: string; shellInputs: string } | null => {
 })();
 
 let win: BrowserWindow | undefined;
-let payload: PayloadHost | undefined;
-let serverRun: Promise<void> | undefined;
+/** The connection to the daemon that supervises the server (layer 1 of docs/plans/survive-restarts.md) */
+let daemon: DaemonClient | undefined;
+/** What the daemon said last */
+let daemonState: DaemonState | null = null;
+/** Finding or starting the daemon is under way */
+let connecting: Promise<void> | undefined;
+/** The window is stopping or replacing the daemon itself: its going is no surprise */
+let leavingDaemon = false;
+/** Reconnections after the daemon went on its own, so a daemon that cannot stay up is not chased for ever */
+let reconnects = 0;
 let serverOrigin: string | undefined;
 let quitting = false;
+/** The quit question is on screen */
+let askingQuit = false;
 let monitor: LiveMonitor | undefined;
 let tray: LiveTray | undefined;
 let live: LiveSnapshot = EMPTY_SNAPSHOT;
@@ -105,10 +115,12 @@ let restorePath: string | null = null;
 /** A restart to install an update, or a relaunch, is under way: the server is going down on purpose */
 let updating = false;
 let switching = false;
+/** The page in the window registered for the quit question (`onQuitAsk`) */
+let pageAsksQuit = false;
+const quitAnswers = new Map<string, (raw: unknown) => void>();
 
 // Opened once the single-instance lock is ours, so a rejected second launch never rotates the running one's logs
 let desktopLog: LogFile;
-let serverLog: LogFile;
 
 /** The window controls' colours; also the window background, seen while a page loads */
 function paintTitleBar(theme: TitleBarTheme): void {
@@ -120,13 +132,15 @@ function paintTitleBar(theme: TitleBarTheme): void {
 /** Navigation superseded by a newer load rejects with ERR_ABORTED; that is not an error */
 const load = (url: string) => win?.loadURL(url).catch(() => undefined);
 
+const serverLogPath = () => daemonState?.serverLog ?? join(logsDir, 'server.log');
+
 function showError(title: string, detail: string): void {
   desktopLog.line(`${title}: ${detail}`);
   serverOrigin = undefined;
   stopMonitor();
   // The splash and error pages are dark whatever the UI's theme was
   paintTitleBar(SPLASH_TITLE_BAR);
-  void load(errorUrl(title, detail, serverLog.path));
+  void load(errorUrl(title, detail, serverLogPath()));
 }
 
 function showSplash(): void {
@@ -145,136 +159,227 @@ async function handOffSplash(): Promise<void> {
   await Promise.race([finished, new Promise((resolve) => setTimeout(resolve, SPLASH_HANDOFF_MAX_MS))]);
 }
 
-/** Starts the server, through the payload machine, unless it already runs */
+/** Finds the daemon or starts one, and attaches the window to it; one attempt at a time */
 function startServer(): void {
-  if (serverRun) return;
-  serverRun = runServer().finally(() => {
-    serverRun = undefined;
+  connecting ??= connectDaemon().finally(() => {
+    connecting = undefined;
   });
 }
 
-/** Stops the server and waits until the machine's run has ended */
-async function stopServer(): Promise<void> {
-  stopMonitor();
-  const running = serverRun;
-  await payload?.stop();
-  await running;
+/** The facts the daemon needs to start a server, which only this process has: the keyring's key above all */
+async function launchFacts(): Promise<LaunchFacts> {
+  const res = resolveResources();
+  mkdirSync(dataDir, { recursive: true });
+  mkdirSync(workspaceDir, { recursive: true });
+  const env: Record<string, string> = {};
+  // Electron's own switches and the secrets are never handed on: the daemon sets what the server needs
+  for (const [k, v] of Object.entries(process.env)) {
+    if (v !== undefined && !k.startsWith('ELECTRON_') && k !== 'CLAUDIO_SECRET_KEY' && k !== 'CLAUDIO_DESKTOP_TOKEN') env[k] = v;
+  }
+  return {
+    env,
+    PATH: await resolveUserPath(),
+    secretKey: secretKeyFor(join(userData, 'secret-key.bin'), safeStorage),
+    userData,
+    dataDir,
+    workspaceDir,
+    logsDir,
+    bundledDir: dirname(res.serverEntry),
+    bundledWeb: res.webDist,
+    guardEntry: res.guardEntry,
+    keysDir: res.keysDir,
+    shellJson: res.shellJson,
+    version: app.getVersion(),
+    distribution: distribution ?? null,
+    aptManaged: updater.aptManaged,
+    ignoreOverlays: process.env.CLAUDIO_PAYLOAD === 'bundled',
+  };
 }
 
-/**
- * One run of the payload machine (payload.ts): it boots the overlay `state.json` names or the
- * bundled payload, starts it again on exit 75, keeps a trial only once it answered and its page
- * rendered, and rolls back on its own. It ends when the server stops for good.
- */
-async function runServer(): Promise<void> {
-  showSplash();
+/** The daemon of this data directory, if one answers */
+async function reachDaemon(): Promise<DaemonClient | undefined> {
+  const record = readDaemonRecord(dataDir);
+  if (!record || !recordAlive(record)) return undefined;
+  return DaemonClient.connect(record.socket, onDaemonMessage).catch(() => undefined);
+}
+
+/** Polls for the daemon this window just started: its record, then its socket */
+async function awaitDaemon(timeoutMs = 20_000): Promise<DaemonClient | undefined> {
+  const until = Date.now() + timeoutMs;
+  while (Date.now() < until) {
+    const client = await reachDaemon();
+    if (client) return client;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return undefined;
+}
+
+async function connectDaemon(): Promise<void> {
+  if (!serverOrigin) showSplash();
   const res = resolveResources();
   const missing = missingResources(res);
   if (missing.length) {
     showError('Claudio is missing files', `Not found:\n${missing.join('\n')}`);
     return;
   }
-  let PATH: string;
+  let facts: LaunchFacts;
   try {
-    mkdirSync(dataDir, { recursive: true });
-    mkdirSync(workspaceDir, { recursive: true });
-    PATH = await resolveUserPath();
+    facts = await launchFacts();
   } catch (err) {
     showError('Claudio could not start its server', errorMessage(err));
     return;
   }
-  const host = new PayloadHost({
-    bundledDir: dirname(res.serverEntry),
-    bundledWeb: res.webDist,
-    keysDir: res.keysDir,
-    dataDir,
-    shell: shellAtStart,
-    ignoreOverlays: process.env.CLAUDIO_PAYLOAD === 'bundled',
-    spawn: (boot) => spawnServer(boot, res, PATH),
-    onReady: (url, boot) => void showServer(url, boot),
-    health: async (origin) => {
-      try {
-        return (await fetch(`${origin}/api/health`, { signal: AbortSignal.timeout(5_000) })).status === 200;
-      } catch {
-        return false;
-      }
-    },
-    relaunchInstead: () => updater.state.status === 'shell-replaced',
-    log: (line) => desktopLog.line(`payload: ${line}`),
-  });
-  payload = host;
-  const end = await host.run();
-  if (payload === host) payload = undefined;
-  setMenu();
-  if (end.why === 'relaunch') {
-    // 76 is a restart the person asked for from the Updates card, on this device or another (D4 of
-    // docs/plans/remote-updates.md); the other relaunch is a server restart after apt replaced the app
-    if (end.code === RELAUNCH_EXIT_CODE) desktopLog.line('the server asked for the app to start again (exit 76)');
-    relaunchShell();
-  } else if (end.why === 'exited') {
-    showError(end.ready ? 'The Claudio server stopped unexpectedly' : 'Claudio could not start its server', end.detail);
+  let client = await reachDaemon();
+  if (client) desktopLog.line('attaching to the running daemon');
+  else {
+    const how = await startDaemon(
+      {
+        userManager: hasUserManager(),
+        unit: daemonUnitName(dataDir),
+        execPath: process.execPath,
+        daemonEntry: res.daemonEntry,
+        appImage: distribution === 'appimage' ? process.env.APPIMAGE : undefined,
+        dataDir,
+        logsDir,
+        env: process.env,
+      },
+      NODE_RUNNER,
+      (line) => desktopLog.line(line),
+    );
+    desktopLog.line(`started the daemon (${how === 'unit' ? `user unit ${daemonUnitName(dataDir)}` : 'setsid'})`);
+    client = await awaitDaemon();
   }
+  if (!client) {
+    showError('Claudio could not start its server', `The process that supervises the server did not answer. See ${join(logsDir, 'daemon.log')}.`);
+    return;
+  }
+  daemon?.close();
+  daemon = client;
+  leavingDaemon = false;
+  client.onClose(() => {
+    if (daemon !== client) return;
+    daemon = undefined;
+    daemonGone();
+  });
+  client.send({ type: 'hello', protocol: DAEMON_PROTOCOL, version: app.getVersion(), launch: facts });
 }
 
-/** A server for one boot; on a restart the window shows the splash until it is ready again */
-function spawnServer(boot: PayloadBoot, res: Resources, PATH: string): ServerHandle {
+/** The daemon went without this window asking: it is found or started again, a few times */
+function daemonGone(): void {
+  daemonState = null;
+  if (quitting || leavingDaemon || updating) return;
   if (serverOrigin) {
-    const current = win?.webContents.getURL() ?? '';
-    if (current.startsWith(`${serverOrigin}/`)) restorePath = current.slice(serverOrigin.length);
+    rememberPath();
+    stopMonitor();
+    serverOrigin = undefined;
+  }
+  reconnects += 1;
+  if (reconnects > 3) {
+    showError('The Claudio server stopped unexpectedly', `The process that supervises it went away. See ${join(logsDir, 'daemon.log')}.`);
+    return;
+  }
+  desktopLog.line('the daemon went away; finding or starting it again');
+  setTimeout(startServer, 1_000);
+}
+
+/** Asks the daemon to end, and waits until it did: with all its work (`stop-work`), or letting parked work go (`detach`) */
+async function stopDaemon(work: 'stop-work' | 'detach'): Promise<void> {
+  stopMonitor();
+  const client = daemon;
+  if (!client?.open) return;
+  leavingDaemon = true;
+  await new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, 60_000);
+    client.onClose(() => {
+      clearTimeout(timer);
+      resolve();
+    });
+    client.send({ type: 'stop', work });
+  });
+  if (daemon === client) daemon = undefined;
+  daemonState = null;
+  serverOrigin = undefined;
+}
+
+/** The current page, for the window to go back to once the server is there again */
+function rememberPath(): void {
+  const current = win?.webContents.getURL() ?? '';
+  if (serverOrigin && current.startsWith(`${serverOrigin}/`)) restorePath = current.slice(serverOrigin.length);
+}
+
+function onDaemonMessage(message: FromDaemon): void {
+  if (message.type === 'relaunch-window') {
+    // 76 is a restart the person asked for from the Updates card, on this device or another (D4 of
+    // docs/plans/remote-updates.md): the daemon starts its server again, this window starts anew
+    desktopLog.line('the server asked for the app to start again (exit 76)');
+    relaunchShell();
+    return;
+  }
+  if (message.type === 'stopped') return;
+  const first = daemonState === null;
+  daemonState = message.state;
+  if (first) {
+    const decision = attachDecision(message.state, { protocol: DAEMON_PROTOCOL, version: app.getVersion() });
+    if (decision === 'replace') {
+      desktopLog.line(`the daemon is ${message.state.version} (protocol ${String(message.state.protocol)}); handing its work over to a new one`);
+      void stopDaemon('detach').then(startServer);
+      return;
+    }
+    if (decision === 'restart-server') {
+      desktopLog.line(`the daemon serves the bundled Claudio ${message.state.boot?.version ?? '?'}; starting its server again on ${app.getVersion()}`);
+      daemon?.send({ type: 'restart-server' });
+    }
+  }
+  showDaemonState(message.state);
+}
+
+/** The window follows the daemon: the splash while a server starts, the UI once it listens, the error page when it cannot */
+function showDaemonState(state: DaemonState): void {
+  setMenu(state.boot);
+  if (state.phase === 'ready' && state.url) {
+    reconnects = 0;
+    const origin = new URL(state.url).origin;
+    if (serverOrigin !== origin) void showServer(state.url, state.boot);
+    return;
+  }
+  if (state.phase === 'failed') {
+    showError('Claudio could not start its server', state.detail ?? 'The server did not start.');
+    return;
+  }
+  if (serverOrigin) {
+    rememberPath();
     stopMonitor();
     serverOrigin = undefined;
     showSplash();
   }
-  setMenu(boot);
-  const proc = new ServerProcess(
-    {
-      entry: boot.entry,
-      cwd: userData,
-      env: serverEnv({
-        base: process.env,
-        PATH,
-        rememberedPort: rememberedPort(userData),
-        webDist: boot.webDist,
-        dataDir,
-        workspaceDir,
-        version: app.getVersion(),
-        distribution,
-        desktopSecret,
-        secretKey: secretKeyFor(join(userData, 'secret-key.bin'), safeStorage),
-        appDir: boot.dir,
-        guardEntry: res.guardEntry,
-        keysDir: res.keysDir,
-        shellJson: res.shellJson,
-        shell: { inputs: shellAtStart?.shellInputs ?? '', aptManaged: updater.aptManaged },
-      }),
-    },
-    serverLog,
-  );
-  return { ready: proc.start(), exited: proc.exited, stop: () => proc.signal('SIGTERM'), kill: () => proc.signal('SIGKILL'), detail: () => proc.detail };
 }
 
-async function showServer(url: string, boot: PayloadBoot): Promise<void> {
+async function showServer(url: string, boot: DaemonBoot | null): Promise<void> {
   const origin = new URL(url).origin;
   serverOrigin = origin;
   // What it bound, not what it was asked for: a taken port makes the server pick another
   rememberPort(userData, Number(new URL(url).port));
-  desktopLog.line(`server ready at ${url}: Claudio ${boot.version}${boot.bundled ? '' : ' from the data dir'}${boot.trial ? ', on trial' : ''}`);
+  desktopLog.line(`server ready at ${url}: Claudio ${boot?.version ?? '?'}${boot && !boot.bundled ? ' from the data dir' : ''}${boot?.trial ? ', on trial' : ''}`);
   startMonitor(origin);
   void refreshPayloadFacts();
+  if (!win) return;
   await handOffSplash();
   if (serverOrigin !== origin) return;
   const path = restorePath && isAppPath(restorePath) ? restorePath : null;
   restorePath = null;
-  payload?.windowLoading();
+  daemon?.send({ type: 'window-loading' });
   await load(path ? `${origin}${path}` : url);
 }
 
-/** The shell's own request to its server, with its per-launch credential (D8) */
+/** The desktop credential: the daemon's, new for each daemon (it replaced the per-launch one) */
+const desktopSecret = (): string | undefined => daemonState?.token;
+
+/** The shell's own request to its server, with the desktop credential (D8) */
 async function shellApi(method: string, path: string, body?: unknown): Promise<Response> {
   if (!serverOrigin) throw new Error('the server is not running');
   return fetch(`${serverOrigin}${path}`, {
     method,
-    headers: { ...monitorHeaders(desktopSecret, process.env), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
+    headers: { ...monitorHeaders(desktopSecret(), process.env), ...(body === undefined ? {} : { 'content-type': 'application/json' }) },
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
@@ -356,7 +461,7 @@ function startMonitor(origin: string): void {
   stopMonitor();
   monitor = new LiveMonitor({
     origin,
-    headers: monitorHeaders(desktopSecret, process.env),
+    headers: monitorHeaders(desktopSecret(), process.env),
     onSnapshot: showLive,
     onEvent: (type) => {
       if (type === 'system.server-update' || type === 'system.release') void refreshPayloadFacts();
@@ -372,8 +477,12 @@ function stopMonitor(): void {
   showLive(EMPTY_SNAPSHOT);
 }
 
+/** Brings the window back: a closed one is opened again on the running server */
 function showWindow(): void {
-  if (!win) return;
+  if (!win) {
+    createWindow();
+    return;
+  }
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
@@ -381,7 +490,13 @@ function showWindow(): void {
 
 /** Opens an in-app path with the page's own router, so the UI keeps its state; a fresh load otherwise */
 function openPath(path: string): void {
-  if (!win || !serverOrigin || !isAppPath(path)) return;
+  if (!serverOrigin || !isAppPath(path)) return;
+  if (!win) {
+    // A window opened for the path goes straight there once the server's page loads
+    restorePath = path;
+    createWindow();
+    return;
+  }
   showWindow();
   const next = navigationFor(win.webContents.getURL(), path, serverOrigin);
   if (next.kind === 'ipc') win.webContents.send(IPC.navigate, next.path);
@@ -464,20 +579,22 @@ function relaunchInto(appImage: string): void {
 }
 
 /**
- * Restarts into the downloaded AppImage, or starts the shell apt installed. The server child goes
- * first, so no chat or orchestration is still writing while the updater replaces the files under
- * it; the new version starts once this process has exited, so it gets the single-instance lock.
+ * Restarts into the downloaded AppImage, or starts the shell apt installed. After apt, only the
+ * window starts again: the daemon follows the files apt put in place, and the new window has it start
+ * its server on them (`attachDecision`). For the AppImage the daemon goes first, letting parked work
+ * go as on any restart, so nothing runs from the file the updater replaces; the new version starts
+ * once this process has exited, so it gets the single-instance lock.
  */
 async function restartToUpdate(): Promise<void> {
   if (updating || quitting) return;
   updating = true;
   const replaced = updater.state.status === 'shell-replaced';
   desktopLog.line(`restarting to ${replaced ? 'start' : 'update to'} ${updater.readyVersion ?? '?'}`);
-  await stopServer();
   if (replaced) {
     relaunchShell();
     return;
   }
+  await stopDaemon('detach');
   if (!(await updater.install())) {
     updating = false;
     desktopLog.line('the update could not be installed; starting the server again');
@@ -565,9 +682,9 @@ async function revertLocally(version: string): Promise<void> {
     buttons: ['Restart', 'Cancel'],
   });
   if (!go) return;
-  await stopServer();
-  forgetOverlays(dataDir, (line) => desktopLog.line(`payload: ${line}`));
-  startServer();
+  // The daemon forgets them and starts the bundled payload; one that does not answer is started anew
+  if (daemon?.open) daemon.send({ type: 'use-bundled' });
+  else startServer();
 }
 
 async function useBundled(): Promise<void> {
@@ -748,7 +865,7 @@ async function switchToAppImage(request: InstallRequest): Promise<InstallAnswer>
     return failed('other', errorMessage(err));
   }
   void (async () => {
-    await stopServer();
+    await stopDaemon('detach');
     relaunchInto(paths.appImage);
   })();
   return { status: 'restarting', version };
@@ -759,8 +876,8 @@ async function restartServer(): Promise<void> {
     await restartToUpdate();
     return;
   }
-  await stopServer();
-  startServer();
+  if (daemon?.open) daemon.send({ type: 'restart-server' });
+  else startServer();
 }
 
 // Anything that is not the local server goes to the system browser
@@ -785,7 +902,7 @@ function guardNavigation(webContents: WebContents): void {
 }
 
 /** The application menu; Help offers the bundled payload back while an overlay runs */
-function setMenu(boot: PayloadBoot | null = payload?.current ?? null): void {
+function setMenu(boot: Pick<DaemonBoot, 'bundled'> | null = daemonState?.boot ?? null): void {
   Menu.setApplicationMenu(
     buildMenu(
       { data: dataDir, workspace: workspaceDir, logs: logsDir },
@@ -870,25 +987,129 @@ function createWindow(): void {
       showError('Cannot reach the Claudio server', `${description} (${code})`);
     }
   });
+  // A new page has to say again that it can ask the quit question
+  webContents.on('did-start-navigation', (details) => {
+    if (details.isMainFrame && !details.isSameDocument) pageAsksQuit = false;
+  });
 
   win.on('focus', lookForReplacedShell);
   win.on('closed', () => {
     win = undefined;
+    pageAsksQuit = false;
+    // A question the page was asking has nobody to answer it
+    for (const resolve of quitAnswers.values()) resolve({ answer: 'cancel' });
+    quitAnswers.clear();
   });
-  startServer();
+  // A window opened again finds the server already running; the first one finds or starts the daemon
+  const known = daemonState;
+  if (known?.phase === 'ready' && known.url) {
+    serverOrigin = undefined;
+    void showServer(known.url, known.boot);
+  } else if (known?.phase === 'failed') {
+    showError('Claudio could not start its server', known.detail ?? 'The server did not start.');
+  } else {
+    showSplash();
+  }
+  if (!daemon) startServer();
 }
 
-async function shutdown(): Promise<void> {
-  await stopServer();
-  // install({ whenIdle }) left the update for now: the server is down, so nothing runs from the files it replaces
+/** The live work right now, or null when no daemon serves this window (then nothing is there to keep or stop) */
+async function quitWork(): Promise<LiveWork | null> {
+  if (!daemon?.open || !serverOrigin) return null;
+  return liveWork();
+}
+
+/** Waits until the window shows the server's page and the page says it can ask, for at most `ms` */
+async function pageReadyToAsk(ms: number): Promise<boolean> {
+  const until = Date.now() + ms;
+  while (Date.now() < until) {
+    if (pageAsksQuit && win && serverOrigin && win.webContents.getURL().startsWith(`${serverOrigin}/`)) return true;
+    await new Promise((resolve) => setTimeout(resolve, 100));
+  }
+  return false;
+}
+
+/**
+ * The quit question (D1): in the page, a dialog of the design system in the person's language; the
+ * native dialog where the page cannot ask (an older payload, the splash or error page)
+ */
+async function askQuit(work: LiveWork): Promise<{ answer: QuitAnswer; notice: QuitNotice | null }> {
+  showWindow();
+  if (await pageReadyToAsk(8_000)) {
+    const id = randomUUID();
+    const raw = await new Promise<unknown>((resolve) => {
+      quitAnswers.set(id, resolve);
+      win?.webContents.send(IPC.quitAsk, { id, live: work });
+    });
+    quitAnswers.delete(id);
+    return parseQuitAnswer(raw);
+  }
+  const native = nativeQuitDialog(work);
+  const response = await message({ type: 'question', message: native.message, detail: native.detail, buttons: native.buttons, defaultId: native.defaultId, cancelId: native.cancelId });
+  return { answer: native.answers[response] ?? 'cancel', notice: null };
+}
+
+/** Quitting: asks over live work, keeps it running by default, or stops everything */
+async function quitAsked(): Promise<void> {
+  if (askingQuit) return;
+  askingQuit = true;
+  try {
+    const work = await quitWork();
+    const plan = quitPlan(work);
+    let keep = false;
+    let notice: QuitNotice | null = null;
+    if (plan === 'ask' && work) {
+      const asked = await askQuit(work);
+      const action = quitAction(asked.answer);
+      if (action === null) {
+        desktopLog.line('quit cancelled');
+        return;
+      }
+      keep = action === 'keep';
+      notice = asked.notice;
+    }
+    quitting = true;
+    desktopLog.line(keep ? 'quitting; the work goes on in the background' : plan === 'leave' ? 'quitting' : 'quitting and stopping the server');
+    await shutdown(plan === 'leave' ? 'leave' : keep ? 'keep' : 'stop-work');
+    if (keep) showNotice(notice ?? NATIVE_NOTICE);
+    app.quit();
+  } finally {
+    askingQuit = false;
+  }
+}
+
+function showNotice(notice: QuitNotice): void {
+  try {
+    if (Notification.isSupported()) new Notification({ title: notice.title, body: notice.body, icon: resolveResources().icon }).show();
+  } catch {
+    // The tray and the next start say it too
+  }
+}
+
+/**
+ * What the window leaves behind as it goes: the daemon and its work (`keep`, and every update or
+ * relaunch, which arranged the daemon itself), or nothing (`stop-work`). Logs close last.
+ */
+async function shutdown(mode: 'keep' | 'stop-work' | 'leave'): Promise<void> {
+  stopMonitor();
+  if (mode === 'stop-work') await stopDaemon('stop-work');
+  else {
+    leavingDaemon = true;
+    daemon?.close();
+    daemon = undefined;
+  }
+  // install({ whenIdle }) left the update for now. The AppImage's daemon runs from its own mount of
+  // the file, which the kernel keeps for it however the file on disk is replaced
   if (!updating && updater?.installOnQuit) {
     desktopLog.line(`installing update to ${updater.readyVersion ?? '?'} on quit`);
     await updater.install();
   }
-  await Promise.all([desktopLog.close(), serverLog.close()]);
+  await desktopLog.close();
 }
 
-if (!app.requestSingleInstanceLock()) {
+if (daemonMode) {
+  // The daemon's own process: none of the window's lifecycle
+} else if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', showWindow);
@@ -901,7 +1122,16 @@ if (!app.requestSingleInstanceLock()) {
   });
   // The page rendered: what a trial boot waits for, besides /api/health
   ipcMain.on(IPC.pageReady, (event) => {
-    if (fromLocalPage(event)) payload?.pageReady();
+    if (fromLocalPage(event)) daemon?.send({ type: 'page-ready' });
+  });
+  // The quit question: the page says it can ask it, and answers it
+  ipcMain.on(IPC.quitReady, (event, value: unknown) => {
+    if (fromLocalPage(event)) pageAsksQuit = value === true;
+  });
+  ipcMain.on(IPC.quitAnswer, (event, value: unknown) => {
+    if (!fromLocalPage(event) || !value || typeof value !== 'object') return;
+    const id = (value as { id?: unknown }).id;
+    if (typeof id === 'string') quitAnswers.get(id)?.(value);
   });
 
   // window.claudioDesktop.updates: the same local-page rule as the title bar
@@ -919,17 +1149,25 @@ if (!app.requestSingleInstanceLock()) {
 
   app.on('before-quit', (event) => {
     if (quitting) return;
-    // Hold the quit until the server child is gone, then re-enter
+    // Held until the person answered and the daemon did what they chose, then re-entered
     event.preventDefault();
-    quitting = true;
-    desktopLog.line('quitting');
-    void shutdown().finally(() => app.quit());
+    if (updating) {
+      // An update or relaunch arranged the daemon itself: the window just goes
+      quitting = true;
+      desktopLog.line('quitting for a restart');
+      void shutdown('leave').finally(() => app.quit());
+      return;
+    }
+    void quitAsked();
   });
-  app.on('window-all-closed', () => app.quit());
+  // Closing the window is not quitting (D1): the tray stays, and the daemon and its work run on.
+  // Without a tray there is no other way back, so it is a quit, with its question
+  app.on('window-all-closed', () => {
+    if (!tray) app.quit();
+  });
 
   void app.whenReady().then(() => {
     desktopLog = new LogFile(logsDir, 'desktop.log');
-    serverLog = new LogFile(logsDir, 'server.log');
     updater = createUpdater();
     if (!shellAtStart && app.isPackaged) desktopLog.line('no shell.json for this version: only the bundled Claudio boots');
     setMenu(null);

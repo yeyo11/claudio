@@ -131,7 +131,7 @@ function pinnedVersion(name) {
  * A sha256 over what only a new desktop shell can change (D2): Electron (and with it its Node, ABI
  * and N-API level), the native modules' versions, the launcher's state machine and verification, the
  * guard and its rules format, the public keys, the IPC the payload's web speaks to the shell, and
- * the shell's host of the machine. A bundle whose inputs differ from the previous release's needs
+ * the shell's host of the machine (the daemon). A bundle whose inputs differ from the previous release's needs
  * this release's shell.
  */
 function shellInputs() {
@@ -144,7 +144,8 @@ function shellInputs() {
   }
   const keys = join(root, 'docker/keys');
   for (const file of existsSync(keys) ? walk(keys).filter((name) => name.endsWith('.pub')) : []) add(`docker/keys/${file}`, readFileSync(join(keys, file)));
-  for (const file of ['apps/desktop/src/ipc.ts', 'apps/desktop/src/preload.ts', 'apps/desktop/src/payload.ts']) {
+  // The daemon hosts the machine on the desktop and speaks to the server over its IPC channel (layer 1 of docs/plans/survive-restarts.md)
+  for (const file of ['apps/desktop/src/ipc.ts', 'apps/desktop/src/preload.ts', 'apps/desktop/src/payload.ts', 'apps/desktop/src/daemon.ts', 'apps/desktop/src/daemon-protocol.ts']) {
     // Absent is a state of its own, apart from empty
     if (existsSync(join(root, file))) add(file, readFileSync(join(root, file)));
     else add(`${file} (absent)`, Buffer.alloc(0));

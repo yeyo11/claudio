@@ -17,6 +17,8 @@ export interface Resources {
   shellJson: string;
   /** Window icon */
   icon: string;
+  /** The daemon (`src/daemon-entry.ts`), run on the desktop binary as Node: outside app.asar, like the server */
+  daemonEntry: string;
 }
 
 /**
@@ -36,6 +38,7 @@ export function resolveResources(): Resources {
       keysDir: join(process.resourcesPath, 'keys'),
       shellJson: join(process.resourcesPath, 'shell.json'),
       icon: join(process.resourcesPath, 'icon.png'),
+      daemonEntry: join(process.resourcesPath, 'daemon', 'daemon.cjs'),
     };
   }
   const repoRoot = resolve(__dirname, '..', '..', '..');
@@ -48,6 +51,7 @@ export function resolveResources(): Resources {
     // Staged by `package:stage`; a dev build without it boots the bundled payload only
     shellJson: join(repoRoot, 'apps', 'desktop', 'dist', 'package', 'shell.json'),
     icon: join(repoRoot, 'apps', 'desktop', 'build', 'icon.png'),
+    daemonEntry: join(repoRoot, 'apps', 'desktop', 'dist', 'daemon.cjs'),
   };
 }
 

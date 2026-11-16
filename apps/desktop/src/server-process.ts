@@ -3,6 +3,7 @@ import { randomBytes } from 'node:crypto';
 import { constants } from 'node:os';
 import { createInterface } from 'node:readline';
 import { withServerThreadpool } from '@claudio/core/launcher/protocol';
+import { STOP_WORK_ACK, STOP_WORK_MESSAGE } from './daemon-protocol.ts';
 import type { LogFile } from './log.ts';
 
 const READY_PREFIX = 'CLAUDIO_READY ';
@@ -37,6 +38,11 @@ export interface ServerEnvOptions {
   version: string;
   distribution: string | undefined;
   desktopSecret: string;
+  /**
+   * Whether chats' CLIs run parked (layer 2 of docs/plans/survive-restarts.md) unless the person's
+   * environment says otherwise: on under the desktop daemon, which keeps a control plane alive for them
+   */
+  parkedByDefault?: boolean;
   /** The key for the server's secret files, from `secretKeyFor`; null when the keyring is not there */
   secretKey?: string | null;
   /** The payload this server runs: `<resources>/server`, or an overlay in `<dataDir>/app/<version>` */
@@ -86,6 +92,8 @@ export function serverEnv(opts: ServerEnvOptions): NodeJS.ProcessEnv {
     // (docs/plans/lan-access.md, D2)
     CLAUDIO_LAN: opts.base.CLAUDIO_LAN || 'auto',
     CLAUDIO_DESKTOP_TOKEN: opts.desktopSecret,
+    // The person's own value wins, `off` included (docs/configuration.md)
+    ...(opts.parkedByDefault && !opts.base.CLAUDIO_PARKED_PROCESSES ? { CLAUDIO_PARKED_PROCESSES: 'on' } : {}),
     // Never inherited from the person's environment: only the keyring's key, or none at all
     CLAUDIO_SECRET_KEY: opts.secretKey ?? undefined,
     // The desktop is not a sandbox: CLAUDIO_DEFAULT_PERMISSION_MODE stays unset (core default: acceptEdits)
@@ -123,6 +131,32 @@ export class ServerProcess {
     if (!child || child.exitCode !== null || child.signalCode !== null) return;
     this.stopping = true;
     child.kill(signal);
+  }
+
+  /**
+   * Asks the server to close and stop its parked work too (`STOP_WORK_MESSAGE`). True once it said it
+   * does; false when it did not answer within `ackMs` (a payload from before the message, or one that
+   * is stuck), and the caller falls back to SIGTERM.
+   */
+  stopWork(ackMs = 2_000): Promise<boolean> {
+    const child = this.child;
+    if (!child || child.exitCode !== null || child.signalCode !== null || !child.connected) return Promise.resolve(false);
+    this.stopping = true;
+    return new Promise((resolve) => {
+      const done = (acked: boolean) => {
+        clearTimeout(timer);
+        child.off('message', onMessage);
+        resolve(acked);
+      };
+      const onMessage = (message: unknown) => {
+        if (message && typeof message === 'object' && (message as { type?: unknown }).type === STOP_WORK_ACK) done(true);
+      };
+      const timer = setTimeout(() => done(false), ackMs);
+      child.on('message', onMessage);
+      child.send(STOP_WORK_MESSAGE, (err) => {
+        if (err) done(false);
+      });
+    });
   }
 
   /** Resolves with the server URL once it printed its READY line. Once per instance. */

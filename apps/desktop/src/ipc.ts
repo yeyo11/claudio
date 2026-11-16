@@ -27,6 +27,12 @@ export const IPC = {
   switchState: 'claudio:switch-state',
   /** page → main (invoke): `{ force? }`, answered with an `InstallAnswer` */
   switchAppImage: 'claudio:switch-appimage',
+  /** page → main (send): true once the page can ask the quit question, false when it no longer can */
+  quitReady: 'claudio:quit-ready',
+  /** main → page: `{ id, live }`, the quit question with what is live (docs/plans/survive-restarts.md, D1) */
+  quitAsk: 'claudio:quit-ask',
+  /** page → main (send): `{ id, answer, notice }`, the person's choice */
+  quitAnswer: 'claudio:quit-answer',
 } as const;
 
 /** Only a path inside the app: one slash, no scheme or host, so a message cannot send the page elsewhere */

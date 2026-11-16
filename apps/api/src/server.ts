@@ -24,8 +24,11 @@ export interface RunningServer {
   /** Base URL with the real bound port (useful when listening on port 0) */
   url: string;
   port: number;
-  /** Stops the runs and closes the HTTP server */
-  close(): Promise<void>;
+  /**
+   * Stops the runs and closes the HTTP server. Parked CLI processes are let go for the next server to
+   * adopt, unless `stopWork` asks for every one of them to stop too (the desktop's "Stop all work and quit")
+   */
+  close(options?: { stopWork?: boolean }): Promise<void>;
 }
 
 /**
@@ -169,7 +172,9 @@ export async function startServer(opts: StartServerOptions = {}): Promise<Runnin
     core.lan.attach(request, upgrade);
   });
   let closing: Promise<void> | undefined;
-  const close = () => {
+  const close = (options?: { stopWork?: boolean }) => {
+    // Only before the first close: one already under way has decided what its chats do
+    if (options?.stopWork && !closing) core.runtime.stopWorkAtShutdown();
     closing ??= (async () => {
       const ended = core.shutdown();
       await app.close();

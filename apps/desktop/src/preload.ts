@@ -16,7 +16,7 @@ const pageReady = () => {
 
 /*
  * What the UI can reach of the desktop shell, and nothing more: which platform it runs on, the title
- * bar colours to follow its theme, the paths the tray asks it to open, that the page rendered, and
+ * bar colours to follow its theme, the paths the tray asks it to open, that the page rendered, the quit question, and
  * the app's own updates (`UpdateState` and `InstallAnswer` in src/updater.ts, `PayloadAction` in
  * src/payload.ts, `SwitchState` in src/switch.ts). No ipcRenderer, no Node. Everything the page
  * passes is reduced again in the main process. Mirrored by `DesktopBridge` in
@@ -36,6 +36,25 @@ contextBridge.exposeInMainWorld('claudioDesktop', {
     return () => void ipcRenderer.off(IPC.navigate, handler);
   },
   pageReady,
+  /**
+   * The quit question: the listener gets what is live and resolves to `{ answer, notice }`. One at a
+   * time; registering tells the shell this page can ask, and the returned function that it no longer can.
+   */
+  onQuitAsk: (listener: (live: unknown) => Promise<unknown>) => {
+    const handler = (_event: unknown, request: unknown) => {
+      const id = request && typeof request === 'object' ? (request as { id?: unknown }).id : undefined;
+      if (typeof id !== 'string') return;
+      void Promise.resolve(listener((request as { live?: unknown }).live))
+        .catch(() => ({ answer: 'cancel' }))
+        .then((answer) => ipcRenderer.send(IPC.quitAnswer, { id, ...(answer && typeof answer === 'object' ? answer : {}) }));
+    };
+    ipcRenderer.on(IPC.quitAsk, handler);
+    ipcRenderer.send(IPC.quitReady, true);
+    return () => {
+      ipcRenderer.off(IPC.quitAsk, handler);
+      ipcRenderer.send(IPC.quitReady, false);
+    };
+  },
   updates: {
     state: (): Promise<unknown> => ipcRenderer.invoke(IPC.updateState),
     onState: (listener: (state: unknown) => void) => {
