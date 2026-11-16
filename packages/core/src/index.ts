@@ -880,6 +880,8 @@ export class Core {
     this.runtime.providerSettings = () => this.providersSettings.get();
     this.runtime.bus = this.events;
     this.runtime.accounts = this.accounts;
+    // A plan that reads spent under running work asks whether its credits are on (no turn, no token)
+    this.runtime.probeUsage = (id) => this.probeAccount(id);
     this.runtime.projectOf = (dir) => this.projectOf(resolve(dir)).project?.id ?? null;
     // A rule set or changed under a running chat moves it off an account it no longer allows (D9)
     this.accounts.onChange(() => this.runtime.enforceRules());
@@ -4048,18 +4050,21 @@ export class Core {
   private async probeForWait(chatId: string, since: number): Promise<void> {
     const run = this.runtime.get(chatId);
     if (!run) return;
-    for (const id of probeTargets(run, this.accounts.list(), since)) {
-      let probe = this.waitProbes.get(id);
-      if (!probe) {
-        probe = this.accounts
-          .fetchUsage(id, { timeoutMs: WAIT_PROBE_TIMEOUT_MS })
-          .then((reading) => this.runtime.noteAccountReading(id, reading))
-          .catch(() => undefined)
-          .finally(() => this.waitProbes.delete(id));
-        this.waitProbes.set(id, probe);
-      }
-      await probe;
+    for (const id of probeTargets(run, this.accounts.list(), since)) await this.probeAccount(id);
+  }
+
+  /** One `get_usage` for the account, bounded by its own timeout, recorded as a Refresh records it; callers at once share it */
+  private probeAccount(id: string): Promise<void> {
+    let probe = this.waitProbes.get(id);
+    if (!probe) {
+      probe = this.accounts
+        .fetchUsage(id, { timeoutMs: WAIT_PROBE_TIMEOUT_MS })
+        .then((reading) => this.runtime.noteAccountReading(id, reading))
+        .catch(() => undefined)
+        .finally(() => this.waitProbes.delete(id));
+      this.waitProbes.set(id, probe);
     }
+    return probe;
   }
 
   private checkingInUse = false;

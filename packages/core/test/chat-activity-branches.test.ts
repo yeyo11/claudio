@@ -36,6 +36,7 @@ const host = {
   learnModelCosts: () => {},
   learnWindows: () => {},
   maybeLimit: () => {},
+  turnOpenedByAgent: () => {},
   recordSpend: () => {},
   failProtocol: () => {},
 } as unknown as ChatHost;

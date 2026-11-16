@@ -7,7 +7,7 @@ export { CREDENTIALS_FILE, identify, parseAuthStatus, readCredentials, type Cred
 export { cliVersion, ModelCache, offers, parseInitialize, readInitialize, type InitializeAccount, type Initialized, type ModelsEntry, type ModelsOptions } from './models.ts';
 export { login, type LoginSession } from './login.ts';
 export { AccountInUseError, AccountStore, DefaultAccountConfigError, DEFAULT_ID, DEFAULT_SETTINGS, type AccountStoreOptions } from './store.ts';
-export { accountState, BAR_BAD, BAR_WARN, barTone, creditsCapReached, creditsSettingOf, EXHAUSTED, isOut, NEAR, outUntil, overageHint } from './thresholds.ts';
+export { accountState, BAR_BAD, BAR_WARN, barTone, creditsCapReached, creditsMayPay, creditsSettingOf, EXHAUSTED, isOut, NEAR, outUntil, overageHint, planSpent } from './thresholds.ts';
 export { cliConfigFile, fold, readCache, readingFromEvent, Readings, type EventReadingOptions, type Reading } from './usage.ts';
 export { apiKeyOf, checkApiKey, checkCredential, parseUsage, usageOf, type CredentialCheck, type KeyCheckOptions } from './cli-usage.ts';
 export { controlRequest, type ControlOptions } from './control.ts';
