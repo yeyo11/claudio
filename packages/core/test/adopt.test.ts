@@ -272,8 +272,9 @@ test('two servers starting at once never both adopt one process', async () => {
     await until(() => parked.cli(), (c) => c !== null, 'the CLI pid');
     first.detach();
     assert.equal(store.get(parked.id)?.owner, null);
+    // 8 s: the children load the registry first, which under a loaded machine takes longer than the 1.5 s this had
     // Each child is a server: its own connection and its own pid, both reading the row at the same instant
-    const at = Date.now() + 1500;
+    const at = Date.now() + 8000;
     const script = `
       const { DatabaseSync } = await import('node:sqlite');
       const { CliProcessStore } = await import(${JSON.stringify(STORE_MODULE)});
@@ -310,7 +311,7 @@ test('the guarded take lets exactly one of two servers that read the same owner 
   const sql = new DatabaseSync(':memory:');
   migrate(sql);
   const a = new CliProcessStore(sql);
-  a.insert({ id: 'p1', chatId: 'c', layout: 1, dir: '/x', scope: null, wrapper: { pid: 1, started: 1 }, cli: null, owner: DEAD, leaseUntil: '2026-11-16T00:00:00.000Z', committedOffset: 0, stdinSeq: 0, turnOffset: null, startedAt: '2026-11-16T00:00:00.000Z' });
+  a.insert({ id: 'p1', chatId: 'c', layout: 1, dir: '/x', scope: null, wrapper: { pid: 1, started: 1 }, cli: null, owner: DEAD, leaseUntil: '2026-11-16T00:00:00.000Z', committedOffset: 0, stdinSeq: 0, turnOffset: null, tokenHash: null, payloadDir: null, cliVersion: null, startedAt: '2026-11-16T00:00:00.000Z' });
   const read = a.get('p1')?.owner ?? null;
   assert.equal(a.take('p1', read, { pid: 10, started: 1 }, '2026-11-16T00:05:00.000Z'), true);
   assert.equal(a.take('p1', read, { pid: 11, started: 1 }, '2026-11-16T00:05:00.000Z'), false);

@@ -774,6 +774,8 @@ export class ChatManager extends EventEmitter {
     // A CLI a previous server left parked is no stray: it is adopted below, or reaped before this
     // resolves, so the turn it was on is continued by layer 3 as any other cut turn
     const reaping = new Set(this.parked.leftBehind());
+    // Read before the first await, while the database is open: a server shut down mid-restore asks it nothing
+    const held = this.parked.chatsInUse();
     const live = this.liveSessions().filter((p) => !reaping.has(p.pid));
     for (const { record } of stored) {
       const pids = live.filter((p) => p.sessionId === record.id).map((p) => p.pid);
@@ -837,7 +839,8 @@ export class ChatManager extends EventEmitter {
     this.persist(...cut);
     // What the servers core's callers added pointed at (a stub in a server that is gone) died with
     // the processes that read them; an adopted process is up, and keeps what it reads
-    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !this.chats.peek(chatId)?.alive);
+    // (`held`: chats whose parked CLI runs under another live server; adopted ones are `alive` by now)
+    removeChatExtrasConfigs(this.config.dataDir, (chatId) => !held.has(chatId) && !this.adoptedChats.has(chatId) && !this.chats.peek(chatId)?.alive);
     // Asked once the replay is over and not waited for: the agent answers within moments, and the
     // prompts it still waits on reach the panel as it does
     this.reattaching = Promise.all(

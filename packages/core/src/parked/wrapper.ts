@@ -34,6 +34,8 @@ export const PARKED_FILES = {
   lease: 'lease',
   /** Present while a turn is open: the byte of `out.jsonl` where its output starts */
   turn: 'turn',
+  /** The API address the CLI was given (`CLAUDIO_API_URL`), so a restarted server binds the one it holds (t5) */
+  apiUrl: 'api-url',
   /** Written by the watchdog when it ended an open turn: the epoch second it did */
   watchdog: 'watchdog',
 } as const;
