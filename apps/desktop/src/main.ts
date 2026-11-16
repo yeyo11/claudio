@@ -7,8 +7,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu, Notification, safeStorage, s
 import { AppImageUpdater, DebUpdater } from 'electron-updater';
 import { loadKeys } from '@claudio/core/launcher/protocol';
 import { attachDecision, DaemonClient, hasUserManager, NODE_RUNNER, startDaemon } from './daemon-launch.ts';
-import { daemonMain } from './daemon-main.ts';
-import { DAEMON_FLAG, DAEMON_PROTOCOL, daemonUnitName, readDaemonRecord, recordAlive, type DaemonBoot, type DaemonState, type FromDaemon, type LaunchFacts } from './daemon-protocol.ts';
+import { DAEMON_PROTOCOL, daemonUnitName, readDaemonRecord, recordAlive, type DaemonBoot, type DaemonState, type FromDaemon, type LaunchFacts } from './daemon-protocol.ts';
 import { RELEASE_DOWNLOADS, packageFileName, verifyDownload } from './desktop-manifest.ts';
 import { IPC, isAppPath } from './ipc.ts';
 import { EMPTY_SNAPSHOT, progressOf, sameSnapshot, type LiveSnapshot, type TrayAction, type TrayRestart } from './live.ts';
@@ -47,16 +46,6 @@ import {
 } from './updater.ts';
 import { restoreWindowState } from './window-state.ts';
 import { errorMessage } from '@claudio/shared';
-
-/**
- * The same binary is the daemon when started with the flag (the AppImage's, which must run from a
- * mount of its own, docs/decisions/parked-cli-processes.md S5): it opens no window and takes no lock
- */
-const daemonMode = process.argv.includes(DAEMON_FLAG);
-if (daemonMode) {
-  app.disableHardwareAcceleration();
-  void daemonMain(process.argv).then((code) => app.exit(code));
-}
 
 const isDev = !app.isPackaged || process.argv.includes('--dev');
 
@@ -1109,9 +1098,7 @@ async function shutdown(mode: 'keep' | 'stop-work' | 'leave'): Promise<void> {
   await desktopLog.close();
 }
 
-if (daemonMode) {
-  // The daemon's own process: none of the window's lifecycle
-} else if (!app.requestSingleInstanceLock()) {
+if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', showWindow);

@@ -842,7 +842,7 @@ default** under it.
 | Piece | As built |
 |---|---|
 | Daemon | `daemon.ts`: listens on `<data>/daemon.sock` (0600, NDJSON, `daemon-protocol.ts`, protocol 1), writes `<data>/daemon.json` (0600: pid, start time, protocol, version, `followsShell`, unit, socket, URL, a fresh `CLAUDIO_DESKTOP_TOKEN`), and runs the payload machine (`PayloadHost`) the window used to run. It starts no server before a window says `hello` with its environment, login-shell `PATH` and keyring key; a daemon no window reaches ends after 10 min. A second daemon on the same data directory leaves the first be |
-| Launch (D2) | `daemon-launch.ts`: `systemd-run --user --unit=claudio-daemon-<sha256(dataDir)[:12]>.service --collect -p Restart=on-failure -p RestartSec=2 -p KillMode=mixed -p TimeoutStopSec=45` where `systemctl --user is-system-running` says `running`/`degraded`; a refusal is reset (`reset-failed`) and tried once more, then `setsid`. `.deb` and a checkout: `<binary> daemon.cjs` with `ELECTRON_RUN_AS_NODE` (an extraResource outside `app.asar`); AppImage: `$APPIMAGE --claudio-daemon` (**untested in a real AppImage**). Secrets never go on the command line |
+| Launch (D2) | `daemon-launch.ts`: `systemd-run --user --unit=claudio-daemon-<sha256(dataDir)[:12]>.service --collect -p Restart=on-failure -p RestartSec=2 -p KillMode=mixed -p TimeoutStopSec=45` where `systemctl --user is-system-running` says `running`/`degraded`; a refusal is reset (`reset-failed`) and tried once more, then `setsid`. `.deb` and a checkout: `<binary> daemon.cjs` with `ELECTRON_RUN_AS_NODE` (an extraResource outside `app.asar`); AppImage: a `sh` wrapper (`APPIMAGE_DAEMON_WRAPPER`) that holds a mount of its own with `$APPIMAGE --appimage-mount` and runs `<mount>/claudio <mount>/resources/daemon/daemon.cjs` as Node (see below). `StartLimitBurst=5` in 120 s; stdout and stderr appended to `logs/daemon.out.log`. Secrets never go on the command line |
 | Attach | A window reads `daemon.json`, checks pid + start time, connects; none or dead → start. `attachDecision`: another protocol, or an AppImage daemon of another version → replace (`stop detach`, so parked work is handed over); a daemon following the shell but on an older bundled payload → `restart-server`; else attach |
 | Close | The window goes, the tray and the daemon stay. Without a tray, closing is a quit |
 | Quit (D1) | `quitWork` reads what is live **at once** (`LiveMonitor.snapshot`, past the tray's throttle: the trial caught a quit right after a chat started reading the old snapshot and stopping it unasked). Nothing live → `stop stop-work`. Live → the page's `QuitQuestion` (`apps/web/src/components/QuitQuestion.tsx`, mounted at the app's root so the sign-in and first run ask too, not in terminal windows), en/es, **Keep working in the background** focused by default, **Stop all work and quit**, Cancel/Esc; the native English dialog only when the page cannot ask within 8 s. Keep → the window closes its connection and a system notice in the page's language says the work goes on |
@@ -883,8 +883,19 @@ is unattended only across a server restart, which the lease bounds (D6).
    unit, `daemon.json` and `procs/` were gone.
 4. A window killed with SIGKILL left the daemon and the running turn untouched.
 
-Not tried live: the AppImage (`--claudio-daemon` from a real mount), a logout, a crash loop of a real
-server, and a shell update. Electron took long to exit after **Keep** in the sandbox (over a minute;
+**The AppImage, found by CI's AppImage smoke after the first push.** The first build started the AppImage's
+daemon as `$APPIMAGE --claudio-daemon`, the Electron app with a flag. In a user unit it never came up:
+the window waited 20 s and showed "could not start its server", and nothing wrote `server-port.json`.
+Reproduced locally with an AppImage built as CI builds it: the unit restarted 76 times with no log. Two
+causes: the Electron app has no display in a unit, and running the AppImage again as Node does not work
+either, because electron-builder's `AppRun` puts `--no-sandbox` before the arguments wherever
+unprivileged user namespaces are restricted, which Node refuses ("bad option"). The daemon now runs
+through a wrapper that takes a bare mount from the AppImage runtime (`--appimage-mount`), runs the
+mount's binary as Node, forwards a stop to it and lets the mount go after it (tested with a stand-in
+AppImage in `daemon-launch.test.ts`, and live with the real AppImage, below). Restarts are bounded and the
+daemon's own output is kept, so the next such failure says why.
+
+Not tried live: a logout, a crash loop of a real server, and a shell update. Electron took long to exit after **Keep** in the sandbox (over a minute;
 the private D-Bus had a notification service that never answered), which a real session does not have.
 
 **Tests.** `apps/desktop/test/daemon.test.ts` (12, over the real socket with a fake payload host and
