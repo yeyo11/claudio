@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-11-16T12:00:00Z
+updated_at: 2026-11-16T18:00:00Z
 tags:
     - chats
     - orchestration
@@ -131,6 +131,10 @@ stopping it walks the process tree as before.
   ends and its directory is removed.
 - **What is counted.** A chat's `pid` is the wrapper's, so the resource report of a chat includes the
   wrapper, its CLI and everything under it.
+- **A restart keeps the slot.** A shutdown lets parked CLIs run on (t4); the next start adopts them,
+  and an adopted chat is alive, so it counts against `maxConcurrentRuns` and the memory admission
+  like any running chat from the moment the start resolves. Starting may find more adopted chats than
+  the limit allows (a limit lowered across the restart): none is stopped for it, new starts wait.
 
 ## The limits, and where they come from
 

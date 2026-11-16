@@ -4181,6 +4181,9 @@ export class Core {
     this.schedules.close();
     this.sessionsWatcher.close();
     this.changeWatcher.close();
+    // Before the prompts are denied: a parked process keeps running for the next server, which asks
+    // them again, so nothing of the shutdown may answer it or stop it (layer 2, t4)
+    this.runtime.detachParked();
     this.permissions.close();
     this.push.close();
     if (this.accountsTimer) clearInterval(this.accountsTimer);

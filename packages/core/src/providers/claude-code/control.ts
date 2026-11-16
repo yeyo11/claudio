@@ -75,19 +75,40 @@ function toControlDecision(decision: PermissionDecision, input: Record<string, u
 export class ControlChannel {
   private seq = 0;
   /** Requests sent to the CLI, by request_id, waiting for its control_response */
-  private readonly pending = new Map<string, { resolve: (response: Record<string, unknown>) => void; reject: (err: Error) => void }>();
+  private readonly pending = new Map<string, { whole: boolean; resolve: (response: Record<string, unknown>) => void; reject: (err: Error) => void }>();
   /** The input each permission question was asked with: allowing it answers with that input unless changed */
   private readonly asked = new Map<string, Record<string, unknown>>();
+  /** The CLI's requests already answered, by this channel or a server before it: none is answered twice */
+  private readonly answered: Set<string>;
 
-  constructor(private readonly io: SessionIO) {}
+  /**
+   * `prefix` names this channel's requests. An adopted process may still answer what the server before
+   * this one asked, under that server's ids, so an adopter's ids must not be the same ones.
+   */
+  constructor(
+    private readonly io: SessionIO,
+    private readonly prefix = 'claudio',
+    answered: Iterable<string> = [],
+  ) {
+    this.answered = new Set(answered);
+  }
+
+  /** Whether a request of the CLI's has an answer already. */
+  hasAnswered(requestId: string): boolean {
+    return this.answered.has(requestId);
+  }
 
   write(message: unknown): void {
     this.io.write(`${JSON.stringify(message)}\n`);
   }
 
-  /** Sends a control request down stdin and resolves with the CLI's response. */
-  request(request: Record<string, unknown>): Promise<Record<string, unknown>> {
-    const requestId = `claudio-${String(++this.seq)}`;
+  /**
+   * Sends a control request down stdin and resolves with the CLI's response: its inner `response`, or
+   * with `whole` the response object itself, where `initialize` puts `pending_permission_requests`
+   * beside the inner one (spike S2).
+   */
+  request(request: Record<string, unknown>, opts: { whole?: boolean } = {}): Promise<Record<string, unknown>> {
+    const requestId = `${this.prefix}-${String(++this.seq)}`;
     return new Promise((resolvePromise, reject) => {
       const timer = setTimeout(() => {
         this.pending.delete(requestId);
@@ -95,6 +116,7 @@ export class ControlChannel {
       }, CONTROL_TIMEOUT_MS);
       timer.unref();
       this.pending.set(requestId, {
+        whole: opts.whole === true,
         resolve: (response) => {
           clearTimeout(timer);
           resolvePromise(response);
@@ -115,11 +137,13 @@ export class ControlChannel {
     if (!control || !requestId) return;
     this.pending.delete(requestId);
     if (response.subtype === 'error') control.reject(new Error(String(response.error ?? 'the CLI refused the request')));
-    else control.resolve((response.response ?? {}) as Record<string, unknown>);
+    else control.resolve(control.whole ? response : ((response.response ?? {}) as Record<string, unknown>));
   }
 
   /** The CLI asks for something Claudio does not handle: an answer still has to come, or it waits for it. */
   refuse(requestId: string, subtype: unknown): void {
+    if (this.answered.has(requestId)) return;
+    this.answered.add(requestId);
     this.write({
       type: 'control_response',
       response: { subtype: 'error', request_id: requestId, error: `Claudio does not handle ${String(subtype)}` },
@@ -139,7 +163,8 @@ export class ControlChannel {
   answer(requestId: string, decision: PermissionDecision): void {
     const input = this.asked.get(requestId) ?? {};
     this.asked.delete(requestId);
-    if (!this.io.up()) return;
+    if (!this.io.up() || this.answered.has(requestId)) return;
+    this.answered.add(requestId);
     this.write({
       type: 'control_response',
       response: { subtype: 'success', request_id: requestId, response: toControlDecision(decision, input) },

@@ -854,13 +854,39 @@ export class Orchestrator {
         t.status = 'running';
         t.endedAt = null;
       }
+      // Nor was one whose worker this start took over still running (layer 2, t4): the same attempt
+      // goes on, its result settles it, and no attempt is spent
+      for (const t of orch.tasks) {
+        if (t.status !== 'interrupted' || !t.runId || !this.runs.adopted(t.runId)) continue;
+        t.status = 'running';
+        t.endedAt = null;
+        const stamp = this.stampAttempt(orch, t);
+        void this.runs.waitForResult(t.runId).then((result) => this.settle(orch, t, result, stamp));
+      }
       this.schedule(orch);
     }
     for (const id of this.cutWorkflows) {
       const orch = this.items.get(id);
-      if (orch?.status === 'stopped') this.resumeCutWorkflow(orch);
+      if (orch?.status !== 'stopped') continue;
+      const lead = orch.workflow?.runId;
+      // Its lead's process was taken over and runs on: the workflow was never cut
+      if (lead && this.runs.adopted(lead)) this.followAdoptedWorkflow(orch, lead);
+      else this.resumeCutWorkflow(orch);
     }
     this.cutWorkflows.clear();
+    this.persist();
+  }
+
+  /** A workflow whose lead this start adopted: running again where it was, watched as before the restart. */
+  private followAdoptedWorkflow(orch: Orchestration, lead: string): void {
+    orch.status = 'running';
+    orch.endedAt = null;
+    for (const t of orch.tasks) {
+      if (t.status !== 'interrupted') continue;
+      t.status = 'running';
+      t.endedAt = null;
+    }
+    this.followWorkflow(orch, lead);
   }
 
   /**

@@ -15,7 +15,8 @@ tags:
 
 **Status: in progress. The owner approved approach D on 2026-11-15 ([decisions](#the-owners-decisions-2026-11-15));
 the spikes (t2) are done, layer 3 (t1) is built ([t1's outcome](#outcome-of-t1-layer-3-2026-11-15)), and
-layer 2 starts and runs parked processes behind a switch ([t3's outcome](#outcome-of-t3-parked-processes-start-and-run-2026-11-16)).**
+layer 2 starts and runs parked processes behind a switch ([t3's outcome](#outcome-of-t3-parked-processes-start-and-run-2026-11-16)),
+and a restart adopts them ([t4's outcome](#outcome-of-t4-adoption-2026-11-16)).**
 
 ## The problem, in the owner's words
 
@@ -710,6 +711,54 @@ the pid (the wrapper's argv replaces `systemd-run`'s) and the unit is gone after
 the server's writer, delivers EOF and the CLI's own exit code (7) to `exit.code`. Nothing touched the
 owner's running app.
 
+## Outcome of t4 (adoption, 2026-11-16)
+
+Built behind the same switch, which stays **off by default**: with the window's close still quitting
+the server, a parked CLI would run on with nobody enforcing budgets until the lease ends it, so the
+default changes with t6 (layer 1) and the owner's word, not here. With it off a start reaps and
+layer 3 continues, as after t3.
+
+| Piece | As built |
+|---|---|
+| Shutdown | `ChatManager.detachParked()`, called by `Core.shutdownOnce` before the permission broker denies what waits, and first thing in `stopAll`: every parked process stops being read and written (`ParkedProcess.detach`: tails stopped, the server's FIFO writer closed without SIGUSR1, so the CLI's input stays open), sends no signal, its pending turn end is committed, its row released (`owner` NULL), and its chat written with the execution open. Chats on pipes stop as before |
+| Adoption | `restore` → `adoptLeftBehind`: for each row whose owner is gone and whose chat the restore kept with that execution open, `ParkedProcesses.adopt(row)` checks layout, wrapper and CLI by pid and start time and that no `exit.code` exists, then `CliProcessStore.take` (`UPDATE … WHERE owner_pid IS ? AND owner_started IS ?`, the owner it read). The chat's execution is open again, its written messages are not "lost", and `wire()` (split out of `spawnProcess`) attaches the driver with a `SessionAdoption`. The process's end is found by polling the wrapper (500 ms), which is no child of the new server, then `exit.code` as before |
+| Replay | From `committed_offset`, through the fold, before `restore` resolves (`ParkedProcess.caughtUp`), so the orchestrator's and the flow's recovery see a turn that ended in the gap as ended. A turn the row or the execution marks open reads `busy` at once |
+| Re-attach | After the replay, not waited for: `DriverSession.reattach()` sends `initialize` under a fresh request-id prefix (the old server's ids may still be answered) and reads `response.pending_permission_requests`. Listed requests are asked again; with an empty or missing list, the replay's `can_use_tool` requests with no answer and no cancel are. `in.jsonl`'s `control_response` ids seed the control channel, which never answers or refuses one id twice |
+| Spend | A result read from a parked process records `source = <process>:<offset>` in `spend_ledger` (new column, unique where set; `INSERT OR IGNORE`). A turn end's committed offset is written inside the transaction that saves the chat (`Db.saveChats(…, alongside)`), so the offset and the session totals the next cost is measured from never disagree; holes are punched after that commit |
+| Orchestrator | `recover()` puts an interrupted task whose chat was adopted back to `running` in a new stamp of the same attempt and settles it on `waitForResult`; a workflow whose lead was adopted is `running` again and followed (`followAdoptedWorkflow`) instead of resumed from its cache |
+| Flow, rotation, admission | Unchanged code: `flow.recover` already skips a run whose chat is busy and `chatResult` ends it on the result; the rotation's `recover` takes the wait rows of chats in memory, adopted included; admission counts live chats, adopted included |
+| Fallback | A row that cannot be adopted (another layout, wrapper or CLI gone, taken by another server, files unusable) is left to `reap`, and its chat's cut turn to layer 3 (#150). `ChatManager.adopted(id)` says which chats were taken over |
+
+**Where the plan was incomplete.**
+
+- **A plain commit after the result is not enough (R1).** The fold records the spend row, then the
+  turn's end, then the chat row; t3 committed the offset at the turn's end, before the chat row. A
+  death between the two left a baseline behind the offset, and the next turn would have been billed
+  for this one. The commit now rides the chat's own transaction, and the spend row is keyed by where
+  it was read, which also covers a death between the ledger row and that transaction. A turn's
+  `turns` count can still be added twice in that last window; its cost cannot.
+- **The fake CLI** now lists its pending request in its `initialize` answer, beside the inner
+  response as S2 saw (`FAKE_CLAUDE_PENDING_LIST=off` stands for an older CLI).
+- **The guard's watcher is not re-attached.** An adopted chat has no guard plan in memory, so the
+  guard markers are not followed after a restart; the guard's hooks still run in the CLI (S3).
+
+**What t5 and t6 need.** t5: the adopted CLI still carries the old server's `CLAUDIO_API_TOKEN`,
+which the new server refuses, so its Claudio MCP calls fail until the token hash is in the row
+(`token_hash` stays empty here); `payload_dir` and `cli_version` are untouched; the port must stay
+the same for `CLAUDIO_API_URL`; `removeChatExtrasConfigs` already spares adopted chats, which are
+alive when it runs. t6: the switch's default, the "stop all work" choice on quit (D1; `stopAll`
+detaches whenever parking is on), and the browser spec of t8.
+
+**Tests.** `packages/core/test/adopt.test.ts` (12): a shutdown mid-turn and an adoption that finishes
+the turn on the same pid with one CLI start and one spend row; a turn that ended in the gap read from
+the replay; a replayed result after a death between the ledger and the chat row counted once; a
+pending prompt from the CLI's list, answered after the restart; a prompt rebuilt from the replay when
+the list is missing, and an answered one never asked again; the fallback to layer 3; parking off still
+stops; two server processes racing for one row (one adopts); the guarded take and release; the
+list's shape; a graph task that goes on in the same attempt with one worker start; a detached process
+neither written nor signalled. `parked.test.ts`'s reap-at-start test runs with parking switched off.
+The browser spec that restarts the sandbox server mid-turn is left to t8.
+
 ## Outcome of t5 (what a running CLI holds from its server, 2026-11-16)
 
 Still behind `CLAUDIO_PARKED_PROCESSES` (off). With it off nothing is written or read: the token store
@@ -727,15 +776,16 @@ has no stored source to ask, no row exists, the port is the one asked for.
 
 - `chats.ts`: two lines in `restore`: `const held = this.parked.chatsInUse()` beside `leftBehind()`
   (before the first await, since a shut-down core must not query) and the last
-  `removeChatExtrasConfigs` call reading it. It holds the chats whose CLI runs under a live owner, so
-  **t4 must add the chats it adopts** to `held` (they are not owned yet when it is read). `index.ts`: two lines after `this.runtime.chatTokens = …`
+  `removeChatExtrasConfigs` call reading it. It holds the chats whose CLI runs under another live
+  owner; the chats t4 adopts are spared by the `alive` test and `adoptedChats` in the same call (tested
+  in `parked-holds.test.ts`). `index.ts`: two lines after `this.runtime.chatTokens = …`
   (`chatTokens.stored = runtime.parked`, `parked.cliVersion`). `parked/registry.ts`: `start` (derived
   fields in the `insert`, the `api-url` write) and four new methods; `parked/store.ts`: three row fields
   and `byTokenHash`; `parked/wrapper.ts`: the `apiUrl` file name. `db.ts`: nothing (the columns were t3's).
-- **t4 must make the adopting server the row's owner** (`take`) before it counts the chat as running:
-  the token is accepted only for a row this server owns, so a chat the server has not taken answers
-  `401` with its own token. It should call nothing else: the stored token needs no step at adoption,
-  and `ended()` deleting the row is the revocation. A detach (`release`) makes the token unusable until
+- **With t4 merged**, adoption's guarded `take` makes this server the row's owner, and the token is
+  accepted only for a row this server owns: before adoption a chat's old token answers `401`, after it
+  the same token works, and `ended()` deleting the row revokes it (tested end to end over an adopted
+  chat). Nothing else is called at adoption. A detach (`release`) makes the token unusable until
   the next server takes the row, which is the intended gap.
 - **t6 must keep the port** the CLIs hold: the daemon's server is started with the `PORT` the shell
   remembers, and the crash path restarts it the same way. `AdoptedPortTakenError` is an exit with

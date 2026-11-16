@@ -224,3 +224,39 @@ test('the pins are read from the rows of processes that still run, and from none
   writeFileSync(join(broken, 'wrapper.db'), 'not a database');
   assert.equal(pinnedPayloads(broken), null);
 });
+
+// The integration with adoption (t4): a CLI the next start takes over calls the API with the token it
+// was started with, and only from the moment this server owns its row.
+test('an adopted chat\'s CLI keeps calling the API with its old token: refused before adoption and after the process ends, its configs kept', async () => {
+  const config = { ...tempConfig(), claudeBin: FAKE, parked: { handoverSeconds: 300, scopes: false } };
+  const db = new Db(config);
+  const before = new ChatManager(config, db);
+  before.apiUrl = 'http://127.0.0.1:45872/api';
+  const chat = before.start({ prompt: 'SLEEP 3', cwd: config.workspaceDir });
+  const parked = (await until(() => before.parked.held()[0], (p) => p !== undefined, 'the parked process')) as ParkedProcess;
+  const cli = await until(() => parked.cli(), (c) => c !== null, 'the CLI pid');
+  // The token as the CLI holds it, from its own environment: the only place it ever is
+  const token = /CLAUDIO_API_TOKEN=(agc_[^\0]+)/.exec(readFileSync(`/proc/${String(cli?.pid)}/environ`, 'utf8'))?.[1] ?? '';
+  assert.ok(token.startsWith(CHAT_TOKEN_PREFIX));
+  const extras = writeChatExtrasConfigSync(config.dataDir, chat.id, { demo: { command: 'x' } });
+  // A clean shutdown lets the process go on and releases its row
+  await before.stopAll(500);
+  db.close();
+
+  const db2 = new Db(config);
+  const after = new ChatManager(config, db2);
+  // What `Core` wires: this server's token store reads the rows of its parked processes
+  after.chatTokens.stored = after.parked;
+  assert.equal(after.chatTokens.verify(token), null, 'no server owns the row yet: the old token answers nobody');
+  await after.restore(new SessionStore(config));
+  assert.equal(after.adopted(chat.id), true);
+  assert.equal(after.chatTokens.verify(token), chat.id, 'adopted: the old token works again');
+  assert.equal(after.chatTokens.holds(token), true);
+  assert.equal(existsSync(extras), true, 'the adopted CLI still reads its --mcp-config');
+  const closed = once(after.parked.held()[0] as ParkedProcess, 'close');
+  (after.parked.held()[0] as ParkedProcess).kill('SIGKILL');
+  await closed;
+  assert.equal(after.chatTokens.verify(token), null, 'the process ended: its row and its token are gone');
+  await after.stopAll(500);
+  db2.close();
+});

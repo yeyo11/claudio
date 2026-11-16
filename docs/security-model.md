@@ -236,6 +236,15 @@ but a detached process whose input and output are files (layer 2 of
   (`payload_dir`) and the CLI version; the launcher keeps an overlay `<data>/app/<version>` while a
   running CLI's row names it, and keeps every overlay if it cannot read the rows. The files a chat's
   start wrote (`<data>/mcp/extra-*`, `overlay-*`) are kept at start-up while its CLI runs.
+- **One holder at a time.** A server takes a parked process over only after checking the wrapper's
+  and the CLI's pid and start time, and with one guarded `UPDATE` on the owner it read, so two
+  servers on one data dir never both write one FIFO (risk R4). A server that shuts down releases its
+  rows and from then on writes nothing to the FIFO, answers none of the CLI's prompts (the shutdown's
+  "the wrapper is shutting down" denial does not reach a parked CLI) and sends it no signal.
+- **Prompts are not answered twice nor lost.** The adopter re-sends `initialize` and asks a person
+  again what the CLI lists in `pending_permission_requests`, or the unanswered requests of the
+  replayed output when that list is empty; a request whose answer `in.jsonl` records is never asked
+  again. Each re-asked prompt gets the broker's full timeout again.
 - **Paid work with nobody watching is bounded.** A CLI whose lease no server renews for
   `CLAUDIO_HANDOVER_SECONDS` (five minutes) has its open turn ended with SIGINT by its own wrapper.
 - **Signals go only to what Claudio started.** The registry signals a process only after checking
