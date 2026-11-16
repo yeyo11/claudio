@@ -272,8 +272,9 @@ test('two servers starting at once never both adopt one process', async () => {
     await until(() => parked.cli(), (c) => c !== null, 'the CLI pid');
     first.detach();
     assert.equal(store.get(parked.id)?.owner, null);
+    // 8 s: the children load the registry first, which under a loaded machine takes longer than the 1.5 s this had
     // Each child is a server: its own connection and its own pid, both reading the row at the same instant
-    const at = Date.now() + 1500;
+    const at = Date.now() + 8000;
     const script = `
       const { DatabaseSync } = await import('node:sqlite');
       const { CliProcessStore } = await import(${JSON.stringify(STORE_MODULE)});
