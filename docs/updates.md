@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-18T20:00:00Z
-updated_at: 2026-11-15T18:00:00Z
+updated_at: 2026-11-16T23:00:00Z
 tags:
     - updates
     - docker
@@ -103,41 +103,25 @@ a desktop dev build) and shows the host commands of
    progress bar, then *Checking the signature…*.
 3. **Ready.** The bundle is unpacked into `/data/app/<version>/` and recorded as the *trial* in
    `/data/app/state.json`. The card offers **Restart to update to {version}**.
-4. **Apply** (`POST /system/server-update/apply`). If chats are working or waiting, or orchestrations
-   are running, it answers `409 update.live-work` with the counts and the card asks: **Restart now** or
-   **Restart when nothing is running** (checked every 15 s; **Cancel** undoes it). The rule is the
-   desktop's `installDecision`, counted as the desktop counts. Then the server exits 75. Work that
-   restart cuts is continued by the next start: a person's turn cut less than an hour ago goes on by
-   itself, an older one offers **Resume** in its chat, and workflows resume from their cache
-   ([plans/survive-restarts.md](plans/survive-restarts.md), layer 3).
-5. **Trial boot.** The launcher verifies the bundle again and starts it. If `/api/health` answers within
-   60 s the bundle is kept (it becomes `active`, the old one `previous`). After two failed boots it is
-   marked `bad`, the rollback is recorded and the next candidate is tried: the previous update, then
-   `/app`. A `bad` version is never offered again; the next release is.
-6. **The page reloads on its own** when `stream.hello` reports the new version.
+4. **Apply** (`POST /system/server-update/apply`). What it refuses over depends on whether work
+   is **carried** over the restart (`ServerUpdateStatus.carriesWork`, true when
+   `CLAUDIO_PARKED_PROCESSES` is on):
 
-**Download retries.** The tarball is downloaded by `downloadFile` (`packages/core/src/updates/download.ts`)
-over `node:http`/`node:https`, never `fetch`: undici's parser asserts `!this.paused` when a
-`Connection: close` server ends the socket while the body is paused by back-pressure, and throws it
-from a socket listener no caller can catch; it took a desktop smoke run's server down mid-download
-(Node 24.22). A connection that closes early, a body shorter than its `Content-Length` or than the
-manifest's size, a reset or 60 s without data is an interrupted attempt, retried three times after
-2, 8 and 30 s, as is a 5xx, 408 or 429. A retry goes on from the partial file with `Range` (and
-`If-Range` with the ETag or `Last-Modified`) when the server sent `Accept-Ranges: bytes` and answers
-206 from exactly where the file ends; otherwise it starts over. A partial file never counts as
-downloaded: the sha256 and the signature are checked on the whole file as it lies on disk, and a size
-other than the manifest's fails at once. The same downloader fetches the Claude Code tarball and
-the desktop shell's AppImage when it switches from the `.deb`.
+   | Mode | Refuses (`409 update.live-work`) over | Why |
+   |---|---|---|
+   | Parked processes on: the desktop `.deb` or a checkout under the daemon, or any server that set the switch | open terminals only; the `live` counts name them alone | The server exits 75 closing as on SIGTERM, which detaches parked CLIs; the next start adopts them, chats, subagents and orchestration tasks alike, and continues what was cut ([plans/survive-restarts.md](plans/survive-restarts.md), layers 2 and 3). A terminal's shell ends with the server (D8) |
+   | Parked processes off: the container, the AppImage, `pnpm dev` | chats working or waiting, orchestrations running, terminals open | Nothing carries a CLI over: a turn is cut and continued by layer 3 at best, and a graph task spends an attempt, so the person is asked |
 
-A download that fails comes back as `state: 'failed'` with `error` (`fetch-failed`,
-`download-interrupted` when every retry was interrupted, `bad-signature`, `bad-manifest`, `disk`,
-`needs-image`, `needs-shell`); only preconditions are HTTP errors. The card
-shows every error and refusal (`update.<code>`, including `update.needs-shell`) from its code in the
-person's language, each with its way out, never the server's English text. A downloaded update applies at the next
-restart of any kind, since the trial is set at download time.
+   The card asks **Restart now** or **Restart when nothing is running** (when work is carried: *when
+   no terminal is open*; checked every 15 s; **Cancel** undoes it). `force` restarts over what
+   would refuse in both modes. Then the server exits 75. Work that restart cuts and that was not
+   parked is continued by the next start: a person's turn cut less than an hour ago goes on by
+   itself, an older one offers **Resume** in its chat, and workflows resume from their cache. The
+   ready state says which of the two applies. The desktop app's own relaunch (`POST /system/restart`,
+   exit 76) keeps its rule: it is a shell update, and its refusals are not changed here.
 
 **Going back.** On an overlay, *Go back to the image's version* (`POST /system/server-update/revert`)
-restarts onto `/app` (on the desktop, the shell's bundled payload), with the same live-work question. Open terminals count as live work (`LiveWork.terminals`), because a restart ends every shell.
+restarts onto `/app` (on the desktop, the shell's bundled payload), with the same live-work rule, per mode. Open terminals always count (`LiveWork.terminals`), because a restart ends every shell.
 
 ## The desktop app package: the update unit and restart
 

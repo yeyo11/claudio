@@ -47,6 +47,8 @@ function world(
     tamper?: boolean;
     fromOverlay?: string;
     desktop?: boolean;
+    /** Parked processes are on: work is carried over a restart */
+    carries?: boolean;
     /** Serve the release from this origin over real HTTP instead of an injected `fetch` */
     origin?: string;
     download?: DownloadTuning;
@@ -117,6 +119,7 @@ function world(
     release: () => (w.release ? { version: w.release.version, assets: w.assets } : null),
     security: () => w.security,
     liveWork: async () => w.live,
+    ...(options.carries === undefined ? {} : { carriesWork: () => options.carries === true }),
     audit: (row) => w.audits.push(row),
     events,
     imageDir,
@@ -306,6 +309,65 @@ test('an open terminal is live work: a restart over it answers 409 with the coun
   assert.equal(busy.reason, 'update.live-work');
   assert.equal(busy.live?.terminals, 2);
   assert.equal(w.restarts, 0);
+});
+
+test('with parked processes on, chats, subagents and orchestrations do not hold a restart back', async () => {
+  const w = world({ carries: true });
+  await w.updates.download();
+  await w.updates.pending;
+  assert.equal(w.updates.status().carriesWork, true);
+  w.live = { working: 3, waiting: 1, running: 2, terminals: 0 };
+  const status = await w.updates.apply();
+  assert.equal(status.state, 'restarting');
+  await sleep(400);
+  assert.equal(w.restarts, 1);
+});
+
+test('with parked processes on, an open terminal still refuses and the refusal names only terminals', async () => {
+  const w = world({ carries: true });
+  await w.updates.download();
+  await w.updates.pending;
+  w.live = { working: 3, waiting: 0, running: 1, terminals: 2 };
+  const busy = await refusal(w.updates.apply());
+  assert.equal(busy.reason, 'update.live-work');
+  assert.deepEqual(busy.live, { working: 0, waiting: 0, running: 0, terminals: 2 });
+  assert.match(busy.message, /terminals/);
+  assert.doesNotMatch(busy.message, /chats/);
+  assert.equal(w.restarts, 0);
+  assert.equal((await w.updates.apply({ force: true })).state, 'restarting');
+});
+
+test('with parked processes on, whenIdle waits for the terminals only', async () => {
+  const w = world({ carries: true });
+  await w.updates.download();
+  await w.updates.pending;
+  w.live = { working: 1, waiting: 0, running: 1, terminals: 1 };
+  assert.equal((await w.updates.apply({ whenIdle: true })).state, 'scheduled');
+  await sleep(100);
+  assert.equal(w.restarts, 0);
+  w.live = { working: 1, waiting: 0, running: 1, terminals: 0 };
+  await sleep(400);
+  assert.equal(w.restarts, 1);
+  w.updates.close();
+});
+
+test('with parked processes on, a revert is let through over live chats too', async () => {
+  const w = world({ running: '0.7.0', fromOverlay: '0.7.0', carries: true });
+  mkdirSync(join(w.dataDir, 'app'), { recursive: true });
+  writeState(join(w.dataDir, 'app', 'state.json'), { ...EMPTY_STATE, bad: [], active: '0.7.0', previous: '0.6.5' });
+  w.live = { working: 1, waiting: 0, running: 0, terminals: 0 };
+  assert.equal((await w.updates.revert()).state, 'restarting');
+});
+
+test('with parked processes off, every kind of live work still refuses and the status says nothing is carried', async () => {
+  const w = world({ carries: false });
+  await w.updates.download();
+  await w.updates.pending;
+  assert.equal(w.updates.status().carriesWork, false);
+  w.live = { working: 0, waiting: 0, running: 1, terminals: 0 };
+  const busy = await refusal(w.updates.apply());
+  assert.deepEqual(busy.live, { working: 0, waiting: 0, running: 1, terminals: 0 });
+  assert.match(busy.message, /chats, orchestrations or terminals/);
 });
 
 test('the installable check offers a signed release that fits, before any download', async () => {

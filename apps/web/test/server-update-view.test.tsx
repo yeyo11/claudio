@@ -26,6 +26,7 @@ const status = (over: Partial<ServerUpdateStatus> = {}): ServerUpdateStatus => (
   base: 'image',
   shell: null,
   needsShell: null,
+  carriesWork: false,
   offer: null,
   ...over,
 });
@@ -117,6 +118,19 @@ test('scheduled says when it will restart and offers Cancel, quietly', async () 
   assert.match(words(html), /Claudio 0\.7\.0 will restart onto the update when nothing is running/);
   assert.match(words(html), /Cancel/);
   assert.equal(primaries(html), 0);
+});
+
+test('ready says what happens to running work: carried when parked processes are on, stopped when not', async () => {
+  const carried = words(await render({ status: status({ state: 'ready', target: '0.7.0', carriesWork: true }) }));
+  assert.match(carried, /keep going through the restart\. Open terminals end/);
+  const stopped = words(await render({ status: status({ state: 'ready', target: '0.7.0' }) }));
+  assert.match(stopped, /A restart stops chats, subagents and orchestrations that are running/);
+  assert.match(words(await render({ status: status({ state: 'ready', target: '0.7.0', carriesWork: true }) }, 'es')), /siguen durante el reinicio\. Las terminales abiertas se cierran/);
+});
+
+test('scheduled waits for the terminals only when work is carried', async () => {
+  const html = await render({ status: status({ state: 'scheduled', target: '0.7.0', carriesWork: true }) });
+  assert.match(words(html), /once no terminal is open/);
 });
 
 test('restarting says the page reloads on its own', async () => {

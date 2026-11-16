@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-16T22:00:00Z
+updated_at: 2026-11-16T23:00:00Z
 tags:
     - plan
     - study
@@ -934,6 +934,28 @@ Taken in the chat that commissioned the study:
 - **S3:** authorised, one Haiku turn capped at 0.05 USD, in a scratch directory.
 - **D2, D3, D4, D6, D7, D8, D9, D10:** the recommended option of section 7 (not discussed one by one;
   the owner accepted the plan as recommended).
+
+## Outcome of t7 (updates over live work, 2026-11-16)
+
+A payload update or revert no longer refuses over live chats, subagents or orchestrations when they are
+carried; it still refuses over terminals (D8). Built on t6 (#161).
+
+| Mode | Refusal of `apply` / `revert` | Chosen because |
+|---|---|---|
+| Parked processes on (the desktop `.deb` / checkout under the daemon; anything with `CLAUDIO_PARKED_PROCESSES=on`) | `409 update.live-work` only for open terminals; `live` carries the terminals alone (`working`, `waiting`, `running` zeroed) so the card and the message name what blocks. `whenIdle` waits for no terminal | The exit-75 close detaches parked CLIs, the next start adopts them (t4) and continues what was cut (t1, t6's graceful stop) |
+| Parked off (the container, the AppImage, `pnpm dev`) | As before: working, waiting, running and terminals | Nothing carries a CLI over. Layer 3 would continue a person's turn, but a graph task spends an attempt and a chat past an hour waits for **Resume**, so the person is asked |
+| `force` | Restarts in both modes | The person was asked |
+
+Where: `ServerUpdates` takes `carriesWork` (Core passes `config.parked !== undefined`), `blockingWork` in
+`packages/core/src/updates/server-update.ts`, and `ServerUpdateStatus.carriesWork` (shared; schemas
+regenerated). The Updates card (`UpdatesCard.tsx`, en/es) says under **Restart to update** what happens to
+running work, and the busy dialog, its "when idle" button and the scheduled line speak of terminals when work
+is carried. Not changed: `POST /system/restart` (exit 76, a shell relaunch), whose refusal keeps its rule; and
+the desktop's own `installDecision` for AppImage shell updates. Documented in [updates.md](../updates.md).
+
+**Tests.** `packages/core/test/server-update.test.ts` (carried work not refusing, a terminal refusing with
+only its count, `whenIdle` waiting for terminals only, a revert let through, parked off refusing as before);
+`apps/web/test/server-update-view.test.tsx` (the card's sentence per mode, en and es).
 
 ## Related
 

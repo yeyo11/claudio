@@ -805,6 +805,7 @@ export class Core {
       release: () => this.release.latestRelease(),
       security: securityState,
       liveWork: () => this.liveWork(),
+      carriesWork: () => config.parked !== undefined,
       audit: (row) => this.db.appendAudit({ at: new Date().toISOString(), actor: 'claudio', status: 200, ...row }),
       events: this.events,
     });

@@ -138,6 +138,7 @@ const serverStatus = (over: Partial<ServerUpdateStatus> = {}): ServerUpdateStatu
   base: 'shell',
   shell: null,
   needsShell: null,
+  carriesWork: false,
   offer: null,
   ...over,
 });
