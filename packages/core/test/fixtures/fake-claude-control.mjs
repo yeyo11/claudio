@@ -29,6 +29,9 @@
 //                  process up once the workflow ended, as a lead looping over its journal did (R15), and one
 //                  that says QUIET-END also never reports the end on the stream
 //   (anything)     ends the turn at once
+//
+// SIGINT ends an open turn with `error_during_execution` and keeps the process, and ends an idle
+// process with exit code 0, as the CLI does
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -59,7 +62,19 @@ if (args[0] === 'auth') {
   process.exit(0);
 }
 const flag = (name) => (args.includes(name) ? args[args.indexOf(name) + 1] : undefined);
-const out = (msg) => process.stdout.write(`${JSON.stringify(msg)}\n`);
+/** A turn started and its result not written yet: what SIGINT ends, where it ends the process otherwise */
+let turnOpen = false;
+const out = (msg) => {
+  if (msg.type === 'result') turnOpen = false;
+  process.stdout.write(`${JSON.stringify(msg)}\n`);
+};
+// As the CLI documents for SIGINT ("To end the turn instead, send SIGINT"), and as spike S2 of
+// docs/decisions/parked-cli-processes.md saw it end an idle `-p` process with exit code 0
+process.on('SIGINT', () => {
+  if (!turnOpen) process.exit(0);
+  pending = null;
+  out({ type: 'result', subtype: 'error_during_execution', is_error: true, num_turns: 1, ...figures() });
+});
 // Like the CLI (2.1.278), `--session-id` names the session, a fork's copy included; a fork given no
 // id makes up its own, and a plain resume keeps the one it resumes
 const sessionId = flag('--session-id') ?? (args.includes('--fork-session') ? randomUUID() : (flag('--resume') ?? randomUUID()));
@@ -113,6 +128,7 @@ createInterface({ input: process.stdin }).on('line', (line) => {
   const msg = JSON.parse(line);
 
   if (msg.type === 'user') {
+    turnOpen = true;
     const content = msg.message?.content;
     const prompt = typeof content === 'string' ? content : content.map((b) => b.text ?? '').join('\n');
     const compact = /^\/compact(?:\s+([\s\S]*))?$/.exec(prompt.trim());

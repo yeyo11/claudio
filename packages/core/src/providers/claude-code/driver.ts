@@ -146,6 +146,8 @@ export class ClaudeCodeDriver implements ProviderDriver {
   readonly sessionIds = 'imposed';
   /** `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` (`resumeEnv`) */
   readonly continuesCutTurns = true;
+  /** stream-json over any byte stream, and `initialize` re-sent "after a transport gap" (Agent SDK, `reinitialize()`) */
+  readonly parkable = true;
   /** Claude's JSONL transcripts, once Core has handed over the store it reads them with */
   transcripts: TranscriptStore | null = null;
 

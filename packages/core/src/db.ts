@@ -1742,6 +1742,37 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
   // its project, reset and choices as JSON, so a page names the project and says it in its language
   // instead of showing the English `reason`. Null on every other wait, and on the rows before it
   `ALTER TABLE provider_moves ADD COLUMN rule TEXT;`,
+
+  // CLI processes started detached, so that they can outlive the server that started them (layer 2
+  // of docs/plans/survive-restarts.md, t3): one row per process, while it runs. Rows, not a JSON file,
+  // because the server that started a process and the one that adopts it after a restart both touch
+  // it, and a takeover is a guarded update on the owner. Pids go with their start time (clock ticks
+  // after boot, /proc/<pid>/stat field 22): a pid alone may have been reused by the time anyone reads
+  // it. `committed_offset` is the byte of `out.jsonl` the fold has read to at its last turn boundary,
+  // and everything before it may already be a hole. `token_hash`, `payload_dir` and `cli_version` are
+  // what a restart must keep for the process (t5); null until something records them.
+  `CREATE TABLE cli_processes (
+     id               TEXT PRIMARY KEY,
+     chat_id          TEXT NOT NULL,
+     layout           INTEGER NOT NULL,
+     dir              TEXT NOT NULL,
+     scope            TEXT,
+     wrapper_pid      INTEGER NOT NULL,
+     wrapper_started  INTEGER NOT NULL,
+     cli_pid          INTEGER,
+     cli_started      INTEGER,
+     owner_pid        INTEGER,
+     owner_started    INTEGER,
+     lease_until      TEXT NOT NULL,
+     committed_offset INTEGER NOT NULL DEFAULT 0,
+     stdin_seq        INTEGER NOT NULL DEFAULT 0,
+     turn_offset      INTEGER,
+     token_hash       TEXT,
+     payload_dir      TEXT,
+     cli_version      TEXT,
+     started_at       TEXT NOT NULL
+   );
+   CREATE INDEX cli_processes_chat ON cli_processes (chat_id);`,
 ];
 
 /**

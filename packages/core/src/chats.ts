@@ -1,4 +1,8 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { ChatProcess } from './chat-process.ts';
+import { ParkedProcess } from './parked/process.ts';
+import { ParkedProcesses } from './parked/registry.ts';
+import { CliProcessStore } from './parked/store.ts';
 import { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isTransientRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
 import { accountState, allowsAccount, creditsCapReached, creditsSettingOf, DEFAULT_ID, isOut, outUntil, overageHint, readingFromEvent, type AccountRef, type AccountStore, type Choice, type ChooseOptions, type Reading } from '@claudio/accounts';
 import { NO_PROJECT, noRoomWords, ProjectActivity } from './project-activity.ts';
@@ -392,9 +396,9 @@ export class ChatManager extends EventEmitter {
 
   private readonly publisher = new RunEventPublisher((event) => this.bus?.emit(event));
   /** The token each process was minted, for a server handed to it at run time, in which the CLI expands no reference */
-  private readonly procTokens = new WeakMap<ChildProcessWithoutNullStreams, string | null>();
+  private readonly procTokens = new WeakMap<ChatProcess, string | null>();
   /** The processes Claudio pushed its own server to: until then a `claudio` they list came from their `--mcp-config` */
-  private readonly claudioPushed = new WeakSet<ChildProcessWithoutNullStreams>();
+  private readonly claudioPushed = new WeakSet<ChatProcess>();
   /** What the CLI said when it last refused Claudio's server in a chat, by chat */
   private readonly claudioRefusals = new Map<string, string>();
 
@@ -409,6 +413,11 @@ export class ChatManager extends EventEmitter {
    * can write to their stdin, so the chat cannot attach to them; it must not resume beside them.
    */
   private readonly leftovers = new Map<string, number[]>();
+  /**
+   * The CLI processes started detached, which can outlive this server (`CLAUDIO_PARKED_PROCESSES`,
+   * layer 2 of docs/plans/survive-restarts.md). Only a provider that is `parkable` runs parked.
+   */
+  readonly parked: ParkedProcesses;
 
   /** What the machine must have free before a chat may start; read once, so a restart is what changes it */
   private readonly admission = admissionLimitsFrom();
@@ -443,6 +452,14 @@ export class ChatManager extends EventEmitter {
     // What waited for the agent's background work goes ahead once it is over (D3)
     this.on('chat-background-settled', (chatId: string) => setImmediate(() => void this.applyPendingAccount(chatId).catch(() => undefined)));
     this.file = join(config.dataDir, 'runs.json');
+    // Built whether parking is on or not: rows a run with it on left behind are reaped either way
+    this.parked = new ParkedProcesses({
+      dataDir: config.dataDir,
+      store: new CliProcessStore(db.connection),
+      handoverSeconds: config.parked?.handoverSeconds ?? 300,
+      scopes: config.parked?.scopes ?? false,
+      ...(config.parked ? {} : { userManager: () => false }),
+    });
     this.retireTimer = setInterval(() => this.retireEnded(), RETIRE_SWEEP_MS);
     this.retireTimer.unref();
     for (const driver of drivers) {
@@ -724,8 +741,11 @@ export class ChatManager extends EventEmitter {
     this.importLegacy();
     // A chat of a provider that has no driver here cannot be driven, so it is left in the store as it is
     const stored = this.db.loadChats().filter(({ record }) => !this.chats.has(record.id) && this.providers.driverFor(record.provider ?? ''));
-    // Before the first await, so whoever starts the wrapper can report them as soon as Core exists
-    const live = this.liveSessions();
+    // Before the first await, so whoever starts the wrapper can report them as soon as Core exists.
+    // A CLI a previous server left parked is no stray: it is reaped below, before this resolves, so
+    // the turn it was on is continued by layer 3 as any other cut turn (adopting it instead is t4's)
+    const reaping = new Set(this.parked.leftBehind());
+    const live = this.liveSessions().filter((p) => !reaping.has(p.pid));
     for (const { record } of stored) {
       const pids = live.filter((p) => p.sessionId === record.id).map((p) => p.pid);
       if (pids.length) this.leftovers.set(record.id, pids);
@@ -775,6 +795,7 @@ export class ChatManager extends EventEmitter {
         chat.endedAt = heard;
       }
     }
+    await this.parked.reap().catch((error: unknown) => console.warn(`restart: parked CLI processes a previous server left were not all reaped: ${errorMessage(error)}`));
     // The executions the restore closed as interrupted are written down, so a second start does
     // not have to conclude it again
     this.persist(...cut);
@@ -2730,7 +2751,9 @@ export class ChatManager extends EventEmitter {
     } else delete env.CLAUDIO_API_URL;
     // A confined API chat's git reads no configuration but the run's own (D14.7)
     if (chat.opts.apiPolicy) Object.assign(env, confinedGitEnv(chat.cwd, this.workspacesRoot));
-    let proc: ChildProcessWithoutNullStreams;
+    let proc: ChatProcess;
+    // The pipes of a child, when it is one: a parked process is read from its files instead
+    let child: ChildProcessWithoutNullStreams | null = null;
     try {
       // A guarded run's temp files live in its own dir, the only place `rm -rf` outside the worktree is allowed
       const tmpDir = chat.opts.guards?.tmpDir;
@@ -2738,7 +2761,8 @@ export class ChatManager extends EventEmitter {
         mkdirSync(tmpDir, { recursive: true, mode: 0o700 });
         env.TMPDIR = tmpDir;
       }
-      proc = spawn(plan.bin, plan.args, { cwd: chat.cwd, env, stdio: 'pipe' });
+      if (this.config.parked && chat.driver.parkable) proc = this.parked.start({ chatId: chat.id, bin: plan.bin, args: plan.args, cwd: chat.cwd, env });
+      else proc = child = spawn(plan.bin, plan.args, { cwd: chat.cwd, env, stdio: 'pipe' });
     } catch (error) {
       if (token) this.chatTokens.revoke(token);
       // The execution has begun and the chat says it is starting: a spawn that throws at once (ENOMEM,
@@ -2780,7 +2804,7 @@ export class ChatManager extends EventEmitter {
       }, guardArmMs());
       chat.armingTimer.unref();
     }
-    createInterface({ input: proc.stdout }).on('line', (line) => {
+    const onOut = (line: string) => {
       if (!current()) return;
       // A line the fold cannot take is this chat's failure, never the server's: a throw out of this
       // handler is an uncaught exception, which took the whole server down on 2026-10-25
@@ -2790,11 +2814,25 @@ export class ChatManager extends EventEmitter {
         this.failProtocol(chat, `Claudio could not read a line of the agent's output: ${errorMessage(err)}`);
       }
       this.noteActivity(chat);
-    });
-    createInterface({ input: proc.stderr }).on('line', (line) => {
+    };
+    const onErr = (line: string) => {
       if (!line.trim() || !current()) return;
       session.readError(line);
-    });
+    };
+    if (proc instanceof ParkedProcess) {
+      const parked = proc;
+      // Its watchdog ends an open turn only, and a turn's end is where what was read is committed
+      chat.onTurn = (open) => {
+        if (current()) parked.turn(open);
+      };
+      parked.listen(onOut, onErr);
+    } else {
+      chat.onTurn = null;
+      if (child) {
+        createInterface({ input: child.stdout }).on('line', onOut);
+        createInterface({ input: child.stderr }).on('line', onErr);
+      }
+    }
     proc.stdin.on('error', () => {});
     proc.on('error', (err) => {
       revokeToken();
@@ -2812,11 +2850,14 @@ export class ChatManager extends EventEmitter {
     let lingering: NodeJS.Timeout | null = null;
     proc.on('exit', () => {
       revokeToken();
+      // A parked process closes once its files are read to the end, which nothing it started can hold off
+      const pipes = child;
+      if (!pipes) return;
       lingering = setTimeout(() => {
         if (closed) return;
-        proc.stdout.destroy();
-        proc.stderr.destroy();
-        proc.stdin.destroy();
+        pipes.stdout.destroy();
+        pipes.stderr.destroy();
+        pipes.stdin.destroy();
       }, closeAfterExitMs());
       lingering.unref();
     });
@@ -2848,7 +2889,7 @@ export class ChatManager extends EventEmitter {
    * mid-turn after all, an older CLI without the feature) and start idle, which nothing it sends
    * says: a process that shows no sign of the turn for `continueStartMs` is taken as idle.
    */
-  private awaitContinuation(chat: LiveChat, proc: ChildProcessWithoutNullStreams): void {
+  private awaitContinuation(chat: LiveChat, proc: ChatProcess): void {
     chat.turnMessages = [];
     chat.turnOver = false;
     chat.turnOpen = true;
