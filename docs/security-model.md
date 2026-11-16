@@ -211,10 +211,31 @@ but a detached process whose input and output are files (layer 2 of
   A confined chat (headless, workspaces) never sees the data directory. A guarded chat's agent is
   refused writes anywhere in the data directory, `procs/` included, by the guard's
   `integrity.own-state` rule, as for the rest of Claudio's state.
-- **No credential crosses a restart yet.** The chat token stays in memory (t5 moves its hash to the
-  process's row, decision D5). A start adopts a parked process a previous server left running (t4),
-  but the token in that CLI's environment was the old server's and is not known to the new one: its
-  calls to Claudio's API (the `claudio` MCP server, the orchestration tools) are refused until t5.
+- **A chat token crosses a restart as a hash (D5).** The token of a parked CLI is in its environment,
+  as for any chat, and in nothing of Claudio's: its row in `cli_processes` keeps `token_hash`, the
+  SHA-256 of it as hex, and never the token. The hash is a one-way image of 32 random bytes, so a
+  copy of `wrapper.db` (a backup, a support bundle) holds nothing that can be replayed and nothing
+  that can be guessed from. A server that did not mint the token accepts it only while all of these
+  hold, each checked at the request: the row exists; its owner is this server, by pid and start time
+  (a process nobody holds, or a gone server's, answers nobody); the CLI the row names runs, by pid
+  **and start time** (a pid the kernel reused is another process); and the row is less than
+  `CHAT_TOKEN_MAX_AGE_MS` (24 h) old, the cap every chat token has. The row, and so the hash, goes when
+  the process ends or is reaped, and a chat's next process gets a new token. Chats not parked are
+  unchanged: their tokens stay in memory and a restart revokes them.
+  The threat model is the one of a chat token already ([Chat tokens](#chat-tokens)): what the hash
+  adds is a row a local attacker could read, which gives them no credential; one who can read the
+  CLI's environment (`/proc/<pid>/environ`, same user) had the token already. A hash can be tested
+  against a guess offline, which 256 random bits make pointless.
+- **The address crosses a restart too.** `<data>/procs/<id>/api-url` (`0600`, no credential) holds the
+  `CLAUDIO_API_URL` the CLI was given. A server that starts beside running CLIs listens on that port
+  and does not fall back to another when it is taken: it refuses to start (`AdoptedPortTakenError`,
+  `EADDRINUSE`), since no other port reaches the CLI. Someone else's listener on that port could
+  answer a CLI that sends its token there, which is why the server never moves instead, and why the
+  port is on loopback only.
+- **What an update must not delete.** Each row records the payload directory its MCP server runs from
+  (`payload_dir`) and the CLI version; the launcher keeps an overlay `<data>/app/<version>` while a
+  running CLI's row names it, and keeps every overlay if it cannot read the rows. The files a chat's
+  start wrote (`<data>/mcp/extra-*`, `overlay-*`) are kept at start-up while its CLI runs.
 - **One holder at a time.** A server takes a parked process over only after checking the wrapper's
   and the CLI's pid and start time, and with one guarded `UPDATE` on the owner it read, so two
   servers on one data dir never both write one FIFO (risk R4). A server that shuts down releases its

@@ -6,7 +6,9 @@
 // `protocol.ts` it imports `node:*` only: the launcher is bundled alone and an update cannot fix it.
 import type { KeyObject } from 'node:crypto';
 import { existsSync, readdirSync, rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { join, sep } from 'node:path';
+import { processEntry } from '../processes.ts';
 import {
   DATA_DIR_LOCKED_EXIT_CODE,
   RELAUNCH_EXIT_CODE,
@@ -45,6 +47,39 @@ export interface MachineFiles {
   writeState(file: string, state: LauncherState): void;
   /** Signature, version, base and every file's hash: why the overlay must not boot, or null */
   checkOverlay(check: OverlayCheck): string | null;
+  /**
+   * The payload directories parked CLI processes still run from (t5 of docs/plans/survive-restarts.md),
+   * or null when that cannot be read, which keeps every overlay. Optional: a host without parked
+   * processes has nothing to keep.
+   */
+  pinned?(dataDir: string): readonly string[] | null;
+}
+
+/**
+ * Reads the payload directories recorded in the rows of `cli_processes` whose process still runs
+ * (pid and start time, as `/proc` names them). Read-only, from the launcher's own process: the server
+ * that wrote them may be down, which is when an overlay is collected.
+ */
+export function pinnedPayloads(dataDir: string): readonly string[] | null {
+  const file = join(dataDir, 'wrapper.db');
+  if (!existsSync(file)) return [];
+  try {
+    const { DatabaseSync } = createRequire(import.meta.url)('node:sqlite') as typeof import('node:sqlite');
+    const db = new DatabaseSync(file, { readOnly: true });
+    try {
+      const rows = db
+        .prepare('SELECT payload_dir, wrapper_pid, wrapper_started, cli_pid, cli_started FROM cli_processes WHERE payload_dir IS NOT NULL')
+        .all() as Array<{ payload_dir: string; wrapper_pid: number; wrapper_started: number; cli_pid: number | null; cli_started: number | null }>;
+      return rows
+        .filter((r) => (r.cli_pid !== null && r.cli_started !== null ? processEntry(r.cli_pid)?.started === Number(r.cli_started) : processEntry(r.wrapper_pid)?.started === Number(r.wrapper_started)))
+        .map((r) => r.payload_dir);
+    } finally {
+      db.close();
+    }
+  } catch {
+    // A database from before the table, or one that cannot be opened now: nothing is collected on a guess
+    return null;
+  }
 }
 
 export const NODE_FILES: MachineFiles = {
@@ -54,6 +89,7 @@ export const NODE_FILES: MachineFiles = {
   readState,
   writeState,
   checkOverlay,
+  pinned: pinnedPayloads,
 };
 
 export interface Machine {
@@ -75,8 +111,13 @@ export function collectOverlays(m: Machine, state: LauncherState): void {
   const root = rootOf(m);
   if (!m.files.exists(root)) return;
   const keep = new Set([state.active, state.previous, state.trial].filter((v): v is string => v !== null));
+  // A CLI that outlives its server keeps running the MCP server of the payload it started from, so that
+  // version stays until the CLI ends. A pin that cannot be read keeps every version, never guesses
+  const pinned = m.files.pinned?.(m.dataDir);
   for (const name of m.files.list(root)) {
-    if ((VERSION.test(name) && !keep.has(name)) || name.startsWith('.staging-')) m.files.remove(join(root, name));
+    const dir = join(root, name);
+    const inUse = pinned === null || (pinned ?? []).some((p) => p === dir || p.startsWith(`${dir}${sep}`));
+    if ((VERSION.test(name) && !keep.has(name) && !inUse) || name.startsWith('.staging-')) m.files.remove(dir);
   }
 }
 
