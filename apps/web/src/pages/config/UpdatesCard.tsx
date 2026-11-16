@@ -1047,13 +1047,16 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
           <button type="button" className="btn btn-primary" disabled={pending} onClick={() => props.onRestart({})}>
             <RotateCw {...ICON} /> {t('updates.restart', { version })}
           </button>
+          <p className="small muted" data-testid="server-update-carries">
+            {t(status.carriesWork ? 'updates.carriesWork' : 'updates.stopsWork')}
+          </p>
         </div>
       )}
 
       {state === 'scheduled' && (
         <div className="stack">
           <p className="small" role="status">
-            {t('updates.scheduledServer', { version })}
+            {t(status.carriesWork ? 'updates.scheduledServerTerminals' : 'updates.scheduledServer', { version })}
           </p>
           <div>
             <button type="button" className="btn btn-small" disabled={pending} onClick={props.onCancel}>
@@ -1093,7 +1096,7 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
                 {t('updates.cancel')}
               </button>
               <button type="button" className="btn" data-autofocus disabled={pending} onClick={() => (busy.revert ? props.onRevert({ whenIdle: true }) : props.onRestart({ whenIdle: true }))}>
-                {t('updates.whenIdle')}
+                {t(status.carriesWork ? 'updates.whenNoTerminals' : 'updates.whenIdle')}
               </button>
               <button type="button" className="btn btn-danger-solid" disabled={pending} onClick={() => (busy.revert ? props.onRevert({ force: true }) : props.onRestart({ force: true }))}>
                 {t('updates.restartNow')}
@@ -1101,7 +1104,7 @@ export function ServerUpdateView(props: ServerUpdateViewProps) {
             </>
           }
         >
-          <p>{t('updates.busyBodyServer', { live: liveSentence(busy.live) })}</p>
+          <p>{t(status.carriesWork ? 'updates.busyBodyTerminals' : 'updates.busyBodyServer', { live: liveSentence(busy.live) })}</p>
         </Dialog>
       )}
     </div>

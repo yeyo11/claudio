@@ -10778,6 +10778,10 @@
           }
         ],
         "description": "The newest release newer than what runs, judged before a download is offered; null when there is none"
+      },
+      "carriesWork": {
+        "type": "boolean",
+        "description": "Running chats, subagents and orchestrations survive a restart on this server (parked processes are on): only open terminals hold an update back"
       }
     },
     "required": [
@@ -10794,7 +10798,8 @@
       "base",
       "shell",
       "needsShell",
-      "offer"
+      "offer",
+      "carriesWork"
     ],
     "description": "Claudio updating itself (docs/plans/unified-updates.md): a signed bundle unpacked under `<dataDir>/app/<version>`, which the host's launcher (the container's, or the desktop shell) boots on trial and keeps once `/api/health` answers, or rolls back."
   },

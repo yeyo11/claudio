@@ -142,6 +142,11 @@ export interface ServerUpdateStatus {
   needsShell: { version: string; minShell: string } | null;
   /** The newest release newer than what runs, judged before a download is offered; null when there is none */
   offer: ServerUpdateOffer | null;
+  /**
+   * Running chats, subagents and orchestrations survive a restart on this server (parked processes
+   * are on): only open terminals hold an update back
+   */
+  carriesWork: boolean;
 }
 
 /** `force` restarts over live work (the person was asked); `whenIdle` waits until nothing is live */

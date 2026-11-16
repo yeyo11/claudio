@@ -83,6 +83,12 @@ export interface ServerUpdatesOptions {
   release: () => { version: string; assets: ReleaseAsset[] } | null;
   security: () => { mode: AuthMode; readOnly: boolean };
   liveWork: () => Promise<LiveWork>;
+  /**
+   * Whether the work a restart cuts is carried over it: parked CLI processes are on, so the next start
+   * adopts the chats' processes and the orchestrations' tasks (docs/plans/survive-restarts.md, t7).
+   * Off or absent, the rule is the old one
+   */
+  carriesWork?: () => boolean;
   /** What the server did by itself, as an audit row */
   audit: (row: { method: string; path: string; summary: string }) => void;
   events?: EventBus;
@@ -250,6 +256,7 @@ export class ServerUpdates {
       base: base.kind,
       shell: this.shell,
       needsShell: this.needsShell,
+      carriesWork: this.carries(),
       offer: offer?.installable && bad.includes(offer.version) ? { version: offer.version, installable: false, blocked: 'failed-before' } : offer,
     };
   }
@@ -460,7 +467,7 @@ export class ServerUpdates {
       this.stopIdleTimer();
       this.idleTimer = setInterval(() => {
         void this.o.liveWork().then((live) => {
-          if (this.state === 'scheduled' && !busy(live)) this.restartNow(this.scheduledRevert);
+          if (this.state === 'scheduled' && !this.blockedBy(live)) this.restartNow(this.scheduledRevert);
         }, () => undefined);
       }, this.idleCheckMs);
       this.idleTimer.unref();
@@ -473,11 +480,21 @@ export class ServerUpdates {
       return this.status(fromShell);
     }
     const live = await this.o.liveWork();
-    if (!request.force && busy(live)) {
-      throw new ServerUpdateRefusal(409, 'update.live-work', 'chats, orchestrations or terminals are running; a restart would stop them', live);
+    const blocking = this.blockedBy(live);
+    if (!request.force && blocking) {
+      throw new ServerUpdateRefusal(409, 'update.live-work', this.carries() ? 'terminals are open; a restart would end them' : 'chats, orchestrations or terminals are running; a restart would stop them', blocking);
     }
     this.restartNow(revert);
     return this.status(fromShell);
+  }
+
+  private carries(): boolean {
+    return this.o.carriesWork?.() ?? false;
+  }
+
+  /** What a restart would stop for good, or null: parked work is adopted again, so only terminals count then */
+  private blockedBy(live: LiveWork): LiveWork | null {
+    return blockingWork(live, this.carries());
   }
 
   /** A restart that waited for idleness is called off */
@@ -547,4 +564,12 @@ function failureCode(err: unknown): ServerUpdateError {
 
 /** Whether a restart would stop something; an open terminal counts: its shell ends with the server (docs/plans/unified-updates.md, D6) */
 export const liveWorkBusy = (live: LiveWork): boolean => live.working > 0 || live.waiting > 0 || live.running > 0 || live.terminals > 0;
-const busy = liveWorkBusy;
+
+/**
+ * The part of the live work a restart would lose, or null when none. With parked processes on, chats
+ * and orchestrations carry over (the next server adopts them) and a terminal's shell is all that ends (D8)
+ */
+export function blockingWork(live: LiveWork, carried: boolean): LiveWork | null {
+  const blocking: LiveWork = carried ? { working: 0, waiting: 0, running: 0, terminals: live.terminals } : live;
+  return liveWorkBusy(blocking) ? blocking : null;
+}
