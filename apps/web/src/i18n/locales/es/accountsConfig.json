@@ -38,7 +38,11 @@
     "looseChatsName": "chats sin proyecto",
     "looseChatsHint": "Gobierna también los chats iniciados en un directorio que no está en ningún proyecto importado. Sin esto, siguen los ajustes de rotación globales.",
     "looseChatsTaken": "Otra política ya gobierna los chats sin proyecto: solo puede hacerlo una.",
-    "globalThreshold": "umbral global"
+    "globalThreshold": "umbral global",
+    "prefers": "prefiere {{name}}",
+    "reserves": "guarda {{points}} puntos en {{name}} mientras tenga trabajo",
+    "strict": "rota dentro de una misma configuración",
+    "rulesInProject": "La cuenta preferida, la reserva y la configuración estricta se eligen en los ajustes de cada proyecto."
   },
   "history": {
     "title": "Historial de uso",
@@ -133,7 +137,8 @@
       }
     },
     "noLimitsToken": "El CLI no da el uso de un token. Los límites aparecerán aquí cuando un chat se ejecute en esta cuenta.",
-    "onCredits": "Usando créditos"
+    "onCredits": "Usando créditos",
+    "reservedFor": "Guarda margen para {{projects}} mientras tenga trabajo"
   },
   "toast": {
     "heldOut": "{{name}} queda fuera de rotación",
@@ -242,6 +247,11 @@
       },
       "capAt": "hasta {{cap}} al mes",
       "noCapHint": "hasta el tope fijado en claude.ai"
+    },
+    "newAccountConfig": "Las cuentas nuevas empiezan con",
+    "newAccountConfigHint": {
+      "shared": "La configuración de la cuenta predeterminada, sincronizada.",
+      "independent": "La suya propia, a partir de una copia de la compartida."
     }
   },
   "log": {
@@ -249,7 +259,8 @@
     "recentOnly": "Solo recientes",
     "fullHistory": "Historial completo",
     "nothingYet": "Aún nada",
-    "hint": "Aquí aparece un chat que pasa a otra cuenta o espera a un reinicio."
+    "hint": "Aquí aparece un chat que pasa a otra cuenta o espera a un reinicio.",
+    "once": "para un turno, fuera de la regla del proyecto"
   },
   "modelFallbacks": {
     "title": "Modelos de reserva",
@@ -344,5 +355,108 @@
     },
     "now": "Comprobar ahora",
     "checkLine": "{{name}}:"
+  },
+  "config": {
+    "label": "Configuración",
+    "mode": {
+      "shared": "Compartida",
+      "independent": "Propia"
+    },
+    "state": {
+      "ok": "Sincronizada",
+      "repair": "Necesita reparación",
+      "conflict": "En conflicto"
+    },
+    "repair": "Reparar",
+    "repairFor": "Reparar la configuración de {{name}}",
+    "halfway": {
+      "shared": "Un cambio a la configuración compartida quedó a medias: Reparar lo termina.",
+      "independent": "Un cambio a su propia configuración quedó a medias: Reparar lo termina."
+    },
+    "missing_one": "Espera su enlace a la compartida:",
+    "missing_other": "Esperan sus enlaces a las compartidas:",
+    "holds": {
+      "own": "Esta cuenta: su propia copia",
+      "real-file": "Esta cuenta: su propio archivo",
+      "real-dir": "Esta cuenta: su propia carpeta",
+      "link-elsewhere": "Esta cuenta: un enlace a otro sitio",
+      "aside-taken": "Esta cuenta: su propia copia, y el sitio donde apartarla está ocupado",
+      "failed": "Esta cuenta: no se ha podido cambiar (el registro del servidor dice por qué)"
+    },
+    "sharedHolds": {
+      "file": "Compartida: el archivo de la cuenta predeterminada",
+      "dir": "Compartida: la carpeta de la cuenta predeterminada",
+      "history": "Compartida: el historial que usan todas las cuentas"
+    },
+    "useShared": "Usar lo compartido",
+    "useSharedFor": "Usar lo compartido: {{item}} en {{name}}",
+    "useSharedTitle": "¿Usar lo compartido para {{item}} en {{name}}?",
+    "useSharedBody": "La copia propia de la cuenta se guarda en <path>{{aside}}</path>, dentro de su carpeta, y la compartida ocupa su lugar. No se borra nada.",
+    "useSharedBodyNoAside": "La compartida ocupa su lugar. No se borra nada.",
+    "switchToOwn": "Usar su propia configuración…",
+    "switchToShared": "Usar la configuración compartida…",
+    "toast": {
+      "nowOwn": "{{name}} usa ahora su propia configuración",
+      "nowShared": "{{name}} usa ahora la configuración compartida",
+      "switchFailed": "No se ha podido cambiar la configuración de {{name}}",
+      "repaired": "Se ha reparado la configuración de {{name}}",
+      "repairFailed": "No se ha podido reparar la configuración de {{name}}",
+      "usedShared": "{{name}} usa ahora lo compartido para {{item}}",
+      "useSharedFailed": "No se ha podido usar lo compartido para {{item}}"
+    }
+  },
+  "configDialog": {
+    "titleOwn": "Configuración propia para {{name}}",
+    "titleShared": "Configuración compartida para {{name}}",
+    "introOwn": "{{name}} guarda sus ajustes, instrucciones, agentes y lo demás en su propia carpeta. Los cambios en la configuración compartida dejan de llegarle.",
+    "introShared": "{{name}} usa la configuración de la cuenta predeterminada, sincronizada antes de cada ejecución.",
+    "start": "Empezar con",
+    "startCopy": "Una copia de la compartida",
+    "startEmpty": "Vacía",
+    "group": {
+      "copied": "Se copia en la cuenta",
+      "linked": "Se enlaza a la configuración compartida",
+      "aside": "Se aparta, nunca se borra",
+      "unlinked": "Dejan de enlazarse: la cuenta empieza sin ellos",
+      "conflict": "Se queda como está"
+    },
+    "asideIn": "en",
+    "nothing": "No hay nada que copiar, enlazar ni mover.",
+    "history": "El historial de los chats y la memoria de los agentes siguen compartidos en los dos modos.",
+    "planFailed": "No se ha podido calcular qué haría el cambio",
+    "confirmOwn": "Usar configuración propia",
+    "confirmShared": "Usar configuración compartida"
+  },
+  "projectRule": {
+    "title": "Cuentas",
+    "none": "Cualquier cuenta puede trabajar en este proyecto, según los ajustes de rotación.",
+    "add": "Añadir una regla",
+    "alsoGoverns": "Esta regla también abarca {{projects}}: un cambio aquí se aplica también allí.",
+    "allowed": "Cuentas permitidas",
+    "allowedAll": "Cualquier cuenta puede trabajar aquí.",
+    "allowedSome_one": "{{n}} de {{total}} cuentas puede trabajar aquí; el trabajo espera antes que ir a otra.",
+    "allowedSome_other": "{{n}} de {{total}} cuentas pueden trabajar aquí; el trabajo espera antes que ir a otra.",
+    "preferred": "Cuenta preferida",
+    "preferredNone": "Ninguna: tu cuenta preferida",
+    "preferredOn": "El trabajo de aquí empieza en {{name}} mientras tenga margen.",
+    "preferredOff": "El trabajo de aquí empieza donde digan tu cuenta preferida y la rotación.",
+    "reserve": "Reserva",
+    "reserveSwitch": "Guardar margen mientras este proyecto tenga trabajo",
+    "reservePoints": "Margen, en puntos de uso",
+    "points_one": "punto",
+    "points_other": "puntos",
+    "reserveOn": "Mientras este proyecto tenga trabajo, los demás proyectos dejan {{name}} al {{at}} en vez de al {{threshold}}.",
+    "reserveOff": "Los demás proyectos usan {{name}} hasta el umbral, tenga este proyecto trabajo o no.",
+    "reserveNeedsAccount": "Elige una cuenta preferida, o limita las cuentas permitidas, para decir dónde se guarda el margen.",
+    "strict": "Quedarse en una misma configuración",
+    "strictOn": "Un chat solo pasa a una cuenta con la misma configuración; si no, espera.",
+    "strictOff": "Un chat puede pasar a una cuenta con otra configuración cuando ninguna otra tiene margen.",
+    "remove": "Quitar la regla",
+    "removeTitle": "¿Quitar la regla de este proyecto?",
+    "removeBody": "Cualquier cuenta podrá volver a trabajar en el proyecto. Los chats en marcha se quedan en su cuenta.",
+    "removeBodyShared": "La regla también abarca {{projects}}: también la pierden. Los chats en marcha se quedan en su cuenta.",
+    "removed": "Se ha quitado la regla",
+    "removeFailed": "No se ha podido quitar la regla",
+    "saveFailed": "No se ha podido guardar la regla"
   }
 }

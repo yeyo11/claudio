@@ -123,7 +123,8 @@
       "pendingTo": "Pasará a {{name}} cuando termine este turno",
       "failed": "No se ha podido cambiar la cuenta",
       "search": "Buscar cuentas",
-      "none": "Ninguna cuenta coincide."
+      "none": "Ninguna cuenta coincide.",
+      "onceOnly": "La regla del proyecto no la permite: solo para un turno"
     },
     "back": "Volver al menú",
     "noCommands": "Este chat aún no ha informado de ningún comando.",
@@ -483,7 +484,9 @@
       "credits": "Pagado con los créditos de",
       "credits-stopped": "Detenido antes de gastar los créditos de",
       "guard": "Guardia: bloqueado",
-      "guardMissing": "La guardia no se ha ejecutado en esta llamada"
+      "guardMissing": "La guardia no se ha ejecutado en esta llamada",
+      "accountOwnConfig": "{{name}}, que tiene su propia configuración",
+      "accountSharedConfig": "{{name}}, que usa la configuración compartida"
     },
     "teammate": {
       "list": "lo que comparten todos tus compañeros",

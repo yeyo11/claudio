@@ -6,12 +6,14 @@ import { useTranslation } from 'react-i18next';
 import { useToast } from '@claudio/ui/components/Toast';
 import { ICON_SM } from '@claudio/ui/components/icons';
 import { ErrorBox, Skeleton } from '@claudio/ui/components/ui';
-import { accountLabel, accountRow, type AccountRow } from '../lib/account-choice';
+import { accountLabel, accountRow, onlyOnce, ruleFor, type AccountRow } from '../lib/account-choice';
 import { chatKeys, useChatUi } from '../lib/context';
 import { AccountList } from './AccountList';
 
 const accountsKey = ['accounts'] as const;
 const modelsKey = (accountId: string) => ['accounts', accountId, 'models'] as const;
+/** The app's own key for `/accounts/policies`, so the Accounts page and this list share one read */
+const policiesKey = ['accounts', 'policies'] as const;
 
 /** How long the account list is trusted without being read again. */
 const ACCOUNTS_FRESH_MS = 30_000;
@@ -42,6 +44,8 @@ export function useChatAccounts(chat: Chat, modelsEnabled: boolean): ChatAccount
   const toast = useToast();
   const accounts = useQuery({ queryKey: accountsKey, queryFn: () => client.accounts(), staleTime: ACCOUNTS_FRESH_MS });
   const list = useMemo(() => accounts.data ?? [], [accounts.data]);
+  const policies = useQuery({ queryKey: policiesKey, queryFn: () => client.accountPolicies?.() ?? Promise.resolve([]), staleTime: ACCOUNTS_FRESH_MS, enabled: client.accountPolicies !== undefined });
+  const rule = ruleFor(policies.data, chat.project?.id);
   const models = useQueries({
     queries: list.map((account) => ({
       queryKey: modelsKey(account.id),
@@ -49,8 +53,8 @@ export function useChatAccounts(chat: Chat, modelsEnabled: boolean): ChatAccount
       enabled: Boolean(chat.model) && modelsEnabled,
     })),
   });
-  const choose = useMutation<SwitchChatAccountResponse, Error, string>({
-    mutationFn: (accountId) => client.switchChatAccount(chat.id, accountId),
+  const choose = useMutation<SwitchChatAccountResponse, Error, { accountId: string; once: boolean }>({
+    mutationFn: ({ accountId, once }) => client.switchChatAccount(chat.id, accountId, once),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: chatKeys.chatScope(chat.id) });
       void queryClient.invalidateQueries({ queryKey: chatKeys.chats });
@@ -59,7 +63,7 @@ export function useChatAccounts(chat: Chat, modelsEnabled: boolean): ChatAccount
     // The menu has closed by the time the server answers: an error beside the row would be unseen
     onError: (error) => toast.error(t('composerMenu.account.failed'), error),
   });
-  const rows = list.map((account, index) => accountRow(account, chat, models[index]?.data));
+  const rows = list.map((account, index) => accountRow(account, chat, models[index]?.data, rule));
   const pendingId = chat.pendingAccount ?? null;
   return {
     accounts: list,
@@ -68,7 +72,8 @@ export function useChatAccounts(chat: Chat, modelsEnabled: boolean): ChatAccount
     loading: accounts.isLoading,
     error: accounts.error,
     refresh: () => void accounts.refetch(),
-    choose: (accountId, onDone) => choose.mutate(accountId, { onSuccess: onDone }),
+    // An account the rule leaves out is taken for one turn only: the server needs to be told so
+    choose: (accountId, onDone) => choose.mutate({ accountId, once: rows.some((row) => row.account.id === accountId && onlyOnce(row)) }, { onSuccess: onDone }),
     busy: choose.isPending,
   };
 }

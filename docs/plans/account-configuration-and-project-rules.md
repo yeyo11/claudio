@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T21:00:00Z
+updated_at: 2026-11-15T22:00:00Z
 tags:
     - plan
     - study
@@ -14,7 +14,7 @@ tags:
 
 Status: **T0b and T1 are built** (merged in #123, 2026-11-13) and **T4 is built** on branch
 `feat/account-config-mode` (2026-11-14); **T5 is built** on `feat/cli-canary` (2026-11-15); **T3 is built** on `feat/mcp-overlay` (2026-11-15); **T6 is built** on branch `feat/account-rules-engine`
-(2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
+(2026-11-15); T7 (#149) and T8 (#147) merged; **T9 decided and T10 built** on `feat/account-config-screens` (2026-11-15); the rest is proposed. Was: **proposed** (2026-11-13), a study with nothing built: it holds the evidence, the
 options, a recommended end state and the decisions the owner took (the last section). See
 [Outcome](#outcome).
 
@@ -885,6 +885,61 @@ does yet.
 **Stays open.** S6 (OAuth MCP servers across accounts: the token is kept per config dir, so an
 OAuth server passed by the overlay may need its own sign-in on each account). A canary check for S3e
 (flag-given servers skip trust), which B3's fix depends on and the canary does not test today.
+
+**T9** (the owner, 2026-11-15): the design round, decided by the owner in place of a separate
+session.
+- **Where.** Each account's configuration mode and state on that account's card; the mode new
+  accounts start in on the existing accounts settings card.
+- **What shows.** Only problems: a state with its word and status colour, **In sync** (ok),
+  **Needs repair** (warn), **Conflict** (bad); the item list only when something needs action.
+- **A conflict** reads in words, with no diff tool: which item, what the account holds, what the
+  shared one holds, and **Use shared**, which keeps the account's copy aside (its plan route says
+  where first).
+- **The mode switch** dialog says before confirming what is copied, what is kept aside and where
+  (the plan route), with copy as the start and empty offered.
+- **Project rules** (allowed accounts, preferred account, reserve 1 to 30, strict configuration) live
+  in each project's settings, on the `/accounts/policies` routes. All optional: with no rule only
+  "Add a rule" shows.
+- **Phone.** Actions in a `Sheet`, 44 px targets, inputs at 16 px. Night Shift only.
+
+**T10** (`feat/account-config-screens`, 2026-11-15): the screens, as
+[design-system.md](../design-system.md#an-accounts-configuration-and-a-projects-account-rule) describes them.
+- Account card (`AccountConfigLine`): mode, state, conflicts in words with **Use shared** (a
+  confirmation naming the aside dir), **Repair** for missing links or a half-way switch (`PUT` with
+  the mode it is in, or the one it was switching to). The mode switch is in the card's `⋯`
+  (`AccountConfigDialog`, from `GET /accounts/:id/config/plan`).
+- Accounts settings card: **New accounts start with** (`newAccountConfig`), with its Changed · Reset
+  slot: the setting id `accounts.new-account-config` joins the settings registry (T4's open item).
+- A reserved account's card names the projects it keeps headroom for.
+- Project settings (`ProjectRuleCard`): the rule that governs the project, written back whole at each
+  change so no field is dropped; a rule that governs other projects too says so. The Accounts page's
+  policy list names the preferred account, the reserve and strict configuration, and its form keeps
+  them on save (before, saving a policy there would have dropped T8's fields).
+- "Use another account once" (D8, on T7's `once`): the composer's account list, and the limit banner's
+  Switch account that opens it, read the project's rule (`/accounts/policies`, through the chat-ui
+  client's optional `accountPolicies`) and offer an account the rule leaves out as pressable, with
+  "Not allowed by the project's rule: for one turn only"; choosing it sends `once: true`. The
+  Accounts page's rotation log adds "for one turn, outside the project's rule" to a switch whose
+  `data.once` is set, and says reason `rule` in words.
+- Transcript: a person's switch across configuration groups reads "Switched to X, which has its own
+  configuration" (or "uses the shared configuration"), judged in `@claudio/chat-ui` from the
+  `/accounts` list the page already holds (`configCrossing`, the same grouping as `configGroupOf`).
+
+**Differs from the plan.**
+- `Choice.why` is not served by any route (it stays inside `pick`), so the chat chip shows no basis
+  and no "pin ignored by the rule" yet; the events say `reserve` and `rule` in words. Serving `why`
+  (on the chat summary and in the rotation events' `data`) is core work after T7.
+- The rule's no-room notice and an automated wait's reason are English text from the core that name
+  the project by id; the page shows them as they are. Giving the notice `data` (`reason: 'rule'`,
+  the project id) would let the page name the project and offer the once path in place.
+- "Keeps headroom for X while it has work" is read from the rules, not from whether the reserve is
+  active now: no route serves `ChatManager.activity.reserves`, and none was added.
+- The transcript line covers a person's switch only: the rotation's own notice at a limit
+  (`rotation.ts`) carries no `data` with its accounts, so the page cannot tell which configuration it
+  crossed into. Adding `{ account, from }` to that notice is core work.
+- D7 (the Add-account flow asking whether a new account joins the existing rules) is not built.
+- Plugins that differ from the default's (§6.5) are not shown: `Account.config` has no plugins field
+  until T2.
 
 ## The owner's decisions (2026-11-13)
 
