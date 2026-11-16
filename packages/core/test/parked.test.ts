@@ -403,7 +403,7 @@ test('with parking off, a chat still runs on pipes and writes no row', async () 
   }
 });
 
-test('a start stops what a gone server left parked mid-turn, and the turn is a cut turn layer 3 continues, not a stray', async () => {
+test('a start with parking switched off stops what a gone server left parked mid-turn, and the turn is a cut turn layer 3 continues, not a stray', async () => {
   const config = { ...tempConfig(), claudeBin: FAKE, parked: { handoverSeconds: 300, scopes: false } };
   const db = new Db(config);
   const before = new ChatManager(config, db);
@@ -414,7 +414,9 @@ test('a start stops what a gone server left parked mid-turn, and the turn is a c
   const closed = once(parked, 'close');
   // The server that started it is gone, as after a crash: its rows name an owner that no longer runs
   db.connection.prepare('UPDATE cli_processes SET owner_pid = 999999999, owner_started = 1').run();
-  const after = new ChatManager(config, db);
+  // With parking on it would be adopted instead (adopt.test.ts)
+  const { parked: _on, ...off } = config;
+  const after = new ChatManager(off, db);
   const restoring = after.restore(new SessionStore(config));
   assert.deepEqual(after.strays(), [], 'the parked CLI is not taken for a stray');
   await restoring;

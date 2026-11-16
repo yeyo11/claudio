@@ -27,13 +27,24 @@ export interface ParkedProcessInit {
   id: string;
   dir: string;
   scope: string | null;
-  child: ChildProcess;
+  /** The wrapper this server started. Absent for one adopted from a server before it, which is no child of this one */
+  child?: ChildProcess;
+  /** The wrapper of an adopted process, by pid and start time: its end is found by looking for it */
+  wrapper?: ProcessIdentity;
   fifo: Socket;
   ledger: ParkedLedger;
   /** Where reading starts: the committed offset */
   from: number;
+  /** The sequence number of the last line written to its stdin, by this server or the one before it */
+  stdinSeq?: number;
+  /** A turn is open on it, as its row says: its `turn` file is already there */
+  turnOpen?: boolean;
+  /** The CLI, as its row names it, checked alive by whoever adopts it */
+  cli?: ProcessIdentity | null;
   /** How long the wait for the CLI after its wrapper died may take before the process counts as gone */
   cliGoneMs?: number;
+  /** How often an adopted wrapper is looked for: there is no `exit` event for a process that is not our child */
+  pollMs?: number;
 }
 
 /** Blocks are freed whole; the line cut by a hole's edge is below the committed offset anyway. */
@@ -63,21 +74,29 @@ function inputRecord(seq: number, line: string): string {
 /** The CLI's stdin, through the FIFO. Every line is also recorded, by kind and id, so a successor knows what was sent. */
 class ParkedInput implements ChatProcessInput {
   writableEnded = false;
-  private seq = 0;
+  /** Detached: this server writes nothing more, and the CLI's input stays open for the next one */
+  private muted = false;
 
   constructor(
     private readonly socket: Socket,
     private readonly record: (seq: number, line: string) => void,
     private readonly ended: () => void,
+    private seq = 0,
   ) {}
 
   write(text: string): boolean {
+    if (this.muted) return false;
     for (const line of text.split('\n')) if (line.trim()) this.record(++this.seq, line);
     return this.socket.write(text);
   }
 
+  mute(): void {
+    this.muted = true;
+    this.socket.destroy();
+  }
+
   end(): void {
-    if (this.writableEnded) return;
+    if (this.writableEnded || this.muted) return;
     this.writableEnded = true;
     this.socket.end();
     this.ended();
@@ -106,7 +125,6 @@ export class ParkedProcess extends EventEmitter implements ChatProcess {
   readonly stdin: ParkedInput;
   exitCode: number | null = null;
   signalCode: NodeJS.Signals | null = null;
-  private readonly child: ChildProcess;
   private readonly ledger: ParkedLedger;
   private readonly cliGoneMs: number;
   private out: FileTail | null = null;
@@ -114,21 +132,25 @@ export class ParkedProcess extends EventEmitter implements ChatProcess {
   private delivered: number;
   private punched: number;
   private cliKnown: ProcessIdentity | null = null;
-  private turnOpen = false;
+  private turnOpen: boolean;
   private closing = false;
   private closed = false;
+  private watching: NodeJS.Timeout | null = null;
+  /** Whether this server let it go on shutting down: it runs on, for the next server to adopt */
+  detached = false;
 
   constructor(init: ParkedProcessInit) {
     super();
     this.id = init.id;
     this.dir = init.dir;
     this.scope = init.scope;
-    this.child = init.child;
-    this.pid = init.child.pid;
+    this.pid = init.child ? init.child.pid : init.wrapper?.pid;
     this.ledger = init.ledger;
     this.delivered = init.from;
     this.punched = init.from - (init.from % PUNCH_BLOCK);
     this.cliGoneMs = init.cliGoneMs ?? 30_000;
+    this.turnOpen = init.turnOpen ?? false;
+    this.cliKnown = init.cli ?? null;
     this.stdin = new ParkedInput(
       init.fifo,
       (seq, line) => {
@@ -140,17 +162,39 @@ export class ParkedProcess extends EventEmitter implements ChatProcess {
         }
       },
       () => this.signalWrapper('SIGUSR1'),
+      init.stdinSeq ?? 0,
     );
     init.fifo.on('error', () => {
       // The FIFO cannot break while the wrapper holds its other end; after the wrapper is gone nothing reads it
     });
-    this.child.on('error', (error) => {
-      if (this.closed) return;
-      this.closed = true;
-      this.emit('error', error);
-      this.ledger.ended(this);
-    });
-    this.child.on('exit', (code, signal) => void this.wrapperExited(code, signal));
+    const { child, wrapper } = init;
+    if (child) {
+      child.on('error', (error) => {
+        if (this.closed) return;
+        this.closed = true;
+        this.emit('error', error);
+        this.ledger.ended(this);
+      });
+      child.on('exit', (code, signal) => void this.wrapperExited(code, signal));
+    } else if (wrapper) {
+      // Adopted: the wrapper's parent is the user manager or init, so its end is only seen by looking
+      this.watching = setInterval(() => {
+        if (processEntry(wrapper.pid)?.started === wrapper.started) return;
+        this.stopWatching();
+        void this.wrapperExited(null, null);
+      }, init.pollMs ?? 500);
+      this.watching.unref();
+    }
+  }
+
+  private stopWatching(): void {
+    if (this.watching) clearInterval(this.watching);
+    this.watching = null;
+  }
+
+  /** Whether a turn is open on it, as this server or its row last knew. */
+  get turnIsOpen(): boolean {
+    return this.turnOpen;
   }
 
   /** The byte of `out.jsonl` after the last line handed to the reader. */
@@ -173,6 +217,49 @@ export class ParkedProcess extends EventEmitter implements ChatProcess {
     this.cliKnown = { pid, started: entry.started };
     this.ledger.cli(this.id, this.cliKnown);
     return this.cliKnown;
+  }
+
+  /**
+   * The ids of the control requests some server already answered, from `in.jsonl`: what an adopter
+   * must not ask a person again, nor answer twice (spike S1).
+   */
+  answeredRequests(): Set<string> {
+    const answered = new Set<string>();
+    let text = '';
+    try {
+      text = readFileSync(this.file('input'), 'utf8');
+    } catch {
+      return answered;
+    }
+    for (const line of text.split('\n')) {
+      if (!line.trim()) continue;
+      try {
+        const record = JSON.parse(line) as { type?: unknown; id?: unknown };
+        if (record.type === 'control_response' && typeof record.id === 'string') answered.add(record.id);
+      } catch {
+        // A record cut by a crash names nothing
+      }
+    }
+    return answered;
+  }
+
+  /** Resolves once every complete line `out.jsonl` holds now has been handed over: an adopter's replay. */
+  async caughtUp(): Promise<void> {
+    await this.out?.drain();
+  }
+
+  /**
+   * This server lets the process go and leaves it running: nothing more is read or written, no signal
+   * is sent, and no event is emitted. Its row and files stay for the server that adopts it next.
+   */
+  detach(): void {
+    if (this.closed) return;
+    this.closed = true;
+    this.detached = true;
+    this.stopWatching();
+    this.out?.stop();
+    this.err?.stop();
+    this.stdin.mute();
   }
 
   /** Starts handing over the CLI's lines: stdout with the offset after each, stderr as it comes. */
@@ -209,7 +296,6 @@ export class ParkedProcess extends EventEmitter implements ChatProcess {
       return;
     }
     this.ledger.commit(this.id, offset);
-    this.punch(offset);
   }
 
   /**
@@ -256,8 +342,12 @@ export class ParkedProcess extends EventEmitter implements ChatProcess {
     }
   }
 
-  private punch(offset: number): void {
-    if (!this.ledger.punches) return;
+  /**
+   * Gives the bytes before a committed offset back to the filesystem. Only once the commit is
+   * written: a hole above the offset a successor replays from would read as NULs.
+   */
+  punch(offset: number): void {
+    if (!this.ledger.punches || this.closed) return;
     const upTo = offset - (offset % PUNCH_BLOCK);
     if (upTo <= this.punched) return;
     const from = this.punched;
@@ -272,6 +362,7 @@ export class ParkedProcess extends EventEmitter implements ChatProcess {
   private async wrapperExited(code: number | null, signal: NodeJS.Signals | null): Promise<void> {
     if (this.closing || this.closed) return;
     this.closing = true;
+    this.stopWatching();
     // A wrapper killed on its own leaves the CLI running (a tree is signalled descendants first, but
     // not all at once): its last lines are written after the wrapper is gone, and are read here
     const cli = this.cli();
@@ -286,6 +377,8 @@ export class ParkedProcess extends EventEmitter implements ChatProcess {
       // The wrapper was killed before it could write it: its own status is all there is
     }
     await Promise.all([this.out?.drain(), this.err?.drain()].map((p) => p?.catch(() => undefined)));
+    // Let go of while it drained (a shutdown): the next server reads what is left
+    if (this.detached) return;
     this.out?.stop();
     this.err?.stop();
     if (status !== null && Number.isInteger(status)) {

@@ -1773,6 +1773,13 @@ const MIGRATIONS: ReadonlyArray<string | ((db: DatabaseSync) => void)> = [
      started_at       TEXT NOT NULL
    );
    CREATE INDEX cli_processes_chat ON cli_processes (chat_id);`,
+
+  // Where a spend row's result was read, for a chat on a parked process: `<process>:<byte offset>` of
+  // its line in `out.jsonl`. A server that adopts the process replays its output from the committed
+  // offset, which can hold a result the server before it already recorded; the second row is refused
+  // (t4 of docs/plans/survive-restarts.md, R1). Null on every other row, which the index leaves alone.
+  `ALTER TABLE spend_ledger ADD COLUMN source TEXT;
+   CREATE UNIQUE INDEX spend_ledger_source ON spend_ledger (source) WHERE source IS NOT NULL;`,
 ];
 
 /**
@@ -2101,6 +2108,8 @@ export interface SpendRow {
   orchestrationId: string | null;
   /** The turn ran on the account's usage credits, its plan being spent */
   credits?: boolean;
+  /** Where its result was read (a parked process and the line's offset): a row from the same place is written once */
+  source?: string | null;
 }
 
 /** How long a claimed compaction is held before another process may take it for lost */
@@ -2567,7 +2576,7 @@ export class Db {
    * caller still runs: an old chat resumed today is the oldest by creation, and the trim must not
    * take the rows of a conversation that is going on. Returns the ids it trimmed.
    */
-  saveChats(chats: StoredChat[], keep: number | null, protect: ReadonlySet<string> = new Set()): string[] {
+  saveChats(chats: StoredChat[], keep: number | null, protect: ReadonlySet<string> = new Set(), alongside?: () => void): string[] {
     const upsertChat = prepared(
       this.db,
       `INSERT INTO chats (id, created_at, provider, json) VALUES (?, ?, ?, ?)
@@ -2584,6 +2593,8 @@ export class Db {
         upsertChat.run(record.id, record.createdAt, provider, JSON.stringify({ ...record, provider }));
         for (const execution of executions) upsertExecution.run(execution.id, record.id, execution.startedAt, JSON.stringify(execution));
       }
+      // Written with the chats or not at all: a parked process's committed offset beside the totals it was read up to
+      alongside?.();
       if (keep === null) return [];
       const past = prepared(this.db, 'SELECT id FROM chats WHERE id NOT IN (SELECT id FROM chats ORDER BY created_at DESC LIMIT ?)').all(keep) as Array<{ id: string }>;
       const trimmed = past.map((r) => r.id).filter((id) => !protect.has(id));
@@ -3097,12 +3108,14 @@ export class Db {
 
   // ---------- daily spend ledger ----------
 
-  addSpend(row: SpendRow): void {
-    prepared(
+  /** False when a row from the same `source` is there already: a replayed result. */
+  addSpend(row: SpendRow): boolean {
+    const result = prepared(
       this.db,
-      `INSERT INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id, credits)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId, row.credits ? 1 : 0);
+      `INSERT OR IGNORE INTO spend_ledger (at, chat_id, execution_id, usd, reported, purpose, account, account_kind, project_id, orchestration_id, credits, source)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).run(row.at, row.chatId, row.executionId, row.usd, row.reported ? 1 : 0, row.purpose, row.account, row.accountKind, row.projectId, row.orchestrationId, row.credits ? 1 : 0, row.source ?? null);
+    return Number(result.changes) > 0;
   }
 
   /** What the ledger holds in `[from, to)`, by purpose and account kind, how much of it ran on credits, and how many results carried no cost. */

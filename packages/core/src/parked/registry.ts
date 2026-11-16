@@ -33,7 +33,14 @@ export interface ParkedOptions {
   userManager?: () => boolean;
   /** How long a reaped process has between SIGTERM and SIGKILL, and a scope's `TimeoutStopSec` */
   stopGraceSeconds?: number;
+  /** The server holding processes; this one by default. A test stands in for a second server with another */
+  owner?: ProcessIdentity;
+  /** How often an adopted wrapper is looked for */
+  pollMs?: number;
 }
+
+/** Why a row could not be adopted: it goes to layer 3 instead (or stays, while a live server holds it). */
+export type AdoptRefusal = 'held' | 'layout' | 'gone' | 'taken' | 'files';
 
 /** The server holding processes: this one, by pid and start time, as `/proc` names it. */
 function selfIdentity(): ProcessIdentity {
@@ -64,8 +71,8 @@ function systemctl(args: string[]): Promise<void> {
 /**
  * The parked CLI processes of this data dir (layer 2 of docs/plans/survive-restarts.md, t3): it
  * starts each one detached under the wrapper, holds their lease while this server lives, keeps their
- * rows, and reaps what a previous server left. Adopting a live process at start-up is t4's; until
- * then a start stops what it finds, and the chats a restart cut are continued by layer 3 as before.
+ * rows, adopts at start-up what a previous server left running (t4), lets them go on a shutdown, and
+ * reaps what could not be adopted, whose chats layer 3 continues.
  */
 export class ParkedProcesses implements ParkedLedger {
   readonly root: string;
@@ -75,10 +82,18 @@ export class ParkedProcesses implements ParkedLedger {
   private readonly now: () => number;
   private readonly tickSeconds: number;
   private readonly stopGraceSeconds: number;
-  private readonly owner = selfIdentity();
+  private readonly owner: ProcessIdentity;
+  private readonly pollMs: number | undefined;
   private readonly live = new Map<string, ParkedProcess>();
   private renewTimer: NodeJS.Timeout | null = null;
   private canPunch = true;
+  /**
+   * Turn ends whose offset waits to be written with the chat's own row (`ChatManager.persist`), so the
+   * baseline the next turn's cost is measured from and the offset a successor replays from never
+   * disagree (R1). Off, each is written at once, as a registry used alone does.
+   */
+  deferCommits = false;
+  private readonly due = new Map<string, number>();
 
   constructor(options: ParkedOptions) {
     this.root = join(options.dataDir, 'procs');
@@ -88,6 +103,13 @@ export class ParkedProcesses implements ParkedLedger {
     this.tickSeconds = options.tickSeconds ?? 10;
     this.stopGraceSeconds = options.stopGraceSeconds ?? 10;
     this.useScopes = options.scopes && (options.userManager ?? hasUserManager)();
+    this.owner = options.owner ?? selfIdentity();
+    this.pollMs = options.pollMs;
+  }
+
+  /** The server this registry holds processes for, as the rows name it. */
+  get identity(): ProcessIdentity {
+    return this.owner;
   }
 
   get punches(): boolean {
@@ -139,7 +161,7 @@ export class ParkedProcesses implements ParkedLedger {
     } finally {
       closeSync(log);
     }
-    const parked = new ParkedProcess({ id, dir, scope, child, fifo, ledger: this, from: 0 });
+    const parked = new ParkedProcess({ id, dir, scope, child, fifo, ledger: this, from: 0, ...(this.pollMs !== undefined ? { pollMs: this.pollMs } : {}) });
     if (child.pid !== undefined) {
       this.store.insert({
         id,
@@ -176,15 +198,112 @@ export class ParkedProcesses implements ParkedLedger {
 
   /** The CLIs (by pid) of the rows `reap` would stop now: those whose server is gone and that still run. */
   leftBehind(): number[] {
-    return this.store
-      .all()
-      .filter((row) => !this.live.has(row.id) && !(row.owner && alive(row.owner)) && alive(row.cli))
+    return this.orphans()
+      .filter((row) => alive(row.cli))
       .flatMap((row) => (row.cli ? [row.cli.pid] : []));
   }
 
+  /** The rows whose server is gone (or let them go) and that this one does not hold: what a start adopts or reaps. */
+  orphans(): CliProcessRow[] {
+    return this.store.all().filter((row) => !this.live.has(row.id) && !(row.owner && alive(row.owner)));
+  }
+
   /**
-   * What a previous server left: each row whose owner is gone. A process still running is stopped
-   * (adopting it is t4's), its directory removed and its row deleted; a directory with no row whose
+   * Takes over a process a server before this one left (layer 2, t4): checked by pid and start time,
+   * wrapper and CLI, then taken with a guarded update on the owner the row was read with, so of two
+   * servers starting at once exactly one gets it. Its lease is renewed from here on and its output is
+   * read from the committed offset. Answers the process, or why it could not be adopted, in which
+   * case the row is left as it was for `reap`.
+   */
+  adopt(row: CliProcessRow): ParkedProcess | AdoptRefusal {
+    if (this.live.has(row.id) || (row.owner && alive(row.owner))) return 'held';
+    if (row.layout !== PARKED_LAYOUT) return 'layout';
+    // The wrapper holds the FIFO's writer and records the exit: without it the CLI reads EOF any time
+    if (!alive(row.wrapper) || (row.cli !== null && !alive(row.cli)) || ParkedProcess.exited(row.dir)) return 'gone';
+    if (!this.store.take(row.id, row.owner, this.owner, new Date(this.leaseUntilMs()).toISOString())) return 'taken';
+    let fd: number;
+    try {
+      fd = openSync(join(row.dir, PARKED_FILES.fifo), constants.O_RDWR | constants.O_NONBLOCK);
+      this.writeLease(row.dir);
+    } catch {
+      // Taken and then unusable: let go again, so the start reaps it
+      this.store.release(row.id, this.owner);
+      return 'files';
+    }
+    const fifo = new Socket({ fd, readable: false, writable: true });
+    const parked = new ParkedProcess({
+      id: row.id,
+      dir: row.dir,
+      scope: row.scope,
+      wrapper: row.wrapper,
+      cli: row.cli,
+      fifo,
+      ledger: this,
+      from: row.committedOffset,
+      stdinSeq: row.stdinSeq,
+      turnOpen: row.turnOffset !== null,
+      ...(this.pollMs !== undefined ? { pollMs: this.pollMs } : {}),
+    });
+    this.live.set(row.id, parked);
+    this.armRenewal();
+    return parked;
+  }
+
+  /**
+   * A shutdown that leaves the processes running (D1): each stops being read and written, the turn
+   * ends waiting are written, and the rows are let go so the next server takes them from nobody. The
+   * lease is not moved again, so the watchdog ends an open turn if no server comes back in time.
+   */
+  detach(): ParkedProcess[] {
+    this.flushCommits();
+    const left = [...this.live.values()];
+    for (const parked of left) {
+      parked.detach();
+      try {
+        this.store.release(parked.id, this.owner);
+      } catch {
+        // The store closed first: the row names a server that is gone, which the next start reads the same way
+      }
+    }
+    this.live.clear();
+    if (this.renewTimer) clearInterval(this.renewTimer);
+    this.renewTimer = null;
+    return left;
+  }
+
+  /** The turn ends waiting for their offset to be written; `deferCommits` only. */
+  dueCommits(): Array<[string, number]> {
+    return [...this.due];
+  }
+
+  /** Writes turn ends' offsets; inside the caller's transaction when it holds one. */
+  writeCommits(due: ReadonlyArray<[string, number]>): void {
+    for (const [id, offset] of due) this.store.commit(id, this.owner, offset);
+  }
+
+  /** The offsets are written: the bytes before them can go, and they wait no more. */
+  committed(due: ReadonlyArray<[string, number]>): void {
+    for (const [id, offset] of due) {
+      if (this.due.get(id) === offset) this.due.delete(id);
+      this.live.get(id)?.punch(offset);
+    }
+  }
+
+  /** Writes whatever waits, on its own. */
+  flushCommits(): void {
+    const due = this.dueCommits();
+    if (due.length === 0) return;
+    try {
+      this.writeCommits(due);
+    } catch {
+      return;
+    }
+    this.committed(due);
+  }
+
+  /**
+   * What a previous server left and this one did not adopt: each row whose owner is gone. A process
+   * still running is stopped, its directory removed and its row deleted; a directory with no row whose
    * process is gone is removed too. Resolves with the ids reaped.
    */
   async reap(): Promise<string[]> {
@@ -226,7 +345,12 @@ export class ParkedProcesses implements ParkedLedger {
   }
 
   commit(id: string, offset: number): void {
+    if (this.deferCommits) {
+      this.due.set(id, offset);
+      return;
+    }
     this.store.commit(id, this.owner, offset);
+    this.live.get(id)?.punch(offset);
   }
 
   stdinSeq(id: string, seq: number): void {
@@ -239,6 +363,7 @@ export class ParkedProcesses implements ParkedLedger {
 
   ended(parked: ParkedProcess): void {
     this.live.delete(parked.id);
+    this.due.delete(parked.id);
     try {
       this.store.delete(parked.id);
     } catch {
