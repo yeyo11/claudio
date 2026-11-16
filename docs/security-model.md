@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-15T21:00:00Z
+updated_at: 2026-11-16T12:00:00Z
 tags:
     - security
     - secrets
@@ -190,6 +190,35 @@ a trial that ends with it is neither failed nor restarted.
   under a previous holder's lock is reconciled; one from before the lock existed is left alone while
   something answers at its target. And a server only ever takes away the rule it added itself
   ([tunnel.md](tunnel.md#only-what-claudio-added)).
+
+## Parked CLI processes
+
+With `CLAUDIO_PARKED_PROCESSES` on (off by default), a chat's CLI is no child of the server on pipes
+but a detached process whose input and output are files (layer 2 of
+[plans/survive-restarts.md](plans/survive-restarts.md), `packages/core/src/parked/`). What that adds:
+
+- **Conversation content on disk.** `<data>/procs/<id>/out.jsonl` and `err.log` hold what the CLI
+  wrote, the turn's text and tool output included, until the turn ends (the bytes read are then
+  punched out) and the whole directory when the process ends. `run.sh` holds the CLI's command line
+  (paths and flags, no credential: the chat token and the account's credential go in the
+  environment, which is never written). `in.jsonl` records what the server wrote by kind and id only,
+  never the text. `procs/` is `0700` and every file in it `0600`, created that way before the CLI
+  starts, and the wrapper runs with `umask 077`.
+- **A writable FIFO per chat (risk R3 of the plan).** `in.fifo` is the CLI's stdin. Anything running
+  as the same user that can reach the data directory could write a message or a control response
+  into another chat's CLI. That is no wider than what the same user can already do to that CLI's
+  files and process, and it is close to the vendor's own inbox socket (`CLAUDE_CODE_MESSAGING_SOCKET`).
+  A confined chat (headless, workspaces) never sees the data directory. A guarded chat's agent is
+  refused writes anywhere in the data directory, `procs/` included, by the guard's
+  `integrity.own-state` rule, as for the rest of Claudio's state.
+- **No credential crosses a restart yet.** The chat token stays in memory (t5 moves its hash to the
+  process's row, decision D5); and since nothing adopts a parked process yet (t4), a start stops what
+  a previous server left, its token gone with that server.
+- **Paid work with nobody watching is bounded.** A CLI whose lease no server renews for
+  `CLAUDIO_HANDOVER_SECONDS` (five minutes) has its open turn ended with SIGINT by its own wrapper.
+- **Signals go only to what Claudio started.** The registry signals a process only after checking
+  its pid and start time against its row, and stops a scope only by the unit name its row records:
+  never by a pattern that could match another Claudio's scopes on the same machine.
 
 ## What the vendors' CLIs keep in plain text
 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-15T20:00:00Z
+updated_at: 2026-11-16T12:00:00Z
 tags:
     - plan
     - study
@@ -14,7 +14,8 @@ tags:
 # Study: work that keeps running when Claudio closes, restarts or updates
 
 **Status: in progress. The owner approved approach D on 2026-11-15 ([decisions](#the-owners-decisions-2026-11-15));
-the spikes (t2) are done and layer 3 (t1) is built ([t1's outcome](#outcome-of-t1-layer-3-2026-11-15)).**
+the spikes (t2) are done, layer 3 (t1) is built ([t1's outcome](#outcome-of-t1-layer-3-2026-11-15)), and
+layer 2 starts and runs parked processes behind a switch ([t3's outcome](#outcome-of-t3-parked-processes-start-and-run-2026-11-16)).**
 
 ## The problem, in the owner's words
 
@@ -643,6 +644,71 @@ What a start does with the work the server before it left cut, by who the work w
   the chain bound, a CLI that declines, a cut workflow resumed from its cache). The browser spec that
   restarts the server mid-turn is left to t8, which needs the slow fake turn layer 2 also needs.
 - **Not built here:** layers 2 and 1 (t2–t9).
+
+## Outcome of t3 (parked processes, start and run, 2026-11-16)
+
+Built in `packages/core/src/parked/`, **off by default** (`CLAUDIO_PARKED_PROCESSES`; the plan left the
+default open, and with no adoption a release must behave as before). With it off, nothing changes: no
+directory, no row, the CLI on pipes.
+
+| Piece | As built |
+|---|---|
+| Row | `cli_processes` (migration in `db.ts`, `parked/store.ts`): chat, layout, directory, scope, wrapper and CLI each as pid + start time, owner (the server's pid + start time), `lease_until`, `committed_offset`, `stdin_seq`, `turn_offset`, and empty `token_hash`, `payload_dir`, `cli_version` for t5. Every write but the insert is guarded by the owner |
+| Files | `<data>/procs/<id>/` (`0700`, files `0600`, `umask 077`): `version` (layout 1), `run.sh`, `in.fifo`, `in.jsonl` (kind and id of each line written, never the text), `out.jsonl`, `err.log`, `wrapper.log`, `pid`, `exit.code`, `lease` (expiry, epoch seconds), `turn` (offset where the open turn's output starts), `watchdog` (when it fired) |
+| Wrapper | `parked/wrapper.ts`, one `sh` script per process with the command in it, so the process table shows `sh …/run.sh` and nothing matching CLIs by argv takes it for a second CLI on the session. fd 4 holds the FIFO read-write, the CLI runs in the background with `<&3` (a read-only fd) as S1 found it must, its pid goes to `pid`, its `wait` status to `exit.code` |
+| Scope | `systemd-run --user --scope --quiet --collect --unit=claudio-cli-<id>.scope -p TimeoutStopSec=10` where `systemctl --user is-system-running` answers `running` or `degraded` (D9); `systemd-run` execs in place, so the spawned pid is the wrapper's. Otherwise Node's `detached` (`setsid`). `CLAUDIO_PARKED_SCOPES=off` forces the latter. Reaping runs `reset-failed` on the unit its row names, never a pattern |
+| I/O | `ChatProcess` (`chat-process.ts`) is what `ChatManager` drives; a pipe child fits it unchanged, `ParkedProcess` implements it. The server opens the FIFO `O_RDWR \| O_NONBLOCK` before the wrapper exists (never blocks, never `ENXIO`) and writes through a `net.Socket`, so libuv absorbs a full pipe. `FileTail` follows `out.jsonl` and `err.log` from the committed offset with inotify and a 1 s poll; `close` comes only after the CLI is gone and both are read to the end |
+| Turn boundaries | `LiveChat.onTurn` fires when the lead's turn opens or ends. Open: `turn` file and `turn_offset`. End: `committed_offset` = the end of the line the fold just read, then `fallocate --punch-hole` below it in whole 4 KiB blocks (S6) |
+| Lease and watchdog | The server rewrites every `lease` file and row with now + `CLAUDIO_HANDOVER_SECONDS` (300, D6) every minute (or a fifth of the window). The wrapper's watchdog subshell, every 10 s: lease expired, `turn` present, and no `"type":"result"` in `out.jsonl` after the turn's offset → SIGINT to the CLI, once. An idle CLI is never signalled (S2) |
+| Ending | `end()` closes the server's writer and sends the wrapper SIGUSR1, whose trap closes fd 4: the CLI reads EOF, so the idle timeout and one-shot runs behave as on pipes. `kill` signals the CLI by pid (checked against its parent), SIGKILL the whole tree and the scope. On close, the row, directory and failed scope go |
+| Start-up | `restore` leaves the CLIs of rows whose owner is gone out of the strays (synchronously, as `server.ts` reads them at once), then `reap()` stops them (scope stop, or SIGTERM then SIGKILL to the checked tree) before it resolves, so layer 3 continues their cut turns as after #150. Directories with no row whose process is gone are removed |
+
+**Where the plan or the spikes were wrong or incomplete.**
+
+- **"The CLI itself is always a writer of its stdin" (M3, D4) is not what was built.** With
+  `exec 0<>in.fifo` the CLI can never read EOF, and Claudio relies on EOF: the idle timeout and
+  `keepAlive: false` end a process by closing its input, and the CLI documents waiting for
+  background work "after stdin has closed". The CLI gets a read-only descriptor and the wrapper holds
+  the writer, released on SIGUSR1. The cost: a wrapper killed on its own (only a scope stop or a
+  SIGKILL does that) lets the CLI read EOF once no server writes either.
+- **"Every write also goes to `in.jsonl`" would put every prompt on disk a second time**, base64
+  attachments included. `in.jsonl` keeps the sequence number, the kind and the id (message `uuid` or
+  control `request_id`), which is what the plan wanted it for.
+- **A watchdog in `sh` cannot read "the tail shows a turn with no result"** without a JSON parser, and
+  a server that died mid-turn never removes its marker. It reads the `turn` offset the server wrote
+  and greps what follows for a result line, so a turn that ended while no server was there is left
+  alone (tested). The lease is an expiry in the file, not the file's age, so the server's clock sets it.
+- **The rotation fallback of S6 is not safe.** Truncating a file the CLI appends to races its next
+  write; where holes cannot be punched the bytes stay until the process ends.
+- **S1's "offset committed with the spend row in one transaction"** is not done: in t3 nothing replays,
+  so the commit follows the fold's turn end. t4 must bind them before it replays.
+- **`--collect` makes a scope that died of a signal unload by itself**; `reset-failed` is still sent
+  on reaping, as S4 asked, for a unit that outlived its server.
+
+**What t4 needs, and finds ready.** Rows with pid + start time for the wrapper and the CLI; the
+owner to take over with a guarded `UPDATE`; `committed_offset` (a line end, everything before it
+possibly a hole) to replay from with `FileTail`; `turn_offset` to know a turn was open; `in.jsonl` for
+the control responses already sent; `ParkedProcess` built from a row (its constructor takes `from`, but
+an adopted wrapper is no child of the new server: its exit must come from polling the pid and
+`exit.code` instead of `child.on('exit')`); `stopAll` and start-up switched from stop and reap to
+detach and adopt; and the e2e of t8. t5: the token hash, payload dir and CLI version columns exist and
+are empty.
+
+**Tests.** `packages/core/test/parked.test.ts` (18, over the control fake CLI, which now ends an open
+turn on SIGINT and an idle process with exit 0 as the CLI does): FIFO and file descriptors, own session,
+the wrapper's clean argv, two turns on one process; file modes; EOF on `end()`; a signal reported as
+on pipes; `in.jsonl` without text; commit and holes over 40 turns; the watchdog against an expired
+lease, an idle CLI and a held lease, and against a turn that ended without a server; lease renewal on
+an injected clock; the owner guard; reaping a gone server's process and an orphan directory, and
+leaving a live owner's alone; the scope (cgroup, collected after the end; skipped without a user
+manager); the switch's parsing; a chat on a parked process end to end; a chat on pipes with the switch
+off; and a start that reaps a parked CLI cut mid-turn and hands its turn to layer 3 as continuable.
+
+**Measured here** (Linux, dash, systemd 259 user manager, tmpfs `/tmp`): `systemd-run --scope` keeps
+the pid (the wrapper's argv replaces `systemd-run`'s) and the unit is gone after the process ends; a
+100 KB line through the non-blocking FIFO socket arrives whole; SIGUSR1 to the wrapper, then closing
+the server's writer, delivers EOF and the CLI's own exit code (7) to `exit.code`. Nothing touched the
+owner's running app.
 
 ## The owner's decisions (2026-11-15)
 
