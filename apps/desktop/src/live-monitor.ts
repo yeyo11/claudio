@@ -150,6 +150,19 @@ export class LiveMonitor {
       });
   }
 
+  /**
+   * What is live right now, read at once and outside the throttle: a question such as quitting must
+   * not answer from a snapshot older than the work just started. Null when the server did not answer
+   */
+  async snapshot(): Promise<LiveSnapshot | null> {
+    if (this.stopped) return null;
+    try {
+      return await this.read();
+    } catch {
+      return null;
+    }
+  }
+
   private async get<T>(path: string): Promise<T> {
     const signal = AbortSignal.any([this.abort.signal, AbortSignal.timeout(REQUEST_TIMEOUT_MS)]);
     const res = await fetch(`${this.opts.origin}${path}`, { headers: this.opts.headers, signal });

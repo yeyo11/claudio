@@ -63,6 +63,10 @@ extraResources:
     to: server/node_modules/@number0
   - from: ../web/dist
     to: web
+  # The daemon that supervises the server outside the window (src/daemon-entry.ts), run on the binary as
+  # Node like server.mjs, and so outside app.asar like it (docs/desktop.md)
+  - from: dist/daemon.cjs
+    to: daemon/daemon.cjs
   # The window's own icon (src/resources.ts); without it the running window has no _NET_WM_ICON
   - from: build/icons/512x512.png
     to: icon.png

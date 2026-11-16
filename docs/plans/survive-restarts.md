@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-16T20:00:00Z
+updated_at: 2026-11-16T22:00:00Z
 tags:
     - plan
     - study
@@ -16,7 +16,9 @@ tags:
 **Status: in progress. The owner approved approach D on 2026-11-15 ([decisions](#the-owners-decisions-2026-11-15));
 the spikes (t2) are done, layer 3 (t1) is built ([t1's outcome](#outcome-of-t1-layer-3-2026-11-15)), and
 layer 2 starts and runs parked processes behind a switch ([t3's outcome](#outcome-of-t3-parked-processes-start-and-run-2026-11-16)),
-and a restart adopts them ([t4's outcome](#outcome-of-t4-adoption-2026-11-16)).**
+a restart adopts them ([t4's outcome](#outcome-of-t4-adoption-2026-11-16)) with their tokens and port
+([t5's outcome](#outcome-of-t5-what-a-running-cli-holds-from-its-server-2026-11-16)), and on the desktop
+a daemon keeps the server running when the window closes or quits ([t6's outcome](#outcome-of-t6-the-desktop-daemon-2026-11-16)).**
 
 ## The problem, in the owner's words
 
@@ -830,6 +832,96 @@ its `pending_permission_requests` answer (t4) and `CLAUDIO_FAKE_CLI_TURN_COST_US
 
 **Not covered.** Permission prompts and the token are covered end to end only with parking on, as the
 fake CLI lists its pending request only then. A real CLI was not run.
+
+## Outcome of t6 (the desktop daemon, 2026-11-16)
+
+Layer 1, built in `apps/desktop/src/daemon*.ts`, `quit.ts` and `main.ts`, and documented for people in
+[desktop.md](../desktop.md#work-that-outlives-the-window). The parked processes of t3–t5 are **on by
+default** under it.
+
+| Piece | As built |
+|---|---|
+| Daemon | `daemon.ts`: listens on `<data>/daemon.sock` (0600, NDJSON, `daemon-protocol.ts`, protocol 1), writes `<data>/daemon.json` (0600: pid, start time, protocol, version, `followsShell`, unit, socket, URL, a fresh `CLAUDIO_DESKTOP_TOKEN`), and runs the payload machine (`PayloadHost`) the window used to run. It starts no server before a window says `hello` with its environment, login-shell `PATH` and keyring key; a daemon no window reaches ends after 10 min. A second daemon on the same data directory leaves the first be |
+| Launch (D2) | `daemon-launch.ts`: `systemd-run --user --unit=claudio-daemon-<sha256(dataDir)[:12]>.service --collect -p Restart=on-failure -p RestartSec=2 -p KillMode=mixed -p TimeoutStopSec=45` where `systemctl --user is-system-running` says `running`/`degraded`; a refusal is reset (`reset-failed`) and tried once more, then `setsid`. `.deb` and a checkout: `<binary> daemon.cjs` with `ELECTRON_RUN_AS_NODE` (an extraResource outside `app.asar`); AppImage: a `sh` wrapper (`APPIMAGE_DAEMON_WRAPPER`) that holds a mount of its own with `$APPIMAGE --appimage-mount` and runs `<mount>/claudio <mount>/resources/daemon/daemon.cjs` as Node (see below). `StartLimitBurst=5` in 120 s; stdout and stderr appended to `logs/daemon.out.log`. Secrets never go on the command line |
+| Attach | A window reads `daemon.json`, checks pid + start time, connects; none or dead → start. `attachDecision`: another protocol, or an AppImage daemon of another version → replace (`stop detach`, so parked work is handed over); a daemon following the shell but on an older bundled payload → `restart-server`; else attach |
+| Close | The window goes, the tray and the daemon stay. Without a tray, closing is a quit |
+| Quit (D1) | `quitWork` reads what is live **at once** (`LiveMonitor.snapshot`, past the tray's throttle: the trial caught a quit right after a chat started reading the old snapshot and stopping it unasked). Nothing live → `stop stop-work`. Live → the page's `QuitQuestion` (`apps/web/src/components/QuitQuestion.tsx`, mounted at the app's root so the sign-in and first run ask too, not in terminal windows), en/es, **Keep working in the background** focused by default, **Stop all work and quit**, Cancel/Esc; the native English dialog only when the page cannot ask within 8 s. Keep → the window closes its connection and a system notice in the page's language says the work goes on |
+| Stop all work | `stop stop-work` → the server is sent `claudio:stop-work` over its IPC channel, acks, and closes with `close({ stopWork: true })` → `ChatManager.stopWorkAtShutdown()` stops every chat, parked CLIs included; a server that does not ack in 2 s gets SIGTERM, which detaches. Detach (`systemctl --user stop`, logout, SIGTERM/SIGINT/SIGHUP to the daemon) closes the server as on a restart, so parked work runs on for the next one |
+| A graceful stop cuts, it does not stop (asked by the lead after t8, #160) | Before, `Core.shutdown` → `stopAll` → `stop()` closed every chat on pipes as `stopped` with `turnOpen: false`, so a SIGTERM (an update, a container stop, a quit that keeps the work with parking off) left nothing for layer 3 to continue. Now `stopAll` marks a chat whose turn is open `cutByShutdown` unless the person chose **Stop all work** (`stopWorkAtShutdown`); its process still stops, but `finalize` leaves the execution as a crash leaves it (`leaveCut`: open, `turnOpen: true`, its carried messages not lost), so the next start's restore closes it as interrupted and layer 3 continues it (under an hour) or offers Resume. Stop all work keeps `stopped` |
+| Idle end | No window and nothing live (working, waiting, running) for 2 min → the daemon stops with `stop-work`, which then has nothing to stop |
+| Crash | A server that dies after it listened restarts after 1, 2, 4… s (cap 30), given up after 5 crashes in 10 min until a window asks. One that never listened, another server on the data dir (73) or the port taken (69) is not restarted: the window shows why with **Restart** |
+| Port (t5) | `AdoptedPortTakenError` exits with the new `ADOPTED_PORT_TAKEN_EXIT_CODE` (69, `launcher/protocol.ts`): the launcher machine treats it like 73 (no failed trial, no restart), the daemon shows the server's own sentence (`portTakenDetail`). The daemon asks for the port the window remembers, and the server prefers the CLIs' port |
+| Update | Payload: exit 75 inside the daemon, as before. Shell relaunch (exit 76, Help, apt): the window relaunches, the daemon stays (`relaunch-window`), and restarts its server only when it serves an older bundled payload. AppImage update: the daemon is stopped with `detach` first, then the new AppImage starts |
+| Parked default | `serverEnv({ parkedByDefault })` sets `CLAUDIO_PARKED_PROCESSES=on` for a daemon whose files sit on a stable path (`followsShell`: the `.deb`, a checkout), not under the AppImage (S5: its mount goes with its daemon); the container and `pnpm dev` keep it off; a value in the environment wins |
+
+**Why parked is on now.** t4 kept it off because a parked CLI had nobody enforcing budgets once the
+window's close stopped the server. Under the daemon the server outlives the window, so a parked CLI
+is unattended only across a server restart, which the lease bounds (D6).
+
+**Where the plan was incomplete.**
+
+- **The quit question needs a fresh read.** The tray's snapshot is throttled; a quit right after a
+  chat starts must not read "nothing live" and stop it. Found by the sandbox trial.
+- **The question must be asked wherever the main window is**, the first-run assistant included: the
+  first trial ran on a fresh data directory, the page could not ask, and the shell fell back to its
+  English dialog.
+- **The launcher in `packages/core/src/launcher/` did not become the desktop's supervisor**: the
+  daemon hosts the same machine (`launcher/machine.ts`) through the shell's `PayloadHost`, so the
+  desktop keeps its trial-with-a-window and its keyring key.
+
+**Sandbox trial** (2026-11-16, own `XDG_CONFIG_HOME` under `/tmp`, port 48731, e2e fake CLI with a
+25 s `sleep` turn, Xvfb and a private D-Bus; the owner's app, port and units untouched; the unit
+`claudio-daemon-c16fce7cab97.service` was the trial's own and is gone):
+
+1. **Close.** `window.close()` with the turn running: Electron stayed (tray), the window was gone, the
+   turn's result arrived 26 s later on the same CLI pid.
+2. **Quit, keep.** SIGTERM to Electron (the `app.quit` path) with a turn running: the page asked
+   (es, over the first-run screen), **Seguir en segundo plano** was clicked, Electron left, the daemon
+   and server stayed, and the turn finished with no window.
+3. **Quit, stop.** A new window started a new daemon in the same unit name (the earlier one had ended
+   on its idle clock) and asked; **Detener todo y salir**: the CLI exited at once, the daemon and its
+   unit, `daemon.json` and `procs/` were gone.
+4. A window killed with SIGKILL left the daemon and the running turn untouched.
+
+**The AppImage, found by CI's AppImage smoke after the first push.** The first build started the AppImage's
+daemon as `$APPIMAGE --claudio-daemon`, the Electron app with a flag. In a user unit it never came up:
+the window waited 20 s and showed "could not start its server", and nothing wrote `server-port.json`.
+Reproduced locally with an AppImage built as CI builds it: the unit restarted 76 times with no log. Two
+causes: the Electron app has no display in a unit, and running the AppImage again as Node does not work
+either, because electron-builder's `AppRun` puts `--no-sandbox` before the arguments wherever
+unprivileged user namespaces are restricted, which Node refuses ("bad option"). The daemon now runs
+through a wrapper that takes a bare mount from the AppImage runtime (`--appimage-mount`), runs the
+mount's binary as Node, forwards a stop to it and lets the mount go after it (tested with a stand-in
+AppImage in `daemon-launch.test.ts`, and live with the real AppImage, below). Restarts are bounded and the
+daemon's own output is kept, so the next such failure says why.
+
+Not tried live: a logout, a crash loop of a real server, and a shell update. Electron took long to exit after **Keep** in the sandbox (over a minute;
+the private D-Bus had a notification service that never answered), which a real session does not have.
+
+**Tests.** `apps/desktop/test/daemon.test.ts` (12, over the real socket with a fake payload host and
+servers: `daemon.json` and its modes, no server before `hello`, one daemon per data directory, a stale
+socket taken over, the crash pause doubling, giving up, no loop for a server that never listened or a
+taken port, `stop-work` against `detach`, a server that does not ack, the idle end with and without
+live work, a daemon nobody reaches); `daemon-launch.test.ts` (14: the unit's arguments, `--description`
+with spaces reaching a fake `systemd-run` whole, the `setsid` and AppImage plans, reset and fallback,
+attach / start / replace / restart-server, the record, the unit name, message parsing); `quit.test.ts`
+(4); `server-process.test.ts` (the parked default, the stop-work ack); `live-monitor.test.ts` (the fresh
+read); `packages/core/test/launcher-machine.test.ts` (a trial ending 69 is not failed);
+`apps/web/test/quit-question.test.tsx` (the copy in both languages, nothing drawn outside the app);
+`packages/core/test/restart-resume.test.ts` (a graceful shutdown with a turn open → continued on the
+next start; with stop-work first → stays `stopped`, nothing continued). Also fixed: `parked-holds.test.ts`
+took `cli.pid + 1` as another process, which under load is the CLI's own child with the same start time.
+
+**What t7, t8 and t9 need.**
+
+- **t7:** the update routes still answer `409 update.live-work` over live chats; under the daemon with
+  parked processes a payload restart loses nothing but terminals, so only terminals should refuse (D8).
+  The Updates card's "Restart when nothing is running" copy follows.
+- **t8:** the browser spec that restarts the server mid-turn (no daemon needed: `CLAUDIO_PARKED_PROCESSES=on`
+  on the sandbox server); a desktop-level e2e of close and quit is not possible in the CDP harness, so
+  this trial's script is the reference for one.
+- **t9:** `deploy.md` (the signals table: SIGTERM detaches under parking), `orchestrations.md`,
+  `providers.md`, and this plan's final Outcome; `desktop.md` already has the daemon section.
 
 ## The owner's decisions (2026-11-15)
 

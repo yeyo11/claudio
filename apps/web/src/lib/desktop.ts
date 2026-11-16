@@ -33,6 +33,12 @@ export interface DesktopBridge {
   updates?: DesktopUpdatesBridge;
   /** Tells the shell the web rendered (`notifyPageReady`); the shell may expose it under `updates` instead */
   pageReady?: () => void;
+  /**
+   * The quit question (docs/plans/survive-restarts.md, D1): the shell hands the listener what is live
+   * and waits for `{ answer, notice }`. Registering tells the shell this page can ask; the returned
+   * function that it no longer can. A shell without it asks with its own native dialog.
+   */
+  onQuitAsk?: (listener: (live: unknown) => Promise<unknown>) => () => void;
 }
 
 /**

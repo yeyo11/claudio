@@ -31,6 +31,7 @@ import { BrandMark, ICON, ClaudioGlyph } from '@claudio/ui/components/icons';
 import { NotificationHost } from './components/Notifications';
 import { PageTransition, SlidingIndicator, StatusDot } from '@claudio/ui/components/motion';
 import { lazyPage, ReloadBanner } from './components/ReloadOffer';
+import { QuitQuestion } from './components/QuitQuestion';
 import { ServerSkewBanner } from './components/ServerSkew';
 import { Fab } from './components/shell/Fab';
 import { useOwnPhoneHeader, usePhoneHeaderMark } from './components/shell/PhoneHeader';
@@ -130,19 +131,32 @@ export function App() {
   const challenge = useAuthChallenge();
   const refusal = useHostRefusal();
   const settled = useAuthSettled();
-  // A host the wrapper does not answer to is told first: signing in could not get past it
-  if (refusal) return <HostRefused refusal={refusal} />;
-  if (challenge) return <SignIn mode={challenge} />;
-  if (!settled) return null;
-  // A terminal in a window of its own is the terminal and nothing else: no shell, no first-run gate
+  // A terminal in a window of its own is the terminal and nothing else: no shell, no first-run gate,
+  // and no quit question, which the desktop asks in the main window only
   const detached = terminalWindowId(pathname);
-  if (detached) {
+  if (detached && !refusal && !challenge) {
+    if (!settled) return null;
     return (
       <Suspense fallback={null}>
         <TerminalWindow id={detached} />
       </Suspense>
     );
   }
+  // The desktop may ask whether to keep working on quit from any screen of the main window: the sign-in
+  // and the first run included, so it never falls back to the shell's English dialog there
+  return (
+    <>
+      <AppScreen refusal={refusal} challenge={challenge} settled={settled} />
+      {!detached && <QuitQuestion />}
+    </>
+  );
+}
+
+function AppScreen({ refusal, challenge, settled }: { refusal: ReturnType<typeof useHostRefusal>; challenge: ReturnType<typeof useAuthChallenge>; settled: boolean }) {
+  // A host the wrapper does not answer to is told first: signing in could not get past it
+  if (refusal) return <HostRefused refusal={refusal} />;
+  if (challenge) return <SignIn mode={challenge} />;
+  if (!settled) return null;
   return <FirstRunGate />;
 }
 

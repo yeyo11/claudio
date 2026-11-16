@@ -103,6 +103,18 @@ test('a stored chat token is refused once its process has ended: the row and the
   assert.equal(r.sql.prepare('SELECT COUNT(*) AS n FROM cli_processes').get()?.n, 0);
 });
 
+/** A pid no process has now, so nothing can match it by start time either */
+function unusedPid(): number {
+  for (let pid = 4_194_000; pid > 1; pid -= 1) {
+    try {
+      process.kill(pid, 0);
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code === 'ESRCH') return pid;
+    }
+  }
+  throw new Error('no free pid');
+}
+
 test('a stored chat token is bound to the process by pid and start time, to a server that holds it, and to a day', async () => {
   let clock = Date.now();
   const r = rig(() => clock);
@@ -115,7 +127,8 @@ test('a stored chat token is bound to the process by pid and start time, to a se
   // The pid was reused by another process: same pid, a start time that is not the CLI's
   r.sql.prepare('UPDATE cli_processes SET cli_started = ?').run(cli.started + 1);
   assert.equal(store.verify(TOKEN), null, 'a different start time is a different process');
-  r.sql.prepare('UPDATE cli_processes SET cli_started = ?, cli_pid = ?').run(cli.started, cli.pid + 1);
+  // Not `cli.pid + 1`: under load that is often the CLI's own child, started in the same clock tick
+  r.sql.prepare('UPDATE cli_processes SET cli_started = ?, cli_pid = ?').run(cli.started, unusedPid());
   assert.equal(store.verify(TOKEN), null, 'a different pid is a different process');
   r.sql.prepare('UPDATE cli_processes SET cli_pid = ?').run(cli.pid);
   assert.equal(store.verify(TOKEN), CHAT);

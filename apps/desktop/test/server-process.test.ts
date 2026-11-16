@@ -153,3 +153,33 @@ test('a server that cannot be spawned still resolves `exited`', async () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('parked CLI processes are on under the daemon unless the person set the switch, and off where it does not ask', () => {
+  const base = { ...SHELL, PATH: '/usr/bin', rememberedPort: null, webDist: '/w', dataDir: '/d', workspaceDir: '/s', version: '1.0.0', distribution: undefined, desktopSecret: 's' };
+  assert.equal(serverEnv({ ...base, base: {}, parkedByDefault: true }).CLAUDIO_PARKED_PROCESSES, 'on');
+  assert.equal(serverEnv({ ...base, base: { CLAUDIO_PARKED_PROCESSES: 'off' }, parkedByDefault: true }).CLAUDIO_PARKED_PROCESSES, 'off');
+  // The AppImage's daemon: its CLIs would run from a mount that goes with it (S5)
+  assert.equal(serverEnv({ ...base, base: {}, parkedByDefault: false }).CLAUDIO_PARKED_PROCESSES, undefined);
+});
+
+test('a server asked to stop its work says so before it closes; one that does not answer is left to SIGTERM', async () => {
+  const answering = await standIn(
+    `process.on('message', (m) => { if (m && m.type === 'claudio:stop-work') { process.send({ type: 'claudio:stopping-work' }); setTimeout(() => process.exit(0), 20); } });\nsetInterval(() => {}, 1000);`,
+  );
+  try {
+    await answering.server.start();
+    assert.equal(await answering.server.stopWork(), true);
+    assert.equal(await answering.server.exited, 0);
+  } finally {
+    await answering.done();
+  }
+  const silent = await standIn('setInterval(() => {}, 1000);');
+  try {
+    await silent.server.start();
+    assert.equal(await silent.server.stopWork(100), false);
+    silent.server.signal('SIGTERM');
+    await silent.server.exited;
+  } finally {
+    await silent.done();
+  }
+});

@@ -85,6 +85,13 @@ export interface PayloadHostOptions {
    * the new version's, so a server restarted by this Electron would run another shell's payload.
    */
   relaunchInstead?(): boolean;
+  /**
+   * Whether a trial also waits for a window to render its page. The daemon asks only while a window
+   * is attached: with none, `/api/health` is all a trial can prove, as in the container
+   */
+  needsPage?(): boolean;
+  /** How long a server asked to stop has before it is killed */
+  stopGraceMs?: number;
   log(line: string): void;
   files?: MachineFiles;
   now?: () => number;
@@ -220,6 +227,7 @@ export class PayloadHost {
       if (this.origin !== null && (await this.o.health(this.origin).catch(() => false))) break;
       await this.sleep(poll);
     }
+    if (this.o.needsPage && !this.o.needsPage()) return true;
     while (this.loadingAt === null) {
       if (gone() || this.now() >= until) return false;
       await this.sleep(poll);
@@ -253,7 +261,7 @@ export class PayloadHost {
     const running = this.running;
     if (handle) {
       handle.stop();
-      const timer = setTimeout(() => handle.kill(), STOP_GRACE_MS);
+      const timer = setTimeout(() => handle.kill(), this.o.stopGraceMs ?? STOP_GRACE_MS);
       await handle.exited.catch(() => undefined);
       clearTimeout(timer);
     }

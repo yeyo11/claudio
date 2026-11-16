@@ -189,5 +189,24 @@
     "primary": "ventana principal",
     "secondary": "ventana secundaria",
     "other": "límite de uso"
+  },
+  "quit": {
+    "title": "¿Seguir trabajando al salir?",
+    "body": "{{live}}. Claudio puede mantenerlo todo en marcha en segundo plano o detenerlo ahora.",
+    "keep": "Seguir en segundo plano",
+    "stop": "Detener todo y salir",
+    "cancel": "Cancelar",
+    "noticeTitle": "Claudio sigue trabajando",
+    "noticeBody": "El trabajo continúa en segundo plano. Abre Claudio para verlo.",
+    "live": {
+      "working_one": "{{count}} chat está trabajando",
+      "working_other": "{{count}} chats están trabajando",
+      "waiting_one": "{{count}} chat espera una respuesta",
+      "waiting_other": "{{count}} chats esperan una respuesta",
+      "running_one": "{{count}} orquestación está en marcha",
+      "running_other": "{{count}} orquestaciones están en marcha",
+      "terminals_one": "{{count}} terminal está abierta",
+      "terminals_other": "{{count}} terminales están abiertas"
+    }
   }
 }

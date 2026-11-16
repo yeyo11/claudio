@@ -9,7 +9,12 @@ export class LogFile {
   readonly path: string;
   private stream: WriteStream;
 
-  constructor(dir: string, name: string) {
+  constructor(
+    dir: string,
+    name: string,
+    /** Who writes `line`s: the window's shell, or the daemon that supervises the server */
+    private readonly tag: 'desktop' | 'daemon' = 'desktop',
+  ) {
     mkdirSync(dir, { recursive: true });
     this.path = join(dir, name);
     if (existsSync(this.path) && statSync(this.path).size > MAX_BYTES) this.rotate();
@@ -22,7 +27,7 @@ export class LogFile {
 
   /** Timestamped line, for the desktop shell's own messages */
   line(message: string): void {
-    this.write(`${new Date().toISOString()} [desktop] ${message}\n`);
+    this.write(`${new Date().toISOString()} [${this.tag}] ${message}\n`);
   }
 
   close(): Promise<void> {

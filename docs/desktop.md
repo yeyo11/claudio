@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-11-09T12:00:00Z
+updated_at: 2026-11-16T22:00:00Z
 tags:
     - desktop
     - electron
@@ -14,9 +14,11 @@ tags:
 The desktop app is Claudio in a window: the same UI and REST API as the Docker image, packaged as
 an AppImage and a `.deb` for Linux x86_64. No container, no port to remember.
 
-It is a small Electron shell. On start it launches the bundled API as a child process on
-`127.0.0.1`, waits for it to come up and loads the UI. The API runs on the Node that ships inside
-Electron, so **you do not need Node installed**. Quitting the window stops the server.
+It is a small Electron shell. On start it finds, or starts, the daemon that runs the bundled API on
+`127.0.0.1`, waits for it to come up and loads the UI. Both run on the Node that ships inside
+Electron, so **you do not need Node installed**. Closing the window stops nothing, and quitting with
+work running asks whether it goes on in the background
+([Work that outlives the window](#work-that-outlives-the-window)).
 
 The port is chosen once and then kept: the first start takes a free one and writes it to
 `server-port.json` in the app's data directory, and every start after that asks for the same one, so
@@ -166,8 +168,8 @@ person got into the app by keyboard (0.30.0).
 menu. The menu has **Open Claudio**, **New chat**, up to eight live items — chats waiting for you
 first, then working chats, then running orchestrations with their tasks done out of the total, and
 "N more…" past that — and **Quit Claudio**. Picking an item opens it in the window without reloading
-the page. Closing the window still quits the app: the tray shows what is live, it does not keep
-Claudio running in the background.
+the page. Closing the window leaves the tray and the work running; **Quit Claudio** asks first when
+something is live ([Work that outlives the window](#work-that-outlives-the-window)).
 
 **Progress and badge.** The taskbar or dock shows the combined progress of the running
 orchestrations (tasks done over tasks, across all of them; indeterminate for one that has no tasks
@@ -180,14 +182,16 @@ working and waiting chat lists and `/api/orchestrations` (these only while the o
 something runs), re-read when the `/api/events` feed announces a change, at most every 1.5 s, and
 every 30 s while the feed is down. The tray and the window menus are in English only.
 
-**The tray's credential.** At each launch the app generates a secret (32 random bytes) and hands it
-to the server it starts as `CLAUDIO_DESKTOP_TOKEN`; the tray sends it as its bearer token. It is
+**The tray's credential.** Each daemon generates a secret (32 random bytes) and hands it to the
+server it starts as `CLAUDIO_DESKTOP_TOKEN`; the window reads it from the daemon and the tray sends
+it as its bearer token. It is
 what lets the tray read a server guarded from Settings → Access & safety, whose token only exists as a
 hash and so is never known to the app. The server accepts the secret only from `127.0.0.1` dialled
 on a loopback name (not through the tunnel or a proxy), compares it in constant time, and treats it
 as the actor `desktop`, which may only read (`GET`/`HEAD`; anything else is `403`). It lives in the
-memory of the two processes only: it is never written to `auth.json` or a log, no route returns it,
-it is removed from the environment chats and commands inherit, and the next launch has another.
+memory of the processes and in `<data>/daemon.json` (mode 0600, removed when the daemon ends), where a
+window finds it: it is never written to `auth.json` or a log, no route returns it, it is removed from
+the environment chats and commands inherit, and the next daemon has another.
 Without a secret, `CLAUDIO_AUTH_TOKEN` from the app's environment is sent instead.
 
 **When the server refuses it.** A `401` or `403` makes the tray stop asking for 5 minutes, then 10,
@@ -196,6 +200,86 @@ one line when the refusals start and one when the server answers again, not one 
 0.23.1 the tray polled a guarded server without a credential every 15 to 30 s, and because the
 server then counted every refused request against `127.0.0.1`, it locked the owner's own window
 and chats out with `429` ([decisions/requests-without-credential.md](decisions/requests-without-credential.md)).
+
+## Work that outlives the window
+
+Chats, orchestrations and subagents keep running when the window closes, when the app quits with
+**Keep working in the background**, and when the server restarts for an update or after a crash
+([plans/survive-restarts.md](plans/survive-restarts.md), layer 1, with the parked processes of layer
+2 and the resume of layer 3).
+
+**The daemon.** The server is no longer a child of the window. The window starts a small supervisor,
+the daemon, and is from then on its client:
+
+- Where a systemd user manager runs (every current desktop), the daemon is a transient user unit,
+  `claudio-daemon-<hash>.service`, one per data directory (the hash is of its path, so the installed
+  app and a dev build never share one). `Restart=on-failure` restarts it if it dies;
+  `KillMode=mixed` sends a stop to the daemon alone, which closes its server itself, while the chats'
+  CLIs live in scopes of their own. Without a user manager it runs under `setsid` instead, and a
+  `systemd-run` that refuses the unit twice falls back to `setsid` too.
+- The `.deb` and a checkout run it as `<binary> <resources>/daemon/daemon.cjs` with
+  `ELECTRON_RUN_AS_NODE`, from files that apt replaces by rename, so the running daemon keeps its own
+  and its next server starts on what is installed. The AppImage's daemon is a small `sh` wrapper that
+  asks the AppImage for a mount of its own (`--appimage-mount`) and runs the binary in it as Node on
+  `resources/daemon/daemon.cjs`, so that mount stays up exactly as long as the daemon, whatever the
+  window does. It does not start the AppImage again as an app: its `AppRun` puts a Chromium switch
+  before the arguments, and a daemon in a user unit has no display.
+- What the daemon writes before its own log opens (a crash at start) goes to `daemon.out.log`. A unit
+  that dies at every start is restarted at most five times in two minutes.
+- It writes `<data>/daemon.json` (0600): its pid and start time, protocol and version, its unit, its
+  socket `<data>/daemon.sock` (0600), the server's URL and the desktop credential. A window that finds
+  a live daemon there (same pid and start time) attaches to it; none, or a dead one, and it starts a
+  new one. A daemon of another protocol, or an AppImage daemon of another version, is replaced: it
+  closes its server as on any restart, so the parked work is handed to the next one.
+- The window hands the daemon what only it has over the socket, never on a command line or on disk:
+  its environment, the login shell's `PATH` and the keyring's key for the secret vault (Electron's
+  `safeStorage`). So a daemon never starts a server without a window: one that a restart of its unit
+  brings back with no window waits ten minutes for one, then ends.
+- The server listens on the port it remembers, and on the port the running CLIs hold when there are
+  any (`CLAUDIO_API_URL` is in their environment). If something else took that port, the window says
+  so and offers to try again; the daemon does not loop.
+
+**Closing the window** leaves the daemon, the server and the tray running. **Open Claudio** in the
+tray, or starting the app again, opens a window on the same server.
+
+**Quitting** (the tray's **Quit Claudio**, the menu, `Ctrl+Q`) with nothing live stops the server and
+the daemon, as before. With chats working or waiting for an answer, orchestrations running or
+terminals open, it asks first, in the app's own dialog and language:
+
+| Answer | What happens |
+| --- | --- |
+| **Keep working in the background** (the default, and the focused button) | The window and the tray go; the daemon and its server run on, and a system notice says the work goes on. The next start of the app attaches to them |
+| **Stop all work and quit** | The server stops every chat, parked CLIs included, then the daemon ends. Their turns stay stopped: the next start continues none of them |
+| **Cancel** (or Esc) | Nothing changes |
+
+A page that cannot ask (the splash or error page, an older payload) gets the same question as a
+native dialog, in English. With no window attached and nothing live for two minutes, the daemon
+stops by itself, so nothing is left running that nobody needs.
+
+**A crash.** A server that dies after it was listening is started again after 1 s, then 2, 4, up to
+30 s; after five crashes in ten minutes the daemon stops trying and the window shows why, with
+**Restart**. A server that never listened (a broken payload, another server on the data directory,
+the port taken) is not restarted on its own. The daemon itself, if it dies, is restarted by its unit,
+and an open window finds it again.
+
+**An update or a relaunch.** A payload update restarts the server inside the daemon; with parked
+processes the running chats are adopted by the new server and lose nothing. Any shutdown other than
+**Stop all work** (an update, `systemctl --user stop`, a chat not parked) leaves a turn it cuts for the
+next start to continue, as after a crash. A relaunch of the window
+(the Help menu, a shell update) leaves the daemon running: the new window attaches, and asks it to
+start its server again only when the daemon still serves an older bundled payload than the new
+shell. The AppImage's daemon is replaced instead, since it runs from the old AppImage's files.
+
+**Logout and reboot.** With linger on for the user (`loginctl enable-linger`), the user manager, and
+so the daemon and its work, outlive the graphical session; without it they end at logout. A reboot
+ends everything, and the next start continues each cut turn (layer 3).
+
+**Parked processes are on here.** The daemon starts its server with `CLAUDIO_PARKED_PROCESSES=on`
+(the `.deb` and a checkout), so a chat's CLI outlives a server restart. Not under the AppImage, whose
+mount goes with the daemon that holds it. A value in the environment, `off` included, wins
+([configuration.md](configuration.md)).
+
+Logs: the daemon writes `daemon.log` beside `desktop.log` and `server.log`.
 
 ## Updating
 

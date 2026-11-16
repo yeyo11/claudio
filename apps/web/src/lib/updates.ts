@@ -83,6 +83,9 @@ const liveOf = (value: Record<string, unknown>): LiveWork => ({
   terminals: count(value.terminals),
 });
 
+/** The live counts the shell hands over (the quit question), or null when they are not counts at all */
+export const parseLiveWork = (value: unknown): LiveWork | null => (isRecord(value) ? liveOf(value) : null);
+
 export function parseInstallAnswer(value: unknown): DesktopInstallAnswer | null {
   if (!isRecord(value)) return null;
   const { status, version } = value;
