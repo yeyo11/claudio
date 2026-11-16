@@ -2159,6 +2159,9 @@ export class ChatManager extends EventEmitter {
       const root = proc ? table.find((p) => p.pid === proc.pid) : undefined;
       if (root) trees.push(...descendantsOf(table, root.pid), root);
       if (proc && proc.exitCode === null && proc.signalCode === null) closing.push(once(proc, 'close').catch(() => undefined));
+      // Only the person's "stop all work" ends a turn for good: any other shutdown is a restart, and
+      // the turn it cuts is the next start's to continue (D7), as after a crash
+      if (!this.stopParkedAtShutdown && chat.turnOpen) chat.cutByShutdown = true;
       this.stop(chat.id);
     }
     // The processes take a moment to exit; their credentials go now, with the wrapper
@@ -3234,6 +3237,10 @@ export class ChatManager extends EventEmitter {
 
   private finalize(chat: LiveChat, status: RunStatus): void {
     if (chat.endedAt) return;
+    if (chat.cutByShutdown) {
+      this.leaveCut(chat);
+      return;
+    }
     if (chat.idleTimer) clearTimeout(chat.idleTimer);
     if (chat.continueTimer) clearTimeout(chat.continueTimer);
     chat.continueTimer = null;
@@ -3273,6 +3280,29 @@ export class ChatManager extends EventEmitter {
     if (chat.pendingAccount && this.ruleMoves.has(chat)) setImmediate(() => void this.applyPendingAccount(chat.id).catch(() => undefined));
     chat.purpose = null;
     this.emit('chat-context', chat.id, { kind: 'ended', stopped: chat.stopRequested, error: chat.error } satisfies ContextSignal);
+  }
+
+  /**
+   * A turn a shutdown cut: the process is gone, but the execution stays open with its turn marked open
+   * and the messages it was carrying are not lost, exactly as a crash leaves them, so the next start's
+   * restore closes it as interrupted by a restart and layer 3 continues it or offers Resume.
+   */
+  private leaveCut(chat: LiveChat): void {
+    for (const timer of [chat.idleTimer, chat.continueTimer, chat.armingTimer, chat.settleTimer]) if (timer) clearTimeout(timer);
+    chat.idleTimer = null;
+    chat.continueTimer = null;
+    chat.armingTimer = null;
+    chat.settleTimer = null;
+    this.removeGuardTmp(chat);
+    chat.idleSince = null;
+    chat.endedAt = now();
+    chat.permissionHost?.ended();
+    chat.session?.dispose('the server is restarting');
+    chat.activity.clear();
+    chat.branchActivity.clear();
+    chat.setStatus('stopped');
+    // Written with the execution still open: `endedAt` null and `turnOpen` true are what restore reads
+    this.persist(chat);
   }
 
   /** Accounts announced (`account.credits`) as running a turn on their credits, with the local day */

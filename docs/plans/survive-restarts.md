@@ -820,6 +820,7 @@ default** under it.
 | Close | The window goes, the tray and the daemon stay. Without a tray, closing is a quit |
 | Quit (D1) | `quitWork` reads what is live **at once** (`LiveMonitor.snapshot`, past the tray's throttle: the trial caught a quit right after a chat started reading the old snapshot and stopping it unasked). Nothing live → `stop stop-work`. Live → the page's `QuitQuestion` (`apps/web/src/components/QuitQuestion.tsx`, mounted at the app's root so the sign-in and first run ask too, not in terminal windows), en/es, **Keep working in the background** focused by default, **Stop all work and quit**, Cancel/Esc; the native English dialog only when the page cannot ask within 8 s. Keep → the window closes its connection and a system notice in the page's language says the work goes on |
 | Stop all work | `stop stop-work` → the server is sent `claudio:stop-work` over its IPC channel, acks, and closes with `close({ stopWork: true })` → `ChatManager.stopWorkAtShutdown()` stops every chat, parked CLIs included; a server that does not ack in 2 s gets SIGTERM, which detaches. Detach (`systemctl --user stop`, logout, SIGTERM/SIGINT/SIGHUP to the daemon) closes the server as on a restart, so parked work runs on for the next one |
+| A graceful stop cuts, it does not stop (asked by the lead after t8, #160) | Before, `Core.shutdown` → `stopAll` → `stop()` closed every chat on pipes as `stopped` with `turnOpen: false`, so a SIGTERM (an update, a container stop, a quit that keeps the work with parking off) left nothing for layer 3 to continue. Now `stopAll` marks a chat whose turn is open `cutByShutdown` unless the person chose **Stop all work** (`stopWorkAtShutdown`); its process still stops, but `finalize` leaves the execution as a crash leaves it (`leaveCut`: open, `turnOpen: true`, its carried messages not lost), so the next start's restore closes it as interrupted and layer 3 continues it (under an hour) or offers Resume. Stop all work keeps `stopped` |
 | Idle end | No window and nothing live (working, waiting, running) for 2 min → the daemon stops with `stop-work`, which then has nothing to stop |
 | Crash | A server that dies after it listened restarts after 1, 2, 4… s (cap 30), given up after 5 crashes in 10 min until a window asks. One that never listened, another server on the data dir (73) or the port taken (69) is not restarted: the window shows why with **Restart** |
 | Port (t5) | `AdoptedPortTakenError` exits with the new `ADOPTED_PORT_TAKEN_EXIT_CODE` (69, `launcher/protocol.ts`): the launcher machine treats it like 73 (no failed trial, no restart), the daemon shows the server's own sentence (`portTakenDetail`). The daemon asks for the port the window remembers, and the server prefers the CLIs' port |
@@ -868,7 +869,10 @@ with spaces reaching a fake `systemd-run` whole, the `setsid` and AppImage plans
 attach / start / replace / restart-server, the record, the unit name, message parsing); `quit.test.ts`
 (4); `server-process.test.ts` (the parked default, the stop-work ack); `live-monitor.test.ts` (the fresh
 read); `packages/core/test/launcher-machine.test.ts` (a trial ending 69 is not failed);
-`apps/web/test/quit-question.test.tsx` (the copy in both languages, nothing drawn outside the app).
+`apps/web/test/quit-question.test.tsx` (the copy in both languages, nothing drawn outside the app);
+`packages/core/test/restart-resume.test.ts` (a graceful shutdown with a turn open → continued on the
+next start; with stop-work first → stays `stopped`, nothing continued). Also fixed: `parked-holds.test.ts`
+took `cli.pid + 1` as another process, which under load is the CLI's own child with the same start time.
 
 **What t7, t8 and t9 need.**
 

@@ -245,7 +245,7 @@ terminals open, it asks first, in the app's own dialog and language:
 | Answer | What happens |
 | --- | --- |
 | **Keep working in the background** (the default, and the focused button) | The window and the tray go; the daemon and its server run on, and a system notice says the work goes on. The next start of the app attaches to them |
-| **Stop all work and quit** | The server stops every chat, parked CLIs included, then the daemon ends |
+| **Stop all work and quit** | The server stops every chat, parked CLIs included, then the daemon ends. Their turns stay stopped: the next start continues none of them |
 | **Cancel** (or Esc) | Nothing changes |
 
 A page that cannot ask (the splash or error page, an older payload) gets the same question as a
@@ -259,7 +259,9 @@ the port taken) is not restarted on its own. The daemon itself, if it dies, is r
 and an open window finds it again.
 
 **An update or a relaunch.** A payload update restarts the server inside the daemon; with parked
-processes the running chats are adopted by the new server and lose nothing. A relaunch of the window
+processes the running chats are adopted by the new server and lose nothing. Any shutdown other than
+**Stop all work** (an update, `systemctl --user stop`, a chat not parked) leaves a turn it cuts for the
+next start to continue, as after a crash. A relaunch of the window
 (the Help menu, a shell update) leaves the daemon running: the new window attaches, and asks it to
 start its server again only when the daemon still serves an older bundled payload than the new
 shell. The AppImage's daemon is replaced instead, since it runs from the old AppImage's files.

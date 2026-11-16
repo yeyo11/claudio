@@ -533,6 +533,12 @@ export class LiveChat {
   /** The housekeeping turn under way, cleared by its result, by an exit and by an interrupt */
   purpose: HousekeepingPurpose | null = null;
   stopRequested = false;
+  /**
+   * The server is shutting down for a restart (any stop but the person's "stop all work") while this
+   * chat's turn was open: its process is stopped, but the turn is left as a restart cuts it, the
+   * execution open with `turnOpen`, for the next start to continue or offer (layer 3)
+   */
+  cutByShutdown = false;
   idleTimer: NodeJS.Timeout | null = null;
   /** When the chat went idle, while its idle timer runs */
   idleSince: number | null = null;

@@ -272,6 +272,43 @@ test('a turn is written down as open when it starts and as closed at its result,
   assert.equal(s.db.loadChat(done.id)?.executions.at(-1)?.purpose, 'person');
 });
 
+test("a graceful shutdown cuts an open turn as a restart does, so the next start continues it; the person's stop-all keeps it stopped", async (t) => {
+  const { config, spawns } = sandbox(t);
+  mkdirSync(config.workspaceDir, { recursive: true });
+  for (const stopWork of [false, true]) {
+    const first = await start(config);
+    const hung = first.runs.start({ prompt: 'FAKE-HANG', name: stopWork ? 'stopped' : 'cut', purpose: 'person' });
+    await until(() => first.db.loadChat(hung.id)?.executions.at(-1), (e) => e?.turnOpen === true, 'the open turn to be written down');
+    // SIGTERM, a desktop quit that keeps the work, an update: the server shuts down for a restart.
+    // "Stop all work and quit" asks for the turn to end for good
+    if (stopWork) first.runs.stopWorkAtShutdown();
+    await first.runs.stopAll();
+    const saved = first.db.loadChat(hung.id)?.executions.at(-1);
+    first.db.close();
+    assert.deepEqual([saved?.endedAt === null, saved?.turnOpen], stopWork ? [false, false] : [true, true], 'what the shutdown wrote down');
+
+    const next = await start(config);
+    t.after(async () => {
+      await next.runs.stopAll();
+      next.db.close();
+    });
+    const last = next.runs.get(hung.id)?.executions.at(-1);
+    assert.equal(last?.outcome, stopWork ? 'stopped' : 'interrupted');
+    const before = spawnsOf(spawns).length;
+    const report = pass(next, Date.now());
+    if (stopWork) {
+      assert.deepEqual(report.continued, [], 'a stop the person asked for is not undone by the next start');
+      assert.equal(spawnsOf(spawns).length, before);
+    } else {
+      assert.deepEqual(report.continued, [hung.id]);
+      const started = (await until(() => spawnsOf(spawns), (all) => all.length > before, 'the continuation to start')).slice(before);
+      assert.equal(started.length, 1);
+      assert.match(started[0] ?? '', new RegExp(`--resume ${hung.id}`));
+    }
+    await next.runs.stopAll();
+  }
+});
+
 test('two servers on one data dir continue a cut turn once between them', async (t) => {
   const { config, spawns, prompts } = sandbox(t);
   const [id] = previousServer(config, [{}]) as [string];
