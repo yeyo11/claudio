@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-21T07:35:14Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-17T09:00:00Z
 tags:
     - deploy
     - docker
@@ -117,8 +117,9 @@ What the sections below say, in brief:
   day.
 - **Restarts**: Docker only marks a container `unhealthy`, so the image's healthcheck ends the server
   itself after three failed probes and Compose's `restart: unless-stopped` starts it again; the chart
-  uses ordinary liveness and readiness probes. `SIGTERM` is a clean stop: the chats' transcripts are
-  on disk and resume afterwards.
+  uses ordinary liveness and readiness probes. `SIGTERM` is a clean stop that does not lose a turn for
+  good: a turn it cuts is continued by the next start, as after a crash ([What survives a
+  restart](#what-survives-a-restart-a-quit-or-an-update)).
 
 ## The first-run token
 
@@ -792,11 +793,45 @@ a fresh reading.
 
 | Signal | What the server does |
 | --- | --- |
-| `SIGTERM`, `SIGINT` | Clean shutdown: stops the update timers (Claude Code's and Claudio's), stops every chat process (the transcripts are on disk, so the chats can be resumed), closes the SQLite store, closes the HTTP server **including open event streams**, exits `0`. |
-| `SIGKILL` | Nothing runs. Chats in flight are restored on the next start as cut off by the restart, and the store is left to SQLite's own crash recovery. |
+| `SIGTERM`, `SIGINT` | Clean shutdown: stops the update timers (Claude Code's and Claudio's), closes the SQLite store, closes the HTTP server **including open event streams**, exits `0`. What it does to the chats' CLIs depends on `CLAUDIO_PARKED_PROCESSES`. **On** (the desktop `.deb`): it lets them go, no signal and no write, and the next start adopts them, so a turn in flight finishes on the same process. **Off** (the container, the AppImage, `pnpm dev`): it stops every chat process, but a chat whose turn was open is left as a crash leaves it, cut rather than stopped, so the next start continues it. Only the desktop's **Stop all work and quit** (`claudio:stop-work`) closes turns as stopped, for good. |
+| `SIGKILL` | Nothing runs. With parked processes on, the CLIs keep running and the next start adopts them (the lease ends an open turn after `CLAUDIO_HANDOVER_SECONDS`, 300 s, if no server comes back). With them off, the CLIs read EOF and die. Either way the chats in flight are restored on the next start as cut off by the restart, and the store is left to SQLite's own crash recovery. |
 
 `docker stop` exits `0`: the process being signalled is the server itself, not a package manager
 reporting a killed child, so a script that checks the status of a stop no longer has to allow `143`.
+
+### What survives a restart, a quit or an update
+
+Work is carried by two switches and one daemon: parked CLI processes (`CLAUDIO_PARKED_PROCESSES`,
+which keeps a chat's CLI running when the server goes), the desktop daemon (which keeps the server
+running when the window goes) and the resume of a cut turn (which runs always). The plan is
+[plans/survive-restarts.md](plans/survive-restarts.md); the desktop's side is in
+[desktop.md](desktop.md#work-that-outlives-the-window).
+
+| | Desktop `.deb` (daemon, parked **on**) | Desktop AppImage (daemon, parked **off**) | Container, headless | `pnpm dev` |
+| --- | --- | --- | --- | --- |
+| **Close the window** | Everything runs on | Everything runs on (the daemon holds the server) | n/a | n/a |
+| **Quit, "Keep working"** | Everything runs on, the window and tray go | Everything runs on | n/a | n/a |
+| **Quit, "Stop all work"** | Chats stopped, nothing continued at the next start | The same | n/a | n/a |
+| **Payload update (exit 75)** | Chats, subagents and graph tasks go on in the same process, adopted. Terminals end (D8) | A turn is cut, then continued: a person's chat under an hour old goes on by itself, an older one waits for **Resume**; a workflow resumes from its cache; a graph task spends an attempt. Terminals end | The same as the AppImage | The same as the AppImage |
+| **Shell update** | The daemon stays; the new window attaches. `apt` replaces its files by rename | The old AppImage's daemon is detached and replaced: work is cut and continued as above | n/a | n/a |
+| **Server crash, OOM** | The daemon starts it again within seconds (1, 2, 4... s); parked CLIs are adopted | The daemon starts it again; cut turns are continued as above | The launcher or the restart policy starts it again; continued as above | Nothing starts it; the next start continues as above |
+| **Reboot, or logout without linger** | Everything ends. The next start continues each cut turn (under an hour) or offers **Resume** | The same | The same, when the container starts again | The same |
+| **Logout with linger** | The daemon and its work go on | The same, with the cut-and-continue cost of a restart only | n/a | n/a |
+
+What no mode keeps: **terminals** (a shell ends with the server, D8), the vendor's **background
+Bash** that a CLI started when the CLI itself is stopped and resumed (only a parked CLI keeps them,
+because it is the same process), and a turn that a **reboot** cut beyond the hour.
+
+The defaults differ for reasons, not by accident:
+
+- **The `.deb`** has the daemon, which is what makes a parked CLI safe: the server outlives the window,
+  so a parked CLI is unattended only across a server restart, and the lease bounds that.
+- **The AppImage** runs the daemon from a FUSE mount that goes when the daemon does (spike S5), so a
+  CLI left behind would run from files that vanish.
+- **The container** stops every process in it when it stops, so parking helps only the in-container
+  payload restart (exit 75); nothing else keeps a CLI alive past the server in a container. Setting
+  `CLAUDIO_PARKED_PROCESSES=on` there is allowed and carries that restart.
+- **`pnpm dev`** has no daemon: nothing keeps its server alive past its own exit, so a parked CLI would have no one to come back to.
 
 Both orchestrators allow 30 s between `SIGTERM` and `SIGKILL` (`stop_grace_period` in Compose,
 `terminationGracePeriodSeconds` in the chart). Run the image with `--init` (Compose does) so the

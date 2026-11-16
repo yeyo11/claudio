@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-30T14:00:00Z
-updated_at: 2026-11-08T16:00:00Z
+updated_at: 2026-11-17T09:00:00Z
 tags:
     - providers
     - detection
@@ -50,6 +50,28 @@ The id goes as the stream-json `uuid` of the stdin line, and the CLI runs with
 moment the CLI takes it. The CLI keeps the id in its transcript (the `user` line, or the
 `source_uuid` of a `queued_command` attachment for a message read mid-turn). Both were confirmed on
 CLI 2.1.288 ([reports/chat-audit/server.md](reports/chat-audit/server.md)).
+
+## How a CLI is held
+
+A driver's session talks to one CLI process, and the process's lifetime is the app's choice, not the
+vendor's. Two ways to hold it, both over the same stream-json protocol, so the one rule is untouched
+([plans/survive-restarts.md](plans/survive-restarts.md),
+[decisions/parked-cli-processes.md](decisions/parked-cli-processes.md)):
+
+- **On pipes** (the default outside the desktop `.deb`): the CLI is a child of the server, its stdin
+  and stdout are pipes, and it ends with the server. A turn that a restart or a crash cuts is
+  continued by the next start with the CLI's own `CLAUDE_CODE_RESUME_INTERRUPTED_TURN`, when it is
+  under an hour old.
+- **Parked** (`CLAUDIO_PARKED_PROCESSES`, on under the desktop daemon): the CLI runs detached, with
+  its stdin a FIFO and its output an append-only file under `<data>/procs/<id>/`, in a systemd scope
+  of its own where one exists. A restarted server re-attaches: it reads the file from its committed
+  offset, writes to the FIFO and sends `initialize` again, whose answer lists the pending
+  permission requests. Only the transport behind the driver's session changes.
+
+What this relies on is what the vendor documents: the stream protocol, the re-sent `initialize` and
+the resume variables. The vendor's own background supervisor (`--bg`) is not used, because it cannot
+be combined with `-p` and its job files are not a stable interface; D10 of the plan re-reads that at
+each minor version.
 
 ## What a provider is
 

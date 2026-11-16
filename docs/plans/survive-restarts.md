@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-16T23:00:00Z
+updated_at: 2026-11-17T09:00:00Z
 tags:
     - plan
     - study
@@ -9,16 +9,14 @@ tags:
     - desktop
     - updates
     - orchestration
-    - in-progress
+    - built
 ---
 # Study: work that keeps running when Claudio closes, restarts or updates
 
-**Status: in progress. The owner approved approach D on 2026-11-15 ([decisions](#the-owners-decisions-2026-11-15));
-the spikes (t2) are done, layer 3 (t1) is built ([t1's outcome](#outcome-of-t1-layer-3-2026-11-15)), and
-layer 2 starts and runs parked processes behind a switch ([t3's outcome](#outcome-of-t3-parked-processes-start-and-run-2026-11-16)),
-a restart adopts them ([t4's outcome](#outcome-of-t4-adoption-2026-11-16)) with their tokens and port
-([t5's outcome](#outcome-of-t5-what-a-running-cli-holds-from-its-server-2026-11-16)), and on the desktop
-a daemon keeps the server running when the window closes or quits ([t6's outcome](#outcome-of-t6-the-desktop-daemon-2026-11-16)).**
+**Status: built. All of t1 to t9 are done: layer 3 (#150), the spikes (#146, #148), layer 2 (#156, #157,
+#158), the browser specs (#160), layer 1 (#161) and the updates (#162). The closing summary, with what
+differs from the plan and what stays open, is at the end of [the t9 outcome](#outcome-of-t9-docs-and-the-closing-summary-2026-11-17).
+Was: in progress, the owner having approved approach D on 2026-11-15 ([decisions](#the-owners-decisions-2026-11-15)).**
 
 ## The problem, in the owner's words
 
@@ -956,6 +954,81 @@ the desktop's own `installDecision` for AppImage shell updates. Documented in [u
 **Tests.** `packages/core/test/server-update.test.ts` (carried work not refusing, a terminal refusing with
 only its count, `whenIdle` waiting for terminals only, a revert let through, parked off refusing as before);
 `apps/web/test/server-update-view.test.tsx` (the card's sentence per mode, en and es).
+
+## Outcome of t9 (docs and the closing summary, 2026-11-17)
+
+Docs only. Each document that said what a restart, a crash, a quit, an update or a logout does now says
+what is true after t1 to t8:
+
+| Document | What was stale |
+|---|---|
+| [deploy.md](../deploy.md) | The signals table said SIGTERM "stops every chat process"; it now says what parking on and off do, and that a graceful stop leaves a turn cut for layer 3. SIGKILL's row names the lease. New section **What survives a restart, a quit or an update**: the table per mode |
+| [orchestrations.md](../orchestrations.md) | Recovery said graph tasks always spend an attempt; with parking on they are adopted in the same attempt |
+| [providers.md](../providers.md) | Nothing said how a CLI's lifetime is held; new section **How a CLI is held** (pipes or parked) |
+| [desktop.md](../desktop.md) | The Updating paragraph said a restart stops every chat in flight and asks over any live work; it now follows t7 |
+| [resource-control.md](../resource-control.md) | `stopAll` was described as always stopping for good |
+| [known-limitations.md](../known-limitations.md) | "Workers do not survive a restart" is true only with parking off |
+| [cli-surfaces.md](../cli-surfaces.md) | The parked-CLI row called re-attachment "not done yet" and the switch "off unless set" |
+| [security-model.md](../security-model.md) | Said parking is "off by default" |
+
+Checked and already right: [updates.md](../updates.md) (t7), [configuration.md](../configuration.md),
+[chat-environment.md](../chat-environment.md).
+
+### Closing summary
+
+**The problem.** Closing Claudio, restarting it for an update or crashing it ended every chat, subagent
+and orchestration, because the server owned the CLI processes through their pipes and the window owned
+the server.
+
+**What was built, per layer** (the order the plan chose: C, spikes, B, A):
+
+| Layer | What it does | Pull requests |
+|---|---|---|
+| 3. Lossless resume | A turn a crash or restart cut is continued by the next start with the vendor's `CLAUDE_CODE_RESUME_INTERRUPTED_TURN` (under an hour old; older ones offer **Resume**); workflows resume from their cache; every continuation is claimed once in `restart_continuations`; executions record their purpose and whether a turn was open | #150 |
+| Spikes (t2) | Six spikes written up in [parked-cli-processes](../decisions/parked-cli-processes.md); S3 on a real CLI | #146, #148 |
+| 2. Parked processes | A chat's CLI runs detached behind a FIFO and an append-only file, in its own systemd scope (#156); a restarted server adopts it from its committed offset, once, with no double spend and pending prompts asked again (#157); its token hash, port, payload directory and configs are kept while it runs (#158) | #156, #157, #158 |
+| Browser specs (t8) | Two specs, one per layer, each on a wrapper of its own | #160 |
+| 1. The daemon | The window is a client of a supervisor in a transient user unit: closing it stops nothing, quitting with live work asks (default: keep working), a crashed server restarts, parked processes are on by default under it | #161 |
+| Updates (t7) | A payload update or revert refuses over terminals only when work is carried | #162 |
+
+**What differs from the plan.**
+
+- **A graceful stop had to be changed.** t8 found that `stopAll` closed every chat as `stopped`, so layer 3
+  never saw a SIGTERM, an update or a container stop. `stopAll` now leaves an open turn cut, and only
+  **Stop all work** closes it for good (in #161).
+- **The switch is not on everywhere.** The plan left the default open. It is on under the daemon with a
+  stable path (the `.deb`, a checkout) and off in the AppImage, the container and `pnpm dev`.
+- **The launcher did not become the desktop's supervisor.** The daemon hosts the same machine through the
+  shell's `PayloadHost`, which keeps the trial-with-a-window and the keyring key.
+- **The AppImage daemon is a `sh` wrapper over `--appimage-mount`**, not the AppImage run again, which has
+  no display in a unit and whose `AppRun` adds a switch Node refuses.
+- **The commit of a turn's offset rides the chat's own transaction** (R1), and a spend row is keyed by
+  process and offset; a plain commit after the result would bill the next turn for the last.
+- **No runner process**: a 2 MB `sh` wrapper per CLI (D4 as recommended), not a Node runner.
+- **The quit question is read fresh and asked by the page**, even on the first-run screen.
+- **The updates rule is per mode**, not per version: carried work or not.
+
+**What stays open.**
+
+- **Terminals still die** with the server (D8). Keeping shells alive needs a reattach channel of its own and is a separate study ([terminal.md](../terminal.md)).
+- **The container and the AppImage default to parked off.** The container stops every process in it when it
+  stops, so parking helps only the in-container payload restart; the AppImage's files go with its mount
+  (S5). Both can be switched on by hand, with those limits.
+- **`POST /system/restart`** (exit 76, a shell relaunch) keeps its old refusal rule.
+- **A logout without linger** ends the daemon and its work; layer 3 continues the cut turns at the next
+  login. With linger the work goes on (D3).
+- **A reboot** ends everything. Turns cut under an hour ago are continued, older ones wait for **Resume**.
+- **D10, the vendor's `--bg`.** Re-read the vendor's agent view at each minor version; if it documents
+  stream-json I/O for background sessions, layer 2 should move onto it.
+- **The guard's watcher** is not re-attached after an adoption (its hooks still run in the CLI).
+- **Not tried live**: a logout, a crash loop of a real server, a shell update under the daemon; and no
+  real turn exercised layer 3's continuation or the parked path end to end in the browser specs (the fake
+  CLI stands in).
+- **A turn's `turns` count** can be added twice when a death falls between the ledger row and the chat's
+  transaction; its cost cannot.
+- **Attachments and per-run temp directories** of a parked CLI have no start-up sweep to spare.
+- **A desktop-level e2e** of close and quit is not possible in the CDP harness; the sandbox trial of t6 is
+  the reference.
 
 ## Related
 

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-09T10:00:00Z
-updated_at: 2026-11-16T18:00:00Z
+updated_at: 2026-11-17T09:00:00Z
 tags:
     - security
     - secrets
@@ -193,7 +193,7 @@ a trial that ends with it is neither failed nor restarted.
 
 ## Parked CLI processes
 
-With `CLAUDIO_PARKED_PROCESSES` on (off by default), a chat's CLI is no child of the server on pipes
+With `CLAUDIO_PARKED_PROCESSES` on (on under the desktop daemon, off elsewhere), a chat's CLI is no child of the server on pipes
 but a detached process whose input and output are files (layer 2 of
 [plans/survive-restarts.md](plans/survive-restarts.md), `packages/core/src/parked/`). What that adds:
 

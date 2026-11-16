@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-19T07:37:05Z
-updated_at: 2026-11-16T22:00:00Z
+updated_at: 2026-11-17T09:00:00Z
 tags:
     - desktop
     - electron
@@ -313,12 +313,14 @@ When the newest release cannot be installed from here, the card offers no downlo
 and translated: published without an in-app update, needs a newer desktop app, could not be checked,
 or did not start here before. A refusal is shown from its code, never as the server's English text.
 
-**The restart waits for idle.** Restarting stops every chat in flight, so if chats are working or
-waiting for your answer, orchestrations are running, or terminals are open, the restart asks first
-and offers **Restart now**, **Restart when nothing is running** (or **Update when I quit** for the
-shell) or Cancel. Chats and orchestrations resume after a payload restart (the next turn continues
-the session, interrupted tasks continue); a turn in flight is lost, and so is every terminal shell:
-terminals end with the server and show as closed with **Open again**
+**The restart waits for idle, except for work that is carried.** Under the daemon with parked
+processes (the `.deb`), a payload restart loses nothing but terminals, so only open terminals make it
+ask first; chats, subagents and orchestrations are adopted by the new server and finish their turns
+([updates.md](updates.md)). Where nothing is carried (the AppImage), working or waiting chats and
+running orchestrations ask too, and offer **Restart now**, **Restart when nothing is running** (or
+**Update when I quit** for the shell) or Cancel; the turn a restart cuts is continued by the next
+start when it is under an hour old. Every terminal shell ends with the server in both cases, and
+shows as closed with **Open again**
 ([terminal.md](terminal.md), [known-limitations.md](known-limitations.md)).
 
 **How a payload installs.** The signed bundle is unpacked into

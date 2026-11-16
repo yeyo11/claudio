@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-29T00:00:00Z
-updated_at: 2026-11-15T18:00:00Z
+updated_at: 2026-11-17T09:00:00Z
 tags:
     - orchestration
     - planner
@@ -336,13 +336,20 @@ holds or rotates at a usage limit, and is never left running unwatched.
 
 What the orchestrator does when something it asked for is refused or interrupted (the audit's §9):
 
-- **A restart of the server does not stop a graph.** A graph's interrupted tasks go on in their own
+- **A restart of the server does not stop a graph.** With parked processes on (the desktop `.deb`),
+  a task's CLI keeps running while the server is away and the next start adopts it: the task goes
+  on in the same attempt, the same process and the same chat, and a workflow whose lead was adopted
+  is followed instead of resumed (`recover`, `followAdoptedWorkflow`;
+  [plans/survive-restarts.md](plans/survive-restarts.md), t4). When the CLI cannot be adopted, or
+  parking is off, a graph's interrupted tasks go on in their own
   chats once the chats are restored, each continuation spending an attempt as before. A **workflow**
   the restart cut is resumed from its cache in its own session, as a person's Resume would, without
   spending any task's attempt ([plans/survive-restarts.md](plans/survive-restarts.md), t1). Each
   resume is claimed in the `restart_continuations` table, keyed by the lead's cut execution, so two
   processes never resume it twice; one cut `MAX_WORKFLOW_RESTARTS` (3) times, or one whose run left no
-  cache to resume from, stays stopped with the reason for a person to resume.
+  cache to resume from, stays stopped with the reason for a person to resume. A graceful stop (an
+  update, a quit that keeps the work with parking off) leaves such a cut as a crash does, so it is
+  covered too; only **Stop all work and quit** on the desktop ends a task for good.
 
 - **A refused workflow resume does not end the server.** The resume runs detached, and a refusal
   there used to be an unhandled rejection that ended the API process. A place that frees up by itself
