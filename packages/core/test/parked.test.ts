@@ -224,11 +224,12 @@ test('the watchdog ends an open turn once the lease ran out, and leaves an idle 
   const idle = launch(expired, r.dataDir);
   const leased = launch(held, r.dataDir);
   for (const p of [working, leased]) {
-    p.parked.turn(true);
-    // A Bash call the fake never answers: the turn stays open until something ends it
+    // A Bash call the fake never answers: the turn stays open until something ends it. Marked open
+    // once the CLI is on it: a CLI that has not read its message yet is idle, and SIGINT would end it
     p.send('BASH sleep 600');
+    await until(() => p.lines, (ls) => ls.some((l) => l.type === 'assistant'), 'the hanging call');
+    p.parked.turn(true);
   }
-  await until(() => working.lines, (ls) => ls.some((l) => l.type === 'assistant'), 'the hanging call');
   const ended = await until(working.results, (rs) => rs.length === 1, 'the watchdog to end the turn');
   assert.equal(ended[0]?.subtype, 'error_during_execution', 'SIGINT ended the turn, not the process');
   assert.ok(existsSync(join(working.parked.dir, PARKED_FILES.watchdog)));
@@ -340,8 +341,10 @@ test('with a user manager, each CLI runs in its own scope, which is gone once th
   const cli = await cliOf(parked);
   assert.match(readFileSync(`/proc/${String(cli.pid)}/cgroup`, 'utf8'), new RegExp(`/${(parked.scope as string).replace(/\./g, '\\.')}$`, 'm'));
   const closed = once(parked, 'close');
+  const asked = Date.now();
   parked.stdin.end();
   await closed;
+  assert.ok(Date.now() - asked < 5000, 'the watchdog\'s nap does not hold the end for a tick');
   // systemd sees the scope empty on its own clock
   await until(() => spawnSync('systemctl', ['--user', 'show', '-p', 'LoadState', '--value', parked.scope as string], { encoding: 'utf8' }).stdout.trim(), (state) => state === 'not-found', 'the scope collected, with no failed unit left behind', 10_000);
 });

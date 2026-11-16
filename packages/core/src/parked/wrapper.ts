@@ -67,6 +67,8 @@ export interface WrapperSpec {
  *   is open, and the CLI wrote no `result` since the turn began, it sends SIGINT, which the vendor
  *   documents as ending the turn rather than abandoning it, once. An idle CLI is never signalled:
  *   SIGINT ends an idle `-p` process.
+ *   It naps in a background `sleep` it ends itself when told to stop: a `sleep` left behind would
+ *   hold the scope open for up to a tick after the CLI is gone.
  * - When the CLI is gone, its status goes to `exit.code`, written whole by a rename.
  */
 export function wrapperScript(spec: WrapperSpec): string {
@@ -85,7 +87,11 @@ echo "$cli" >"$dir/${f.pid}.tmp" && mv -f "$dir/${f.pid}.tmp" "$dir/${f.pid}"
 exec 3<&-
 trap 'exec 4>&-' USR1
 (
-  while sleep "$tick"; do
+  trap 'kill "$nap" 2>/dev/null; exit 0' TERM
+  while :; do
+    sleep "$tick" &
+    nap=$!
+    wait "$nap"
     kill -0 "$cli" 2>/dev/null || exit 0
     [ -f "$dir/${f.turn}" ] || continue
     expiry=$(cat "$dir/${f.lease}" 2>/dev/null) || continue
