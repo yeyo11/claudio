@@ -745,6 +745,8 @@ export class ChatManager extends EventEmitter {
     // A CLI a previous server left parked is no stray: it is reaped below, before this resolves, so
     // the turn it was on is continued by layer 3 as any other cut turn (adopting it instead is t4's)
     const reaping = new Set(this.parked.leftBehind());
+    // Read before the first await, while the database is open: a server shut down mid-restore asks it nothing
+    const held = this.parked.chatsInUse();
     const live = this.liveSessions().filter((p) => !reaping.has(p.pid));
     for (const { record } of stored) {
       const pids = live.filter((p) => p.sessionId === record.id).map((p) => p.pid);
@@ -803,7 +805,6 @@ export class ChatManager extends EventEmitter {
     // the processes that read them: no process of this wrapper is running yet
     // A parked CLI that outlived the last server reads the files its chat's start wrote (its
     // `--mcp-config`, its account overlay): they go with the process, not with the restart
-    const held = this.parked.chatsInUse();
     removeChatExtrasConfigs(this.config.dataDir, (chatId) => !held.has(chatId) && !this.chats.peek(chatId)?.alive);
   }
 

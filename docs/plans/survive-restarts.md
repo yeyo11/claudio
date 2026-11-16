@@ -725,8 +725,10 @@ has no stored source to ask, no row exists, the port is the one asked for.
 
 **Where t4 and t6 touch this.**
 
-- `chats.ts`: one hunk, in `restore`, the last `removeChatExtrasConfigs` call (it now reads
-  `this.parked.chatsInUse()`). `index.ts`: two lines after `this.runtime.chatTokens = …`
+- `chats.ts`: two lines in `restore`: `const held = this.parked.chatsInUse()` beside `leftBehind()`
+  (before the first await, since a shut-down core must not query) and the last
+  `removeChatExtrasConfigs` call reading it. It holds the chats whose CLI runs under a live owner, so
+  **t4 must add the chats it adopts** to `held` (they are not owned yet when it is read). `index.ts`: two lines after `this.runtime.chatTokens = …`
   (`chatTokens.stored = runtime.parked`, `parked.cliVersion`). `parked/registry.ts`: `start` (derived
   fields in the `insert`, the `api-url` write) and four new methods; `parked/store.ts`: three row fields
   and `byTokenHash`; `parked/wrapper.ts`: the `apiUrl` file name. `db.ts`: nothing (the columns were t3's).

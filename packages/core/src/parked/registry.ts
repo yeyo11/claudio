@@ -204,9 +204,13 @@ export class ParkedProcesses implements ParkedLedger, StoredChatTokens {
     return this.now() - Date.parse(row.startedAt) < CHAT_TOKEN_MAX_AGE_MS ? row.chatId : null;
   }
 
-  /** The chats whose parked CLI still runs: what start-up must not delete the files of. */
+  /**
+   * The chats whose parked CLI runs under a live server (this one's, or another that runs): what
+   * start-up must not delete the files of. What `reap` is about to stop is not in it, and a start-up
+   * that adopts (t4) adds what it took, which is not owned yet when this is read.
+   */
   chatsInUse(): Set<string> {
-    return new Set(this.store.all().filter(running).map((row) => row.chatId));
+    return new Set(this.store.all().filter((row) => running(row) && (this.live.has(row.id) || (row.owner !== null && alive(row.owner)))).map((row) => row.chatId));
   }
 
   /**
