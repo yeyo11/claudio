@@ -111,7 +111,8 @@ as the account out until its reset, which `isOut` and the banner then believe.
   so in a notice and records a `stopped` rotation row with reason `credits`.
 - When a plan reads spent under running work and the last `get_usage` answer is older than five
   minutes, Claudio asks `get_usage` once (no turn, no token; at most once per account in five
-  minutes), and the answer comes back as any reading.
+  minutes; never for a chat the CLI refused, nor for an account whose credits were never set up),
+  and the answer comes back as any reading.
 - The paid-turn mark uses the same predicate.
 - A successful result clears the chat's limit mark (unless Claudio itself stopped the turn), so a
   rejection the CLI went past is never written as `cause: rate-limit`; a rejected event whose

@@ -509,7 +509,8 @@ tell a refused credential from an unreachable network. The four raw answers are 
   window; an `overageStatus` of `rejected` is never a hint). `isUsingOverage: false` decides nothing:
   the CLI sent it on a turn that ran on credits (docs/reports/credits-never-leak-2026-11-16.md). A
   plan read spent under running work whose last `get_usage` answer is older than five minutes asks
-  `get_usage` once (no turn, no token; once per account in five minutes). With only background work
+  `get_usage` once (no turn, no token; once per account in five minutes; not for a chat the CLI refused, nor
+  for an account whose credits `get_usage` says were never set up). With only background work
   running, a refused account stops the process with a notice and a `stopped` rotation row (reason
   `credits`): there is no turn to move or replay, and the next message chooses again.
   A rejected event the CLI goes past is no limit: a successful result clears the chat's limit mark, a

@@ -3366,11 +3366,15 @@ export class ChatManager extends EventEmitter {
     if (!probe) return;
     const now = Date.now();
     if (!planSpent(limit, now)) return;
+    // An account whose credits `get_usage` says were never set up has nothing to pay with: no need to ask
+    const credits = limit.cli?.credits;
+    if (limit.cli?.available && !(credits?.enabled || credits?.everEnabled)) return;
     const askedAt = limit.cli?.observedAt ? Date.parse(limit.cli.observedAt) : NaN;
     if (Number.isFinite(askedAt) && now - askedAt < CREDITS_PROBE_MS) return;
     const last = this.creditsProbedAt.get(id);
     if (last !== undefined && now - last < CREDITS_PROBE_MS) return;
-    if (![...this.chats.values()].some((chat) => chat.account === id && chat.alive && spending(chat))) return;
+    // A chat the CLI refused is not running on credits: only work that goes on past the spent plan asks
+    if (![...this.chats.values()].some((chat) => chat.account === id && chat.alive && spending(chat) && !chat.rateLimited)) return;
     this.creditsProbedAt.set(id, now);
     void probe(id).catch(() => undefined);
   }
