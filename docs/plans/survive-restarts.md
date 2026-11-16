@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T12:00:00Z
-updated_at: 2026-11-16T18:00:00Z
+updated_at: 2026-11-16T20:00:00Z
 tags:
     - plan
     - study
@@ -803,6 +803,33 @@ overlay retention, with nothing pinned and with unreadable pins; the pins read f
 `apps/api/test/adopted-port.test.ts` (a started server listens on the port a running CLI holds, does
 not fall back when it is taken, and falls back as before with none). Documents:
 [security-model.md](../security-model.md#parked-cli-processes), [chat-environment.md](../chat-environment.md).
+
+## Outcome of t8 (the browser specs, 2026-11-16)
+
+Two specs, each on a wrapper of its own (a harness peer: its data directory, port and fake CLI, restarted
+by the spec itself, so no other spec in the shard loses its server). Shared helpers in
+`e2e/specs/restart-shared.mjs`. Neither needed a change to the fake CLI: its `hold:` and `ask:` steps,
+its `pending_permission_requests` answer (t4) and `CLAUDIO_FAKE_CLI_TURN_COST_USD` were enough.
+
+| Spec | What it proves |
+|---|---|
+| `restart-parked.spec.mjs` (layer 2, `CLAUDIO_PARKED_PROCESSES=on`, scopes off) | A turn held mid-way survives `peer.restart()` (SIGTERM, then a fresh server on the same data directory and port): the fake logs one start and the turn's result under the **same pid**, the page reads the turn back and shows it finishing, no second CLI and no resume. The chat's token, minted by the old server, is still known to the new one: a command the turn runs from inside the CLI posts to `/guards/check` with `$CLAUDIO_API_TOKEN` and gets `403` (a chat's token is refused there; an unknown token would have been read as the owner's). A permission prompt held across a second restart is asked again in the page, and allowing it reaches the CLI that asked (`answered` logged by the same pid) and finishes the turn. `spend_ledger` has one row per turn and the total is the two costs, not more |
+| `restart-continue.spec.mjs` (layer 3, parking off) | Two chats mid-turn, the server killed with SIGKILL (every process whose environment names the wrapper's data directory). While it is down the second chat's cut is aged to three hours in the database. The first chat is respawned with `--resume` on its own session and answers with nothing typed, with no notice; the second shows the warn "Claudio restarted while this chat was working" with Resume, has no process started for it, and Resume starts one on its session and clears the notice |
+
+**What the specs found.**
+
+- **Layer 3 does not apply to a graceful stop.** `Core.shutdown` calls `ChatManager.stopAll`, which
+  calls `stop()` on every chat, so a server that is sent SIGTERM (the harness's restart, a desktop
+  quit or update, a container stop) closes each execution as `stopped` with `turnOpen: false`.
+  Measured here: both chats' executions read `["stopped", false, null]` after `peer.stop()`, and the
+  next start continued neither and offered nothing. Layer 3 therefore covers a crash, an out-of-memory
+  kill or a power cut, which is why `restart-continue.spec.mjs` kills the server instead of stopping it.
+  With parking off, a turn cut by a graceful restart is a stopped turn, as before t1. Whether
+  `stopAll` should record shutdown as an interruption (so t1 covers the restarts a person causes) is
+  the owner's to decide; it is not changed here.
+
+**Not covered.** Permission prompts and the token are covered end to end only with parking on, as the
+fake CLI lists its pending request only then. A real CLI was not run.
 
 ## The owner's decisions (2026-11-15)
 
