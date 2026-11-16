@@ -23,6 +23,7 @@ const config = (over: Partial<AccountConfig> = {}): AccountConfig => ({
   items: [item({}), item({ name: 'agents', kind: 'dir' }), item({ name: 'projects', kind: 'dir', class: 'history' })],
   switching: null,
   keptAside: [],
+  plugins: { missing: [], differing: [] },
   ...over,
 });
 const account = (over: Partial<Account> = {}): Account => ({

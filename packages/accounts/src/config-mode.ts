@@ -2,6 +2,7 @@ import { cpSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, 
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import type { AccountConfig, AccountConfigItem, AccountConfigItemState, AccountConfigMode, AccountConfigReason, AccountConfigStart, AccountConfigStep } from '@claudio/shared';
 import { ASIDE_DIR, CONFIG_ITEMS, FILE_ITEMS, HISTORY_ITEMS, planAccountDir, type ReconcileStep } from './dirs.ts';
+import { diffPlugins } from './plugins.ts';
 
 /**
  * An account's configuration mode (plan account-configuration-and-project-rules §6.1): what a switch
@@ -238,5 +239,5 @@ export function describeConfig(dir: string, defaultDir: string, mode: AccountCon
   const items = [...config, ...history];
   const conflict = items.some((i) => i.state === 'conflict');
   const repair = switching !== null || items.some((i) => i.state === 'missing') || (mode === 'independent' && config.some((i) => i.state === 'linked'));
-  return { mode, state: conflict ? 'conflict' : repair ? 'repair' : 'ok', items, switching, keptAside: keptAside(dir) };
+  return { mode, state: conflict ? 'conflict' : repair ? 'repair' : 'ok', items, switching, keptAside: keptAside(dir), plugins: mode === 'shared' ? diffPlugins(defaultDir, dir) : { missing: [], differing: [] } };
 }

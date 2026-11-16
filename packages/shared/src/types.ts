@@ -7045,6 +7045,20 @@ export interface AccountConfig {
   switching: { to: AccountConfigMode; start: AccountConfigStart } | null;
   /** The dirs under `<account dir>/.claudio-own/` that hold what was moved aside, oldest first: never deleted by Claudio */
   keptAside: string[];
+  /** How the account's installed plugins stand against the default's; empty for an independent account, which is meant to differ */
+  plugins: AccountPlugins;
+}
+
+/**
+ * The plugins of the default account that a shared account runs differently, by `plugin@marketplace`
+ * id, read from the install records of both dirs. `missing`: not installed on the account. `differing`:
+ * installed at another version. Claudio brings them to the default's with the CLI's own `claude plugin`
+ * commands in the background, so a non-empty list usually means a pass is waiting (the account has a
+ * live chat) or the last command failed. Only plugins the default has switched on are listed.
+ */
+export interface AccountPlugins {
+  missing: string[];
+  differing: string[];
 }
 
 /**

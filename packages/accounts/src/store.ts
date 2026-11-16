@@ -611,6 +611,14 @@ export class AccountStore {
     return describeConfig(this.dirOf(id), this.defaultDir, a.config?.mode ?? 'shared', sw ? { to: sw.to, start: sw.start } : null);
   }
 
+  /**
+   * The accounts whose plugins Claudio keeps at the default's: shared, not the default, no switch
+   * left half-way. An independent account runs the plugins it has.
+   */
+  pluginTargets(): { id: string; dir: string }[] {
+    return this.stored.accounts.filter((a) => (a.config?.mode ?? 'shared') === 'shared' && !a.config?.switching).map((a) => ({ id: a.id, dir: this.dirOf(a.id) }));
+  }
+
   private configEntry(id: string): StoredAccount {
     if (id === DEFAULT_ID) throw new DefaultAccountConfigError();
     return this.entry(id);
