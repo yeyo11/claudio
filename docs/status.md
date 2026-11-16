@@ -24,7 +24,7 @@ pull request is in [CHANGELOG.md](../CHANGELOG.md), so a release never leaves th
 | Runtime | Node >= 22, pnpm workspace |
 | Source | 1,938 tracked `.ts`/`.tsx` files (1,620 at Agentry 0.37.0, before the fork); the API contract is 11,585 lines of `packages/shared/src/types.ts` |
 | REST | 48 route files, documented as OpenAPI 3.1 and served at `/docs` |
-| Tests | 737 unit and integration test files, plus 107 browser specs under `e2e/specs/` |
+| Tests | 737 unit and integration test files, plus 109 browser specs under `e2e/specs/` |
 | CI | `ci.yml` (a `checks` job: advisories, OpenAPI drift, typecheck, tests, build, the e2e runner's own tests; the e2e suite on four `e2e (k/4)` shards, called from `e2e.yml` and skipped on docs-only pull requests; the `test` gate; the image smoke test), `e2e.yml` (the shards), `desktop.yml`, `image.yml`, `release.yml` |
 
 The shape: `packages/shared` holds the types every other package imports,
