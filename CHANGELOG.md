@@ -1,5 +1,45 @@
 # Changelog
 
+## [0.18.0](https://github.com/yeyo11/claudio/compare/v0.17.0...v0.18.0) (2026-11-16)
+
+
+### Features
+
+* **accounts:** a canary per CLI version checks that linked configuration survives the CLI ([#140](https://github.com/yeyo11/claudio/issues/140)) ([c8ca46b](https://github.com/yeyo11/claudio/commit/c8ca46b819ec2156e6133c65db799644fbfbfa2c))
+* **accounts:** a configuration mode per account, shared or independent ([#132](https://github.com/yeyo11/claudio/issues/132)) ([ab81fea](https://github.com/yeyo11/claudio/commit/ab81fea1468b2051f4d61d430d3b75bd578ac34f))
+* **accounts:** a credits setting per account, and a turn that crosses into credits is stopped unless the person allows it ([#141](https://github.com/yeyo11/claudio/issues/141)) ([b234fa9](https://github.com/yeyo11/claudio/commit/b234fa92314b757802a0bb27c43e2d8361518190))
+* **accounts:** a rules engine in the account choice: allowed accounts, a preferred account and a reserve per project ([#142](https://github.com/yeyo11/claudio/issues/142)) ([334a042](https://github.com/yeyo11/claudio/commit/334a0421c9fa7da94377818e2cf58618f7193cbd))
+* **accounts:** a shared account's chat gets the default's MCP servers and project trust through one overlay ([#151](https://github.com/yeyo11/claudio/issues/151)) ([0c82246](https://github.com/yeyo11/claudio/commit/0c822467199281ae01cd8c1ef7a298ec1ed9e75f))
+* **accounts:** a shared account's plugins follow the default's, through the CLI's own plugin commands ([#153](https://github.com/yeyo11/claudio/issues/153)) ([d973048](https://github.com/yeyo11/claudio/commit/d973048b9f6b0e3f0f40b357317b125754112585))
+* **accounts:** project rules at work: reserves while a project has work, no-room per origin, a newly forbidden account left at turn end ([#149](https://github.com/yeyo11/claudio/issues/149)) ([2f96219](https://github.com/yeyo11/claudio/commit/2f962198294d49342c66dd9dc152933c8cace78f))
+* **accounts:** rules speak the project's name, a chat says why it is on its account, a new account can join the rules, and a restart-cut chat reads interrupted, not stuck ([#154](https://github.com/yeyo11/claudio/issues/154)) ([431c99a](https://github.com/yeyo11/claudio/commit/431c99ab53fed43c7e0faa1ae9ae74b2715dbd57))
+* **accounts:** the overage state and a credits setting per account ([#137](https://github.com/yeyo11/claudio/issues/137)) ([ec3faf3](https://github.com/yeyo11/claudio/commit/ec3faf3d5770ab0399f94ad3d517cf3e0472bb97))
+* **accounts:** the project rules contract: a preferred account, a reserve and strict configuration per rule, validated, and a pin outside a rule refused ([#147](https://github.com/yeyo11/claudio/issues/147)) ([51ad1f3](https://github.com/yeyo11/claudio/commit/51ad1f36b751ff658c906d44c81ed6984481abb2))
+* **chats:** a turn a restart cut resumes by itself, a workflow resumes from its cache, and an older cut offers Resume ([#150](https://github.com/yeyo11/claudio/issues/150)) ([a949bd2](https://github.com/yeyo11/claudio/commit/a949bd28422aa80ee374a2ecc85fcf5a6b4299b1))
+* **chat:** subagent cards show model and effort, and the chat panel never scrolls sideways ([#125](https://github.com/yeyo11/claudio/issues/125)) ([a41a595](https://github.com/yeyo11/claudio/commit/a41a5952c4b29a3a41ebea49c1fe1827b1029a03))
+* **rotation:** one sweeper holds every wait at a limit, probes for a reset nobody reported, and replays the turn after a restart ([#136](https://github.com/yeyo11/claudio/issues/136)) ([fa4d3f7](https://github.com/yeyo11/claudio/commit/fa4d3f76320b9acab4431066f385830f35e08f5d))
+* **web:** one wait line for every wait at a usage limit, and Home lists the open waits ([#145](https://github.com/yeyo11/claudio/issues/145)) ([20b093a](https://github.com/yeyo11/claudio/commit/20b093a315f6202e50ba13574f65a490f8257633))
+* **web:** screens for an account's configuration and a project's account rule ([#152](https://github.com/yeyo11/claudio/issues/152)) ([32d598b](https://github.com/yeyo11/claudio/commit/32d598bb1eb587bd97ca804f71f937655f0b6fce))
+
+
+### Bug fixes
+
+* **accounts:** keep every account's links in sync with the default dir, and stop tests reaching real account dirs ([#123](https://github.com/yeyo11/claudio/issues/123)) ([fb86216](https://github.com/yeyo11/claudio/commit/fb86216d99c002d317a6c802eebf9d041b6ab7c1))
+* **openai:** a usage limit on /v1 answers 429 with Retry-After, and an API chat is never replayed ([#133](https://github.com/yeyo11/claudio/issues/133)) ([27ae9d0](https://github.com/yeyo11/claudio/commit/27ae9d01218fe1dd939f770104eaab1836f6b0ce))
+* **orchestration:** graph steps that are no task wait or move at a usage limit like tasks ([#129](https://github.com/yeyo11/claudio/issues/129)) ([610fbd5](https://github.com/yeyo11/claudio/commit/610fbd5decf6b71a2372eb8ac1a8d56da6a01c49))
+* **rotation:** a chat at its limit survives a restart, and a refused resume leaves it as it was ([#128](https://github.com/yeyo11/claudio/issues/128)) ([8b156d0](https://github.com/yeyo11/claudio/commit/8b156d0b2e02151741a16e4d71207727df4012e9))
+* **rotation:** a person's chat waits at a limit and resumes by itself ([#124](https://github.com/yeyo11/claudio/issues/124)) ([24c7b07](https://github.com/yeyo11/claudio/commit/24c7b076ad35e58c31ce1a77f3129b00ebe0ab89))
+* **rotation:** a quota reset early is noticed: a wait with a known reset still asks get_usage, and a fresh reading with room ends it ([#143](https://github.com/yeyo11/claudio/issues/143)) ([5ec904f](https://github.com/yeyo11/claudio/commit/5ec904f1227843bc041702ae0fb921c8fe3cd38e))
+* **supervisor:** every message reaches the agent it is about, and a lead that delegates is not called silent or stalled ([#138](https://github.com/yeyo11/claudio/issues/138)) ([899dc24](https://github.com/yeyo11/claudio/commit/899dc24b75ca491cfaa6f3df2663eb52b40e79ab))
+
+
+### Documentation
+
+* credits in the stream, spikes S1 and S4 ([#134](https://github.com/yeyo11/claudio/issues/134)) ([4601a39](https://github.com/yeyo11/claudio/commit/4601a3944769ea8860af914d761c43f9d1f27585))
+* **decisions:** the decision engine's second plan landed in [#122](https://github.com/yeyo11/claudio/issues/122) ([#126](https://github.com/yeyo11/claudio/issues/126)) ([6c91f38](https://github.com/yeyo11/claudio/commit/6c91f38d25a1d61211af1ba40788306889a4aca0))
+* keeping work alive across restarts, the study and its spikes ([#146](https://github.com/yeyo11/claudio/issues/146)) ([72264d9](https://github.com/yeyo11/claudio/commit/72264d9ff568d792b3dc5b15e4e27c41233f9e36))
+* the signed-in spikes: a pending prompt survives a restart (S3), strict MCP drops connectors (S4), a resumed session needs its history linked (S5), external imports are per project (S7) ([#148](https://github.com/yeyo11/claudio/issues/148)) ([28f535f](https://github.com/yeyo11/claudio/commit/28f535f3af8efcffd1f65018d2afc1b0566e5a1b))
+
 ## [0.17.0](https://github.com/yeyo11/claudio/compare/v0.16.2...v0.17.0) (2026-11-13)
 
 
