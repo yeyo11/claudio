@@ -1,4 +1,4 @@
-import type { ChildProcess, ChildProcessWithoutNullStreams } from 'node:child_process';
+import type { ChatProcess } from './chat-process.ts';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { basename, join, resolve } from 'node:path';
@@ -433,7 +433,7 @@ export interface ChatPulse {
 export const now = () => new Date().toISOString();
 
 /** Started (a failed spawn has no pid) and not exited yet */
-export const processUp = (proc: ChildProcess): boolean => proc.pid !== undefined && proc.exitCode === null && proc.signalCode === null;
+export const processUp = (proc: ChatProcess): boolean => proc.pid !== undefined && proc.exitCode === null && proc.signalCode === null;
 
 /**
  * What the code that reads and writes a chat's process needs of the manager that owns the chat: the
@@ -495,7 +495,7 @@ export class LiveChat {
   executions: Execution[] = [];
   /** The execution a wrapper restart cut off, when this chat was restored with one: its stop time is still an estimate */
   cutOff: Execution | null = null;
-  proc: ChildProcessWithoutNullStreams | null = null;
+  proc: ChatProcess | null = null;
   /** When `proc` was spawned: its stream reports every workflow started since, and none before */
   procStartedAt: string | null = null;
   /**
@@ -584,12 +584,19 @@ export class LiveChat {
   }
 
   set turnOpen(open: boolean) {
+    const changed = this.openTurn !== open;
     this.openTurn = open;
     const execution = this.execution;
     if (execution && (execution.turnOpen ?? false) !== open) execution.turnOpen = open;
+    if (changed) this.onTurn?.(open);
   }
 
   private openTurn = false;
+  /**
+   * Told each time the lead's turn opens or ends: a parked process marks it for its watchdog and
+   * commits what the fold has read at its end (`parked/process.ts`). Set by whoever starts the process.
+   */
+  onTurn: ((open: boolean) => void) | null = null;
   /**
    * The lead's calls the running turn waits on and has no result for, newest last: a foreground
    * agent or command, which a message written now is not read before (`ChatPendingMessage.blockedBy`)

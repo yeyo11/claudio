@@ -67,6 +67,12 @@ export interface ProviderDriver {
    * its vendor documents for programs. Absent: a cut turn waits for a person's next message.
    */
   readonly continuesCutTurns?: boolean;
+  /**
+   * A process of this agent may run parked: its stdin a FIFO and its stdout a file, so that it can
+   * outlive the server (layer 2 of docs/plans/survive-restarts.md). True only where the vendor
+   * documents how a program re-attaches after a transport gap; absent, its processes stay on pipes.
+   */
+  readonly parkable?: boolean;
   /** Speaks the protocol to one process; events come out already neutral */
   attach(io: SessionIO, sink: (event: DriverEvent) => void, branches: BranchTracker, guard?: AttachedGuard): DriverSession;
   /** Per chat, across its processes: background tasks, subagents, workflows */
