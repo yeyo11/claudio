@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-13T18:00:00Z
+updated_at: 2026-11-17T09:00:00Z
 tags:
     - limitations
     - known-gaps
@@ -26,9 +26,12 @@ the Known gaps of its page. Until 2026-10-17 this list was the README's.
 - Run metadata is persisted and conversations are rebuilt from the session transcripts after a
   restart, and so are background tasks and subagents, which are read back from the files the CLI
   writes. What exists only in a run's live stream is lost: its stderr, and the rate-limit notice.
-  Workers do not survive a restart either: a task caught by one is `interrupted` (not `stopped`,
-  which is someone's decision), and its chat goes on in a new execution once the wrapper is back,
-  while the task has attempts left. A stopped task is never continued on its own, and a workflow
+  Where parked processes are off (the container, the AppImage, `pnpm dev`) a CLI does not survive a
+  restart: a task caught by one is `interrupted` (not `stopped`, which is someone's decision), and its
+  chat goes on in a new execution once the wrapper is back, while the task has attempts left. Under
+  the desktop daemon with parked processes the CLI survives and the task goes on in the same
+  attempt ([deploy.md](deploy.md#what-survives-a-restart-a-quit-or-an-update)). Terminals never
+  survive a restart (D8 of [plans/survive-restarts.md](plans/survive-restarts.md)). A stopped task is never continued on its own, and a workflow
   or a graph caught while integrating waits for `resume`, except a workflow whose lead was waiting
   for a limit to reset: the wait outlives the restart and the workflow is followed again.
 - A background task's output lives in the CLI's temp dir, which a reboot clears. Its command,

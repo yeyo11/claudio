@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-16T12:00:00Z
-updated_at: 2026-11-16T18:00:00Z
+updated_at: 2026-11-17T09:00:00Z
 tags:
     - chats
     - orchestration
@@ -64,7 +64,10 @@ rows without replaying a transcript; the chats ended long ago are retired at onc
 **A chat the machine cannot start does not stay "starting".** A spawn that throws at once (`ENOMEM`,
 `E2BIG`) ends the execution it began; a new chat it refused leaves no row.
 
-**Stopping every chat waits for it.** `stopAll()` returns a promise that settles when the processes
+**Stopping every chat waits for it, and does not always stop it for good.** With parked processes on,
+`stopAll()` first detaches them (they run on, see below); a chat on pipes whose turn is open is
+stopped but left cut, as a crash leaves it, so the next start continues it, unless the person chose
+**Stop all work** (`stopWorkAtShutdown`). `stopAll()` returns a promise that settles when the processes
 are gone and kills with SIGKILL what ignored SIGTERM after the grace. `Core.shutdown()` is idempotent
 and returns a promise too: it closes the database only after the evals, the terminals, the
 collaborators, the tunnel and the chats have written their last rows (bounded at 8 s, so a hang does
