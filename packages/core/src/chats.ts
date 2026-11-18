@@ -4,7 +4,7 @@ import { ParkedProcess } from './parked/process.ts';
 import { ParkedProcesses } from './parked/registry.ts';
 import { CliProcessStore } from './parked/store.ts';
 import { ChatNotFoundError, ChatRefusal, DeliveryRefusal, isTransientRefusal, MemoryRefusal, QueueYieldRefusal, RunSlotRefusal } from './chat-errors.ts';
-import { accountState, allowsAccount, creditsCapReached, creditsSettingOf, DEFAULT_ID, isOut, outUntil, overageHint, readingFromEvent, type AccountRef, type AccountStore, type Choice, type ChooseOptions, type Reading } from '@claudio/accounts';
+import { allowsAccount, creditsCapReached, creditsMayPay, creditsSettingOf, DEFAULT_ID, isOut, outUntil, overageHint, planSpent, readingFromEvent, type AccountRef, type AccountStore, type Choice, type ChooseOptions, type Reading } from '@claudio/accounts';
 import { NO_PROJECT, noRoomWords, ProjectActivity } from './project-activity.ts';
 import { ChatTokenStore } from './security/chat-tokens.ts';
 import { randomUUID } from 'node:crypto';
@@ -12,7 +12,7 @@ import { EventEmitter, once } from 'node:events';
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync } from 'node:fs';
 import { dirname, join, resolve, sep } from 'node:path';
 import { createInterface } from 'node:readline';
-import { errorMessage, RESTART_CONTINUE_TEXT, type AccountChoiceWhy, type AccountSwitchReason, type ChatOrigin, type SpendPurpose, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type SentToAgent, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
+import { errorMessage, RESTART_CONTINUE_TEXT, type AccountChoiceWhy, type AccountLimit, type AccountSwitchReason, type ChatOrigin, type SpendPurpose, type AccountSwitchRefusalCode, type Attachment, type ChatActivity, type ChatClaudioMcp, type ChatMcpServers, type ChatMessageReceipt, type ChatMessageTaken, type ChatSettingsUpdate, type ChatStartOptions, type ChatToolConfig, type ClaudioAssistantMarker, type ClaudioMcpUnavailable, type ContextDetail, type Execution, type LiveMcpServer, type PermissionMode, type ProviderId, type ProviderLimit, type ProvidersSettings, type ResumeChatRequest, type RunEvent, type RunGuardEvent, type RunStatus, type SentToAgent, type TokenUsage, type ToolPolicy, type TranscriptEntry, type UsageHistoryPoint } from '@claudio/shared';
 import { activityKey } from './chat-activity.ts';
 import { executionOutcome } from './chat-model.ts';
 import { foldEvent, goIdle, idleTimeoutMs, NOT_READ, recordEntry } from './chat-fold.ts';
@@ -197,6 +197,15 @@ export function ruleReason(choice: Choice, current: string | null): AccountSwitc
 
 /** The windows `usage_history` keeps a line for */
 const HISTORY_WINDOWS = ['five_hour', 'seven_day'] as const;
+/** How old a `get_usage` answer may be before a plan that reads spent under running work asks again */
+const CREDITS_PROBE_MS = 5 * 60_000;
+
+/**
+ * Whether the chat's CLI is spending on its account now: the lead's turn is open, or work it started
+ * runs in the background after that turn answered. The check of credits looked only at the first, and
+ * on 2026-11-16 subagents ran on a spent plan for 25 minutes with the lead's turn closed.
+ */
+const spending = (chat: LiveChat): boolean => chat.turnOpen || runsInBackground(chat.branches);
 
 /** What the chat manager needs of the accounts: the store, as `@claudio/accounts` builds it */
 /** What a guard plan is derived from at a spawn: the chat's folder, the plan it last had, and what kind of chat it is. */
@@ -363,6 +372,8 @@ export class ChatManager extends EventEmitter {
    * process runs on the CLI's own login, as before accounts.
    */
   accounts: ChatAccounts | null = null;
+  /** Asks the CLI `get_usage` for an account and records the answer (Core's); null where nothing may ask */
+  probeUsage: ((account: string) => Promise<void>) | null = null;
   /** The project a directory belongs to, for its rotation policy; Core sets it */
   projectOf: ((dir: string) => string | null) | null = null;
   /**
@@ -509,6 +520,7 @@ export class ChatManager extends EventEmitter {
       learnModelCosts: (execution, modelUsage) => this.learnModelCosts(execution, modelUsage),
       learnWindows: (modelUsage) => this.learnWindows(modelUsage),
       maybeLimit: (chat) => this.maybeLimit(chat),
+      turnOpenedByAgent: (chat) => this.checkCredits(chat, false),
       recordSpend: (chat, execution, usd) => this.recordSpend(chat, execution, usd),
       failProtocol: (chat, message) => this.failProtocol(chat, message),
       guardArmed: (chat) => this.guardArmed(chat),
@@ -2614,6 +2626,7 @@ export class ChatManager extends EventEmitter {
     // Removed since the reading was taken, or the credential-less default: nothing to draw a line for
     const limit = store.find(id)?.limits;
     if (!limit) return;
+    this.maybeProbeCredits(id, limit);
     const points: UsageHistoryPoint[] = [];
     for (const window of HISTORY_WINDOWS) {
       const w = limit.windows[window];
@@ -3330,12 +3343,40 @@ export class ChatManager extends EventEmitter {
   private checkCredits(chat: LiveChat, hinted: boolean): void {
     const store = this.accounts;
     const id = chat.account;
-    if (!store || !id || !chat.alive || chat.endedAt || !chat.turnOpen || chat.creditsStop) return;
+    if (!store || !id || !chat.alive || chat.endedAt || !spending(chat) || chat.creditsStop) return;
     const limit = store.find(id)?.limits ?? null;
-    if (!hinted && accountState(limit) !== 'overage') return;
+    if (!hinted && !creditsMayPay(limit)) return;
     const why = this.creditsRefusal(chat, store, id);
     if (why) this.stopForCredits(chat, id, why);
     else this.payFromCredits(chat, id);
+  }
+
+  /** When each account was last asked `get_usage` because its plan read spent under work (epoch ms) */
+  private readonly creditsProbedAt = new Map<string, number>();
+
+  /**
+   * Asks `get_usage` (no turn, no token) whether the account's credits are on, once its plan reads
+   * spent while work runs there and its last answer is older than {@link CREDITS_PROBE_MS}: the
+   * `overage` state and the stop under `never` stand on that answer, which otherwise only a person's
+   * Refresh or a wait asks for. At most once per account in that span; the answer comes back through
+   * {@link noteAccountReading}, which looks at the running work again.
+   */
+  private maybeProbeCredits(id: string, limit: AccountLimit): void {
+    const probe = this.probeUsage;
+    if (!probe) return;
+    const now = Date.now();
+    if (!planSpent(limit, now)) return;
+    // An account whose credits `get_usage` says were never set up has nothing to pay with: no need to ask
+    const credits = limit.cli?.credits;
+    if (limit.cli?.available && !(credits?.enabled || credits?.everEnabled)) return;
+    const askedAt = limit.cli?.observedAt ? Date.parse(limit.cli.observedAt) : NaN;
+    if (Number.isFinite(askedAt) && now - askedAt < CREDITS_PROBE_MS) return;
+    const last = this.creditsProbedAt.get(id);
+    if (last !== undefined && now - last < CREDITS_PROBE_MS) return;
+    // A chat the CLI refused is not running on credits: only work that goes on past the spent plan asks
+    if (![...this.chats.values()].some((chat) => chat.account === id && chat.alive && spending(chat) && !chat.rateLimited)) return;
+    this.creditsProbedAt.set(id, now);
+    void probe(id).catch(() => undefined);
   }
 
   /** Why the account's credits may not pay for the chat's turn; null when they may. */
@@ -3356,6 +3397,20 @@ export class ChatManager extends EventEmitter {
     // It ran on credits up to here, whatever the setting said
     chat.paidTurn = true;
     const at = Date.now();
+    if (!chat.turnOpen) {
+      // Only background work runs, after the turn that started it answered: there is no turn to move
+      // or replay, so the work is stopped and the next message chooses the account again
+      chat.limitedAccounts.set(id, { at, until: outUntil(this.accounts?.find(id)?.limits, at) });
+      chat.push({ kind: 'notice', text: `Account ${id} has no plan quota left and its credits may not pay for the work running in the background (${CREDITS_STOP_WORDS[why]}): it was stopped.`, data: { reason: 'credits', account: id, stopped: why } });
+      try {
+        this.db.appendRotationEvent({ ts: new Date(at).toISOString(), event: 'stopped', from: id, to: null, reason: 'credits', detail: chat.name, data: { chatId: chat.id, credits: why } });
+      } catch {
+        // A closed database (shutting down): the stop goes ahead all the same
+      }
+      this.persist(chat);
+      this.stop(chat.id);
+      return;
+    }
     // The account the turn left is no candidate for its move, as one it died on at a limit
     chat.limitedAccounts.set(id, { at, until: outUntil(this.accounts?.find(id)?.limits, at) });
     chat.rateLimited = true;
@@ -3391,7 +3446,7 @@ export class ChatManager extends EventEmitter {
   /** Whether the turn whose result is recorded ran on credits: marked by the check, or its account read `overage` */
   private paidFromCredits(chat: LiveChat, account: string | null): boolean {
     if (chat.paidTurn || chat.creditsStop) return true;
-    return !!account && accountState(this.accounts?.find(account)?.limits) === 'overage';
+    return !!account && creditsMayPay(this.accounts?.find(account)?.limits);
   }
 
   /** Why the chat's last turn was stopped on credits (D4); null when it was not. */

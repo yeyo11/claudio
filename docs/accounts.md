@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-15T23:30:00Z
+updated_at: 2026-11-16T21:00:00Z
 tags:
     - accounts
     - rotation
@@ -496,14 +496,27 @@ tell a refused credential from an unreachable network. The four raw answers are 
   `cli.credits.usedMinor`), and `choose` marks such a choice `credits: true`. The wait is for the plan's reset.
   A cap is in minor units of the account's currency; with a cap set and no `get_usage` spend known,
   the cap counts as reached (`creditsCapReached`): money is never spent on a guess.
-- **A turn that crosses into credits (D4, t7).** `ChatManager.checkCredits` looks at a running turn
-  when its account's reading changes (`noteAccountReading`, so the stream, a refresh, a probe and
-  the idle cache all count), when a turn opens in a live process (`deliver`: a kept process does not
-  choose its account again), and on every change of the accounts (Core's `accounts.changed`, so a
-  setting saved under a running turn applies at once). It acts when the account reads `overage`
-  (`get_usage` says credits cover a spent plan) or the stream hints it (`overageHint`:
-  `isUsingOverage`, or a covering `overageStatus` beside a spent plan window; an `overageStatus` of
-  `rejected` is never a hint). The account's credits setting decides: `never`, Claudio's cap reached,
+- **A turn that crosses into credits (D4, t7).** `ChatManager.checkCredits` looks at a chat whose CLI
+  is spending (the lead's turn is open, or background work it started still runs after the turn
+  answered) when its account's reading changes (`noteAccountReading`, so the stream, a refresh, a
+  probe and the idle cache all count), when a turn opens in a live process (`deliver`, and a turn the
+  agent opens itself on a task notification: a kept process does not choose its account again), and
+  on every change of the accounts (Core's `accounts.changed`, so a setting saved under a running turn
+  applies at once). It acts when credits may pay (`creditsMayPay`): the account reads `overage`, or a
+  plan window reads at or past 1 from any source while the latest word on its credits (`get_usage`'s
+  `extra_usage`, or the stream's overage fields, whichever came last) says they are on; or when the
+  stream hints it (`overageHint`: `isUsingOverage`, or a covering `overageStatus` beside a spent plan
+  window; an `overageStatus` of `rejected` is never a hint). `isUsingOverage: false` decides nothing:
+  the CLI sent it on a turn that ran on credits (docs/reports/credits-never-leak-2026-11-16.md). A
+  plan read spent under running work whose last `get_usage` answer is older than five minutes asks
+  `get_usage` once (no turn, no token; once per account in five minutes; not for a chat the CLI refused, nor
+  for an account whose credits `get_usage` says were never set up). With only background work
+  running, a refused account stops the process with a notice and a `stopped` rotation row (reason
+  `credits`): there is no turn to move or replay, and the next message chooses again.
+  A rejected event the CLI goes past is no limit: a successful result clears the chat's limit mark, a
+  plan rejection whose `overageStatus` says credits cover it neither marks the chat nor leaves the
+  account out (its windows decide), and the hint reads a rejection as credits paying only when the
+  window it names reports a use at or past 1. The account's credits setting decides: `never`, Claudio's cap reached,
   or `last-resort` while another account has plan quota stop the turn at once (`stop`, the same as
   a person's Stop and a workflow subagent's limit): the chat is marked at its limit
   (`creditsStop`), the account goes on the turn's failed list, and the rotation takes it as a limit,
@@ -513,7 +526,7 @@ tell a refused credential from an unreachable network. The four raw answers are 
   turn was paid from credits (docs/decisions/credits-in-the-stream.md), so Claudio marks it from its
   own state.
 - **The paid-turn mark.** `spend_ledger.credits` (a migration) is 1 for a result whose turn was let
-  through on credits, was stopped after crossing, or ran while its account read `overage`; the
+  through on credits, was stopped after crossing, or ran while credits may pay (`creditsMayPay`); the
   day's spend serves the part as `SpendState.creditsUsd`. A move onto credits (a `last-resort` or
   `allow` account chosen with `Choice.credits`) is a rotation event with `reason: 'credits'`,
   `data.credits: 'paid'`.
@@ -883,7 +896,9 @@ fold precedence and the per-model choice; `apps/api/test/accounts.test.ts` the r
 `apps/web/test/account-card.test.tsx` the card.
 
 Credits: `packages/accounts/test/credits.test.ts` (the state and `choose`) and `credits-turn.test.ts`
-(the hint and the cap), `packages/core/test/credits-turns.test.ts` (a turn that crosses under each
+(the hint, the cap and `creditsMayPay` over the 2026-11-16 readings),
+`packages/core/test/credits-leak.test.ts` (background work, a probe, a turn the agent opens),
+`packages/core/test/credits-turns.test.ts` (a turn that crosses under each
 setting, over the fake's `FAKE_CLAUDE_OVERAGE_DIRS`, which reports the crossing as the SDK's typings
 describe it), `apps/web/test/account-card.test.tsx`, `rotation-card.test.tsx`, `accounts.test.ts`,
 `chat-notice.test.ts` and `notifications-text.test.ts`, and the e2e `accounts.spec.mjs` (a

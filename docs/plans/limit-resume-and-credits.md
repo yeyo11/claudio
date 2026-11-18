@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T18:00:00Z
+updated_at: 2026-11-16T21:00:00Z
 tags:
     - plan
     - study
@@ -642,8 +642,26 @@ What differs from the study:
 - The turn is stored as text in the row, not as message ids (t8).
 - A `/v1` chat is not moved either, not only not waited for (t4).
 
+What a release showed (2026-11-16, [the incident report](../reports/credits-never-leak-2026-11-16.md)):
+
+- **The t7 check missed a real crossing under `never`.** It looked only at an open turn of the lead,
+  never at a turn the agent opened itself, and only when a reading or hint arrived; on a second
+  machine a chat's background subagents ran past the five-hour window for 25 minutes with credits on.
+  Fixed (branch `fix/credits-never-leak`): the check runs while the CLI spends (an open turn or
+  background work), on turns the agent opens, on the account's reading rather than a hint
+  (`creditsMayPay`), and a plan read spent under running work asks `get_usage` once (no turn).
+- **The other face: a chat read as stopped at a limit with the plan at 83 %.** A rejected event the
+  CLI went past kept the chat marked for the process's life, and its end for an update wrote
+  `cause: rate-limit`. Fixed in the same branch: a successful result clears the mark, a rejection
+  that `overageStatus` says credits cover is no refusal, and the hint needs the named window spent.
+  This also settles the earlier open item on a rejected event under `allow`, except a rejection while
+  `isUsingOverage`, which is still the overage refused.
+
 What stays open:
 
+- **The stream at a plan limit with credits on was seen once, indirectly**: `allowed`,
+  `isUsingOverage: false`, `overageStatus: allowed`, and no new event while the window stood at 1.01;
+  the events themselves were not kept. S2 would still give the exact shape.
 - **S2 is not authorised**: what a `-p` turn emits at a plan limit with credits on, and at the credits cap, is unknown; every credits test builds the crossing from the SDK's typings. A rejected event with `isUsingOverage` under `allow` still marks the chat at its limit (the fold's rule).
 - **S3 was authorised and not run here**: whether `autoContinueAtUsageLimit` reaches `-p` stream-json, which would be a vendor wait inside the CLI to prefer or turn off.
 - **S5**: the remote server's history, where the orchestrations the owner remembers as not resuming may be, was not read.

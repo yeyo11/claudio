@@ -34,6 +34,10 @@
 //                                 and ends with it still running, as a lead that delegated and stopped;
 //                                 the subagent reports its end ($FAKE_CLAUDE_BG_AGENT_MS after the result,
 //                                 200 by default) with a `task_notification`, as the CLI does
+//                                 $FAKE_CLAUDE_BG_RATE_LIMITS (a JSON array of rate_limit_info) are reported
+//                                 while it runs, one each 50 ms after the result
+//   FAKE_CLAUDE_SELF_TURN_MS=<ms> with FAKE-TEXT-ONCE: that long after the first result the lead opens a turn
+//                                 of its own (an assistant message), whose result comes 20 s later
 //   FAKE-MAX-TOKENS               before its result, streams the message_delta that says the turn
 //                                 stopped on max_tokens, as the CLI's stream-json does
 //
@@ -92,6 +96,7 @@
 //                                 an allowed rate_limit_event with its five-hour window spent and the overage
 //                                 fields saying credits cover it (built from the SDK's typings: no paid turn
 //                                 was ever recorded), then goes on as the prompt says: a turn crossing into credits
+//   FAKE_CLAUDE_TURN_RATE_LIMITS=<json> rate_limit_info objects every turn reports before it goes on
 //   FAKE_CLAUDE_EXPIRED_DIRS=<a,b> every turn of a process whose CLAUDE_CONFIG_DIR is one of these dies on the
 //                                 sign-in (a 401, replay/auth-expired.jsonl): an account whose session expired
 //   FAKE_CLAUDE_PROMPTS=<file>    appends one JSON line `{ cwd, resume, prompt }` per turn it is sent, so a
@@ -299,6 +304,8 @@ lines.on('line', async (line) => {
     const resetsAt = Math.floor(Date.now() / 1000) + 3600;
     out({ type: 'rate_limit_event', rate_limit_info: { status: 'allowed', rateLimitType: 'five_hour', resetsAt, utilization: 1, isUsingOverage: true, overageStatus: 'allowed', unifiedWindows: { five_hour: { utilization: 1, resetsAt } } } });
   }
+  // What the CLI reports of the account while this turn works, before its result
+  for (const info of process.env.FAKE_CLAUDE_TURN_RATE_LIMITS ? JSON.parse(process.env.FAKE_CLAUDE_TURN_RATE_LIMITS) : []) out({ type: 'rate_limit_event', rate_limit_info: info });
   for (const [, file, text] of prompt.matchAll(/^FAKE-WRITE (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
   if (prompt.startsWith('You are the review fixer')) {
     for (const [, file, text] of prompt.matchAll(/^FAKE-REVIEW-FIX (\S+) (.*)$/gm)) writeFileSync(join(dir, file), `${text}\n`);
@@ -407,12 +414,22 @@ lines.on('line', async (line) => {
     if (/^FAKE-BG-AGENT$/m.test(prompt)) {
       out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_bg', name: 'Agent', input: { description: 'survey the routes', subagent_type: 'general-purpose', run_in_background: true } }] } });
       out({ type: 'system', subtype: 'task_started', session_id: sessionId, task_id: 'agent-bg', task_type: 'local_agent', tool_use_id: 'toolu_bg', is_backgrounded: true, description: 'survey the routes' });
+      // What the CLI reports of the account while only the subagent works: its requests move the windows too
+      const reports = process.env.FAKE_CLAUDE_BG_RATE_LIMITS ? JSON.parse(process.env.FAKE_CLAUDE_BG_RATE_LIMITS) : [];
+      reports.forEach((info, i) => setTimeout(() => out({ type: 'rate_limit_event', rate_limit_info: info }), 50 * (i + 1)));
       setTimeout(() => {
         mark('background-ended');
         out({ type: 'system', subtype: 'task_notification', session_id: sessionId, task_id: 'agent-bg', tool_use_id: 'toolu_bg', status: 'completed', summary: 'the survey is done' });
       }, Number(process.env.FAKE_CLAUDE_BG_AGENT_MS ?? 200));
     }
     out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: text[1].replaceAll('\\n', '\n') });
+    if (process.env.FAKE_CLAUDE_SELF_TURN_MS) {
+      // The lead opens a turn of its own, as on a task notification: no message of Claudio's starts it
+      setTimeout(() => {
+        out({ type: 'assistant', session_id: sessionId, message: { role: 'assistant', content: [{ type: 'text', text: 'picking the survey up' }] } });
+        setTimeout(() => out({ type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, result: 'self turn done' }), 20_000);
+      }, Number(process.env.FAKE_CLAUDE_SELF_TURN_MS));
+    }
     return;
   }
   if (existsSync(early)) {

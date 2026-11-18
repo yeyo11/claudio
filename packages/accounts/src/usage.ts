@@ -129,7 +129,11 @@ export function readingFromEvent(info: unknown, now: number, opts: EventReadingO
   const cooldownMs = opts.cooldownMs ?? 0;
   let rejected: Reading['rejected'] | null = null;
   let outUntil: number | null = null;
-  if (status === 'rejected' && !model) {
+  // The plan refused and `overageStatus` says credits cover it: the CLI goes on, so the account is not
+  // out; its windows say how spent the plan is, and the credits check whether credits may pay. A
+  // rejection while `isUsingOverage` is the overage refused, which leaves it out as before
+  const coveredByCredits = info.isUsingOverage !== true && (info.overageStatus === 'allowed' || info.overageStatus === 'allowed_warning');
+  if (status === 'rejected' && !model && !(coveredByCredits && type !== null && !isOverageKey(type))) {
     const until = resetsAt !== null && resetsAt * 1000 > now ? resetsAt * 1000 : null;
     if (type && !isOverageKey(type) && info.isUsingOverage !== true && resetsAt !== null) rejected = { window: type, resetsAt };
     else if (until !== null) outUntil = until;

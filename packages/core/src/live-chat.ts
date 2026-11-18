@@ -458,6 +458,8 @@ export interface ChatHost {
   learnModelCosts(execution: Execution, turnCosts: Record<string, number>): void;
   learnWindows(modelUsage: ModelUsage[]): void;
   maybeLimit(chat: LiveChat): void;
+  /** A turn opened that no message of Claudio's started (a task notification): whether its account's credits may pay for it is looked at now */
+  turnOpenedByAgent(chat: LiveChat): void;
   /** Writes one row of the daily spend ledger for a result: `usd` is the increase over the session's last report, null when the result carried no cost */
   recordSpend(chat: LiveChat, execution: Execution, usd: number | null): void;
   /** Ends the chat's execution as failed for a protocol fault and takes the process down */

@@ -242,7 +242,11 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
         // opened on its own is written down as one a message opens is
         const opened = !chat.turnOpen;
         chat.turnOpen = true;
-        if (opened) host.persist(chat);
+        if (opened) {
+          host.persist(chat);
+          // The CLI goes on with the account it was launched on, whose plan may be spent by now
+          host.turnOpenedByAgent(chat);
+        }
         if (event.stopReason !== undefined) chat.stopReason = event.stopReason;
         const text = entryText(entry);
         if (text) chat.lastText = text.slice(0, 2000);
@@ -271,7 +275,9 @@ export function foldEvent(host: ChatHost, chat: LiveChat, event: DriverEvent): v
       return;
 
     case 'rate-limit':
-      if (event.info.status === 'rejected') chat.rateLimited = true;
+      // A rejection whose overage fields say credits took over is no limit of the turn's: whether
+      // credits may pay is the credits check's (`observeLimit`), and a refusal still ends in a 429
+      if (event.info.status === 'rejected' && !creditsTookOver(event.info)) chat.rateLimited = true;
       host.observeLimit(chat, event);
       return;
 
@@ -361,6 +367,14 @@ function foldDelivered(host: ChatHost, chat: LiveChat, ids: string[]): void {
   host.persist(chat);
 }
 
+/**
+ * Whether a rejected event's `overageStatus` says usage credits cover what the plan refused. A
+ * rejection while `isUsingOverage` is the overage itself refused: a limit.
+ */
+function creditsTookOver(info: { isUsingOverage?: boolean; overageStatus?: string }): boolean {
+  return info.isUsingOverage !== true && (info.overageStatus === 'allowed' || info.overageStatus === 'allowed_warning');
+}
+
 function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, { kind: 'result' }>): void {
   // What this turn alone used and cost. The agent reports both figures cumulative over the session,
   // across its processes (a resume restores them, a fork starts from its parent's), so each is the
@@ -399,6 +413,11 @@ function foldResult(host: ChatHost, chat: LiveChat, event: Extract<DriverEvent, 
     host.observeSignIn(chat, false);
     // A turn went through: the accounts an earlier one died on may have reset since
     chat.limitedAccounts.clear();
+    // and a rejected event the CLI went on past was no limit. Before 2026-11-16 the mark stayed for the
+    // process's life, and its end for an update wrote `cause: 'rate-limit'`, which the next start read
+    // as a chat stopped at its limit with the plan at 83 % (docs/reports/credits-never-leak-2026-11-16.md).
+    // A stop Claudio asked for (a credits stop, a workflow's limit) keeps it: the result raced the stop
+    if (!chat.stopRequested && !chat.creditsStop && !chat.limitRequested) chat.rateLimited = false;
   }
   const { isError } = event;
   const purpose = chat.purpose;

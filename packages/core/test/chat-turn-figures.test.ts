@@ -24,6 +24,7 @@ const host = {
   learnModelCosts: () => {},
   learnWindows: () => {},
   maybeLimit: () => {},
+  turnOpenedByAgent: () => {},
   recordSpend: (_chat: LiveChat, _execution: unknown, usd: number | null) => {
     if (usd !== null) spends.push(usd);
   },
