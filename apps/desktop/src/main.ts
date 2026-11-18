@@ -44,6 +44,7 @@ import {
   type UpdaterEngine,
   type UpdateState,
 } from './updater.ts';
+import { openPathFromArgv, relaunchArgs, reopenPlan } from './window-lifecycle.ts';
 import { restoreWindowState } from './window-state.ts';
 import { errorMessage } from '@claudio/shared';
 
@@ -79,6 +80,8 @@ const shellAtStart = ((): { version: string; shellInputs: string } | null => {
 })();
 
 let win: BrowserWindow | undefined;
+/** Main windows this process created: a closed one is never replaced in the same process (`reopenPlan`) */
+let windowsCreated = 0;
 /** The connection to the daemon that supervises the server (layer 1 of docs/plans/survive-restarts.md) */
 let daemon: DaemonClient | undefined;
 /** What the daemon said last */
@@ -466,15 +469,28 @@ function stopMonitor(): void {
   showLive(EMPTY_SNAPSHOT);
 }
 
-/** Brings the window back: a closed one is opened again on the running server */
-function showWindow(): void {
-  if (!win) {
-    createWindow();
-    return;
-  }
+/** Raises the window there is; never opens one */
+function focusWindow(): void {
+  if (!win) return;
   if (win.isMinimized()) win.restore();
   win.show();
   win.focus();
+}
+
+/**
+ * Brings the window back. A closed one comes back in a fresh process, which attaches to the running
+ * daemon: a second main window in this one rendered garbage on Wayland (docs/reports/desktop-reopen-garbled.md)
+ */
+function showWindow(path: string | null = null): void {
+  const plan = reopenPlan({ hasWindow: win !== undefined, windowsCreated, leaving: quitting || updating || switching });
+  if (plan === 'focus') focusWindow();
+  else if (plan === 'create') {
+    if (path) restorePath = path;
+    createWindow();
+  } else if (plan === 'relaunch') {
+    desktopLog.line('opening the window again in a new process');
+    relaunchShell(path);
+  }
 }
 
 /** Opens an in-app path with the page's own router, so the UI keeps its state; a fresh load otherwise */
@@ -482,11 +498,10 @@ function openPath(path: string): void {
   if (!serverOrigin || !isAppPath(path)) return;
   if (!win) {
     // A window opened for the path goes straight there once the server's page loads
-    restorePath = path;
-    createWindow();
+    showWindow(path);
     return;
   }
-  showWindow();
+  focusWindow();
   const next = navigationFor(win.webContents.getURL(), path, serverOrigin);
   if (next.kind === 'ipc') win.webContents.send(IPC.navigate, next.path);
   else void load(next.url);
@@ -551,18 +566,27 @@ function watchShell(): void {
   }
 }
 
-/** A full relaunch: the window, the tray and Electron go too, and the binary on disk starts */
-function relaunchShell(): void {
+/**
+ * A full relaunch: the window, the tray and Electron go too, and the binary on disk starts, with the
+ * page to open when one is given. The daemon and its work stay. An AppImage runs from a mount that
+ * goes with this process, so it is started again from its file
+ */
+function relaunchShell(path: string | null = null): void {
+  const appImage = distribution === 'appimage' ? process.env.APPIMAGE : undefined;
+  if (appImage) {
+    relaunchInto(appImage, path);
+    return;
+  }
   updating = true;
   desktopLog.line('relaunching the desktop app');
-  app.relaunch();
+  app.relaunch({ args: relaunchArgs(process.argv.slice(1), path) });
   app.quit();
 }
 
 /** Runs a new AppImage once this process has exited; quits */
-function relaunchInto(appImage: string): void {
+function relaunchInto(appImage: string, path: string | null = null): void {
   updating = true;
-  const relaunch = appImageRelaunch(process.pid, appImage, process.argv.slice(1));
+  const relaunch = appImageRelaunch(process.pid, appImage, relaunchArgs(process.argv.slice(1), path));
   spawn(relaunch.command, relaunch.args, { detached: true, stdio: 'ignore', cwd: process.env.OWD ?? homedir() }).unref();
   app.quit();
 }
@@ -610,7 +634,7 @@ async function requestInstall(request: InstallRequest): Promise<InstallAnswer> {
 
 /** The busy dialog: what is live, and the person's three choices; resolves 0 now, 1 later, 2 cancel */
 async function askOverLiveWork(question: string, work: LiveWork, later: string): Promise<number> {
-  showWindow();
+  focusWindow();
   return message({
     type: 'question',
     message: question,
@@ -907,6 +931,7 @@ function setMenu(boot: Pick<DaemonBoot, 'bundled'> | null = daemonState?.boot ??
 }
 
 function createWindow(): void {
+  windowsCreated += 1;
   const state = restoreWindowState();
   win = new BrowserWindow({
     ...state.bounds,
@@ -1025,8 +1050,9 @@ async function pageReadyToAsk(ms: number): Promise<boolean> {
  * native dialog where the page cannot ask (an older payload, the splash or error page)
  */
 async function askQuit(work: LiveWork): Promise<{ answer: QuitAnswer; notice: QuitNotice | null }> {
-  showWindow();
-  if (await pageReadyToAsk(8_000)) {
+  // With the window closed the native dialog asks: opening one would mean a new process (`showWindow`)
+  focusWindow();
+  if (win && (await pageReadyToAsk(8_000))) {
     const id = randomUUID();
     const raw = await new Promise<unknown>((resolve) => {
       quitAnswers.set(id, resolve);
@@ -1101,7 +1127,7 @@ async function shutdown(mode: 'keep' | 'stop-work' | 'leave'): Promise<void> {
 if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
-  app.on('second-instance', showWindow);
+  app.on('second-instance', () => showWindow());
 
   // The page follows its theme (light, dark, or the system's) and tells the title bar to match
   ipcMain.on(IPC.titleBarTheme, (event, value: unknown) => {
@@ -1161,6 +1187,8 @@ if (!app.requestSingleInstanceLock()) {
     if (!shellAtStart && app.isPackaged) desktopLog.line('no shell.json for this version: only the bundled Claudio boots');
     setMenu(null);
     watchShell();
+    // A window reopened in a new process goes back to the page it was asked for
+    restorePath = openPathFromArgv(process.argv);
     createWindow();
     try {
       tray = new LiveTray(resolveResources().icon, trayAction);
