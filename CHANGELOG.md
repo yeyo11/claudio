@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.19.1](https://github.com/yeyo11/claudio/compare/v0.19.0...v0.19.1) (2026-11-18)
+
+
+### Bug fixes
+
+* **accounts:** credits under never are stopped outside the lead's turn, and a rejection the CLI goes past is no limit ([#164](https://github.com/yeyo11/claudio/issues/164)) ([f89e63b](https://github.com/yeyo11/claudio/commit/f89e63b2535dc566477afd47a2becaa77e6e9eb3))
+* **deps:** ignore the picomatch ReDoS advisory that has no patched release ([#168](https://github.com/yeyo11/claudio/issues/168)) ([d9b887a](https://github.com/yeyo11/claudio/commit/d9b887a0a2b4fc85bf6b326cfe118375fa2f1879))
+* **desktop:** a closed window comes back in a fresh process instead of as garbage ([#165](https://github.com/yeyo11/claudio/issues/165)) ([9efc896](https://github.com/yeyo11/claudio/commit/9efc89673e2be3bbb9ef8f5c71001194d60c9e9e))
+
 ## [0.19.0](https://github.com/yeyo11/claudio/compare/v0.18.0...v0.19.0) (2026-11-16)
 
 
