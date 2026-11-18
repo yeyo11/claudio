@@ -35,10 +35,11 @@
     },
     "auditConfig": {
       "ignoreGhsas": [
-        "GHSA-ch52-4w7c-c8xp"
+        "GHSA-ch52-4w7c-c8xp",
+        "GHSA-fc5q-39xc-vjpf"
       ]
     },
-    "//auditConfig": "GHSA-ch52-4w7c-c8xp (http-cache-semantics <=4.2.0, max-stale) has no patched release. It reaches the tree only through apps/desktop's electron-builder (@electron/get > got > cacheable-request), a dev dependency that downloads Electron while packaging the desktop app: no server, image or app code uses it, and there is no shared cache to leak across users. Remove this entry once a patched http-cache-semantics exists and override to it instead."
+    "//auditConfig": "GHSA-ch52-4w7c-c8xp (http-cache-semantics <=4.2.0, max-stale) has no patched release. It reaches the tree only through apps/desktop's electron-builder (@electron/get > got > cacheable-request), a dev dependency that downloads Electron while packaging the desktop app: no server, image or app code uses it, and there is no shared cache to leak across users. Remove this entry once a patched http-cache-semantics exists and override to it instead. GHSA-fc5q-39xc-vjpf (picomatch <=4.0.7, ReDoS through single-branch repeated extglobs) has no patched release either: 4.0.7 is the latest published. It reaches the tree only through apps/desktop's electron-builder (app-builder-lib > @electron/rebuild > node-gyp > tinyglobby), which matches globs written in the build configuration while packaging, never input from a person or a network, and nothing in the server, image or app code loads it. Remove this entry once a patched picomatch exists."
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
