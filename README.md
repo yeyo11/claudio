@@ -181,8 +181,8 @@ Vulnerabilities go through [private advisories](SECURITY.md), not public issues.
 
 ## Support
 
-If Claudio saves you time, you can [buy me a coffee](https://buymeacoffee.com/yeyo11). Starring the
-repo helps just as much.
+If Claudio saves you time, you can [sponsor me on GitHub](https://github.com/sponsors/yeyo11) or
+[buy me a coffee](https://buymeacoffee.com/yeyo11). Starring the repo helps just as much.
 
 ## License
 
