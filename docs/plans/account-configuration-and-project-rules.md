@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-20T21:00:00Z
+updated_at: 2026-11-20T23:00:00Z
 tags:
     - plan
     - study
@@ -1150,6 +1150,25 @@ S6-D3 never.
 | S6-T1 | Measure the auth-failure cache on a copy; the canary check `s6` with the local fake server | `packages/accounts/src/canary.ts`, its test, the report | Sonnet |
 | S6-T2 | The sign-in reconciler (copy rules, deferral, record of copies, rotation learned per server for S6-D1 (c)), served as `Account.config.signIns` | `packages/accounts/src/sign-ins.ts` (new), `packages/shared/src/types.ts`, OpenAPI schemas, tests with a fake CLI and fake server | Opus |
 | S6-T3 | The card line, `en`/`es`, and accounts.md | `apps/web` account card, i18n, `docs/accounts.md`, `docs/cli-surfaces.md` | Sonnet |
+
+**S6-T1 (2026-11-20): done.** The auth-failure cache **does** delay a copied entry: on CLI 2.1.325 a
+dir whose `mcp-needs-auth-cache.json` holds a line for the server stays `needs-auth` with the copy in
+place until the line is 15 minutes old (14 min: delayed, 16 min: connects), and drops at once when the
+line is removed ([report](../reports/account-config-spikes.md#s6-oauth-mcp-servers-across-accounts-run-2026-11-16-and-2026-11-20),
+verified). **The reconciler (S6-T2) must therefore, whenever it copies an entry for a server, remove
+that server's key from the target's `mcp-needs-auth-cache.json`** (`{"<server name>": {"timestamp": ms}}`;
+keep the other keys, write atomically, do nothing when the file is absent), under the same "no live CLI"
+deferral as the copy. The check `s6` is in `runCanary` (`checkS6`): a local bearer-only HTTP server, a
+dir without the entry (must not connect) and a dir with it under `mcpOAuthKey` (must be `connected`).
+The key formula lives in `packages/accounts/src/mcp-oauth-key.ts` (`mcpOAuthKey({ name, type, url,
+headers? })`, exported from the package); S6-T2 imports it. **The served state** is the existing one:
+`CliCanaryWatch.status().result` (`GET /accounts/canary`) for the CLI version read; the reconciler
+stops copying when that result has `s6` with `state: 'fail'`. `needs-sign-in` and `error` do not stop
+it (they say nothing of the CLI), and neither does a result with no `s6` yet (an older stored one is
+run again, since `s6` joined `CANARY_CHECKS`). Differs from the plan: the row's files grew by the
+shared check id (`CliCanaryCheckId`, `CANARY_CHECKS`), the regenerated OpenAPI schemas, the two
+`canary.checks.s6` / `canary.whenFailed.s6` i18n strings (the Accounts page lists a failed check by
+id) with the strings snapshot, and `docs/accounts.md`, `docs/rest-api.md` and the route's description.
 
 ## The owner's decisions (2026-11-13)
 

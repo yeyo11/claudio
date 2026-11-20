@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T20:00:00Z
-updated_at: 2026-11-20T21:00:00Z
+updated_at: 2026-11-20T23:00:00Z
 tags:
     - report
     - spike
@@ -221,8 +221,30 @@ name alone that blocked other profiles for 15 minutes (#87702), and on macOS `mc
 Keychain item with the login (#90647). Rotation with reuse detection is documented by Atlassian and
 Auth0; for Linear, Notion, GitHub, Stripe, Cloudflare and Slack it was not confirmed.
 
-**Not measured.** A real provider's rotation; two refreshes at the same instant; whether
-`mcp-needs-auth-cache.json` delays a copied token by its TTL; macOS (Claudio's desktop is Linux, and
+**The auth-failure cache (measured 2026-11-20, CLI 2.1.325, verified).** Same setup, a fake server
+that also serves protected-resource and authorization-server metadata and accepts registration, so
+that a signed-out server reads `needs-auth` (with a registration refusal it reads `failed` and the
+CLI writes no cache), probed with `initialize` and `mcp_status` control requests of one stream-json
+process per run. `<config dir>/mcp-needs-auth-cache.json` is `{"<server name>": {"timestamp": <ms>}}`,
+written when a server ends `needs-auth`, keyed by the server name (a line written for one name was read for that name only; whether the URL is also part of it was not tried).
+
+| Target dir | Cache line of the server | Status after the copy |
+|---|---|---|
+| copy of the entry, dir that had just failed | written by the CLI a moment before | `needs-auth`, the entry is **not used**; the line stays |
+| same copy, never failed (control) | none | `connected` |
+| same copy | `timestamp` 5, 10 and 14 minutes old | `needs-auth` |
+| same copy | `timestamp` 16 minutes old | `connected`; the CLI empties the line (`{}`) |
+| same copy | line removed (`{}`) | `connected` |
+| same copy | a line for another server name only | `connected`, the other line is kept |
+
+So the cache **does** delay a copied entry, for its TTL of 15 minutes (between 14 and 16, read as the
+15 of the CLI's issue #87702), and only the line of that server name matters. The reconciler must
+remove the server's line from the target's `mcp-needs-auth-cache.json` when it copies an entry for it
+(read the file, drop that key, keep every other, write it back atomically; no file means nothing to
+do). Every run started a new CLI process after the file was written or edited; whether a process that is
+already running re-reads the file was not measured (the reconciler defers a live CLI anyway).
+
+**Not measured.** A real provider's rotation; two refreshes at the same instant; macOS (Claudio's desktop is Linux, and
 the Keychain would make this a different design).
 
 **Cost.** None: no turn, no account, no network.
