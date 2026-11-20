@@ -4,7 +4,7 @@
   "AccessCards [AccessCard, ReadOnlyCard, TokenCard]",
   "AccountCard [AccountCard]",
   "AccountConfigDialog [AccountConfigDialog, ConfigPlanBody, planGroups]",
-  "AccountConfigLine [AccountConfigLine, configProblems, pluginDrift]",
+  "AccountConfigLine [AccountConfigLine, configProblems, pluginDrift, signInGroups]",
   "AccountList [AccountList]",
   "AccountOrderList [AccountOrderList, moveInOrder]",
   "AccountPicker [AccountPicker, ChatAccounts, useChatAccounts]",

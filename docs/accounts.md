@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-20T23:00:00Z
+updated_at: 2026-11-21T00:00:00Z
 tags:
     - accounts
     - rotation
@@ -38,8 +38,8 @@ unless you changed it.
   - **MCP servers.** The servers you added on the default account, the project's local servers and,
     when the default trusts the project, its `.mcp.json` servers reach a shared account's chats too,
     passed at launch with the CLI's own flags. A server you turned off for a project stays off. A
-    server that signs in with OAuth may still ask each account to sign in to it once (spike S6, not
-    run).
+    server that signs in with OAuth is signed in on the account by Claudio when that is safe, and
+    otherwise asks each account to sign in once ([below](#sign-ins-of-a-shared-account)).
   - **Plugins.** The plugins you switched on for the default account are installed on every shared
     account with the CLI's own `claude plugin` commands, in the background, and updated when the
     default's version changes. An account with a live chat waits until it is free. When an account's
@@ -749,6 +749,56 @@ So two plugin writers in one config dir must never run together, and the reconci
 at a time and only when something is missing. It also means a command that runs while the default's own
 CLI writes its settings could lose that write; the window is milliseconds and a pass that finds nothing
 to do writes nothing. [Detail](plans/account-configuration-and-project-rules.md#outcome).
+
+## Sign-ins of a shared account
+
+The overlay gives a shared account the default's MCP servers, but the OAuth token of a remote server
+lives in the account's own `.credentials.json` (`mcpOAuth`), beside its login (`claudeAiOauth`). The file
+cannot be linked, so a shared account ran a server with no token and the CLI answered 401 until someone
+signed in to it there. `SignInReconciler` (`packages/accounts/src/sign-ins.ts`) copies the default's
+entries across, one way (plan S6-D2: the default's file is only read, it may be written by a terminal
+`claude` at the same time). The owner's decisions are in
+[the plan](plans/account-configuration-and-project-rules.md#s6-follow-up-mcp-sign-ins-of-shared-accounts-2026-11-20),
+the measurements in [the spikes report](reports/account-config-spikes.md).
+
+**What is copied.** An entry with an access token and no refresh token (static or long-lived tokens: 11
+of the owner's 14), and an entry with a refresh token only once Claudio has seen that server refresh its
+access token and keep the same refresh token (`stable`, S6-D1 (c)). An entry is copied when the account
+lacks it, holds the CLI's emptied one, holds an older one (`expiresAt`), or still holds Claudio's copy of
+an older token.
+
+**What never.** An entry without an access token. An entry whose server rotates its refresh token, or has
+not been seen to keep it (S6-D3 never): with reuse detection a stale copy revokes the grant and signs out
+every account holding it, the default included, and two CLIs refreshing one token together cannot be
+serialised by Claudio. An entry the account signed in to itself is never touched, and `claudeAiOauth` is
+never changed: only the value of `mcpOAuth` is replaced in the file's text, through a temp file at 0600
+and a rename. Claudio makes no OAuth or network request of its own, it only copies what the CLI wrote
+([one rule](cli-surfaces.md)).
+
+**Bookkeeping.** What it copied is listed by hash in `<account dir>/.claudio-sign-ins.json` and removed
+only when the default drops it and the account still holds Claudio's copy. Rotation is learned per server
+from the default's and each shared account's file, and only short sha256 prefixes of tokens are kept, in
+`<data dir>/account-sign-ins.json`; `rotating` is never undone. The CLI caches an auth failure per server
+for 15 minutes (`mcp-needs-auth-cache.json`), so each copy also removes that server's line from the
+account's cache.
+
+**When.** Before every spawn on a shared account, when the default's `.credentials.json` changes, after a
+CLI process closes, and when the shared accounts or the canary's result change. An account with a live
+chat waits (a 2 minute timer exists only while one waits). A failed `s6` canary check
+([the canary](#the-cli-canary)) stops every write. `CLAUDIO_ACCOUNT_SIGN_INS=off` stops the reconciler
+(the unit tests switch it off through the preload); the served lists are still read.
+
+**Where it shows.** `Account.config.signIns` is `{ missing, ownOnly, rotating }` (server names). The
+account's card shows one warn line, with its icon and the names in mono, when a list is not empty, and
+nothing otherwise or for an independent account:
+
+| List | Meaning on the card |
+|---|---|
+| `rotating` | the server signs in once per account: sign in on this account (also a server not yet seen to refresh) |
+| `ownOnly` | signed in only on this account: sign in on the default to share it |
+| `missing` | not copied yet: Claudio does it once the account's chat ends or the canary passes |
+
+Linux only: on macOS the CLI keeps `mcpOAuth` in the Keychain, which Claudio does not read.
 
 ## The CLI canary
 

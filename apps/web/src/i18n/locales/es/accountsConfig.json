@@ -419,6 +419,15 @@
       "missing": "no está instalado",
       "differing": "está en otra versión",
       "after": "Claudio los iguala por sí solo."
+    },
+    "signIns": {
+      "lead": "Los inicios de sesión de MCP no coinciden con los de la cuenta predeterminada:",
+      "rotating_one": "inicia sesión una vez por cuenta: inicia sesión aquí.",
+      "rotating_other": "inician sesión una vez por cuenta: inicia sesión aquí.",
+      "ownOnly_one": "solo tiene sesión en esta cuenta: inicia sesión en la predeterminada para compartirla.",
+      "ownOnly_other": "solo tienen sesión en esta cuenta: inicia sesión en la predeterminada para compartirlas.",
+      "missing_one": "aún no se ha copiado de la predeterminada: Claudio lo hace cuando esta cuenta esté libre.",
+      "missing_other": "aún no se han copiado de la predeterminada: Claudio lo hace cuando esta cuenta esté libre."
     }
   },
   "configDialog": {
