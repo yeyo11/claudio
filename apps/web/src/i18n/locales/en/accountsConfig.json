@@ -419,6 +419,15 @@
       "missing": "is missing",
       "differing": "is at another version",
       "after": "Claudio brings them in line by itself."
+    },
+    "signIns": {
+      "lead": "MCP sign-ins differ from the default:",
+      "rotating_one": "needs its own sign-in on this account: it signs in once per account.",
+      "rotating_other": "need their own sign-in on this account: each signs in once per account.",
+      "ownOnly_one": "is signed in only on this account: sign in on the default to share it.",
+      "ownOnly_other": "are signed in only on this account: sign in on the default to share them.",
+      "missing_one": "is not copied from the default yet: Claudio does it once this account is free.",
+      "missing_other": "are not copied from the default yet: Claudio does it once this account is free."
     }
   },
   "configDialog": {

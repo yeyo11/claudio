@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-20T23:59:00Z
+updated_at: 2026-11-21T00:00:00Z
 tags:
     - plan
     - study
@@ -1201,6 +1201,25 @@ turns out to rotate (the stale grant is what a reuse revokes for every account).
 the plan's: `packages/accounts/src/store.ts` and `config-mode.ts` (the hooks), `packages/core/src/index.ts`
 and `chats.ts` (wiring, the exit event), `scripts/test-tmp-preload.mjs`, the web test's config fixture,
 the web module-graph fixture (the new type) and `docs/status.md`'s counts.
+
+**S6-T3 (2026-11-21): done.** The card of a shared account shows `config.signIns` as one warn line
+beside the plugins line (same classes, `TriangleAlert` icon and the word in warn, server names in
+mono): the groups `rotating` ("sign in once per account: sign in here"), `ownOnly` ("signed in only on
+this account: sign in on the default to share it") and `missing` ("not copied from the default yet:
+Claudio does it once this account is free"), in that order, each only when it has servers; nothing for
+an independent account or when every list is empty (`signInGroups`, `AccountConfigLine.tsx`). Copy in
+`en`/`es` under `config.signIns` with plurals, strings snapshot updated, web tests beside the plugins
+line's. `docs/accounts.md` gained "Sign-ins of a shared account" and `docs/cli-surfaces.md` the row
+for `.credentials.json` `mcpOAuth`. Differs from the plan: the line has three groups, not two, because
+S6-T2 serves `rotating` and `missing` apart; and the web module-graph fixture grew by `signInGroups`.
+The e2e `accounts` specs pass; no spec was added.
+
+**S6 overall (2026-11-21).** The owner's decisions are built: S6-D1 (c) copies tokens with no refresh
+token at once and the rest once a server is seen to keep its refresh token, S6-D2 (a) copies only from
+the default to shared accounts, S6-D3 never copies a rotating server (the card asks for one sign-in per
+account). The canary check `s6` guards the key format and stops the copies when it fails, and the
+auth-failure cache line is removed with each copy. Open: nothing measured on a real rotating server
+(`openseo`, `stripe`, `context7` are listed as `rotating` until a refresh proves otherwise).
 
 ## The owner's decisions (2026-11-13)
 
