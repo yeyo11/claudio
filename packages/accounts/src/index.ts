@@ -15,3 +15,4 @@ export { runCanary, type CanaryOptions } from './canary.ts';
 export { mcpOAuthKey, type McpOAuthServer } from './mcp-oauth-key.ts';
 export { buildOverlay, isEmptyOverlay, McpOverlay, projectKeyOf, readProjectServers, readStateConfig, ShapeError, type McpOverlayOptions, type Overlay, type OverlaySettings, type ProjectState, type ServerMap, type StateConfig } from './overlay.ts';
 export { diffPlugins, PluginReconciler, PLUGINS_RECORD, readPluginState, type PluginReconcilerOptions, type PluginTarget } from './plugins.ts';
+export { clearNeedsAuth, learnRotation, NEEDS_AUTH_CACHE, planSignIns, readMcpSignIns, readSignInsRecord, SIGN_INS_RECORD, SignInReconciler, tokenHash, withMcpOAuth, type Rotation, type SignInOutcome, type SignInReconcilerOptions, type SignInsState, type SignInTarget } from './sign-ins.ts';

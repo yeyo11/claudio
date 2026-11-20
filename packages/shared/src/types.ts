@@ -7060,6 +7060,24 @@ export interface AccountConfig {
   keptAside: string[];
   /** How the account's installed plugins stand against the default's; empty for an independent account, which is meant to differ */
   plugins: AccountPlugins;
+  /** How the account's MCP sign-ins stand against the default's; empty for an independent account */
+  signIns: AccountSignIns;
+}
+
+/**
+ * The MCP servers whose OAuth sign-in a shared account does not share with the default, by server
+ * name (docs/plans/account-configuration-and-project-rules.md, "S6 follow-up"). Claudio copies the
+ * default's `mcpOAuth` entries into the account's own `.credentials.json` in the background, one way.
+ * `missing`: signed in on the default and copyable, not in place yet (the account has a live chat, or
+ * the CLI canary's `s6` check failed). `rotating`: signed in on the default with a refresh token Claudio
+ * does not copy, because the server rotates it or has not been seen to keep it: it needs a sign-in on
+ * this account. `ownOnly`: signed in on this account and not on the default, so it reaches no other
+ * account until it is signed in on the default.
+ */
+export interface AccountSignIns {
+  missing: string[];
+  ownOnly: string[];
+  rotating: string[];
 }
 
 /**

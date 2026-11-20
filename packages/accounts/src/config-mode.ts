@@ -1,6 +1,6 @@
 import { cpSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, renameSync, rmdirSync, rmSync, symlinkSync, unlinkSync, type Stats } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
-import type { AccountConfig, AccountConfigItem, AccountConfigItemState, AccountConfigMode, AccountConfigReason, AccountConfigStart, AccountConfigStep } from '@claudio/shared';
+import type { AccountConfig, AccountConfigItem, AccountSignIns, AccountConfigItemState, AccountConfigMode, AccountConfigReason, AccountConfigStart, AccountConfigStep } from '@claudio/shared';
 import { ASIDE_DIR, CONFIG_ITEMS, FILE_ITEMS, HISTORY_ITEMS, planAccountDir, type ReconcileStep } from './dirs.ts';
 import { diffPlugins } from './plugins.ts';
 
@@ -221,7 +221,7 @@ export function keptAside(dir: string): string[] {
  * configuration items are `own` or `absent`; one still linked to the default's (a switch cut short)
  * reads `linked`, and the account `repair`.
  */
-export function describeConfig(dir: string, defaultDir: string, mode: AccountConfigMode, switching: AccountConfig['switching']): AccountConfig {
+export function describeConfig(dir: string, defaultDir: string, mode: AccountConfigMode, switching: AccountConfig['switching'], signIns?: (dir: string) => AccountSignIns): AccountConfig {
   const steps = planAccountDir(dir, defaultDir, { config: mode === 'shared' });
   const view = (s: ReconcileStep): AccountConfigItem => ({ name: s.item, kind: FILE_ITEMS.has(s.item) ? 'file' : 'dir', class: s.class, ...stateOf(s) });
   const history = steps.filter((s) => s.class === 'history').map(view);
@@ -239,5 +239,14 @@ export function describeConfig(dir: string, defaultDir: string, mode: AccountCon
   const items = [...config, ...history];
   const conflict = items.some((i) => i.state === 'conflict');
   const repair = switching !== null || items.some((i) => i.state === 'missing') || (mode === 'independent' && config.some((i) => i.state === 'linked'));
-  return { mode, state: conflict ? 'conflict' : repair ? 'repair' : 'ok', items, switching, keptAside: keptAside(dir), plugins: mode === 'shared' ? diffPlugins(defaultDir, dir) : { missing: [], differing: [] } };
+  return {
+    mode,
+    state: conflict ? 'conflict' : repair ? 'repair' : 'ok',
+    items,
+    switching,
+    keptAside: keptAside(dir),
+    plugins: mode === 'shared' ? diffPlugins(defaultDir, dir) : { missing: [], differing: [] },
+    // Read through the owner's reconciler, which knows the rotation learned per server; none, nothing is said
+    signIns: mode === 'shared' && signIns ? signIns(dir) : { missing: [], ownOnly: [], rotating: [] },
+  };
 }

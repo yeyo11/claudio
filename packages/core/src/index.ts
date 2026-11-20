@@ -96,7 +96,7 @@ import { LEGACY_PROVIDER } from './chat-records.ts';
 import { effortOption, resolveEffort, usedEffort } from './effort.ts';
 import { rulesOnDriver } from './tool-policy.ts';
 import pkg from '../package.json' with { type: 'json' };
-import { AccountStore, DEFAULT_ID, isOut, PluginReconciler, readCache } from '@claudio/accounts';
+import { AccountStore, DEFAULT_ID, isOut, PluginReconciler, readCache, SignInReconciler } from '@claudio/accounts';
 import { ProviderRotation, openWaitOf, probeTargets } from './rotation.ts';
 import { continueCutTurns } from './restart-resume.ts';
 import type { ChatWork } from './chat-service.ts';
@@ -534,6 +534,10 @@ export class Core {
   private readonly accountPlugins: PluginReconciler;
   /** The shared accounts the plugin pass last saw, so only a change of that set (not every usage reading) asks for one */
   private pluginTargetsKey = '';
+  /** Copies the default's MCP sign-ins into every shared account's credentials file; see `SignInReconciler` */
+  private readonly accountSignIns: SignInReconciler;
+  /** The shared accounts the sign-in pass last saw */
+  private signInTargetsKey = '';
   /** Whether a newer Claudio has been released: `release.json`, checked once a day */
   readonly release: ReleaseWatch;
   /** Claudio updating itself inside its container: signed bundles under /data/app (docs/plans/container-polish.md, D4) */
@@ -625,6 +629,26 @@ export class Core {
     // The detector and the runtime share the drivers, so the models a handshake lists reach the
     // driver a mapping is checked against (a move needs the target's catalog to know its model)
     const drivers = this.sessionDrivers(config);
+    // Built before the store, which asks it before every run; what it reads of the runtime and the
+    // canary is read when a pass runs, and none runs before `start`
+    this.accountSignIns = new SignInReconciler({
+      defaultDir: config.configDir,
+      stateFile: join(config.dataDir, 'account-sign-ins.json'),
+      targets: () => this.accounts.pluginTargets(),
+      // A running CLI never has its credentials file rewritten under it; unknown counts as busy
+      idle: (account) => {
+        try {
+          return this.runtime.liveChatsOn(account).length === 0;
+        } catch {
+          return false;
+        }
+      },
+      // S6-D1: a failed `s6` check means the CLI no longer reads what this would write, and a 401 says nothing more
+      stopped: () => this.cliCanary.status().result?.checks.find((c) => c.id === 's6')?.state === 'fail',
+      log: (line) => console.warn(line),
+      changed: () => this.accountsChangedSoon(),
+      closed: () => this.closed,
+    });
     this.accounts = new AccountStore({
       dataDir: config.dataDir,
       defaultDir: config.configDir,
@@ -638,6 +662,8 @@ export class Core {
       },
       // Read when an account is removed, by which time the runtime exists
       liveChatsOn: (account) => this.runtime.liveChatsOn(account),
+      beforeRun: (account) => void this.accountSignIns.beforeSpawn(account),
+      signInsOf: (dir) => this.accountSignIns.diff(dir),
     });
     this.accounts.onChange(() => this.accountsChangedSoon());
     this.providers = new ProviderDetector({
@@ -769,7 +795,11 @@ export class Core {
       claude: () => config.claudeBin,
       log: (line) => console.warn(line),
       onSpawn: (child) => this.children.add(child),
-      changed: () => this.accountsChangedSoon(),
+      changed: () => {
+        this.accountsChangedSoon();
+        // A canary that passes again lets copies stopped by a failed `s6` go ahead
+        this.accountSignIns.nudge();
+      },
       closed: () => this.closed,
       // The test preload sets the flag (scripts/test-tmp-preload.mjs); a person sets the variable
       off: process.env.CLAUDIO_CLI_CANARY === 'off' || Boolean((globalThis as Record<symbol, unknown>)[Symbol.for('claudio.cliCanaryOff')]),
@@ -793,6 +823,16 @@ export class Core {
         if (key === this.pluginTargetsKey) return;
         this.pluginTargetsKey = key;
         this.accountPlugins.nudge();
+      });
+    }
+    // The test preload sets the flag (scripts/test-tmp-preload.mjs); a person sets the variable
+    if (process.env.CLAUDIO_ACCOUNT_SIGN_INS !== 'off' && !(globalThis as Record<symbol, unknown>)[Symbol.for('claudio.accountSignInsOff')]) {
+      this.accountSignIns.start();
+      this.accounts.onChange(() => {
+        const key = JSON.stringify(this.accounts.pluginTargets());
+        if (key === this.signInTargetsKey) return;
+        this.signInTargetsKey = key;
+        this.accountSignIns.nudge();
       });
     }
     // Every check judges whether its release installs here, the daily one included (`serverUpdates.inspect`)
@@ -958,6 +998,9 @@ export class Core {
     });
     this.appSettings.onSpendCapChange = () => this.spend.capChanged();
     this.runtime.on('spend-recorded', () => this.spend.recorded());
+    // A CLI that ended may have refreshed a sign-in (what rotation is learned from), and an account it
+    // kept busy can take its copies now
+    this.runtime.on('process-closed', () => this.accountSignIns.nudge());
     this.startSubsystem('spend', () => this.spend.start());
     this.orchestrator.workflowRecords = (sessionId) => this.sessions.workflows(sessionId, true);
     this.orchestrator.workflowJournal = (sessionId, runId, from) => this.sessions.workflowJournal(sessionId, runId, from);
@@ -4157,6 +4200,7 @@ export class Core {
     // exit) must not start a CLI of its own on the way out
     this.chats.close();
     this.accountPlugins.close();
+    this.accountSignIns.close();
     this.forgetSecrets();
     this.releaseVault();
     this.pullRequestWatcher.stop();

@@ -4,7 +4,7 @@ import { existsSync, mkdirSync, readFileSync, statSync } from 'node:fs';
 import { rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
-import type { Account, AccountConfig, AccountConfigMode, AccountConfigPlan, AccountConfigStart, AccountConfigStep, AccountCreditsSetting, AccountKind, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
+import type { Account, AccountConfig, AccountConfigMode, AccountConfigPlan, AccountConfigStart, AccountConfigStep, AccountCreditsSetting, AccountKind, AccountSignIns, AccountSignInState, AccountsSettings, ModelOption, RotationPolicy, RotationPolicyRequest } from '@claudio/shared';
 import { choose, reserveAccountOf, RESERVE_CAP, SHARED_CONFIG_GROUP, type Choice, type ChooseOptions } from './choose.ts';
 import { ASIDE_DIR, asideStamp, orphanDirs, reconcileAccountDir, removeLinks, type ReconcileReport } from './dirs.ts';
 import { applySteps, describeConfig, itemClass, planSwitch, planUseShared } from './config-mode.ts';
@@ -147,6 +147,13 @@ export interface AccountStoreOptions {
   liveChatsOn?: (account: string) => string[];
   /** Where the store says what it found and left alone (a conflict, an orphan dir); `console.warn` when absent */
   log?: (message: string) => void;
+  /**
+   * Called by `ref` for a shared account, after its links: the last thing before a CLI starts on it, so
+   * what must be in the account's dir by then (the MCP sign-ins, `SignInReconciler`) is put there
+   */
+  beforeRun?: (account: { id: string; dir: string }) => void;
+  /** How a shared account's MCP sign-ins stand against the default's, for `Account.config`; empty when absent */
+  signInsOf?: (dir: string) => AccountSignIns;
 }
 
 const str = (v: unknown): string | null => (typeof v === 'string' && v ? v : null);
@@ -366,6 +373,13 @@ export class AccountStore {
     const a = this.entry(id);
     this.reconcile(id);
     const shared = (a.config?.mode ?? 'shared') === 'shared' && !a.config?.switching;
+    if (shared && this.opts.beforeRun) {
+      try {
+        this.opts.beforeRun({ id, dir: this.dirOf(id) });
+      } catch (error) {
+        this.say(`accounts: could not prepare ${id} for a run: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
     return { id, kind: a.kind, dir: this.dirOf(id), ...(shared ? { sharedConfig: true as const } : {}) };
   }
 
@@ -608,7 +622,7 @@ export class AccountStore {
     if (id === DEFAULT_ID) return null;
     const a = this.entry(id);
     const sw = a.config?.switching;
-    return describeConfig(this.dirOf(id), this.defaultDir, a.config?.mode ?? 'shared', sw ? { to: sw.to, start: sw.start } : null);
+    return describeConfig(this.dirOf(id), this.defaultDir, a.config?.mode ?? 'shared', sw ? { to: sw.to, start: sw.start } : null, sw ? undefined : this.opts.signInsOf);
   }
 
   /**

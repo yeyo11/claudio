@@ -28,6 +28,7 @@ const config = (over: Partial<AccountConfig> = {}): AccountConfig => ({
   switching: null,
   keptAside: [],
   plugins: { missing: [], differing: [] },
+  signIns: { missing: [], ownOnly: [], rotating: [] },
   ...over,
 });
 const account = (over: Partial<Account> = {}): Account => ({
