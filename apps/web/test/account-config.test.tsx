@@ -328,7 +328,7 @@ test('no plugins line for an independent account, which is meant to differ, nor 
 test('a shared account with servers to sign in to says why in one warn line, the names in mono', async () => {
   const html = await card(account({ config: config({ signIns: { missing: ['umami'], ownOnly: ['openseo'], rotating: ['stripe', 'context7'] } }) }));
   const text = words(html);
-  assert.match(text, /MCP sign-ins differ from the default: stripe, context7 sign in once per account: sign in here\./);
+  assert.match(text, /MCP sign-ins differ from the default: stripe, context7 need their own sign-in on this account: each signs in once per account\./);
   assert.match(text, /openseo is signed in only on this account: sign in on the default to share it\./);
   assert.match(text, /umami is not copied from the default yet: Claudio does it once this account is free\./);
   assert.match(html, /<span class="mono">stripe, context7<\/span>/);

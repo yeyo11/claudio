@@ -1,6 +1,6 @@
 ---
 created_at: 2026-09-25T16:27:30.6668753Z
-updated_at: 2026-11-15T23:30:00Z
+updated_at: 2026-11-21T00:30:00Z
 tags:
     - design-system
     - web
@@ -833,6 +833,10 @@ The owner's T9 decisions of [plans/account-configuration-and-project-rules.md](p
   default:" in `--warn`, then each `plugin@marketplace` id in mono with "is missing" or "is at another
   version" in `--fg-2`. Warn, never bad: Claudio is bringing them in line. Nothing for an own
   account, or when both lists are empty.
+- **MCP sign-ins of a shared account** that need a person: the same line and classes under the
+  plugins line, lead "MCP sign-ins differ from the default:" in `--warn`, then each reason's server
+  names in one mono span with its sentence in `--fg-2` (once per account, signed in only on this
+  account, not copied yet). Warn, never bad; nothing for an own account or when every list is empty.
 - **The Add-account dialog** asks, only while a rule lists its accounts, with a bare `Switch` (never
   inside a `Field`, whose label would make a tap on the hint flip it) "Allow it on the projects with
   a rule", off by default, and one muted line under it saying what the current side does
