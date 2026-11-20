@@ -4,6 +4,7 @@
 // headersHelper runs only for a trusted project). The first argument is a mode that makes one of them
 // behave as a release that broke it would; every call is noted in the file named by the second argument.
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -63,7 +64,19 @@ if (args[0] === '--version') {
         else reply({ commands: [], models: [] });
       } else if (msg.request.subtype === 'mcp_status') {
         if (mode === 'never-settles' || asked++ === 0) {
-          reply({ mcpServers: [{ name: 'canary', status: 'pending' }] });
+          const s6 = readJson(join(dir, '.claude.json'), {}).mcpServers?.['canary-oauth'];
+          reply({ mcpServers: [{ name: s6 ? 'canary-oauth' : 'canary', status: 'pending' }] });
+          continue;
+        }
+        const own = readJson(join(dir, '.claude.json'), {}).mcpServers?.['canary-oauth'];
+        if (own) {
+          // S6: the server of the account's state file, signed in through an `mcpOAuth` entry under the key the real CLI computes
+          const hash = createHash('sha256').update(JSON.stringify({ type: own.type, url: own.url, headers: own.headers ?? {} })).digest('hex').slice(0, 16);
+          const key = `canary-oauth|${mode === 's6-other-key' ? hash.split('').reverse().join('') : hash}`;
+          const entry = readJson(join(dir, '.credentials.json'), {}).mcpOAuth?.[key];
+          const res = await fetch(own.url, { method: 'POST', headers: { 'content-type': 'application/json', ...(entry?.accessToken ? { authorization: `Bearer ${entry.accessToken}` } : {}) }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params: {} }) });
+          const open = mode === 's6-open';
+          reply({ mcpServers: [{ name: 'canary-oauth', status: res.ok || open ? 'connected' : 'failed' }] });
           continue;
         }
         const mcp = readJson(join(process.cwd(), '.mcp.json'), { mcpServers: {} }).mcpServers.canary;

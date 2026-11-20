@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-15T18:00:00Z
-updated_at: 2026-11-16T21:00:00Z
+updated_at: 2026-11-20T23:00:00Z
 tags:
     - accounts
     - rotation
@@ -60,9 +60,10 @@ unless you changed it.
   names the folder before it does. An empty folder, or a file identical to the default's, is settled
   without asking.
 - **The CLI canary.** Sharing rests on how the Claude Code CLI treats linked files. Each time the
-  CLI's version changes, Claudio runs three checks in a throwaway folder (no sign-in, no turn) and the
-  Accounts page shows one line with the result. A failed check is reported, not acted on: what it
-  should switch off is still the owner's call (R1, open).
+  CLI's version changes, Claudio runs four checks in a throwaway folder (no sign-in, no turn) and the
+  Accounts page shows one line with the result. A failed check is reported, not acted on, except `s6`,
+  which stops the copies of MCP sign-ins; what the others should switch off is still the owner's call
+  (R1, open).
 
 ### Project rules
 
@@ -754,14 +755,15 @@ to do writes nothing. [Detail](plans/account-configuration-and-project-rules.md#
 What a shared account stands on is behaviour no vendor documents: a rewrite of `.claude.json` that
 keeps a link, a `plugins/` that survives an install, project trust read from the account's state
 file. A CLI release can change any of it, so the first time Claudio reads a CLI version it has not
-checked, it runs three checks again (`runCanary`, `packages/accounts/src/canary.ts`; the spikes S1,
-S2 and S3c of [the plan](plans/account-configuration-and-project-rules.md)):
+checked, it runs four checks again (`runCanary`, `packages/accounts/src/canary.ts`; the spikes S1,
+S2, S3c and S6 of [the plan](plans/account-configuration-and-project-rules.md)):
 
 | Check | What it does in a temp dir | Passes when |
 |---|---|---|
 | `s1` | links `acc/.claude.json` to a file of `shared/`, then `claude mcp add --scope user` | the state file is still a link and the target holds the new server |
 | `s2` | links `plugins/` and `settings.json`; adds a directory marketplace (no network), installs its plugin, raises its version, updates the marketplace and the plugin | both are still links, the plugin is enabled in the linked settings and recorded in the linked `plugins/` |
 | `s3c` | a project with one HTTP server whose `headersHelper` leaves a mark; `initialize` then `mcp_status` control requests, with no turn, with and without `projects[<dir>].hasTrustDialogAccepted` | untrusted: the server fails and the helper never runs; trusted: it connects and the helper runs |
+| `s6` | a local HTTP MCP server that answers only a random bearer token, and two accounts that have it in their state file: one without an `mcpOAuth` entry, one with an entry written into its `.credentials.json` under `mcpOAuthKey` (`packages/accounts/src/mcp-oauth-key.ts`: `name\|sha256(JSON.stringify({type, url, headers ?? {}}))[:16]`); `initialize` then `mcp_status` | without the entry the server does not connect; with the copied entry it is `connected`. A server that connects with no token reads `error`: it says nothing of the copy |
 
 It costs nothing and touches nothing of a person's: every process gets an environment built from
 nothing (a `PATH`, and a `HOME`, `XDG_*`, `TMPDIR` and `CLAUDE_CONFIG_DIR` under one fresh temp dir,
@@ -769,7 +771,7 @@ which is removed afterwards), so no token, key or real config dir can reach it. 
 turn or needs an account; one the CLI refuses for a missing sign-in reads `needs-sign-in` and is not
 retried, and one that could not run (no binary, a timeout, a server that never settled) reads
 `error`, which says nothing of the CLI. The local server it talks to listens on loopback only. On
-2.1.322 all three pass in about 25 seconds.
+2.1.322 the first three pass in about 25 seconds; `s6` adds two short sessions (it passes on 2.1.325).
 
 - **Stored** per version and check in SQLite (`cli_canary`: `version`, `check_id`, `state`,
   `observed`, `checked_at`), because there is one more per release for as long as Claudio runs and
@@ -785,7 +787,10 @@ retried, and one that could not run (no binary, a timeout, a server that never s
   and a sentence in the person's language. What the server observed stays in the API and the log.
   Under "needs a signed-in account" the button is hidden: only signing in changes that), and
   `accounts.changed` refreshes it.
-- **What a failure changes: nothing.** It is said once in the server log and on that line. The plan
+- **What a failure changes: nothing, except `s6`.** It is said once in the server log and on that line. A failed `s6` is
+  read by the MCP sign-in reconciler ([S6 follow-up](plans/account-configuration-and-project-rules.md#s6-follow-up-mcp-sign-ins-of-shared-accounts-2026-11-20)),
+  which then copies no entry: the failure mode there is a 401, so reporting alone would leave the
+  person where they are today. The plan
   (R1) says that a canary showing links replaced for `settings.json` should make shared mode copy
   and reconcile instead of linking; that is the owner's decision, so Claudio only reports.
 

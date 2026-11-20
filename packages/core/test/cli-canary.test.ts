@@ -13,6 +13,7 @@ const result = (version: string, state: 'pass' | 'fail' = 'pass', checkedAt = '2
     { id: 's1', state: 'pass', observed: 'kept' },
     { id: 's2', state, observed: state === 'fail' ? 'replaced settings.json' : 'kept' },
     { id: 's3c', state: 'pass', observed: 'connected' },
+    { id: 's6', state: 'pass', observed: 'connected' },
   ],
 });
 
@@ -80,7 +81,7 @@ test('a result that lost a check is run again, and a re-run replaces the stored 
   watch.note('2.1.1');
   await settled(watch);
   assert.deepEqual(calls, ['2.1.1']);
-  assert.equal(db.cliCanary('2.1.1')?.checks.length, 3);
+  assert.equal(db.cliCanary('2.1.1')?.checks.length, 4);
   assert.equal(db.cliCanary('2.1.1')?.checkedAt, '2026-11-16T10:00:00.000Z');
 });
 

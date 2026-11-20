@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -7,6 +8,7 @@ import { after, before, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { canaryState, isCompleteCanary, type CliCanary, type CliCanaryCheckId } from '@claudio/shared';
 import { runCanary } from '../src/canary.ts';
+import { mcpOAuthKey } from '../src/mcp-oauth-key.ts';
 
 const FAKE = fileURLToPath(new URL('./fake-canary-claude.mjs', import.meta.url));
 
@@ -34,9 +36,9 @@ const check = (result: CliCanary, id: CliCanaryCheckId) => {
 };
 
 describe('the CLI canary', () => {
-  it('passes all three checks against a CLI that behaves as 2.1.322 does', async () => {
+  it('passes every check against a CLI that behaves as 2.1.322 does', async () => {
     const result = await run('ok');
-    assert.deepEqual(result.checks.map((c) => `${c.id}:${c.state}`), ['s1:pass', 's2:pass', 's3c:pass']);
+    assert.deepEqual(result.checks.map((c) => `${c.id}:${c.state}`), ['s1:pass', 's2:pass', 's3c:pass', 's6:pass']);
     assert.equal(result.state, 'pass');
     assert.equal(result.version, '2.1.999');
     assert.ok(isCompleteCanary(result));
@@ -83,6 +85,34 @@ describe('the CLI canary', () => {
     assert.match(s3c.observed, /no longer makes its server connect/);
   });
 
+  it('fails S6 when the CLI no longer finds a copied entry under the computed key', async () => {
+    const s6 = check(await run('s6-other-key'), 's6');
+    assert.equal(s6.state, 'fail');
+    assert.match(s6.observed, /no longer accepted/);
+    assert.match(s6.observed, /without the entry the server was failed/);
+    assert.equal(check(await run('s6-other-key'), 's3c').state, 'pass');
+  });
+
+  it('reports S6 as "error", not "fail", when the server connects with no token at all', async () => {
+    assert.equal(check(await run('s6-open'), 's6').state, 'error');
+  });
+
+  it('never puts the token the S6 server wants into what it observed', async () => {
+    const s6 = check(await run('ok'), 's6');
+    assert.equal(s6.state, 'pass');
+    assert.doesNotMatch(s6.observed, /[0-9a-f]{32}/);
+    assert.match(s6.observed, /with the entry copied under the computed key it was connected/);
+  });
+
+  it('computes the key of an MCP OAuth entry as name|sha256 of type, url and headers, cut to 16 hex', () => {
+    const url = 'https://mcp.example.com/mcp';
+    const hash = createHash('sha256').update(JSON.stringify({ type: 'http', url, headers: {} })).digest('hex').slice(0, 16);
+    assert.equal(mcpOAuthKey({ name: 'shipcast', type: 'http', url }), `shipcast|${hash}`);
+    assert.equal(mcpOAuthKey({ name: 'shipcast', type: 'http', url, headers: {} }), `shipcast|${hash}`);
+    assert.notEqual(mcpOAuthKey({ name: 'shipcast', type: 'http', url, headers: { 'x-a': 'b' } }), `shipcast|${hash}`);
+    assert.match(mcpOAuthKey({ name: 'a', type: 'sse', url }), /^a\|[0-9a-f]{16}$/);
+  });
+
   it('reports "error", not "fail", for a server that never settles: that says nothing of the CLI', async () => {
     const s3c = check(await runCanary({ claude: claude('never-settles'), version: 'x', tmp: work, timeoutMs: 15_000, settleMs: 1_500 }), 's3c');
     assert.equal(s3c.state, 'error');
@@ -97,7 +127,7 @@ describe('the CLI canary', () => {
 
   it('reports every check as an error, with the reason, when there is no CLI', async () => {
     const result = await runCanary({ claude: join(work, 'no-such-claude'), version: '1.0.0', tmp: work });
-    assert.deepEqual(result.checks.map((c) => c.state), ['error', 'error', 'error']);
+    assert.deepEqual(result.checks.map((c) => c.state), ['error', 'error', 'error', 'error']);
     assert.equal(result.state, 'error');
     assert.match(check(result, 's1').observed, /could not run/);
   });
@@ -130,9 +160,9 @@ describe('the CLI canary', () => {
       return null;
     }
   })();
-  it('runs its three checks against the installed CLI without leaving its temp dir', { skip: real === null ? 'no claude binary' : false, timeout: 180_000 }, async () => {
+  it('runs its checks against the installed CLI without leaving its temp dir', { skip: real === null ? 'no claude binary' : false, timeout: 180_000 }, async () => {
     const result = await runCanary({ version: real ?? '', tmp: work });
-    assert.deepEqual(result.checks.map((c) => c.id), ['s1', 's2', 's3c']);
+    assert.deepEqual(result.checks.map((c) => c.id), ['s1', 's2', 's3c', 's6']);
     assert.ok(!result.checks.some((c) => c.state === 'error' && /ENOENT/.test(c.observed)));
     assert.equal(existsSync(join(work, 'claudio-canary-')), false);
   });

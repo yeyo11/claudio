@@ -1,13 +1,15 @@
 import { execFile, spawn, type ChildProcess } from 'node:child_process';
 import { chmod, lstat, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
+import { randomBytes } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { canaryState, isRecord, type CliCanary, type CliCanaryCheck, type CliCanaryCheckId } from '@claudio/shared';
+import { mcpOAuthKey } from './mcp-oauth-key.ts';
 
 /**
  * The canary (docs/plans/account-configuration-and-project-rules.md §6.7): when the CLI is a version
- * Claudio has not checked, S1, S2 and S3c of the plan's spikes are run again against it, each in a
+ * Claudio has not checked, S1, S2, S3c and S6 of the plan's spikes are run again against it, each in a
  * temp dir of their own. What shared accounts rely on is behaviour no vendor documents (a rewrite of
  * `.claude.json` that keeps a link, a `plugins/` that survives an install, project trust read from the
  * account's state file), and a CLI release can change any of it.
@@ -54,7 +56,7 @@ interface Sandbox {
 /** What the CLI said, cut to a line: it may be shown on the page, so it never carries more than this */
 const gist = (text: string): string => text.replace(/\s+/g, ' ').trim().slice(0, 200);
 
-/** Runs the three checks against the installed CLI. Never throws: a check that cannot run says why. */
+/** Runs the checks against the installed CLI. Never throws: a check that cannot run says why. */
 export async function runCanary(opts: CanaryOptions): Promise<CliCanary> {
   const claude = opts.claude ?? 'claude';
   const timeout = opts.timeoutMs ?? DEFAULT_TIMEOUT_MS;
@@ -93,6 +95,7 @@ export async function runCanary(opts: CanaryOptions): Promise<CliCanary> {
     checks.push(await settle('s1', () => checkS1(sandbox)));
     checks.push(await settle('s2', () => checkS2(sandbox)));
     checks.push(await settle('s3c', () => checkS3c(sandbox, claude, timeout, opts.settleMs ?? SETTLE_MS, opts.onSpawn)));
+    checks.push(await settle('s6', () => checkS6(sandbox, claude, timeout, opts.settleMs ?? SETTLE_MS, opts.onSpawn)));
     return { version: opts.version, checkedAt: (opts.now?.() ?? new Date()).toISOString(), state: canaryState(checks), checks };
   } finally {
     // Only what this call made: `root` was created above, empty, and nothing else points into it
@@ -337,6 +340,96 @@ async function checkS3c(sandbox: Sandbox, claude: string, timeoutMs: number, set
     if (withTrust.status === 'pending' || without.status === 'pending') return { state: 'error', observed: `the server never settled: ${seen}` };
     if (without.status === 'connected' || without.helperRuns > 0) return { state: 'fail', observed: `the CLI used the project's server without the account trusting the project: ${seen}` };
     if (withTrust.status !== 'connected' || withTrust.helperRuns < 1) return { state: 'fail', observed: `the account's trust of the project no longer makes its server connect: ${seen}` };
+    return { state: 'pass', observed: seen };
+  } finally {
+    server.close();
+    server.closeAllConnections();
+  }
+}
+
+/** A local HTTP MCP server that answers only a request with `Authorization: Bearer <token>`, and 401 to any other */
+function bearerServer(token: string): Promise<{ server: Server; port: number }> {
+  const server = createServer((req, res) => {
+    let body = '';
+    req.on('data', (chunk: Buffer) => (body += chunk.toString('utf8')));
+    req.on('end', () => {
+      if (req.headers.authorization !== `Bearer ${token}`) {
+        res.writeHead(401, { 'www-authenticate': 'Bearer' }).end();
+        return;
+      }
+      let message: unknown;
+      try {
+        message = JSON.parse(body);
+      } catch {
+        res.writeHead(400).end();
+        return;
+      }
+      if (!isRecord(message) || message.id === undefined) {
+        res.writeHead(202).end();
+        return;
+      }
+      const params = isRecord(message.params) ? message.params : {};
+      const result =
+        message.method === 'initialize'
+          ? { protocolVersion: typeof params.protocolVersion === 'string' ? params.protocolVersion : '2025-06-18', capabilities: { tools: {} }, serverInfo: { name: 'canary', version: '1' } }
+          : message.method === 'tools/list'
+            ? { tools: [] }
+            : {};
+      res.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({ jsonrpc: '2.0', id: message.id, result }));
+    });
+  });
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    // Loopback only, as for the server of S3c
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') return reject(new Error('the local server has no port'));
+      resolve({ server, port: address.port });
+    });
+  });
+}
+
+/**
+ * S6: does the CLI accept an `mcpOAuth` entry copied into another config dir under the key Claudio
+ * computes? (The S6 follow-up of the plan: shared accounts get the default's MCP sign-ins.) A local
+ * HTTP server answers only a bearer token. An account with the server and no entry must not connect;
+ * the same account with the entry written under `mcpOAuthKey` (its token being the one the server
+ * wants) must. If the key formula drifted, the CLI would not find the entry and the second run says so.
+ * Unlike S1 to S3c, a failure here stops the copies: its failure mode is a 401, not a silent difference.
+ * The token is random, lives in the temp dir and is never in what is observed.
+ */
+async function checkS6(sandbox: Sandbox, claude: string, timeoutMs: number, settleMs: number, onSpawn?: (child: ChildProcess) => void): Promise<Omit<CliCanaryCheck, 'id'>> {
+  const dir = join(sandbox.root, 's6');
+  await mkdir(dir, { recursive: true });
+  const token = randomBytes(16).toString('hex');
+  const { server, port } = await bearerServer(token);
+  try {
+    const url = `http://127.0.0.1:${port}/mcp`;
+    const name = 'canary-oauth';
+    const observe = async (copied: boolean): Promise<string> => {
+      const label = copied ? 'with' : 'without';
+      const [home, acc, proj] = [join(dir, label, 'home'), join(dir, label, 'acc'), join(dir, label, 'proj')];
+      await Promise.all([home, acc, proj].map((d) => mkdir(d, { recursive: true })));
+      await writeFile(join(acc, '.claude.json'), JSON.stringify({ mcpServers: { [name]: { type: 'http', url } } }));
+      if (copied) {
+        const entry = { serverName: name, serverUrl: url, accessToken: token, discoveryState: { authorizationServerUrl: `http://127.0.0.1:${port}` } };
+        await writeFile(join(acc, '.credentials.json'), JSON.stringify({ mcpOAuth: { [mcpOAuthKey({ name, type: 'http', url })]: entry } }), { mode: 0o600 });
+      }
+      const s = session(claude, sandbox.env(acc, home), proj, timeoutMs, onSpawn);
+      try {
+        await s.ask('initialize');
+        return await statusOf(s, name, settleMs);
+      } finally {
+        s.end();
+      }
+    };
+    const without = await observe(false);
+    const withEntry = await observe(true);
+    const seen = `without the entry the server was ${without}; with the entry copied under the computed key it was ${withEntry}`;
+    if (without === 'pending' || withEntry === 'pending') return { state: 'error', observed: `the server never settled: ${seen}` };
+    // A server that connects with no token says nothing about a copy
+    if (without === 'connected') return { state: 'error', observed: `the check says nothing, the server connected with no token: ${seen}` };
+    if (withEntry !== 'connected') return { state: 'fail', observed: `a copied entry under the computed key is no longer accepted (the key formula or the entry's shape changed): ${seen}` };
     return { state: 'pass', observed: seen };
   } finally {
     server.close();
