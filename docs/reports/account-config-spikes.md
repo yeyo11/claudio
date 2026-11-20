@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-15T20:00:00Z
-updated_at: 2026-11-15T21:00:00Z
+updated_at: 2026-11-20T21:00:00Z
 tags:
     - report
     - spike
@@ -12,7 +12,8 @@ tags:
 
 T0 of [plans/account-configuration-and-project-rules.md](../plans/account-configuration-and-project-rules.md),
 the part that needs a signed-in account. **CLI: `claude --version` = 2.1.322 (Claude Code)**, 2026-11-15.
-S2b and S6 are not here: S2b is free and not run yet, S6 needs an OAuth server sign-in. S3 of
+S2b was run later the same day (below); S6 was run on 2026-11-16 and 2026-11-20 against a local fake
+OAuth server instead of a sign-in (below). S3 of
 [plans/survive-restarts.md](../plans/survive-restarts.md) ran in the same session and is written up in
 [decisions/parked-cli-processes.md](../decisions/parked-cli-processes.md#s3-a-pending-prompt-across-the-gap).
 
@@ -161,6 +162,70 @@ the default all reached the account, its `installPath` is under its own dir, and
 stayed a link.
 
 **Cost.** None: no turn, no account.
+
+## S6. OAuth MCP servers across accounts (run 2026-11-16 and 2026-11-20)
+
+**Question.** A shared account gets the default's MCP servers through the overlay, but a remote
+server's OAuth token is kept per config dir. Does the CLI accept a token entry copied from another
+config dir, and what happens to refresh tokens once two dirs hold the same one?
+
+**Why it was run.** On the owner's machine (2026-11-16) the two shared accounts failed to connect to
+several OAuth MCP servers that work on the default. Their `.credentials.json` files, read for server
+names and expiry only, held different sets: `shipcast` was signed in on the default and one account
+only, `cloudflare-api` on the default and the other, `umami` on one shared account only.
+
+**How run.** CLI 2.1.325, scratch dirs under `mktemp -d` with `HOME` there too, `env -i`, no sign-in,
+no network: a local HTTP MCP server that answers only with `Authorization: Bearer <token>`, and for
+the refresh runs the same server as its own authorization server (protected-resource and
+authorization-server metadata, a token endpoint, registration refused). Each account was given the
+server with `claude mcp add --transport http --scope user`, and `claude mcp list` was the probe. The
+owner's credentials were never copied or sent anywhere; only the names of their keys were read.
+
+**Where the token lives.** `<config dir>/.credentials.json`, key `mcpOAuth`, beside the account's
+own `claudeAiOauth`. Each entry is keyed `<server name>|<first 16 hex of sha256(JSON.stringify({type,
+url, headers ?? {}}))>`, read in the 2.1.325 bundle and checked against all 14 entries of the owner's
+default (all matched). It holds `accessToken`, `serverName`, `serverUrl`, `discoveryState`, and when
+the server gave them `refreshToken`, `expiresAt`, `clientId`, `clientSecret`, `redirectUri`, `issuer`,
+`scope`. So the key does not depend on the config dir: the same server definition gives the same key
+in every account the overlay serves. The format is not documented.
+
+**Results (verified).**
+
+| Run | Setup | Result |
+|---|---|---|
+| copy | account B without the entry | `Failed to connect — Dynamic Client Registration rejected (HTTP 401)`, the owner's error |
+| copy | the `mcpOAuth` entry of A copied into B's file, nothing else | `Connected`; the CLI keeps the entry |
+| refresh, server does not rotate | A and B hold the same copy, access token expired | both refresh on their own and connect, each with its own access token, same refresh token |
+| refresh, strict rotation (single use, reuse revokes the family) | A and B hold the same copy, A runs first | A connects with a new pair; B's refresh is a reuse, **the family is revoked**, B reads `Needs authentication`, and **A then fails too**. The CLI empties the entry (no access or refresh token) in every dir that tried |
+| refresh, strict rotation, propagated | after each refresh the newest entry is copied to the other dir before it runs | A and B both connect through two rotations (RT0 → RT1 → RT2) |
+
+**Means for.**
+- Copying `mcpOAuth` entries is enough for a shared account to use a server signed in elsewhere, with
+  no sign-in of Claudio's own and without touching `claudeAiOauth`.
+- A copy taken once is safe only for entries with no refresh token, or servers that do not rotate.
+  For a server that rotates refresh tokens with reuse detection (the MCP authorization spec asks
+  authorization servers to rotate them for public clients), a stale copy does not just fail: it
+  signs out **every** account holding that grant, the default included. That is worse than today.
+- Propagating the newest entry after each refresh works when the runs are serial. Claudio cannot
+  stop two CLIs in two accounts from refreshing the same token at the same moment, since the refresh
+  happens inside the CLI; copies made together also expire together, which makes that moment likely.
+- The CLI writes emptied entries on failure: a copy must never carry an entry without an access token.
+
+**Prior art (2026-11-20, web and GitHub, English and Chinese; nothing specific found in Chinese, and
+Russian, French and Spanish were not searched).** No multi-account switcher was found that copies
+`mcpOAuth` entries. Most keep `.credentials.json` per profile and say OAuth servers need a sign-in per
+dir. `ccsw` links the whole file, which shares the account login too. Claude Code's own issues show
+the same risks inside one dir: rotated refresh tokens lost between concurrent sessions (#24317, #59460),
+entries rewritten empty by concurrent `claude mcp list` (#93537), an auth-failure cache keyed by server
+name alone that blocked other profiles for 15 minutes (#87702), and on macOS `mcpOAuth` sharing the
+Keychain item with the login (#90647). Rotation with reuse detection is documented by Atlassian and
+Auth0; for Linear, Notion, GitHub, Stripe, Cloudflare and Slack it was not confirmed.
+
+**Not measured.** A real provider's rotation; two refreshes at the same instant; whether
+`mcp-needs-auth-cache.json` delays a copied token by its TTL; macOS (Claudio's desktop is Linux, and
+the Keychain would make this a different design).
+
+**Cost.** None: no turn, no account, no network.
 
 ## Cost of every turn
 

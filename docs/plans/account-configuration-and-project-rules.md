@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-15T23:30:00Z
+updated_at: 2026-11-20T21:00:00Z
 tags:
     - plan
     - study
@@ -1061,8 +1061,8 @@ the page's; the plugin reconciler cannot pin a version and does not reconcile di
 project and local scopes. Each task's "Differs from the plan" above has the detail.
 
 **What stays open.**
-- **S6**: OAuth MCP servers across accounts. The token is kept per config dir, so a server the
-  overlay passes may need its own sign-in on each account; the spike needs an OAuth server sign-in.
+- **S6**: OAuth MCP servers across accounts. Run on 2026-11-20; the design that follows from it
+  waits for the owner in [MCP sign-ins of shared accounts](#s6-follow-up-mcp-sign-ins-of-shared-accounts-2026-11-20).
 - **R1, the canary's fallback**: what a failing S2 or S3c should switch off (shared mode copying and
   reconciling instead of linking) and after how many versions is the owner's call; today a failure
   only reports.
@@ -1072,6 +1072,84 @@ project and local scopes. Each task's "Differs from the plan" above has the deta
 - Smaller: a canary check for S3e (flag-given servers skip trust); serving the active reserves;
   `hasClaudeMdExternalIncludesApproved` not carried by the overlay; a removed account deletes the
   copies kept aside in its dir; the new routes are not served by a headless Claudio.
+
+## S6 follow-up: MCP sign-ins of shared accounts (2026-11-20)
+
+**Asked by the owner (2026-11-16).** Two shared accounts failed to authenticate to MCP servers that
+work on the default, and their cards said plugins differ. The owner's position: when an account shares
+the configuration, Claudio should also share the sign-ins of its MCP servers.
+
+**Why it happens.** The overlay (T3) passes the default's server definitions to a shared account,
+but the OAuth token of a remote server lives in the account's own `.credentials.json` (`mcpOAuth`),
+beside its login (`claudeAiOauth`). The file cannot be linked, because the login must stay per
+account. So a shared account gets the server and not the token, and the CLI answers 401 until
+someone signs in to that server on that account. Nothing in the plan decided this; S6 was left open.
+
+**What S6 measured** ([report](../reports/account-config-spikes.md#s6-oauth-mcp-servers-across-accounts-run-2026-11-16-and-2026-11-20)):
+copying one `mcpOAuth` entry is enough, and its key (`name|sha256({type,url,headers})[:16]`) does
+not depend on the config dir. Entries with no refresh token, or from a server that does not rotate,
+can be copied safely. For a server that rotates refresh tokens with reuse detection, a stale copy
+revokes the grant and signs out every account that holds it, the default included. Propagating the
+newest entry after each refresh works when runs are serial. Claudio cannot serialise two CLIs that
+refresh the same token at once, and copies made together expire together.
+
+On the owner's machine, 11 of the 14 entries of the default carry no refresh token (static or
+long-lived access tokens). Three do: `openseo`, `stripe` and `context7`.
+
+### What Claudio would do
+
+A **sign-in reconciler** in `@claudio/accounts`, beside the plugin reconciler and with its shape:
+
+- **Targets**: shared accounts only (`AccountStore.pluginTargets`'s rule: not the default, not
+  independent, not mid-switch). An independent account is meant to differ and is left alone.
+- **Reads and writes only `mcpOAuth`**, through a read-modify-write of the account's
+  `.credentials.json` with the file mode kept at 0600 and a write to a temporary file then a rename.
+  It never reads anything out of `claudeAiOauth` beyond keeping it as it is, never logs a token, and
+  never sends one anywhere: Claudio makes no OAuth request of its own (the one rule: no second login).
+- **Copies** an entry from the source when the target lacks its key, or holds an entry with no access
+  token (the CLI's emptied entry), or holds an older one (`expiresAt`, when both have it). It never
+  copies an entry without an access token, and never removes an entry it did not write: like
+  `.claudio-plugins.json`, it records what it copied, and removes those only when the source drops
+  them.
+- **When**: before every spawn on a shared account (D6, with the links), on a watch of the source's
+  file, and after a CLI process of a shared account exits. An account with a live CLI is deferred, as
+  the plugin reconciler does, so Claudio never writes the file under a running CLI.
+- **Served**: `Account.config.signIns: { missing: string[]; ownOnly: string[] }` (server names). The
+  card says, in warn with words, which servers need a sign-in on this account and why ("rotates its
+  sign-in, sign in here once"). Nothing shows when both are empty.
+- **Canary**: a check `s6` in `runCanary` with the spike's local fake server: the key formula and a
+  copied entry accepted. A failing check stops the copies (unlike S1 to S3c, the failure mode here
+  is a 401, so reporting alone would leave the owner where they are today).
+
+### Decisions for the owner
+
+| # | Question | Options | Recommended |
+|---|---|---|---|
+| S6-D1 | Which entries are copied | (a) only entries with no refresh token; (b) also entries with a refresh token, propagating the newest after each refresh; (c) (a) by default, (b) per server once Claudio has seen that its refresh token does not change on refresh | **(c)**: covers 11 of 14 servers at once with no risk, and the rest as soon as one refresh proves the server does not rotate. A rotating server is listed on the card as needing one sign-in per account, which is what its grant allows |
+| S6-D2 | Direction | (a) default → shared accounts only, the default's file only read; (b) union across the shared group, the newest entry wins, written into the default too | **(a)**: the default is the person's own `~/.claude`, which a terminal `claude` outside Claudio may be writing at the same time, and every other reconciler only reads it. A server signed in only on a shared account (`umami` today) is named on the card: sign in on the default and it reaches the others |
+| S6-D3 | A rotating server under (b) | allowed by a per-server switch after a warning, or never | **never** in this round: the failure signs out every account, and the CLI empties the entries |
+
+**Decided by the owner (2026-11-20): the recommended option of all three.** S6-D1 (c), S6-D2 (a),
+S6-D3 never.
+
+### Risks
+
+- The `mcpOAuth` key and fields are undocumented; the canary check above guards the format.
+- A copy can reach a CLI whose auth-failure cache (`mcp-needs-auth-cache.json`, per dir) still marks
+  the server as needing auth; whether that delays the copy by its TTL is not measured. Task 1 measures
+  it and, if it does, removes that server's line from the target's cache file.
+- A person running `claude` in a terminal on a shared account's dir is not seen as a live CLI.
+  Writes are atomic renames, so the risk is a lost write of the CLI's, not a torn file.
+- Linux only. On macOS the CLI keeps `mcpOAuth` in the Keychain item of the login (#90647); Claudio's
+  desktop is Linux and the headless image is Linux, so that design is not needed now.
+
+### Tasks (after the decisions)
+
+| # | Task | Files | Model |
+|---|---|---|---|
+| S6-T1 | Measure the auth-failure cache on a copy; the canary check `s6` with the local fake server | `packages/accounts/src/canary.ts`, its test, the report | Sonnet |
+| S6-T2 | The sign-in reconciler (copy rules, deferral, record of copies, rotation learned per server for S6-D1 (c)), served as `Account.config.signIns` | `packages/accounts/src/sign-ins.ts` (new), `packages/shared/src/types.ts`, OpenAPI schemas, tests with a fake CLI and fake server | Opus |
+| S6-T3 | The card line, `en`/`es`, and accounts.md | `apps/web` account card, i18n, `docs/accounts.md`, `docs/cli-surfaces.md` | Sonnet |
 
 ## The owner's decisions (2026-11-13)
 
