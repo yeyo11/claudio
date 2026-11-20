@@ -3051,6 +3051,8 @@ export class ChatManager extends EventEmitter {
       closed = true;
       if (lingering) clearTimeout(lingering);
       revokeToken();
+      // Whatever the chat becomes, a CLI on this account is gone: what waited for it to stop writing the dir may go
+      this.emit('process-closed', chat.account ?? DEFAULT_ID);
       if (!current()) return;
       chat.procClosed = true;
       if (chat.guardState === 'arming' && !chat.stopRequested) this.guardUnarmed(chat, 'the process ended before the guard started');

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-11-13T18:00:00Z
-updated_at: 2026-11-20T23:00:00Z
+updated_at: 2026-11-20T23:59:00Z
 tags:
     - plan
     - study
@@ -1169,6 +1169,38 @@ run again, since `s6` joined `CANARY_CHECKS`). Differs from the plan: the row's 
 shared check id (`CliCanaryCheckId`, `CANARY_CHECKS`), the regenerated OpenAPI schemas, the two
 `canary.checks.s6` / `canary.whenFailed.s6` i18n strings (the Accounts page lists a failed check by
 id) with the strings snapshot, and `docs/accounts.md`, `docs/rest-api.md` and the route's description.
+
+**S6-T2 (2026-11-20): done.** `SignInReconciler` (`packages/accounts/src/sign-ins.ts`) copies the
+default's `mcpOAuth` entries into each shared account's `.credentials.json` (targets:
+`AccountStore.pluginTargets`), the default's file only read. It copies an entry with an access token and
+no refresh token, and one with a refresh token only for a server marked `stable`; a stub (no access
+token) is never copied. It copies when the account lacks the key, holds the CLI's emptied entry, holds
+an older one by `expiresAt`, or still holds Claudio's own copy of an older token. Rotation is learned
+per `mcpOAuth` key from every dir it reads (the default and each shared account): the access token
+changed with the same refresh token marks `stable`, a changed refresh token marks `rotating`, and
+`rotating` is never undone (a fresh sign-in looks the same, and the safe error is a sign-in too many).
+Only 16-hex sha256 prefixes of the tokens are kept, in `<data dir>/account-sign-ins.json`; Claudio's own
+writes are remembered without being read as a refresh. The credentials file is edited as text: only the
+value of `mcpOAuth` is replaced, so `claudeAiOauth` keeps every byte; the write is a temp file at 0600
+renamed over it, and a file that is a link is left alone. What it copied is recorded with hashes in
+`<account dir>/.claudio-sign-ins.json` and removed only when the default drops the key and the account
+still holds that copy (same access token, or the same refresh token refreshed by the account's CLI).
+Each copied server's line goes from the account's `mcp-needs-auth-cache.json` (the other lines and the
+file's mode kept, no file made). An account with a live chat is deferred (a 2 minute retry timer that
+exists only while one waits); a failed `s6` in `CliCanaryWatch.status().result` stops every write. It
+runs in `AccountStore.ref` (`beforeRun`, so before every spawn on a shared account), on a watch of the
+default's dir for `.credentials.json`, after a CLI process of any account closes (the runtime's new
+`process-closed` event), when the set of shared accounts changes and when the canary's result changes.
+Served as `Account.config.signIns: { missing, ownOnly, rotating }` (server names, `AccountSignIns`).
+`CLAUDIO_ACCOUNT_SIGN_INS=off`, and the test preload's `claudio.accountSignInsOff` flag, keep it from
+starting; the served lists are still read. Differs from the plan: the served shape adds `rotating` (the
+plan's card copy "rotates its sign-in, sign in here once" needs it apart from `missing`); a server not
+yet seen to refresh is listed under `rotating` too, since it needs a sign-in on the account until a
+refresh proves otherwise. A copy of Claudio's still untouched on an account is removed when its server
+turns out to rotate (the stale grant is what a reuse revokes for every account). The rows touched beyond
+the plan's: `packages/accounts/src/store.ts` and `config-mode.ts` (the hooks), `packages/core/src/index.ts`
+and `chats.ts` (wiring, the exit event), `scripts/test-tmp-preload.mjs`, the web test's config fixture,
+the web module-graph fixture (the new type) and `docs/status.md`'s counts.
 
 ## The owner's decisions (2026-11-13)
 
