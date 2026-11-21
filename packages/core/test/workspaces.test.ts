@@ -171,7 +171,8 @@ test('an archive with one top-level directory becomes a read-only workspace whos
   const cwd = r.ws.resolve(created.id);
   assert.equal(cwd, join(r.root, created.id, 'owner-repo-abc123'));
   assert.equal(readFileSync(join(cwd, 'src/a.ts'), 'utf8'), 'export {};\n');
-  assert.equal(statSync(join(cwd, 'README.md')).mode & 0o777, 0o444);
+  // A file's mode goes through the process umask (0o400 under 077), so read-only is the absence of write bits
+  assert.equal(statSync(join(cwd, 'README.md')).mode & 0o222, 0);
   assert.equal(statSync(join(cwd, 'src')).mode & 0o777, 0o555);
   // What creating answers is the workspace and what the archive held that it left out
   const { skipped, skippedCount, ...workspace } = created;
