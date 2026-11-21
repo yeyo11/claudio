@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.0](https://github.com/yeyo11/claudio/compare/v0.19.1...v0.20.0) (2026-11-21)
+
+
+### Features
+
+* **accounts:** shared accounts get the default's MCP sign-ins, never a rotating server's ([#172](https://github.com/yeyo11/claudio/issues/172)) ([0d0a89d](https://github.com/yeyo11/claudio/commit/0d0a89d4b1f810cbed1de90e06cc5c66a8b4559b))
+
 ## [0.19.1](https://github.com/yeyo11/claudio/compare/v0.19.0...v0.19.1) (2026-11-18)
 
 
