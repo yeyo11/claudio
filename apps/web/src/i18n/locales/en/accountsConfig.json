@@ -347,7 +347,8 @@
     "checks": {
       "s1": "Linked state file",
       "s2": "Linked plugins and settings",
-      "s3c": "Project trust"
+      "s3c": "Project trust",
+      "s6": "MCP sign-ins"
     },
     "failed": "This version behaves differently from what shared accounts rely on. Nothing was changed: accounts keep working as they were.",
     "needsSignIn": "The CLI would not run some checks without an account signed in, and none was used.",
@@ -355,7 +356,8 @@
     "whenFailed": {
       "s1": "The CLI may replace a linked state file when it writes.",
       "s2": "A plugin install may replace a linked plugins folder or settings file.",
-      "s3c": "A project's trust may no longer be read from the account."
+      "s3c": "A project's trust may no longer be read from the account.",
+      "s6": "The CLI may no longer accept a sign-in copied from another account, so shared accounts are not given the default's MCP sign-ins."
     },
     "checkState": {
       "needs-sign-in": "needs a signed-in account",
@@ -417,6 +419,15 @@
       "missing": "is missing",
       "differing": "is at another version",
       "after": "Claudio brings them in line by itself."
+    },
+    "signIns": {
+      "lead": "MCP sign-ins differ from the default:",
+      "rotating_one": "needs its own sign-in on this account: it signs in once per account.",
+      "rotating_other": "need their own sign-in on this account: each signs in once per account.",
+      "ownOnly_one": "is signed in only on this account: sign in on the default to share it.",
+      "ownOnly_other": "are signed in only on this account: sign in on the default to share them.",
+      "missing_one": "is not copied from the default yet: Claudio does it once this account is free.",
+      "missing_other": "are not copied from the default yet: Claudio does it once this account is free."
     }
   },
   "configDialog": {

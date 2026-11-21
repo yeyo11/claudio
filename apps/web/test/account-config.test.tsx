@@ -10,7 +10,7 @@ import { TooltipProvider } from '@claudio/ui/components/controls/Tooltip';
 import { api } from '../src/api';
 import { ruleWords } from '../src/components/WaitLine';
 import { AccountCard } from '../src/pages/accounts/AccountCard';
-import { pluginDrift } from '../src/pages/accounts/AccountConfigLine';
+import { pluginDrift, signInGroups } from '../src/pages/accounts/AccountConfigLine';
 import { joinRules, rulesWithList } from '../src/pages/accounts/AddAccountDialog';
 import { ConfigPlanBody, planGroups } from '../src/pages/accounts/AccountConfigDialog';
 import { requestOf, withAccount } from '../src/pages/accounts/ProjectRuleCard';
@@ -28,6 +28,7 @@ const config = (over: Partial<AccountConfig> = {}): AccountConfig => ({
   switching: null,
   keptAside: [],
   plugins: { missing: [], differing: [] },
+  signIns: { missing: [], ownOnly: [], rotating: [] },
   ...over,
 });
 const account = (over: Partial<Account> = {}): Account => ({
@@ -319,6 +320,30 @@ test('no plugins line for an independent account, which is meant to differ, nor 
   assert.deepEqual(pluginDrift(config({ plugins: { missing: ['a@m'], differing: ['b@m'] } })), [
     { id: 'a@m', missing: true },
     { id: 'b@m', missing: false },
+  ]);
+});
+
+// ---------- MCP sign-ins of a shared account (S6-T3) ----------
+
+test('a shared account with servers to sign in to says why in one warn line, the names in mono', async () => {
+  const html = await card(account({ config: config({ signIns: { missing: ['umami'], ownOnly: ['openseo'], rotating: ['stripe', 'context7'] } }) }));
+  const text = words(html);
+  assert.match(text, /MCP sign-ins differ from the default: stripe, context7 need their own sign-in on this account: each signs in once per account\./);
+  assert.match(text, /openseo is signed in only on this account: sign in on the default to share it\./);
+  assert.match(text, /umami is not copied from the default yet: Claudio does it once this account is free\./);
+  assert.match(html, /<span class="mono">stripe, context7<\/span>/);
+  assert.match(html, /account-config-plugins-icon/, 'a status colour always comes with an icon and a word');
+  const es = words(await card(account({ config: config({ signIns: { missing: [], ownOnly: ['openseo'], rotating: [] } }) }), 'es'));
+  assert.match(es, /openseo solo tiene sesión en esta cuenta/);
+});
+
+test('no sign-ins line for an independent account, nor when every list is empty', async () => {
+  const lists = { missing: [], ownOnly: ['openseo'], rotating: ['stripe'] };
+  assert.doesNotMatch(await card(account({ config: config({ mode: 'independent', signIns: lists }) })), /MCP sign-ins/);
+  assert.doesNotMatch(await card(account()), /MCP sign-ins/);
+  assert.deepEqual(signInGroups(config({ signIns: lists })), [
+    { reason: 'rotating', servers: ['stripe'] },
+    { reason: 'ownOnly', servers: ['openseo'] },
   ]);
 });
 

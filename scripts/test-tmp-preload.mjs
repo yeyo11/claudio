@@ -29,6 +29,9 @@ globalThis[Symbol.for('claudio.cliCanaryOff')] = true;
 // Same for the plugin pass over shared accounts (packages/accounts/src/plugins.ts): a test's Core
 // must not start `claude plugin` processes in the dirs of its accounts.
 globalThis[Symbol.for('claudio.accountPluginsOff')] = true;
+// Same for the MCP sign-ins of shared accounts (packages/accounts/src/sign-ins.ts): a test's Core must
+// not rewrite the credentials files of its accounts' dirs.
+globalThis[Symbol.for('claudio.accountSignInsOff')] = true;
 
 const made = new Set();
 const track = (dir) => {

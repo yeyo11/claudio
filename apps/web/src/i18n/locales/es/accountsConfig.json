@@ -347,7 +347,8 @@
     "checks": {
       "s1": "Archivo de estado enlazado",
       "s2": "Plugins y ajustes enlazados",
-      "s3c": "Confianza en el proyecto"
+      "s3c": "Confianza en el proyecto",
+      "s6": "Inicios de sesión de MCP"
     },
     "failed": "Esta versión se comporta distinto de lo que las cuentas compartidas necesitan. No se ha cambiado nada: las cuentas siguen funcionando como antes.",
     "needsSignIn": "El CLI no ejecuta algunas comprobaciones sin una cuenta con sesión, y no se ha usado ninguna.",
@@ -355,7 +356,8 @@
     "whenFailed": {
       "s1": "El CLI puede reemplazar un archivo de estado enlazado al escribir.",
       "s2": "Instalar un plugin puede reemplazar una carpeta de plugins o un archivo de ajustes enlazados.",
-      "s3c": "Puede que la confianza en un proyecto ya no se lea de la cuenta."
+      "s3c": "Puede que la confianza en un proyecto ya no se lea de la cuenta.",
+      "s6": "Puede que el CLI ya no acepte un inicio de sesión copiado de otra cuenta, así que las cuentas compartidas no reciben los de MCP de la predeterminada."
     },
     "checkState": {
       "needs-sign-in": "requiere una cuenta con la sesión iniciada",
@@ -417,6 +419,15 @@
       "missing": "no está instalado",
       "differing": "está en otra versión",
       "after": "Claudio los iguala por sí solo."
+    },
+    "signIns": {
+      "lead": "Los inicios de sesión de MCP no coinciden con los de la cuenta predeterminada:",
+      "rotating_one": "necesita su propio inicio de sesión en esta cuenta: se inicia una vez por cuenta.",
+      "rotating_other": "necesitan su propio inicio de sesión en esta cuenta: se inicia una vez por cuenta.",
+      "ownOnly_one": "solo tiene sesión en esta cuenta: inicia sesión en la predeterminada para compartirla.",
+      "ownOnly_other": "solo tienen sesión en esta cuenta: inicia sesión en la predeterminada para compartirlas.",
+      "missing_one": "aún no se ha copiado de la predeterminada: Claudio lo hace cuando esta cuenta esté libre.",
+      "missing_other": "aún no se han copiado de la predeterminada: Claudio lo hace cuando esta cuenta esté libre."
     }
   },
   "configDialog": {

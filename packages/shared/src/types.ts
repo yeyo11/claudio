@@ -7060,6 +7060,24 @@ export interface AccountConfig {
   keptAside: string[];
   /** How the account's installed plugins stand against the default's; empty for an independent account, which is meant to differ */
   plugins: AccountPlugins;
+  /** How the account's MCP sign-ins stand against the default's; empty for an independent account */
+  signIns: AccountSignIns;
+}
+
+/**
+ * The MCP servers whose OAuth sign-in a shared account does not share with the default, by server
+ * name (docs/plans/account-configuration-and-project-rules.md, "S6 follow-up"). Claudio copies the
+ * default's `mcpOAuth` entries into the account's own `.credentials.json` in the background, one way.
+ * `missing`: signed in on the default and copyable, not in place yet (the account has a live chat, or
+ * the CLI canary's `s6` check failed). `rotating`: signed in on the default with a refresh token Claudio
+ * does not copy, because the server rotates it or has not been seen to keep it: it needs a sign-in on
+ * this account. `ownOnly`: signed in on this account and not on the default, so it reaches no other
+ * account until it is signed in on the default.
+ */
+export interface AccountSignIns {
+  missing: string[];
+  ownOnly: string[];
+  rotating: string[];
 }
 
 /**
@@ -7124,12 +7142,13 @@ export interface AccountConfigResult {
 }
 
 /**
- * The three checks of the CLI canary (docs/plans/account-configuration-and-project-rules.md §5, §6.7):
- * `s1` the CLI's rewrite of `.claude.json` keeps a symlink, `s2` a linked `plugins/` and `settings.json`
- * survive a plugin install and update, `s3c` project MCP trust is read from the account's state file
- * in Claudio's own stream-json mode.
+ * The checks of the CLI canary (docs/plans/account-configuration-and-project-rules.md §5, §6.7, S6
+ * follow-up): `s1` the CLI's rewrite of `.claude.json` keeps a symlink, `s2` a linked `plugins/` and
+ * `settings.json` survive a plugin install and update, `s3c` project MCP trust is read from the
+ * account's state file in Claudio's own stream-json mode, `s6` an `mcpOAuth` entry copied into another
+ * config dir under the key Claudio computes is accepted by the CLI (a failure stops the sign-in copies).
  */
-export type CliCanaryCheckId = 's1' | 's2' | 's3c';
+export type CliCanaryCheckId = 's1' | 's2' | 's3c' | 's6';
 
 /**
  * `pass` and `fail` are what the CLI did; `needs-sign-in` is a check the CLI would not run without an
@@ -7145,7 +7164,7 @@ export interface CliCanaryCheck {
   observed: string;
 }
 
-/** What one CLI version did under the canary: all three checks, run together in a temp dir */
+/** What one CLI version did under the canary: every check, run together in a temp dir */
 export interface CliCanary {
   version: string;
   checkedAt: string;

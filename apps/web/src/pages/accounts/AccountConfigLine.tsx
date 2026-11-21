@@ -22,6 +22,21 @@ export function pluginDrift(config: AccountConfig): { id: string; missing: boole
   return [...config.plugins.missing.map((id) => ({ id, missing: true })), ...config.plugins.differing.map((id) => ({ id, missing: false }))];
 }
 
+/**
+ * The MCP servers whose sign-in a shared account does not have, one group per reason and only a
+ * group with servers: nothing for an independent account, which is meant to differ, or when every
+ * list is empty (the common case). `missing` is Claudio's own pending copy, so it comes last.
+ */
+export function signInGroups(config: AccountConfig): { reason: 'rotating' | 'ownOnly' | 'missing'; servers: string[] }[] {
+  if (config.mode !== 'shared') return [];
+  const { rotating, ownOnly, missing } = config.signIns;
+  return [
+    { reason: 'rotating' as const, servers: rotating },
+    { reason: 'ownOnly' as const, servers: ownOnly },
+    { reason: 'missing' as const, servers: missing },
+  ].filter((group) => group.servers.length > 0);
+}
+
 /** What the account holds where the shared item should be, in words: a conflict is read, never diffed */
 function holdsKey(item: AccountConfigItem) {
   switch (item.reason) {
@@ -66,6 +81,7 @@ export function AccountConfigLine({
   // A half-way switch is finished by the same Repair as a missing link: applying the mode again
   const repairable = config.switching !== null || missing.length > 0;
   const plugins = pluginDrift(config);
+  const signIns = signInGroups(config);
 
   return (
     <div className="account-config" data-config-state={config.state}>
@@ -122,6 +138,21 @@ export function AccountConfigLine({
             ))}
             {'. '}
             {t('config.plugins.after')}
+          </span>
+        </p>
+      )}
+      {/* Warn with its icon and word: a server that needs a sign-in here answers 401 until someone signs in */}
+      {signIns.length > 0 && (
+        <p className="account-config-plugins small">
+          <TriangleAlert {...ICON_SM} className="account-config-plugins-icon" aria-hidden />
+          <span>
+            <span className="account-config-plugins-word">{t('config.signIns.lead')}</span>{' '}
+            {signIns.map((group, i) => (
+              <Fragment key={group.reason}>
+                {i > 0 && ' '}
+                <span className="mono">{group.servers.join(', ')}</span> {t(`config.signIns.${group.reason}`, { count: group.servers.length })}
+              </Fragment>
+            ))}
           </span>
         </p>
       )}

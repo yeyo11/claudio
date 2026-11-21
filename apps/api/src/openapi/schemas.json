@@ -1242,6 +1242,10 @@
       "plugins": {
         "$ref": "#/components/schemas/AccountPlugins",
         "description": "How the account's installed plugins stand against the default's; empty for an independent account, which is meant to differ"
+      },
+      "signIns": {
+        "$ref": "#/components/schemas/AccountSignIns",
+        "description": "How the account's MCP sign-ins stand against the default's; empty for an independent account"
       }
     },
     "required": [
@@ -1250,7 +1254,8 @@
       "items",
       "switching",
       "keptAside",
-      "plugins"
+      "plugins",
+      "signIns"
     ],
     "description": "`Account.config` and `GET /accounts/:id/config`."
   },
@@ -1354,6 +1359,35 @@
       "differing"
     ],
     "description": "The plugins of the default account that a shared account runs differently, by `plugin@marketplace` id, read from the install records of both dirs. `missing`: not installed on the account. `differing`: installed at another version. Claudio brings them to the default's with the CLI's own `claude plugin` commands in the background, so a non-empty list usually means a pass is waiting (the account has a live chat) or the last command failed. Only plugins the default has switched on are listed."
+  },
+  "AccountSignIns": {
+    "type": "object",
+    "properties": {
+      "missing": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "ownOnly": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      },
+      "rotating": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
+    "required": [
+      "missing",
+      "ownOnly",
+      "rotating"
+    ],
+    "description": "The MCP servers whose OAuth sign-in a shared account does not share with the default, by server name (docs/plans/account-configuration-and-project-rules.md, \"S6 follow-up\"). Claudio copies the default's `mcpOAuth` entries into the account's own `.credentials.json` in the background, one way. `missing`: signed in on the default and copyable, not in place yet (the account has a live chat, or the CLI canary's `s6` check failed). `rotating`: signed in on the default with a refresh token Claudio does not copy, because the server rotates it or has not been seen to keep it: it needs a sign-in on this account. `ownOnly`: signed in on this account and not on the default, so it reaches no other account until it is signed in on the default."
   },
   "AccountsSettings": {
     "type": "object",
@@ -31651,7 +31685,7 @@
       "state",
       "checks"
     ],
-    "description": "What one CLI version did under the canary: all three checks, run together in a temp dir"
+    "description": "What one CLI version did under the canary: every check, run together in a temp dir"
   },
   "CliCanaryState": {
     "type": "string",
@@ -31688,9 +31722,10 @@
     "enum": [
       "s1",
       "s2",
-      "s3c"
+      "s3c",
+      "s6"
     ],
-    "description": "The three checks of the CLI canary (docs/plans/account-configuration-and-project-rules.md §5, §6.7): `s1` the CLI's rewrite of `.claude.json` keeps a symlink, `s2` a linked `plugins/` and `settings.json` survive a plugin install and update, `s3c` project MCP trust is read from the account's state file in Claudio's own stream-json mode."
+    "description": "The checks of the CLI canary (docs/plans/account-configuration-and-project-rules.md §5, §6.7, S6 follow-up): `s1` the CLI's rewrite of `.claude.json` keeps a symlink, `s2` a linked `plugins/` and `settings.json` survive a plugin install and update, `s3c` project MCP trust is read from the account's state file in Claudio's own stream-json mode, `s6` an `mcpOAuth` entry copied into another config dir under the key Claudio computes is accepted by the CLI (a failure stops the sign-in copies)."
   },
   "CliCanaryStatus": {
     "type": "object",

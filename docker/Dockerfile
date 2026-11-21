@@ -82,7 +82,7 @@ ENV HOME=/home/node \
 # Claude Code, pinned and its installer checksummed exactly as in `runtime` (see there for rotating
 # the digest). There is no in-app CLI install in headless, so no /data/cli overlay on the PATH.
 ARG CLAUDE_CODE_VERSION
-ARG CLAUDE_CODE_INSTALLER_SHA256=3a68d3406cf674e17bed1733a4dcf37805e2e47d87417700007d7e1aa766a944
+ARG CLAUDE_CODE_INSTALLER_SHA256=2c5506d110560bf618bbe88f678f2c2a0047c86a9c6585fc84976120b1de0b44
 RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
  && echo "${CLAUDE_CODE_INSTALLER_SHA256}  /tmp/claude-install.sh" | sha256sum -c - \
  && bash /tmp/claude-install.sh ${CLAUDE_CODE_VERSION} \
@@ -234,7 +234,7 @@ ARG CLAUDE_CODE_VERSION
 # checksum. To rotate, run `curl -fsSL https://claude.ai/install.sh | sha256sum`, read the diff
 # against the script this digest covers, and land the new digest in a commit that says what moved.
 # Override with --build-arg CLAUDE_CODE_INSTALLER_SHA256=<digest> to build ahead of that commit.
-ARG CLAUDE_CODE_INSTALLER_SHA256=3a68d3406cf674e17bed1733a4dcf37805e2e47d87417700007d7e1aa766a944
+ARG CLAUDE_CODE_INSTALLER_SHA256=2c5506d110560bf618bbe88f678f2c2a0047c86a9c6585fc84976120b1de0b44
 RUN curl -fsSL -o /tmp/claude-install.sh https://claude.ai/install.sh \
  && echo "${CLAUDE_CODE_INSTALLER_SHA256}  /tmp/claude-install.sh" | sha256sum -c - \
  && bash /tmp/claude-install.sh ${CLAUDE_CODE_VERSION} \

@@ -1,6 +1,6 @@
 ---
 created_at: 2026-10-17T12:00:00Z
-updated_at: 2026-11-15T16:00:00Z
+updated_at: 2026-11-20T23:00:00Z
 tags:
     - rest-api
     - api
@@ -350,7 +350,7 @@ The Claude accounts of this machine, one config dir (`CLAUDE_CONFIG_DIR`) each, 
 | DELETE | `/accounts/logins/:id` | Cancel a sign-in; an account that never signed in is removed |
 | PATCH | `/accounts/:id` | `{ alias?, enabled? }`; a disabled account is never chosen for new work |
 | DELETE | `/accounts/:id` | Remove an account and its dir; `400` for `default`; `409 account-in-use` with the live chats' ids (`chats`) while one runs on it |
-| GET | `/accounts/canary` | The CLI canary: the installed CLI's `version`, whether it is `running`, and the `result` for that version (`null` until it ran): `state` and three checks, `s1` (a rewrite of `.claude.json` keeps its link), `s2` (a linked `plugins/` and `settings.json` survive an install) and `s3c` (project MCP trust from the state file), each `pass`, `fail`, `needs-sign-in` or `error` with what it `observed`. Runs by itself on a new CLI version, free |
+| GET | `/accounts/canary` | The CLI canary: the installed CLI's `version`, whether it is `running`, and the `result` for that version (`null` until it ran): `state` and four checks, `s1` (a rewrite of `.claude.json` keeps its link), `s2` (a linked `plugins/` and `settings.json` survive an install), `s3c` (project MCP trust from the state file) and `s6` (a copied MCP sign-in entry is accepted), each `pass`, `fail`, `needs-sign-in` or `error` with what it `observed`. Runs by itself on a new CLI version, free |
 | POST | `/accounts/canary/run` | Run it again; answers at once with the status, `409` while one is running |
 | GET | `/accounts/:id/config` | The account's configuration: `mode` (`shared` links the default dir's configuration, `independent` keeps its own), each item's state (`linked`, `missing`, `own`, `absent`, `conflict` with its `reason`, `not-in-default`), `state` (`ok`, `repair`, `conflict`), a `switching` cut short, and the `keptAside` dirs. The same object is `Account.config` in `GET /accounts`; `400` for `default` |
 | GET | `/accounts/:id/config/plan` | `?mode=shared\|independent&start=copy\|empty`: what the switch would do item by item (`copy`, `unlink`, `link`, `replace`, `move-aside`, `keep`, `skip`, `conflict`) and where moved items would go; writes nothing |

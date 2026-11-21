@@ -1,7 +1,7 @@
 import type { CliCanary, CliCanaryCheck, CliCanaryCheckId, CliCanaryState } from './types.ts';
 
 /** The checks every canary run holds, in the order they run */
-export const CANARY_CHECKS: readonly CliCanaryCheckId[] = ['s1', 's2', 's3c'];
+export const CANARY_CHECKS: readonly CliCanaryCheckId[] = ['s1', 's2', 's3c', 's6'];
 
 /** `fail` if any check failed, else the first that could not pass, else `pass` */
 export function canaryState(checks: readonly CliCanaryCheck[]): CliCanaryState {
