@@ -28,7 +28,7 @@
   "devDependencies": {
     "@types/ws": "^8.18.2",
     "esbuild": "^0.28.2",
-    "ts-json-schema-generator": "^2.9.0",
+    "ts-json-schema-generator": "^2.10.0",
     "tsx": "^4.23.15",
     "ws": "^8.23.0"
   }
